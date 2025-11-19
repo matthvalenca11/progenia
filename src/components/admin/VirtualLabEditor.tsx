@@ -28,6 +28,7 @@ export default function VirtualLabEditor() {
   const [loading, setLoading] = useState(false);
   const [lab, setLab] = useState<VirtualLab>({
     name: "",
+    title: "",
     description: "",
     lab_type: "ultrasound",
     config_data: {

@@ -55,7 +55,7 @@ const Profile = () => {
         gamificationService.getUserStats(user.id),
         gamificationService.getUserBadges(user.id),
         progressService.getUserProgress(user.id),
-        progressService.getPointsHistory(user.id, 20),
+        progressService.getPointsHistory(user.id),
       ]);
 
       setStats(statsData);
