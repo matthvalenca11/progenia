@@ -13,9 +13,6 @@ interface ModuleWithProgress {
   id: string;
   title: string;
   description: string | null;
-  category: string | null;
-  difficulty_level: string | null;
-  thumbnail_url: string | null;
   progress: number;
   completed: number;
   total: number;
@@ -39,13 +36,8 @@ export function LearningPath() {
     try {
       const allModules = await moduleService.getPublishedModules();
       
-      // Ordenar por dificuldade e categoria para criar uma trilha lógica
+      // Ordenar por order_index
       const sorted = [...allModules].sort((a, b) => {
-        const difficultyOrder = { "iniciante": 0, "intermediário": 1, "avançado": 2 };
-        const diffA = difficultyOrder[a.difficulty_level as keyof typeof difficultyOrder] || 0;
-        const diffB = difficultyOrder[b.difficulty_level as keyof typeof difficultyOrder] || 0;
-        
-        if (diffA !== diffB) return diffA - diffB;
         return (a.order_index || 0) - (b.order_index || 0);
       });
 
@@ -64,7 +56,9 @@ export function LearningPath() {
           }
 
           return {
-            ...module,
+            id: module.id,
+            title: module.title,
+            description: module.description,
             progress: progressData.percentage,
             completed: progressData.completed,
             total: progressData.total,
@@ -82,31 +76,6 @@ export function LearningPath() {
     }
   };
 
-  const getDifficultyColor = (level: string | null) => {
-    switch (level) {
-      case "iniciante":
-        return "bg-green-500";
-      case "intermediário":
-        return "bg-yellow-500";
-      case "avançado":
-        return "bg-red-500";
-      default:
-        return "bg-gray-500";
-    }
-  };
-
-  const getDifficultyLabel = (level: string | null) => {
-    switch (level) {
-      case "iniciante":
-        return "Iniciante";
-      case "intermediário":
-        return "Intermediário";
-      case "avançado":
-        return "Avançado";
-      default:
-        return "—";
-    }
-  };
 
   if (loading) {
     return (
@@ -184,19 +153,7 @@ export function LearningPath() {
                           </p>
                         )}
                       </div>
-                      <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                        <Badge 
-                          variant="secondary"
-                          className={getDifficultyColor(module.difficulty_level)}
-                        >
-                          {getDifficultyLabel(module.difficulty_level)}
-                        </Badge>
-                        {module.category && (
-                          <Badge variant="outline" className="text-xs">
-                            {module.category}
-                          </Badge>
-                        )}
-                      </div>
+                    </div>
                     </div>
 
                     {/* Progresso */}
