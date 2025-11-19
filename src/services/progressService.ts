@@ -16,7 +16,7 @@ export const progressService = {
     if (error) throw error;
   },
   getUserProgress: async (userId: string) => {
-    return { completedLessons: 0, totalTime: 0 };
+    return [];
   },
   getLessonProgress: async (userId: string, lessonId: string) => {
     const { data } = await supabase

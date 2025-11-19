@@ -1,64 +1,56 @@
 import { supabase } from "@/integrations/supabase/client";
-import { Tables } from "@/integrations/supabase/types";
 
-export type Module = Tables<"modules">;
+export type Module = {
+  id: string;
+  title: string;
+  description: string;
+  is_published: boolean;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ModuleInsert = {
   title: string;
   description: string;
-  category: string;
-  difficulty_level: string;
-  estimated_hours: number;
   order_index?: number;
-  published?: boolean;
-  thumbnail_url?: string;
+  is_published?: boolean;
 };
 
 export const moduleService = {
-  /**
-   * Listar todos os módulos publicados
-   */
-  async getPublishedModules() {
+  async getPublishedModules(): Promise<Module[]> {
     const { data, error } = await supabase
       .from("modules")
       .select("*")
-      .eq("published", true)
+      .eq("is_published", true)
       .order("order_index", { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as Module[];
   },
 
-  /**
-   * Listar todos os módulos (admin)
-   */
-  async getAllModules() {
+  async getAllModules(): Promise<Module[]> {
     const { data, error } = await supabase
       .from("modules")
       .select("*")
       .order("order_index", { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as Module[];
   },
 
-  /**
-   * Obter módulo por ID
-   */
-  async getModuleById(id: string) {
+  async getModuleById(id: string): Promise<Module | null> {
     const { data, error } = await supabase
       .from("modules")
       .select("*")
       .eq("id", id)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
-    return data;
+    return data as Module;
   },
 
-  /**
-   * Criar módulo
-   */
-  async createModule(module: ModuleInsert) {
+  async createModule(module: ModuleInsert): Promise<Module> {
     const { data, error } = await supabase
       .from("modules")
       .insert(module)
@@ -66,13 +58,10 @@ export const moduleService = {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as Module;
   },
 
-  /**
-   * Atualizar módulo
-   */
-  async updateModule(id: string, updates: Partial<Module>) {
+  async updateModule(id: string, updates: Partial<Module>): Promise<Module> {
     const { data, error } = await supabase
       .from("modules")
       .update(updates)
@@ -81,13 +70,10 @@ export const moduleService = {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as Module;
   },
 
-  /**
-   * Deletar módulo
-   */
-  async deleteModule(id: string) {
+  async deleteModule(id: string): Promise<void> {
     const { error } = await supabase
       .from("modules")
       .delete()
@@ -96,10 +82,7 @@ export const moduleService = {
     if (error) throw error;
   },
 
-  /**
-   * Publicar/despublicar módulo
-   */
-  async togglePublish(id: string, published: boolean) {
+  async togglePublish(id: string, published: boolean): Promise<void> {
     const { error } = await supabase
       .from("modules")
       .update({ is_published: published })
@@ -108,10 +91,7 @@ export const moduleService = {
     if (error) throw error;
   },
 
-  /**
-   * Reordenar módulos
-   */
-  async reorderModules(modules: { id: string; order_index: number }[]) {
+  async reorderModules(modules: { id: string; order_index: number }[]): Promise<void> {
     const updates = modules.map((m) =>
       supabase
         .from("modules")
@@ -122,22 +102,17 @@ export const moduleService = {
     await Promise.all(updates);
   },
 
-  /**
-   * Obter estatísticas do módulo
-   */
-  async getModuleStats(moduleId: string) {
-    // Contar aulas do módulo
+  async getModuleStats(moduleId: string): Promise<{ totalLessons: number; publishedLessons: number }> {
     const { count: totalLessons } = await supabase
       .from("lessons")
       .select("*", { count: "exact", head: true })
       .eq("module_id", moduleId);
 
-    // Contar aulas publicadas
     const { count: publishedLessons } = await supabase
       .from("lessons")
       .select("*", { count: "exact", head: true })
       .eq("module_id", moduleId)
-      .eq("published", true);
+      .eq("is_published", true);
 
     return {
       totalLessons: totalLessons || 0,
