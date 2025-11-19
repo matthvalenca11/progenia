@@ -141,13 +141,14 @@ export const authService = {
    */
   async isAdmin(userId: string): Promise<boolean> {
     const { data, error } = await supabase
-      .from("profiles")
-      .select("papel")
-      .eq("id", userId)
-      .single();
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "admin")
+      .maybeSingle();
 
     if (error) return false;
-    return data?.papel === "admin";
+    return !!data;
   },
 
   /**
@@ -155,12 +156,12 @@ export const authService = {
    */
   async getUserRole(userId: string) {
     const { data, error } = await supabase
-      .from("profiles")
-      .select("papel")
-      .eq("id", userId)
-      .single();
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .maybeSingle();
 
-    if (error) throw error;
-    return data?.papel || "aluno";
+    if (error) return null;
+    return data?.role || null;
   },
 };
