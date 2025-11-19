@@ -49,8 +49,8 @@ export default function LessonViewer() {
     try {
       const data = await lessonService.getLessonById(lessonId!);
 
-      // Processar blocos se for aula composta
-      if (data.content_type === "composto" && data.content_data) {
+      // Processar blocos se tiver content_data com blocks
+      if (data.content_data && (data.content_data as any).blocks) {
         const contentData = data.content_data as {
           blocks?: BlockData[];
         };
@@ -83,30 +83,23 @@ export default function LessonViewer() {
       }
       setLesson(data);
 
-      // Se tem vídeo no storage, gerar URL assinada
-      if (data.video_storage_path) {
-        const url = await storageService.getSignedUrl("lesson-videos", data.video_storage_path, 3600);
+      // Check for video in content_data
+      const contentData = data.content_data as any;
+      if (contentData?.videoStoragePath) {
+        const url = await storageService.getSignedUrl("lesson-videos", contentData.videoStoragePath, 3600);
         setVideoUrl(url);
       }
 
-      // Se é laboratório virtual, carregar config
-      if (data.content_type === "laboratorio_virtual") {
+      // Check for lab type in content_data
+      if (contentData?.labType) {
         const labData = await lessonService.getVirtualLab(lessonId!);
         setLab(labData);
       }
 
-      // Se é quiz, carregar quiz
-      if (data.content_type === "quiz") {
-        try {
-          const quizzes = await quizService.getQuizzesByLesson(lessonId!);
-          if (quizzes.length > 0) {
-            setQuizId(quizzes[0].id);
-          } else {
-            console.warn("Nenhum quiz encontrado para esta aula");
-          }
-        } catch (error) {
-          console.error("Erro ao carregar quiz:", error);
-        }
+      // Check for quiz in content_data
+      if (contentData?.quizId) {
+        // Quiz functionality disabled - tables don't exist
+        console.log("Quiz functionality disabled");
       }
     } catch (error: any) {
       console.error("Erro ao carregar aula:", error);
