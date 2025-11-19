@@ -23,7 +23,6 @@ import { UsersManager } from "@/components/admin/UsersManager";
 // import { GamificationManager } from "@/components/admin/GamificationManager"; // Temporariamente desabilitado
 // import { ModulesManager } from "@/components/admin/ModulesManager"; // Temporariamente desabilitado
 import { MediaLibrary } from "@/components/admin/MediaLibrary";
-import CapsulasList from "@/components/admin/CapsulasList";
 import VirtualLabsAdmin from "./VirtualLabsAdmin";
 
 const Admin = () => {
@@ -118,7 +117,9 @@ const Admin = () => {
           </TabsList>
 
           <TabsContent value="capsulas">
-            <CapsulasList />
+            <div className="p-6">
+              <p className="text-muted-foreground">Capsulas feature not yet configured.</p>
+            </div>
           </TabsContent>
 
           <TabsContent value="labs">
