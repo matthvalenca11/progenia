@@ -16,19 +16,14 @@ interface UserProfile {
   institution?: string;
 }
 interface UserStats {
-  total_xp: number;
-  level: number;
   streak_days: number;
-  modules_completed: number;
-  total_time_minutes: number;
+  total_lessons_completed: number;
+  total_time_spent: number;
 }
 interface Module {
   id: string;
   title: string;
   description: string;
-  category: string;
-  difficulty_level: string;
-  thumbnail_url?: string;
 }
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -80,7 +75,7 @@ const Dashboard = () => {
       } = await supabase
         .from("modules")
         .select("*")
-        .eq("published", true)
+        .eq("is_published", true)
         .order("order_index");
       if (modulesData) {
         setModules(modulesData);
@@ -95,9 +90,9 @@ const Dashboard = () => {
           const enrolledModuleIdsArray = Array.from(enrolledModuleIds);
           const { data: lessonsData } = await supabase
             .from("lessons")
-            .select("id,module_id,published")
+            .select("id,module_id,is_published")
             .in("module_id", enrolledModuleIdsArray)
-            .eq("published", true);
+            .eq("is_published", true);
 
           const lessonIds = (lessonsData || []).map((l: any) => l.id);
           if (lessonIds.length > 0) {
@@ -293,10 +288,10 @@ const Dashboard = () => {
           <Card className="p-6">
             <div className="flex items-center justify-between mb-2">
               <Trophy className="h-8 w-8 text-secondary" />
-              <span className="text-2xl font-bold">{stats?.total_xp || 0}</span>
+              <span className="text-2xl font-bold">{stats?.total_lessons_completed || 0}</span>
             </div>
-            <p className="text-sm text-muted-foreground">XP Total</p>
-            <p className="text-xs text-muted-foreground mt-1">Nível {stats?.level || 1}</p>
+            <p className="text-sm text-muted-foreground">Aulas Concluídas</p>
+            <p className="text-xs text-muted-foreground mt-1">Continue aprendendo!</p>
           </Card>
 
           <Card className="p-6">
@@ -320,10 +315,10 @@ const Dashboard = () => {
           <Card className="p-6">
             <div className="flex items-center justify-between mb-2">
               <Clock className="h-8 w-8 text-secondary" />
-              <span className="text-2xl font-bold">{Math.floor((stats?.total_time_minutes || 0) / 60)}</span>
+              <span className="text-2xl font-bold">{stats?.total_time_spent || 0}</span>
             </div>
-            <p className="text-sm text-muted-foreground">Horas de Estudo</p>
-            <p className="text-xs text-muted-foreground mt-1">Este mês</p>
+            <p className="text-sm text-muted-foreground">Minutos de Estudo</p>
+            <p className="text-xs text-muted-foreground mt-1">Continue assim!</p>
           </Card>
         </div>
 
@@ -463,16 +458,11 @@ const Dashboard = () => {
             </Card> : <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {modules.map(module => <Card key={module.id} className="overflow-hidden hover:shadow-xl transition-smooth group cursor-pointer">
                   <div className="h-48 bg-gradient-accent relative overflow-hidden">
-                    {module.thumbnail_url ? <img src={module.thumbnail_url} alt={module.title} className="w-full h-full object-cover" /> : <div className="absolute inset-0 flex items-center justify-center">
-                        <GraduationCap className="h-20 w-20 text-white/30" />
-                      </div>}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <GraduationCap className="h-20 w-20 text-white/30" />
+                    </div>
                   </div>
                   <div className="p-6">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-medium px-2 py-1 rounded-full bg-secondary/10 text-secondary">
-                        {module.category}
-                      </span>
-                    </div>
                     <h3 className="text-xl font-semibold mb-2 group-hover:text-primary transition-smooth">
                       {module.title}
                     </h3>

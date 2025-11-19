@@ -23,10 +23,10 @@ import { enrollmentService } from "@/services/enrollmentService";
 interface Lesson {
   id: string;
   title: string;
-  content_type: string;
-  descricao_curta: string | null;
+  description: string | null;
   order_index: number | null;
-  published: boolean;
+  is_published: boolean;
+  content_data: any;
 }
 
 interface LessonWithProgress extends Lesson {
@@ -83,7 +83,7 @@ export default function ModuleViewer() {
         .from("lessons")
         .select("*")
         .eq("module_id", moduleId)
-        .eq("published", true)
+        .eq("is_published", true)
         .order("order_index", { ascending: true });
 
       if (lessonsError) throw lessonsError;
@@ -384,16 +384,16 @@ export default function ModuleViewer() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <Badge variant="outline" className="flex items-center gap-1">
-                            {getContentTypeIcon(lesson.content_type)}
-                            {getContentTypeLabel(lesson.content_type)}
+                            {getContentTypeIcon(lesson)}
+                            {getContentTypeLabel(lesson)}
                           </Badge>
                         </div>
 
                         <h3 className="font-semibold mb-1">{lesson.title}</h3>
                         
-                        {lesson.descricao_curta && (
+                        {lesson.description && (
                           <p className="text-sm text-muted-foreground line-clamp-2">
-                            {lesson.descricao_curta}
+                            {lesson.description}
                           </p>
                         )}
 

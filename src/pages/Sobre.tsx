@@ -41,18 +41,8 @@ const Sobre = () => {
   }, []);
 
   const loadPartnersAndTeam = async () => {
-    const { data: partnersData } = await supabase
-      .from("partners")
-      .select("*")
-      .order("ordem");
-    
-    const { data: teamData } = await supabase
-      .from("team_members")
-      .select("*")
-      .order("ordem");
-
-    if (partnersData) setPartners(partnersData);
-    if (teamData) setTeam(teamData);
+    // Partners and team_members tables don't exist - skip loading
+    console.log("Partners and team tables not configured");
   };
 
   return (
