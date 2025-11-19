@@ -154,7 +154,6 @@ export function LearningPath() {
                         )}
                       </div>
                     </div>
-                    </div>
 
                     {/* Progresso */}
                     <div className="space-y-2 mt-3">
