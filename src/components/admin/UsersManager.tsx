@@ -109,8 +109,9 @@ export function UsersManager() {
     try {
       const { error } = await supabase
         .from("user_roles")
-        .update({ role: "student" })
-        .eq("user_id", userId);
+        .delete()
+        .eq("user_id", userId)
+        .eq("role", "admin");
 
       if (error) throw error;
 

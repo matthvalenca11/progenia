@@ -16,12 +16,12 @@ import {
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
-import { LessonsManager } from "@/components/admin/LessonsManager";
-import { PartnersManager } from "@/components/admin/PartnersManager";
-import { TeamManager } from "@/components/admin/TeamManager";
+// import { LessonsManager } from "@/components/admin/LessonsManager"; // Temporariamente desabilitado
+// import { PartnersManager } from "@/components/admin/PartnersManager"; // Temporariamente desabilitado
+// import { TeamManager } from "@/components/admin/TeamManager"; // Temporariamente desabilitado
 import { UsersManager } from "@/components/admin/UsersManager";
-import { GamificationManager } from "@/components/admin/GamificationManager";
-import { ModulesManager } from "@/components/admin/ModulesManager";
+// import { GamificationManager } from "@/components/admin/GamificationManager"; // Temporariamente desabilitado
+// import { ModulesManager } from "@/components/admin/ModulesManager"; // Temporariamente desabilitado
 import { MediaLibrary } from "@/components/admin/MediaLibrary";
 import CapsulasList from "@/components/admin/CapsulasList";
 import VirtualLabsAdmin from "./VirtualLabsAdmin";
@@ -98,18 +98,10 @@ const Admin = () => {
       {/* Conteúdo Principal */}
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="modules" className="w-full">
-          <TabsList className="grid w-full grid-cols-9 gap-1">
-            <TabsTrigger value="modules">
-              <BookOpen className="h-4 w-4 mr-2" />
-              Módulos
-            </TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 gap-1">
             <TabsTrigger value="capsulas">
               <BookOpen className="h-4 w-4 mr-2" />
               Cápsulas
-            </TabsTrigger>
-            <TabsTrigger value="lessons">
-              <GraduationCap className="h-4 w-4 mr-2" />
-              Aulas
             </TabsTrigger>
             <TabsTrigger value="labs">
               <FlaskConical className="h-4 w-4 mr-2" />
@@ -119,34 +111,14 @@ const Admin = () => {
               <Beaker className="h-4 w-4 mr-2" />
               Biblioteca
             </TabsTrigger>
-            <TabsTrigger value="team">
-              <UsersRound className="h-4 w-4 mr-2" />
-              Equipe
-            </TabsTrigger>
-            <TabsTrigger value="partners">
-              <Handshake className="h-4 w-4 mr-2" />
-              Parceiros
-            </TabsTrigger>
             <TabsTrigger value="users">
               <Users className="h-4 w-4 mr-2" />
               Usuários
             </TabsTrigger>
-            <TabsTrigger value="gamification">
-              <Award className="h-4 w-4 mr-2" />
-              Gamificação
-            </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="modules">
-            <ModulesManager />
-          </TabsContent>
 
           <TabsContent value="capsulas">
             <CapsulasList />
-          </TabsContent>
-
-          <TabsContent value="lessons">
-            <LessonsManager />
           </TabsContent>
 
           <TabsContent value="labs">
@@ -157,20 +129,8 @@ const Admin = () => {
             <MediaLibrary />
           </TabsContent>
 
-          <TabsContent value="team">
-            <TeamManager />
-          </TabsContent>
-
-          <TabsContent value="partners">
-            <PartnersManager />
-          </TabsContent>
-
           <TabsContent value="users">
             <UsersManager />
-          </TabsContent>
-
-          <TabsContent value="gamification">
-            <GamificationManager />
           </TabsContent>
         </Tabs>
       </div>
