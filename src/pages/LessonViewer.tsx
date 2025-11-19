@@ -18,7 +18,7 @@ import { EletroterapiaLab } from "@/components/labs/EletroterapiaLab";
 import { ThermalLab } from "@/components/labs/ThermalLab";
 import { ElectrotherapyDoseLab } from "@/components/labs/ElectrotherapyDoseLab";
 import { TherapeuticUltrasoundLab } from "@/components/labs/TherapeuticUltrasoundLab";
-import QuizTaker from "@/components/QuizTaker";
+// import QuizTaker from "@/components/QuizTaker"; // Temporariamente desabilitado - tabelas de quiz não existem
 import { toast } from "@/hooks/use-toast";
 export default function LessonViewer() {
   const {
@@ -253,24 +253,18 @@ export default function LessonViewer() {
               {lab.lab_type === "termico_sim" && <ThermalLab config={lab.config_data} />}
             </>}
 
-          {/* Quiz */}
-          {lesson.content_type === "quiz" && <>
-              {quizId ? <QuizTaker quizId={quizId} moduleId={lesson.module_id} onComplete={() => {
-            loadProgress();
-            handleComplete();
-          }} /> : <Card>
-                  <CardContent className="pt-6">
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground">
-                        Este quiz ainda não possui perguntas cadastradas.
-                      </p>
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Entre em contato com o instrutor.
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>}
-            </>}
+          {/* Quiz - Temporariamente desabilitado */}
+          {lesson.content_type === "quiz" && (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">
+                    Sistema de quizzes temporariamente indisponível.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
         </div>
 

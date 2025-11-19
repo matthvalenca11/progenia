@@ -10,7 +10,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   isAdmin: boolean;
-  userRole: "aluno" | "instrutor" | "admin" | null;
+  userRole: string | null;
   profile: any;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (data: { email: string; password: string; full_name: string; institution?: string }) => Promise<void>;
@@ -29,7 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [userRole, setUserRole] = useState<"aluno" | "instrutor" | "admin" | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [profile, setProfile] = useState<any>(null);
 
   useEffect(() => {
