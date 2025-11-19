@@ -14,16 +14,264 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      lesson_progress: {
+        Row: {
+          created_at: string | null
+          data_conclusao: string | null
+          id: string
+          lesson_id: string
+          progress_percentage: number | null
+          status: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          data_conclusao?: string | null
+          id?: string
+          lesson_id: string
+          progress_percentage?: number | null
+          status?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          data_conclusao?: string | null
+          id?: string
+          lesson_id?: string
+          progress_percentage?: number | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_progress_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lessons: {
+        Row: {
+          content_data: Json | null
+          created_at: string | null
+          description: string | null
+          duration_minutes: number | null
+          id: string
+          is_published: boolean | null
+          module_id: string | null
+          order_index: number | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          content_data?: Json | null
+          created_at?: string | null
+          description?: string | null
+          duration_minutes?: number | null
+          id?: string
+          is_published?: boolean | null
+          module_id?: string | null
+          order_index?: number | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          content_data?: Json | null
+          created_at?: string | null
+          description?: string | null
+          duration_minutes?: number | null
+          id?: string
+          is_published?: boolean | null
+          module_id?: string | null
+          order_index?: number | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lessons_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      module_enrollments: {
+        Row: {
+          enrolled_at: string | null
+          id: string
+          module_id: string
+          user_id: string
+        }
+        Insert: {
+          enrolled_at?: string | null
+          id?: string
+          module_id: string
+          user_id: string
+        }
+        Update: {
+          enrolled_at?: string | null
+          id?: string
+          module_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "module_enrollments_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      modules: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          is_published: boolean | null
+          order_index: number | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_published?: boolean | null
+          order_index?: number | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_published?: boolean | null
+          order_index?: number | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          cargo: string | null
+          created_at: string | null
+          descricao: string | null
+          email: string | null
+          full_name: string
+          id: string
+          institution: string | null
+          papel: string | null
+          professional_role: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          cargo?: string | null
+          created_at?: string | null
+          descricao?: string | null
+          email?: string | null
+          full_name: string
+          id: string
+          institution?: string | null
+          papel?: string | null
+          professional_role?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          cargo?: string | null
+          created_at?: string | null
+          descricao?: string | null
+          email?: string | null
+          full_name?: string
+          id?: string
+          institution?: string | null
+          papel?: string | null
+          professional_role?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_stats: {
+        Row: {
+          created_at: string | null
+          id: string
+          last_activity_date: string | null
+          streak_days: number | null
+          total_lessons_completed: number | null
+          total_time_spent: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          last_activity_date?: string | null
+          streak_days?: number | null
+          total_lessons_completed?: number | null
+          total_time_spent?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          last_activity_date?: string | null
+          streak_days?: number | null
+          total_lessons_completed?: number | null
+          total_time_spent?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +398,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+    },
   },
 } as const
