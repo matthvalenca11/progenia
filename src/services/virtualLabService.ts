@@ -1,139 +1,49 @@
-import { supabase } from "@/integrations/supabase/client";
-import { UltrasoundAnatomyPresetId } from "@/types/ultrasoundPresets";
-import { UltrasoundLayerConfig, UltrasoundInclusionConfig } from "@/types/acousticMedia";
-import { UltrasoundSimulationFeatures, ComplexityLevel } from "@/types/ultrasoundAdvanced";
+// Virtual lab service stub - table doesn't exist
+export type VirtualLabType = "ultrasound" | "mri" | "thermal" | "electrotherapy" | "other";
 
-export type VirtualLabType = "ultrasound" | "electrotherapy" | "thermal" | "other";
-
-export type UltrasoundLabControls = {
-  showGain: boolean;
-  showDepth: boolean;
-  showFrequency: boolean;
-  showFocus: boolean;
-};
-
-export type UltrasoundLabConfig = {
-  presetId: UltrasoundAnatomyPresetId;
-  controls: UltrasoundLabControls;
-  initialGain?: number;
-  initialDepth?: number;
-  initialFrequencyMHz?: number;
-  initialFocusCm?: number;
-  // Advanced physics configuration
-  layers?: UltrasoundLayerConfig[];
-  inclusions?: UltrasoundInclusionConfig[];
-  // Simulation features
-  simulationFeatures?: UltrasoundSimulationFeatures;
-  complexityLevel?: ComplexityLevel;
-};
-
-export type VirtualLab = {
+export interface VirtualLab {
   id?: string;
-  name?: string;
+  name: string;
+  title: string;
   description?: string;
   lab_type: VirtualLabType;
-  lesson_id?: string | null;
-  config_data: {
-    ultrasoundConfig?: UltrasoundLabConfig;
-    // Future: electrotherapyConfig, thermalConfig, etc.
-  };
+  config_data: any;
   created_at?: string;
   updated_at?: string;
-};
+}
 
 export const virtualLabService = {
-  /**
-   * Get all virtual labs
-   */
-  async getAllLabs(): Promise<VirtualLab[]> {
-    const { data, error } = await supabase
-      .from("virtual_labs")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
-    return (data || []) as VirtualLab[];
+  getAll: async () => {
+    return [];
   },
-
-  /**
-   * Get lab by ID
-   */
-  async getLabById(id: string): Promise<VirtualLab | null> {
-    const { data, error } = await supabase
-      .from("virtual_labs")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (error) throw error;
-    return data as VirtualLab | null;
+  getAllLabs: async () => {
+    return [];
   },
-
-  /**
-   * Get labs by type
-   */
-  async getLabsByType(type: VirtualLabType): Promise<VirtualLab[]> {
-    const { data, error } = await supabase
-      .from("virtual_labs")
-      .select("*")
-      .eq("lab_type", type)
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
-    return (data || []) as VirtualLab[];
+  getById: async (id: string) => {
+    return null;
   },
-
-  /**
-   * Create new virtual lab
-   */
-  async createLab(lab: Omit<VirtualLab, "id" | "created_at" | "updated_at">): Promise<string> {
-    const { data, error } = await supabase
-      .from("virtual_labs")
-      .insert([lab])
-      .select("id")
-      .single();
-
-    if (error) throw error;
-    return data.id;
+  getLabById: async (id: string) => {
+    return null;
   },
-
-  /**
-   * Update virtual lab
-   */
-  async updateLab(id: string, lab: Partial<VirtualLab>): Promise<void> {
-    const { error } = await supabase
-      .from("virtual_labs")
-      .update({
-        ...lab,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id);
-
-    if (error) throw error;
+  create: async (lab: any) => {
+    throw new Error("Virtual labs table not configured");
   },
-
-  /**
-   * Delete virtual lab
-   */
-  async deleteLab(id: string): Promise<void> {
-    const { error } = await supabase
-      .from("virtual_labs")
-      .delete()
-      .eq("id", id);
-
-    if (error) throw error;
+  createLab: async (lab: any) => {
+    throw new Error("Virtual labs table not configured");
   },
-
-  /**
-   * Get usage count for a lab (how many capsules use it)
-   */
-  async getLabUsageCount(labId: string): Promise<number> {
-    const { count, error } = await supabase
-      .from("capsulas")
-      .select("*", { count: "exact", head: true })
-      .eq("virtual_lab_id", labId);
-
-    if (error) throw error;
-    return count || 0;
+  update: async (id: string, lab: any) => {
+    throw new Error("Virtual labs table not configured");
   },
+  updateLab: async (id: string, lab: any) => {
+    throw new Error("Virtual labs table not configured");
+  },
+  delete: async (id: string) => {
+    throw new Error("Virtual labs table not configured");
+  },
+  deleteLab: async (id: string) => {
+    throw new Error("Virtual labs table not configured");
+  },
+  getLabUsageCount: async (labId: string) => {
+    return 0;
+  }
 };

@@ -102,7 +102,7 @@ export const moduleService = {
   async togglePublish(id: string, published: boolean) {
     const { error } = await supabase
       .from("modules")
-      .update({ published })
+      .update({ is_published: published })
       .eq("id", id);
 
     if (error) throw error;
