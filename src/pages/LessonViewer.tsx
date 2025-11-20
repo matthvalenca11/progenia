@@ -2,23 +2,11 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { lessonService } from "@/services/lessonService";
 import { progressService } from "@/services/progressService";
-import { storageService } from "@/services/storageService";
-import { quizService } from "@/services/quizService";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { ContentBlock, BlockData } from "@/components/lesson/ContentBlock";
-import { ChevronLeft, FileText, Video, CheckCircle2, Download, ExternalLink } from "lucide-react";
-import { MRIViewer } from "@/components/labs/MRIViewer";
-import { UltrasoundSimulator } from "@/components/labs/UltrasoundSimulator";
-import { EletroterapiaLab } from "@/components/labs/EletroterapiaLab";
-import { ThermalLab } from "@/components/labs/ThermalLab";
-import { ElectrotherapyDoseLab } from "@/components/labs/ElectrotherapyDoseLab";
-import { TherapeuticUltrasoundLab } from "@/components/labs/TherapeuticUltrasoundLab";
-// import QuizTaker from "@/components/QuizTaker"; // Temporariamente desabilitado - tabelas de quiz não existem
+import { ChevronLeft, FileText, Video, CheckCircle2, ExternalLink, Beaker, Image as ImageIcon } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 export default function LessonViewer() {
   const {
@@ -32,9 +20,6 @@ export default function LessonViewer() {
   const [lesson, setLesson] = useState<any>(null);
   const [progress, setProgress] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [lab, setLab] = useState<any>(null);
-  const [quizId, setQuizId] = useState<string | null>(null);
   useEffect(() => {
     if (!authLoading && !user) {
       navigate("/auth");
@@ -48,59 +33,7 @@ export default function LessonViewer() {
   const loadLesson = async () => {
     try {
       const data = await lessonService.getLessonById(lessonId!);
-
-      // Processar blocos se tiver content_data com blocks
-      if (data.content_data && (data.content_data as any).blocks) {
-        const contentData = data.content_data as {
-          blocks?: BlockData[];
-        };
-        if (contentData.blocks) {
-          const blocksWithUrls = await Promise.all(contentData.blocks.map(async (block: BlockData) => {
-            const updatedData = {
-              ...block.data
-            };
-
-            // Gerar URL assinada para vídeo do storage
-            if (block.data.videoStoragePath) {
-              const url = await storageService.getSignedUrl("lesson-videos", block.data.videoStoragePath, 3600);
-              updatedData.videoUrl = url;
-            }
-
-            // Gerar URL assinada para imagem do storage
-            if (block.data.imageStoragePath) {
-              const url = await storageService.getSignedUrl("lesson-assets", block.data.imageStoragePath, 3600);
-              updatedData.imageUrl = url;
-            }
-            return {
-              ...block,
-              data: updatedData
-            };
-          }));
-          data.content_data = {
-            blocks: blocksWithUrls
-          };
-        }
-      }
       setLesson(data);
-
-      // Check for video in content_data
-      const contentData = data.content_data as any;
-      if (contentData?.videoStoragePath) {
-        const url = await storageService.getSignedUrl("lesson-videos", contentData.videoStoragePath, 3600);
-        setVideoUrl(url);
-      }
-
-      // Check for lab type in content_data
-      if (contentData?.labType) {
-        const labData = await lessonService.getVirtualLab(lessonId!);
-        setLab(labData);
-      }
-
-      // Check for quiz in content_data
-      if (contentData?.quizId) {
-        // Quiz functionality disabled - tables don't exist
-        console.log("Quiz functionality disabled");
-      }
     } catch (error: any) {
       console.error("Erro ao carregar aula:", error);
       toast({
@@ -143,18 +76,6 @@ export default function LessonViewer() {
       });
     }
   };
-  const downloadAsset = async (asset: any) => {
-    try {
-      const url = await storageService.getSignedUrl("lesson-assets", asset.path, 300);
-      window.open(url, "_blank");
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Erro",
-        description: "Não foi possível baixar o arquivo"
-      });
-    }
-  };
   if (loading) {
     return <div className="container mx-auto py-8">
         <div className="text-center">Carregando aula...</div>
@@ -166,7 +87,10 @@ export default function LessonViewer() {
       </div>;
   }
   const isCompleted = progress?.status === "concluido";
-  const assets = lesson.assets || [];
+  const contentData = lesson.content_data || {};
+  const blocks = contentData.blocks || [];
+  const references = contentData.references || [];
+  const thumbnail = contentData.thumbnail;
   return <div className="container mx-auto py-8 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
@@ -186,79 +110,155 @@ export default function LessonViewer() {
           </Badge>}
       </div>
 
+      {/* Thumbnail */}
+      {thumbnail && (
+        <Card className="overflow-hidden">
+          <img src={thumbnail} alt={lesson.title} className="w-full h-64 object-cover" />
+        </Card>
+      )}
+
       {/* Sobre esta aula */}
-      {lesson.descricao_curta && lesson.content_type !== "quiz" && <Card>
+      {lesson.description && (
+        <Card>
           <CardHeader>
             <CardTitle>Sobre esta aula</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground">{lesson.descricao_curta}</p>
+            <p className="text-muted-foreground">{lesson.description}</p>
           </CardContent>
-        </Card>}
+        </Card>
+      )}
 
       {/* Conteúdo Principal */}
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          {/* Vídeo */}
-          {lesson.content_type === "video" && <Card>
-              <CardContent className="p-0">
-                {videoUrl ? <video controls className="w-full rounded-lg" src={videoUrl}>
-                    Seu navegador não suporta vídeo HTML5.
-                  </video> : lesson.video_external_url ? <div className="aspect-video">
-                    <iframe src={lesson.video_external_url} className="w-full h-full rounded-lg" allowFullScreen />
-                  </div> : <div className="aspect-video flex items-center justify-center bg-muted rounded-lg">
-                    <p className="text-muted-foreground">Vídeo não disponível</p>
-                  </div>}
-              </CardContent>
-            </Card>}
+          {/* Renderizar Blocos de Conteúdo */}
+          {blocks.length > 0 ? (
+            blocks
+              .sort((a: any, b: any) => a.order - b.order)
+              .map((block: any, index: number) => (
+                <Card key={block.id || index}>
+                  <CardContent className="pt-6">
+                    {/* Bloco de Texto */}
+                    {block.type === "text" && (
+                      <div className="prose dark:prose-invert max-w-none whitespace-pre-wrap">
+                        {block.data.content}
+                      </div>
+                    )}
 
-          {/* Artigo */}
-          {lesson.content_type === "artigo" && lesson.conteudo_rich_text && <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Conteúdo
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="prose dark:prose-invert max-w-none" dangerouslySetInnerHTML={{
-              __html: lesson.conteudo_rich_text
-            }} />
-              </CardContent>
-            </Card>}
-          
-          {/* Aula Composta com Blocos */}
-          {lesson.content_type === "composto" && lesson.content_data && <Card>
-              <CardContent className="pt-6 space-y-8">
-                {((lesson.content_data as {
-              blocks?: BlockData[];
-            }).blocks || []).sort((a, b) => a.order - b.order).map(block => <ContentBlock key={block.id} block={block} />)}
-              </CardContent>
-            </Card>}
+                    {/* Bloco de Vídeo */}
+                    {block.type === "video" && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <Video className="h-5 w-5" />
+                          <h3 className="font-semibold">Vídeo</h3>
+                        </div>
+                        {block.data.url ? (
+                          block.data.source === "link" ? (
+                            <div className="aspect-video">
+                              <iframe
+                                src={block.data.url}
+                                className="w-full h-full rounded-lg"
+                                allowFullScreen
+                              />
+                            </div>
+                          ) : (
+                            <video controls className="w-full rounded-lg">
+                              <source src={block.data.url} type="video/mp4" />
+                              <source src={block.data.url} type="video/webm" />
+                              <source src={block.data.url} type="video/ogg" />
+                              Seu navegador não suporta vídeo HTML5.
+                            </video>
+                          )
+                        ) : (
+                          <div className="aspect-video flex items-center justify-center bg-muted rounded-lg">
+                            <p className="text-muted-foreground">Vídeo não disponível</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-          {/* Laboratório Virtual */}
-          {lesson.content_type === "laboratorio_virtual" && lab && <>
-              {lab.lab_type === "mri_viewer" && <MRIViewer config={lab.config_data} />}
-              {lab.lab_type === "ultrassom_simulador" && <UltrasoundSimulator config={lab.config_data} />}
-              {lab.lab_type === "eletroterapia_sim" && <EletroterapiaLab config={lab.config_data} />}
-              {lab.lab_type === "eletroterapia_dose" && <ElectrotherapyDoseLab />}
-              {lab.lab_type === "ultrassom_terapeutico" && <TherapeuticUltrasoundLab />}
-              {lab.lab_type === "termico_sim" && <ThermalLab config={lab.config_data} />}
-            </>}
+                    {/* Bloco de Imagem */}
+                    {block.type === "image" && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <ImageIcon className="h-5 w-5" />
+                          <h3 className="font-semibold">Imagem</h3>
+                        </div>
+                        {block.data.url ? (
+                          <img
+                            src={block.data.url}
+                            alt="Conteúdo da aula"
+                            className="w-full rounded-lg"
+                          />
+                        ) : (
+                          <div className="aspect-video flex items-center justify-center bg-muted rounded-lg">
+                            <p className="text-muted-foreground">Imagem não disponível</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-          {/* Quiz - Temporariamente desabilitado */}
-          {lesson.content_type === "quiz" && (
+                    {/* Bloco de Lab Virtual */}
+                    {block.type === "virtualLab" && block.data.labId && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <Beaker className="h-5 w-5" />
+                          <h3 className="font-semibold">Laboratório Virtual</h3>
+                        </div>
+                        <div className="bg-muted rounded-lg p-8 text-center">
+                          <p className="text-muted-foreground">
+                            Laboratório virtual será carregado aqui
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))
+          ) : (
             <Card>
               <CardContent className="pt-6">
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground">
-                    Sistema de quizzes temporariamente indisponível.
-                  </p>
+                <div className="text-center py-8 text-muted-foreground">
+                  <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>Nenhum conteúdo disponível ainda</p>
                 </div>
               </CardContent>
             </Card>
           )}
 
+          {/* Seção Aprenda Mais / Referências */}
+          {references.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ExternalLink className="h-5 w-5" />
+                  Aprenda Mais
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {references.map((ref: any, index: number) => (
+                  <a
+                    key={ref.id || index}
+                    href={ref.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block p-4 border rounded-lg hover:bg-accent transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <h4 className="font-medium mb-1">{ref.title}</h4>
+                        {ref.description && (
+                          <p className="text-sm text-muted-foreground">{ref.description}</p>
+                        )}
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    </div>
+                  </a>
+                ))}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Sidebar */}
@@ -279,21 +279,19 @@ export default function LessonViewer() {
             </CardContent>
           </Card>
 
-          {/* Materiais Complementares */}
-          {assets.length > 0 && <Card>
+          {/* Info da Aula */}
+          {lesson.duration_minutes && (
+            <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Materiais Complementares</CardTitle>
+                <CardTitle className="text-lg">Informações</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
-                {assets.map((asset: any, index: number) => <Button key={index} variant="outline" className="w-full justify-between" onClick={() => downloadAsset(asset)}>
-                    <span className="flex items-center gap-2">
-                      <Download className="h-4 w-4" />
-                      {asset.name || `Material ${index + 1}`}
-                    </span>
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>)}
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  Duração: <span className="font-medium text-foreground">{lesson.duration_minutes} minutos</span>
+                </p>
               </CardContent>
-            </Card>}
+            </Card>
+          )}
 
           {/* Info da Aula */}
           
