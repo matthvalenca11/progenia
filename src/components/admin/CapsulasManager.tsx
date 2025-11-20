@@ -60,7 +60,9 @@ export function CapsulasManager() {
       let query = supabase.from("capsulas").select("*").order("order_index", { ascending: true });
       
       if (filterModuleId !== "all") {
-        query = query.eq("module_id", filterModuleId);
+        query = filterModuleId === "none" 
+          ? query.is("module_id", null)
+          : query.eq("module_id", filterModuleId);
       }
 
       const { data, error } = await query;
@@ -81,7 +83,7 @@ export function CapsulasManager() {
     setFormData({
       title: "",
       description: "",
-      module_id: "",
+      module_id: "none",
       is_published: false,
       duration_minutes: "",
       thumbnail_url: "",
@@ -93,7 +95,7 @@ export function CapsulasManager() {
       const { error } = await supabase.from("capsulas").insert({
         title: formData.title,
         description: formData.description,
-        module_id: formData.module_id || null,
+        module_id: formData.module_id && formData.module_id !== "none" ? formData.module_id : null,
         is_published: formData.is_published,
         duration_minutes: formData.duration_minutes ? parseInt(formData.duration_minutes) : null,
         thumbnail_url: formData.thumbnail_url || null,
@@ -120,7 +122,7 @@ export function CapsulasManager() {
         .update({
           title: formData.title,
           description: formData.description,
-          module_id: formData.module_id || null,
+          module_id: formData.module_id && formData.module_id !== "none" ? formData.module_id : null,
           is_published: formData.is_published,
           duration_minutes: formData.duration_minutes ? parseInt(formData.duration_minutes) : null,
           thumbnail_url: formData.thumbnail_url || null,
@@ -175,7 +177,7 @@ export function CapsulasManager() {
     setFormData({
       title: capsula.title,
       description: capsula.description || "",
-      module_id: capsula.module_id || "",
+      module_id: capsula.module_id || "none",
       is_published: capsula.is_published,
       duration_minutes: capsula.duration_minutes?.toString() || "",
       thumbnail_url: capsula.thumbnail_url || "",
@@ -244,7 +246,7 @@ export function CapsulasManager() {
                         <SelectValue placeholder="Selecione um módulo" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Sem módulo</SelectItem>
+                        <SelectItem value="none">Sem módulo</SelectItem>
                         {modules.map((module) => (
                           <SelectItem key={module.id} value={module.id}>
                             {module.title}
@@ -300,7 +302,7 @@ export function CapsulasManager() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os módulos</SelectItem>
-                <SelectItem value="">Sem módulo</SelectItem>
+                <SelectItem value="none">Sem módulo</SelectItem>
                 {modules.map((module) => (
                   <SelectItem key={module.id} value={module.id}>
                     {module.title}
@@ -395,7 +397,7 @@ export function CapsulasManager() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sem módulo</SelectItem>
+                  <SelectItem value="none">Sem módulo</SelectItem>
                   {modules.map((module) => (
                     <SelectItem key={module.id} value={module.id}>
                       {module.title}
