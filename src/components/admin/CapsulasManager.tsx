@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Eye, EyeOff, Zap, FileEdit } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ContentEditor } from "./ContentEditor";
+import { CapsuleContentEditor } from "./CapsuleContentEditor";
 
 type Capsula = {
   id: string;
@@ -470,6 +470,16 @@ export function CapsulasManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Content Editor */}
+      {editingContentCapsula && (
+        <CapsuleContentEditor
+          capsulaId={editingContentCapsula.id}
+          open={contentEditorOpen}
+          onOpenChange={setContentEditorOpen}
+          onSave={loadCapsulas}
+        />
+      )}
     </div>
   );
 }
