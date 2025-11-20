@@ -16,8 +16,9 @@ export const UltrasoundSimulator = ({
   title,
   description,
 }: UltrasoundSimulatorProps) => {
-  // Use config or defaults
-  const { showGain, showDepth, showFrequency, showFocus } = config;
+  // Extract controls from config - support both flat and nested structure
+  const controls = (config as any).controls || config;
+  const { showGain = true, showDepth = true, showFrequency = true, showFocus = true } = controls;
 
   // Slider states (0-100 for UI)
   const [gainPercent, setGainPercent] = useState(50);
