@@ -94,15 +94,15 @@ const Admin = () => {
 
       {/* Conteúdo Principal */}
       <div className="container mx-auto px-4 py-8">
-        <Tabs defaultValue="capsulas" className="w-full">
+        <Tabs defaultValue="modules" className="w-full">
           <TabsList className="grid w-full grid-cols-6 gap-1">
-            <TabsTrigger value="capsulas">
-              <Award className="h-4 w-4 mr-2" />
-              Cápsulas
-            </TabsTrigger>
             <TabsTrigger value="modules">
               <BookOpen className="h-4 w-4 mr-2" />
               Módulos
+            </TabsTrigger>
+            <TabsTrigger value="capsulas">
+              <Award className="h-4 w-4 mr-2" />
+              Cápsulas
             </TabsTrigger>
             <TabsTrigger value="lessons">
               <GraduationCap className="h-4 w-4 mr-2" />
