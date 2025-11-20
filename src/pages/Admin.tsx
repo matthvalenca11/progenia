@@ -17,6 +17,7 @@ import {
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
 import { LessonsManager } from "@/components/admin/LessonsManager";
+import { CapsulasManager } from "@/components/admin/CapsulasManager";
 import { UsersManager } from "@/components/admin/UsersManager";
 import { ModulesManager } from "@/components/admin/ModulesManager";
 import { MediaLibrary } from "@/components/admin/MediaLibrary";
@@ -93,8 +94,12 @@ const Admin = () => {
 
       {/* Conteúdo Principal */}
       <div className="container mx-auto px-4 py-8">
-        <Tabs defaultValue="modules" className="w-full">
-          <TabsList className="grid w-full grid-cols-5 gap-1">
+        <Tabs defaultValue="capsulas" className="w-full">
+          <TabsList className="grid w-full grid-cols-6 gap-1">
+            <TabsTrigger value="capsulas">
+              <Award className="h-4 w-4 mr-2" />
+              Cápsulas
+            </TabsTrigger>
             <TabsTrigger value="modules">
               <BookOpen className="h-4 w-4 mr-2" />
               Módulos
@@ -116,6 +121,11 @@ const Admin = () => {
               Usuários
             </TabsTrigger>
           </TabsList>
+
+          {/* Tab: Cápsulas */}
+          <TabsContent value="capsulas" className="mt-6">
+            <CapsulasManager />
+          </TabsContent>
 
           {/* Tab: Módulos */}
           <TabsContent value="modules" className="mt-6">
