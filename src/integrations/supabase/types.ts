@@ -348,6 +348,45 @@ export type Database = {
         }
         Relationships: []
       }
+      virtual_labs: {
+        Row: {
+          config_data: Json | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_published: boolean | null
+          lab_type: string
+          name: string
+          thumbnail_url: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          config_data?: Json | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_published?: boolean | null
+          lab_type: string
+          name: string
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          config_data?: Json | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_published?: boolean | null
+          lab_type?: string
+          name?: string
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

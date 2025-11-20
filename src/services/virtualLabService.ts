@@ -1,4 +1,5 @@
-// Virtual lab service stub - table doesn't exist
+import { supabase } from "@/integrations/supabase/client";
+
 export type VirtualLabType = "ultrasound" | "mri" | "thermal" | "electrotherapy" | "other";
 
 export interface VirtualLab {
@@ -8,42 +9,97 @@ export interface VirtualLab {
   description?: string;
   lab_type: VirtualLabType;
   config_data: any;
+  thumbnail_url?: string;
+  is_published?: boolean;
   created_at?: string;
   updated_at?: string;
 }
 
 export const virtualLabService = {
-  getAll: async () => {
-    return [];
+  getAll: async (): Promise<VirtualLab[]> => {
+    const { data, error } = await supabase
+      .from("virtual_labs")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return (data || []) as VirtualLab[];
   },
-  getAllLabs: async () => {
-    return [];
+
+  getAllLabs: async (): Promise<VirtualLab[]> => {
+    return virtualLabService.getAll();
   },
-  getById: async (id: string) => {
-    return null;
+
+  getById: async (id: string): Promise<VirtualLab | null> => {
+    const { data, error } = await supabase
+      .from("virtual_labs")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error) throw error;
+    return data as VirtualLab;
   },
-  getLabById: async (id: string) => {
-    return null;
+
+  getLabById: async (id: string): Promise<VirtualLab | null> => {
+    return virtualLabService.getById(id);
   },
-  create: async (lab: any) => {
-    throw new Error("Virtual labs table not configured");
+
+  create: async (lab: Omit<VirtualLab, "id" | "created_at" | "updated_at">): Promise<VirtualLab> => {
+    const { data, error } = await supabase
+      .from("virtual_labs")
+      .insert(lab)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as VirtualLab;
   },
-  createLab: async (lab: any) => {
-    throw new Error("Virtual labs table not configured");
+
+  createLab: async (lab: Omit<VirtualLab, "id" | "created_at" | "updated_at">): Promise<VirtualLab> => {
+    return virtualLabService.create(lab);
   },
-  update: async (id: string, lab: any) => {
-    throw new Error("Virtual labs table not configured");
+
+  update: async (id: string, lab: Partial<VirtualLab>): Promise<VirtualLab> => {
+    const { data, error } = await supabase
+      .from("virtual_labs")
+      .update(lab)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as VirtualLab;
   },
-  updateLab: async (id: string, lab: any) => {
-    throw new Error("Virtual labs table not configured");
+
+  updateLab: async (id: string, lab: Partial<VirtualLab>): Promise<VirtualLab> => {
+    return virtualLabService.update(id, lab);
   },
-  delete: async (id: string) => {
-    throw new Error("Virtual labs table not configured");
+
+  delete: async (id: string): Promise<void> => {
+    const { error } = await supabase
+      .from("virtual_labs")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
   },
-  deleteLab: async (id: string) => {
-    throw new Error("Virtual labs table not configured");
+
+  deleteLab: async (id: string): Promise<void> => {
+    return virtualLabService.delete(id);
   },
-  getLabUsageCount: async (labId: string) => {
-    return 0;
+
+  getLabUsageCount: async (labId: string): Promise<number> => {
+    // Count how many lessons reference this lab
+    const { count, error } = await supabase
+      .from("lessons")
+      .select("*", { count: "exact", head: true })
+      .contains("content_data", { blocks: [{ type: "lab", data: { labId } }] });
+
+    if (error) {
+      console.error("Error counting lab usage:", error);
+      return 0;
+    }
+    return count || 0;
   }
 };
