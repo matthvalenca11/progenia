@@ -12,8 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, EyeOff, FileEdit } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { ContentEditor } from "./ContentEditor";
 
 type Lesson = {
   id: string;
@@ -43,6 +44,8 @@ export function LessonsManager() {
   const [deleteLessonId, setDeleteLessonId] = useState<string | null>(null);
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
   const [filterModuleId, setFilterModuleId] = useState<string>("all");
+  const [contentEditorOpen, setContentEditorOpen] = useState(false);
+  const [editingContentLesson, setEditingContentLesson] = useState<Lesson | null>(null);
   const [formData, setFormData] = useState<LessonFormData>({
     title: "",
     description: "",
@@ -322,6 +325,17 @@ export function LessonsManager() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => {
+                            setEditingContentLesson(lesson);
+                            setContentEditorOpen(true);
+                          }}
+                          title="Editar Conteúdo"
+                        >
+                          <FileEdit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => handleTogglePublish(lesson.id, lesson.is_published)}
                         >
                           {lesson.is_published ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -424,6 +438,21 @@ export function LessonsManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Content Editor */}
+      {editingContentLesson && (
+        <ContentEditor
+          open={contentEditorOpen}
+          onClose={() => {
+            setContentEditorOpen(false);
+            setEditingContentLesson(null);
+            loadLessons();
+          }}
+          contentId={editingContentLesson.id}
+          contentType="lesson"
+          initialBlocks={editingContentLesson.content_data?.blocks || []}
+        />
+      )}
     </div>
   );
 }

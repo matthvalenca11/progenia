@@ -12,8 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Eye, EyeOff, Zap } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, EyeOff, Zap, FileEdit } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { ContentEditor } from "./ContentEditor";
 
 type Capsula = {
   id: string;
@@ -45,9 +46,16 @@ export function CapsulasManager() {
   const [deleteCapsulaId, setDeleteCapsulaId] = useState<string | null>(null);
   const [editingCapsula, setEditingCapsula] = useState<Capsula | null>(null);
   const [filterModuleId, setFilterModuleId] = useState<string>("all");
+  const [contentEditorOpen, setContentEditorOpen] = useState(false);
+  const [editingContentCapsula, setEditingContentCapsula] = useState<Capsula | null>(null);
   const [formData, setFormData] = useState<CapsulaFormData>({
     title: "",
     description: "",
+    module_id: "none",
+    is_published: false,
+    duration_minutes: "",
+    thumbnail_url: "",
+  });
     module_id: "",
     is_published: false,
     duration_minutes: "",
@@ -342,6 +350,17 @@ export function CapsulasManager() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setEditingContentCapsula(capsula);
+                            setContentEditorOpen(true);
+                          }}
+                          title="Editar Conteúdo"
+                        >
+                          <FileEdit className="h-4 w-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
