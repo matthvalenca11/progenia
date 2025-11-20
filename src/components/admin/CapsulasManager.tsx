@@ -56,11 +56,6 @@ export function CapsulasManager() {
     duration_minutes: "",
     thumbnail_url: "",
   });
-    module_id: "",
-    is_published: false,
-    duration_minutes: "",
-    thumbnail_url: "",
-  });
 
   const loadCapsulas = async () => {
     try {
