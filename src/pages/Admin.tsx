@@ -16,12 +16,9 @@ import {
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
-// import { LessonsManager } from "@/components/admin/LessonsManager"; // Temporariamente desabilitado
-// import { PartnersManager } from "@/components/admin/PartnersManager"; // Temporariamente desabilitado
-// import { TeamManager } from "@/components/admin/TeamManager"; // Temporariamente desabilitado
+import { LessonsManager } from "@/components/admin/LessonsManager";
 import { UsersManager } from "@/components/admin/UsersManager";
-// import { GamificationManager } from "@/components/admin/GamificationManager"; // Temporariamente desabilitado
-// import { ModulesManager } from "@/components/admin/ModulesManager"; // Temporariamente desabilitado
+import { ModulesManager } from "@/components/admin/ModulesManager";
 import { MediaLibrary } from "@/components/admin/MediaLibrary";
 import VirtualLabsAdmin from "./VirtualLabsAdmin";
 
@@ -97,10 +94,14 @@ const Admin = () => {
       {/* Conteúdo Principal */}
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="modules" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 gap-1">
-            <TabsTrigger value="capsulas">
+          <TabsList className="grid w-full grid-cols-5 gap-1">
+            <TabsTrigger value="modules">
               <BookOpen className="h-4 w-4 mr-2" />
-              Cápsulas
+              Módulos
+            </TabsTrigger>
+            <TabsTrigger value="lessons">
+              <GraduationCap className="h-4 w-4 mr-2" />
+              Aulas
             </TabsTrigger>
             <TabsTrigger value="labs">
               <FlaskConical className="h-4 w-4 mr-2" />
@@ -116,21 +117,28 @@ const Admin = () => {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="capsulas">
-            <div className="p-6">
-              <p className="text-muted-foreground">Capsulas feature not yet configured.</p>
-            </div>
+          {/* Tab: Módulos */}
+          <TabsContent value="modules" className="mt-6">
+            <ModulesManager />
           </TabsContent>
 
-          <TabsContent value="labs">
+          {/* Tab: Aulas */}
+          <TabsContent value="lessons" className="mt-6">
+            <LessonsManager />
+          </TabsContent>
+
+          {/* Tab: Labs Virtuais */}
+          <TabsContent value="labs" className="mt-6">
             <VirtualLabsAdmin />
           </TabsContent>
 
-          <TabsContent value="media">
+          {/* Tab: Biblioteca de Mídia */}
+          <TabsContent value="media" className="mt-6">
             <MediaLibrary />
           </TabsContent>
 
-          <TabsContent value="users">
+          {/* Tab: Usuários */}
+          <TabsContent value="users" className="mt-6">
             <UsersManager />
           </TabsContent>
         </Tabs>
