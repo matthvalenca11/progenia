@@ -138,6 +138,45 @@ export type Database = {
           },
         ]
       }
+      email_settings: {
+        Row: {
+          created_at: string | null
+          default_from_email: string | null
+          id: string
+          reset_body_intro: string | null
+          reset_from_email: string | null
+          reset_subject: string | null
+          updated_at: string | null
+          verification_body_intro: string | null
+          verification_from_email: string | null
+          verification_subject: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          default_from_email?: string | null
+          id?: string
+          reset_body_intro?: string | null
+          reset_from_email?: string | null
+          reset_subject?: string | null
+          updated_at?: string | null
+          verification_body_intro?: string | null
+          verification_from_email?: string | null
+          verification_subject?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          default_from_email?: string | null
+          id?: string
+          reset_body_intro?: string | null
+          reset_from_email?: string | null
+          reset_subject?: string | null
+          updated_at?: string | null
+          verification_body_intro?: string | null
+          verification_from_email?: string | null
+          verification_subject?: string | null
+        }
+        Relationships: []
+      }
       lesson_progress: {
         Row: {
           created_at: string | null
@@ -292,12 +331,17 @@ export type Database = {
           created_at: string | null
           descricao: string | null
           email: string | null
+          email_verified: boolean | null
           full_name: string
           id: string
           institution: string | null
           papel: string | null
+          password_reset_expires_at: string | null
+          password_reset_token: string | null
           professional_role: string | null
           updated_at: string | null
+          verification_expires_at: string | null
+          verification_token: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -305,12 +349,17 @@ export type Database = {
           created_at?: string | null
           descricao?: string | null
           email?: string | null
+          email_verified?: boolean | null
           full_name: string
           id: string
           institution?: string | null
           papel?: string | null
+          password_reset_expires_at?: string | null
+          password_reset_token?: string | null
           professional_role?: string | null
           updated_at?: string | null
+          verification_expires_at?: string | null
+          verification_token?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -318,12 +367,17 @@ export type Database = {
           created_at?: string | null
           descricao?: string | null
           email?: string | null
+          email_verified?: boolean | null
           full_name?: string
           id?: string
           institution?: string | null
           papel?: string | null
+          password_reset_expires_at?: string | null
+          password_reset_token?: string | null
           professional_role?: string | null
           updated_at?: string | null
+          verification_expires_at?: string | null
+          verification_token?: string | null
         }
         Relationships: []
       }

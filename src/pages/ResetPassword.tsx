@@ -28,17 +28,19 @@ const ResetPassword = () => {
   const [hasSession, setHasSession] = useState(false);
 
   useEffect(() => {
-    // Check if user has a valid recovery session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setHasSession(true);
-      } else {
-        toast.error("Link inválido ou expirado", {
-          description: "Por favor, solicite um novo link de recuperação.",
-        });
-        setTimeout(() => navigate("/forgot-password"), 2000);
-      }
-    });
+    // For custom token-based reset, we don't need a Supabase session
+    // Just check if we have a token in the URL
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    
+    if (token) {
+      setHasSession(true);
+    } else {
+      toast.error("Link inválido ou expirado", {
+        description: "Por favor, solicite um novo link de recuperação.",
+      });
+      setTimeout(() => navigate("/forgot-password"), 2000);
+    }
   }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -48,13 +50,23 @@ const ResetPassword = () => {
       const validated = passwordSchema.parse({ password, confirmPassword });
       setLoading(true);
 
-      const { error } = await supabase.auth.updateUser({
-        password: validated.password,
+      // Get token from URL
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+
+      if (!token) {
+        toast.error("Token inválido");
+        return;
+      }
+
+      // Use our custom edge function
+      const { data, error } = await supabase.functions.invoke('reset-password', {
+        body: { token, newPassword: validated.password },
       });
 
-      if (error) {
+      if (error || data?.error) {
         toast.error("Erro ao redefinir senha", {
-          description: error.message,
+          description: error?.message || data?.error || "Tente novamente",
         });
       } else {
         toast.success("Senha redefinida com sucesso!", {
