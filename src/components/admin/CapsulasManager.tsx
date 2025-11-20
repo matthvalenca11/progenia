@@ -674,21 +674,28 @@ export function CapsulasManager() {
                             </div>
                           </CardHeader>
                           <CardContent>
-                            <Select
-                              value={formData.virtualLabId}
-                              onValueChange={(value) => setFormData({ ...formData, virtualLabId: value })}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecione um lab virtual" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {virtualLabs.map((lab) => (
-                                  <SelectItem key={lab.id} value={lab.id!}>
-                                    {lab.title}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            {virtualLabs.length === 0 ? (
+                              <div className="text-sm text-muted-foreground p-4 bg-muted/50 rounded-md">
+                                <p>Nenhum lab virtual publicado disponível.</p>
+                                <p className="mt-1">Vá para a aba "Labs Virtuais" para criar e publicar labs.</p>
+                              </div>
+                            ) : (
+                              <Select
+                                value={formData.virtualLabId}
+                                onValueChange={(value) => setFormData({ ...formData, virtualLabId: value })}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecione um lab virtual" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {virtualLabs.map((lab) => (
+                                    <SelectItem key={lab.id} value={lab.id!}>
+                                      {lab.title}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
                           </CardContent>
                         </Card>
                       )}
