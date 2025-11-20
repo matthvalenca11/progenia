@@ -11,10 +11,13 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FileUploadField } from "@/components/ui/FileUploadField";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Eye, EyeOff, Zap, FileEdit } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, EyeOff, Zap, Link as LinkIcon, Upload, Loader2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { CapsuleContentEditor } from "./CapsuleContentEditor";
+import { storageService } from "@/services/storageService";
+import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
 
 type Capsula = {
   id: string;
@@ -28,6 +31,19 @@ type Capsula = {
   content_data: any;
 };
 
+interface MediaItem {
+  type: "video" | "image";
+  source: "upload" | "link";
+  url?: string;
+  file?: File;
+}
+
+interface QuizQuestion {
+  question: string;
+  options: string[];
+  correctAnswer: number;
+}
+
 type CapsulaFormData = {
   title: string;
   description: string;
@@ -35,19 +51,24 @@ type CapsulaFormData = {
   is_published: boolean;
   duration_minutes: string;
   thumbnail_url: string;
+  thumbnailSource: "upload" | "link";
+  thumbnailFile: File | null;
+  contentText: string;
+  media: MediaItem[];
+  virtualLabId: string;
+  quiz: QuizQuestion[];
 };
 
 export function CapsulasManager() {
   const { modules } = useModules(true);
   const [capsulas, setCapsulas] = useState<Capsula[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteCapsulaId, setDeleteCapsulaId] = useState<string | null>(null);
   const [editingCapsula, setEditingCapsula] = useState<Capsula | null>(null);
   const [filterModuleId, setFilterModuleId] = useState<string>("all");
-  const [contentEditorOpen, setContentEditorOpen] = useState(false);
-  const [editingContentCapsula, setEditingContentCapsula] = useState<Capsula | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [virtualLabs, setVirtualLabs] = useState<VirtualLab[]>([]);
   const [formData, setFormData] = useState<CapsulaFormData>({
     title: "",
     description: "",
@@ -55,6 +76,12 @@ export function CapsulasManager() {
     is_published: false,
     duration_minutes: "",
     thumbnail_url: "",
+    thumbnailSource: "link",
+    thumbnailFile: null,
+    contentText: "",
+    media: [],
+    virtualLabId: "none",
+    quiz: [],
   });
 
   const loadCapsulas = async () => {
@@ -82,6 +109,19 @@ export function CapsulasManager() {
     loadCapsulas();
   }, [filterModuleId]);
 
+  useEffect(() => {
+    loadVirtualLabs();
+  }, []);
+
+  const loadVirtualLabs = async () => {
+    try {
+      const labs = await virtualLabService.getAll();
+      setVirtualLabs(labs.filter(lab => lab.is_published));
+    } catch (error: any) {
+      console.error("Erro ao carregar labs:", error);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       title: "",
@@ -90,29 +130,107 @@ export function CapsulasManager() {
       is_published: false,
       duration_minutes: "",
       thumbnail_url: "",
+      thumbnailSource: "link",
+      thumbnailFile: null,
+      contentText: "",
+      media: [],
+      virtualLabId: "none",
+      quiz: [],
     });
+  };
+
+  const uploadMedia = async (media: MediaItem, capsulaId: string): Promise<string> => {
+    if (media.source === "link") {
+      return media.url || "";
+    }
+
+    if (!media.file) {
+      throw new Error("Arquivo não encontrado");
+    }
+
+    const bucket = media.type === "video" ? "lesson-videos" : "lesson-assets";
+    const fileName = storageService.generateUniqueFileName(media.file.name);
+    const path = `capsulas/${capsulaId}/${fileName}`;
+
+    const result = await storageService.uploadFile({
+      bucket,
+      path,
+      file: media.file,
+    });
+
+    return storageService.getPublicUrl(bucket, result.path);
   };
 
   const handleCreate = async () => {
     try {
-      const { error } = await supabase.from("capsulas").insert({
-        title: formData.title,
-        description: formData.description,
-        module_id: formData.module_id && formData.module_id !== "none" ? formData.module_id : null,
-        is_published: formData.is_published,
-        duration_minutes: formData.duration_minutes ? parseInt(formData.duration_minutes) : null,
-        thumbnail_url: formData.thumbnail_url || null,
-        content_data: { blocks: [] },
-      });
+      setSaving(true);
 
-      if (error) throw error;
+      // Criar cápsula primeiro para obter o ID
+      const { data: newCapsula, error: createError } = await supabase
+        .from("capsulas")
+        .insert({
+          title: formData.title,
+          description: formData.description,
+          module_id: formData.module_id && formData.module_id !== "none" ? formData.module_id : null,
+          is_published: formData.is_published,
+          duration_minutes: formData.duration_minutes ? parseInt(formData.duration_minutes) : null,
+          thumbnail_url: null,
+          content_data: { blocks: [] },
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+      const capsulaId = newCapsula.id;
+
+      // Upload de mídia
+      const mediaWithUrls = await Promise.all(
+        formData.media.map(async (media) => {
+          const url = await uploadMedia(media, capsulaId);
+          return { type: media.type, url };
+        })
+      );
+
+      // Upload de thumbnail se necessário
+      let finalThumbnailUrl = formData.thumbnail_url;
+      if (formData.thumbnailSource === "upload" && formData.thumbnailFile) {
+        const fileName = storageService.generateUniqueFileName(formData.thumbnailFile.name);
+        const path = `capsulas/${capsulaId}/thumbnail_${fileName}`;
+        const result = await storageService.uploadFile({
+          bucket: "lesson-assets",
+          path,
+          file: formData.thumbnailFile,
+        });
+        finalThumbnailUrl = storageService.getPublicUrl("lesson-assets", result.path);
+      }
+
+      // Atualizar com conteúdo e thumbnail
+      const contentToSave: any = {
+        text: formData.contentText,
+        media: mediaWithUrls,
+        virtualLabId: formData.virtualLabId !== "none" ? formData.virtualLabId : undefined,
+        quiz: formData.quiz.length > 0 ? formData.quiz : undefined,
+      };
+
+      const { error: updateError } = await supabase
+        .from("capsulas")
+        .update({
+          content_data: contentToSave,
+          thumbnail_url: finalThumbnailUrl || null,
+        })
+        .eq("id", capsulaId);
+
+      if (updateError) throw updateError;
 
       toast.success("Cápsula criada com sucesso!");
-      setIsCreateOpen(false);
+      setIsDialogOpen(false);
       resetForm();
+      setEditingCapsula(null);
       loadCapsulas();
     } catch (error: any) {
       toast.error("Erro ao criar cápsula: " + error.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -120,6 +238,37 @@ export function CapsulasManager() {
     if (!editingCapsula) return;
 
     try {
+      setSaving(true);
+
+      // Upload de mídia
+      const mediaWithUrls = await Promise.all(
+        formData.media.map(async (media) => {
+          const url = await uploadMedia(media, editingCapsula.id);
+          return { type: media.type, url };
+        })
+      );
+
+      // Upload de thumbnail se necessário
+      let finalThumbnailUrl = formData.thumbnail_url;
+      if (formData.thumbnailSource === "upload" && formData.thumbnailFile) {
+        const fileName = storageService.generateUniqueFileName(formData.thumbnailFile.name);
+        const path = `capsulas/${editingCapsula.id}/thumbnail_${fileName}`;
+        const result = await storageService.uploadFile({
+          bucket: "lesson-assets",
+          path,
+          file: formData.thumbnailFile,
+        });
+        finalThumbnailUrl = storageService.getPublicUrl("lesson-assets", result.path);
+      }
+
+      // Atualizar cápsula
+      const contentToSave: any = {
+        text: formData.contentText,
+        media: mediaWithUrls,
+        virtualLabId: formData.virtualLabId !== "none" ? formData.virtualLabId : undefined,
+        quiz: formData.quiz.length > 0 ? formData.quiz : undefined,
+      };
+
       const { error } = await supabase
         .from("capsulas")
         .update({
@@ -128,19 +277,22 @@ export function CapsulasManager() {
           module_id: formData.module_id && formData.module_id !== "none" ? formData.module_id : null,
           is_published: formData.is_published,
           duration_minutes: formData.duration_minutes ? parseInt(formData.duration_minutes) : null,
-          thumbnail_url: formData.thumbnail_url || null,
+          thumbnail_url: finalThumbnailUrl || null,
+          content_data: contentToSave,
         })
         .eq("id", editingCapsula.id);
 
       if (error) throw error;
 
       toast.success("Cápsula atualizada com sucesso!");
-      setIsEditOpen(false);
+      setIsDialogOpen(false);
       setEditingCapsula(null);
       resetForm();
       loadCapsulas();
     } catch (error: any) {
       toast.error("Erro ao atualizar cápsula: " + error.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -175,8 +327,15 @@ export function CapsulasManager() {
     }
   };
 
+  const openCreateDialog = () => {
+    resetForm();
+    setEditingCapsula(null);
+    setIsDialogOpen(true);
+  };
+
   const openEditDialog = (capsula: Capsula) => {
     setEditingCapsula(capsula);
+    const contentData = capsula.content_data as any || {};
     setFormData({
       title: capsula.title,
       description: capsula.description || "",
@@ -184,14 +343,69 @@ export function CapsulasManager() {
       is_published: capsula.is_published,
       duration_minutes: capsula.duration_minutes?.toString() || "",
       thumbnail_url: capsula.thumbnail_url || "",
+      thumbnailSource: "link",
+      thumbnailFile: null,
+      contentText: contentData.text || "",
+      media: contentData.media || [],
+      virtualLabId: contentData.virtualLabId || "none",
+      quiz: contentData.quiz || [],
     });
-    setIsEditOpen(true);
+    setIsDialogOpen(true);
   };
 
   const getModuleName = (moduleId: string | null) => {
     if (!moduleId) return "Sem módulo";
     const module = modules.find((m) => m.id === moduleId);
     return module?.title || "Módulo não encontrado";
+  };
+
+  const handleAddMedia = (type: "video" | "image") => {
+    setFormData({
+      ...formData,
+      media: [...formData.media, { type, source: "link" }],
+    });
+  };
+
+  const handleRemoveMedia = (index: number) => {
+    setFormData({
+      ...formData,
+      media: formData.media.filter((_, i) => i !== index),
+    });
+  };
+
+  const handleMediaChange = (index: number, updates: Partial<MediaItem>) => {
+    const newMedia = [...formData.media];
+    newMedia[index] = { ...newMedia[index], ...updates };
+    setFormData({ ...formData, media: newMedia });
+  };
+
+  const handleAddQuizQuestion = () => {
+    setFormData({
+      ...formData,
+      quiz: [
+        ...formData.quiz,
+        { question: "", options: ["", "", "", ""], correctAnswer: 0 },
+      ],
+    });
+  };
+
+  const handleRemoveQuizQuestion = (index: number) => {
+    setFormData({
+      ...formData,
+      quiz: formData.quiz.filter((_, i) => i !== index),
+    });
+  };
+
+  const handleQuizQuestionChange = (index: number, field: string, value: any) => {
+    const newQuiz = [...formData.quiz];
+    newQuiz[index] = { ...newQuiz[index], [field]: value };
+    setFormData({ ...formData, quiz: newQuiz });
+  };
+
+  const handleQuizOptionChange = (qIndex: number, oIndex: number, value: string) => {
+    const newQuiz = [...formData.quiz];
+    newQuiz[qIndex].options[oIndex] = value;
+    setFormData({ ...formData, quiz: newQuiz });
   };
 
   if (loading) {
@@ -210,87 +424,321 @@ export function CapsulasManager() {
               </CardTitle>
               <CardDescription>Conteúdos curtos e rápidos para aprendizado dinâmico</CardDescription>
             </div>
-            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button onClick={resetForm}>
+                <Button onClick={openCreateDialog}>
                   <Plus className="h-4 w-4 mr-2" />
                   Nova Cápsula
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Criar Nova Cápsula</DialogTitle>
-                  <DialogDescription>Preencha as informações da cápsula</DialogDescription>
+                  <DialogTitle>{editingCapsula ? "Editar Cápsula" : "Criar Nova Cápsula"}</DialogTitle>
+                  <DialogDescription>
+                    Preencha as informações e conteúdo da cápsula
+                  </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="title">Título</Label>
-                    <Input
-                      id="title"
-                      value={formData.title}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      placeholder="Nome da cápsula"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="description">Descrição</Label>
-                    <Textarea
-                      id="description"
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      placeholder="Descrição breve"
-                      rows={2}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="module">Módulo (opcional)</Label>
-                    <Select value={formData.module_id} onValueChange={(value) => setFormData({ ...formData, module_id: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um módulo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Sem módulo</SelectItem>
-                        {modules.map((module) => (
-                          <SelectItem key={module.id} value={module.id}>
-                            {module.title}
-                          </SelectItem>
+
+                <Tabs defaultValue="basic" className="w-full">
+                  <TabsList className="grid w-full grid-cols-6">
+                    <TabsTrigger value="basic">Básico</TabsTrigger>
+                    <TabsTrigger value="text">Texto</TabsTrigger>
+                    <TabsTrigger value="media">Mídia</TabsTrigger>
+                    <TabsTrigger value="thumbnail">Thumbnail</TabsTrigger>
+                    <TabsTrigger value="lab">Lab Virtual</TabsTrigger>
+                    <TabsTrigger value="quiz">Mini Quiz</TabsTrigger>
+                  </TabsList>
+
+                  {/* Tab Básico */}
+                  <TabsContent value="basic" className="space-y-4 mt-4">
+                    <div>
+                      <Label htmlFor="title">Título</Label>
+                      <Input
+                        id="title"
+                        value={formData.title}
+                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                        placeholder="Nome da cápsula"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="description">Descrição</Label>
+                      <Textarea
+                        id="description"
+                        value={formData.description}
+                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        placeholder="Descrição breve"
+                        rows={2}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="module">Módulo (opcional)</Label>
+                      <Select value={formData.module_id} onValueChange={(value) => setFormData({ ...formData, module_id: value })}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um módulo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Sem módulo</SelectItem>
+                          {modules.map((module) => (
+                            <SelectItem key={module.id} value={module.id}>
+                              {module.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="duration">Duração (minutos)</Label>
+                      <Input
+                        id="duration"
+                        type="number"
+                        value={formData.duration_minutes}
+                        onChange={(e) => setFormData({ ...formData, duration_minutes: e.target.value })}
+                        placeholder="5-10"
+                      />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="published"
+                        checked={formData.is_published}
+                        onCheckedChange={(checked) => setFormData({ ...formData, is_published: checked })}
+                      />
+                      <Label htmlFor="published">Publicar imediatamente</Label>
+                    </div>
+                  </TabsContent>
+
+                  {/* Tab Texto */}
+                  <TabsContent value="text" className="space-y-4 mt-4">
+                    <div>
+                      <Label htmlFor="text">Conteúdo de Texto</Label>
+                      <Textarea
+                        id="text"
+                        value={formData.contentText}
+                        onChange={(e) => setFormData({ ...formData, contentText: e.target.value })}
+                        placeholder="Digite o conteúdo da cápsula..."
+                        rows={10}
+                        className="mt-2"
+                      />
+                    </div>
+                  </TabsContent>
+
+                  {/* Tab Mídia */}
+                  <TabsContent value="media" className="space-y-4 mt-4">
+                    <div className="flex justify-between items-center">
+                      <Label>Vídeos e Imagens</Label>
+                      <div className="space-x-2">
+                        <Button type="button" variant="outline" size="sm" onClick={() => handleAddMedia("video")}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Adicionar Vídeo
+                        </Button>
+                        <Button type="button" variant="outline" size="sm" onClick={() => handleAddMedia("image")}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Adicionar Imagem
+                        </Button>
+                      </div>
+                    </div>
+
+                    {formData.media.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-8">
+                        Nenhuma mídia adicionada ainda
+                      </p>
+                    ) : (
+                      <div className="space-y-4">
+                        {formData.media.map((media, index) => (
+                          <div key={index} className="border rounded-lg p-4 space-y-3">
+                            <div className="flex justify-between items-center">
+                              <Label className="capitalize">{media.type === "video" ? "Vídeo" : "Imagem"}</Label>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveMedia(index)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+
+                            <Tabs
+                              value={media.source}
+                              onValueChange={(value) =>
+                                handleMediaChange(index, { source: value as "upload" | "link" })
+                              }
+                            >
+                              <TabsList className="grid w-full grid-cols-2">
+                                <TabsTrigger value="link">
+                                  <LinkIcon className="h-4 w-4 mr-2" />
+                                  Link
+                                </TabsTrigger>
+                                <TabsTrigger value="upload">
+                                  <Upload className="h-4 w-4 mr-2" />
+                                  Upload
+                                </TabsTrigger>
+                              </TabsList>
+
+                              <TabsContent value="link">
+                                <Input
+                                  placeholder={`URL do ${media.type === "video" ? "vídeo" : "imagem"}`}
+                                  value={media.url || ""}
+                                  onChange={(e) => handleMediaChange(index, { url: e.target.value })}
+                                />
+                              </TabsContent>
+
+                              <TabsContent value="upload">
+                                <FileUploadField
+                                  accept={media.type === "video" ? "video/*" : "image/*"}
+                                  maxSize={media.type === "video" ? 100 : 10}
+                                  onFilesSelected={(files) => handleMediaChange(index, { file: files[0] })}
+                                  label={`Selecione o ${media.type === "video" ? "vídeo" : "imagem"}`}
+                                />
+                              </TabsContent>
+                            </Tabs>
+                          </div>
                         ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="duration">Duração (minutos)</Label>
-                    <Input
-                      id="duration"
-                      type="number"
-                      value={formData.duration_minutes}
-                      onChange={(e) => setFormData({ ...formData, duration_minutes: e.target.value })}
-                      placeholder="5-10"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="thumbnail">URL da Thumbnail</Label>
-                    <Input
-                      id="thumbnail"
-                      value={formData.thumbnail_url}
-                      onChange={(e) => setFormData({ ...formData, thumbnail_url: e.target.value })}
-                      placeholder="https://..."
-                    />
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="published"
-                      checked={formData.is_published}
-                      onCheckedChange={(checked) => setFormData({ ...formData, is_published: checked })}
-                    />
-                    <Label htmlFor="published">Publicar imediatamente</Label>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  {/* Tab Thumbnail */}
+                  <TabsContent value="thumbnail" className="space-y-4 mt-4">
+                    <Label>Thumbnail da Cápsula</Label>
+                    <Tabs 
+                      value={formData.thumbnailSource} 
+                      onValueChange={(v) => setFormData({ ...formData, thumbnailSource: v as "upload" | "link" })}
+                    >
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="link">
+                          <LinkIcon className="h-4 w-4 mr-2" />
+                          Link
+                        </TabsTrigger>
+                        <TabsTrigger value="upload">
+                          <Upload className="h-4 w-4 mr-2" />
+                          Upload
+                        </TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="link">
+                        <Input
+                          placeholder="URL da thumbnail"
+                          value={formData.thumbnail_url}
+                          onChange={(e) => setFormData({ ...formData, thumbnail_url: e.target.value })}
+                        />
+                      </TabsContent>
+
+                      <TabsContent value="upload">
+                        <FileUploadField
+                          accept="image/*"
+                          maxSize={5}
+                          onFilesSelected={(files) => setFormData({ ...formData, thumbnailFile: files[0] })}
+                          label="Selecione a thumbnail"
+                        />
+                      </TabsContent>
+                    </Tabs>
+
+                    {(formData.thumbnail_url || formData.thumbnailFile) && (
+                      <div className="mt-4">
+                        <Label className="mb-2 block">Preview:</Label>
+                        <img
+                          src={formData.thumbnailFile ? URL.createObjectURL(formData.thumbnailFile) : formData.thumbnail_url}
+                          alt="Thumbnail preview"
+                          className="w-full max-w-sm rounded-lg border"
+                        />
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  {/* Tab Lab Virtual */}
+                  <TabsContent value="lab" className="space-y-4 mt-4">
+                    <div>
+                      <Label htmlFor="virtualLab">Selecionar Lab Virtual</Label>
+                      <Select
+                        value={formData.virtualLabId}
+                        onValueChange={(value) => setFormData({ ...formData, virtualLabId: value })}
+                      >
+                        <SelectTrigger className="mt-2">
+                          <SelectValue placeholder="Selecione um lab virtual" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhum lab virtual</SelectItem>
+                          {virtualLabs.map((lab) => (
+                            <SelectItem key={lab.id} value={lab.id!}>
+                              {lab.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </TabsContent>
+
+                  {/* Tab Mini Quiz */}
+                  <TabsContent value="quiz" className="space-y-4 mt-4">
+                    <div className="flex justify-between items-center">
+                      <Label>Mini Quiz</Label>
+                      <Button type="button" variant="outline" size="sm" onClick={handleAddQuizQuestion}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Adicionar Questão
+                      </Button>
+                    </div>
+
+                    {formData.quiz.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-8">
+                        Nenhuma questão adicionada ainda
+                      </p>
+                    ) : (
+                      <div className="space-y-6">
+                        {formData.quiz.map((question, qIndex) => (
+                          <div key={qIndex} className="border rounded-lg p-4 space-y-4">
+                            <div className="flex justify-between items-start">
+                              <Label>Questão {qIndex + 1}</Label>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveQuizQuestion(qIndex)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+
+                            <Textarea
+                              placeholder="Digite a pergunta..."
+                              value={question.question}
+                              onChange={(e) => handleQuizQuestionChange(qIndex, "question", e.target.value)}
+                              rows={2}
+                            />
+
+                            <div className="space-y-2">
+                              <Label>Opções de Resposta</Label>
+                              {question.options.map((option, oIndex) => (
+                                <div key={oIndex} className="flex items-center gap-2">
+                                  <Input
+                                    placeholder={`Opção ${oIndex + 1}`}
+                                    value={option}
+                                    onChange={(e) => handleQuizOptionChange(qIndex, oIndex, e.target.value)}
+                                  />
+                                  <input
+                                    type="radio"
+                                    name={`correct-${qIndex}`}
+                                    checked={question.correctAnswer === oIndex}
+                                    onChange={() => handleQuizQuestionChange(qIndex, "correctAnswer", oIndex)}
+                                    className="h-4 w-4"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
+
+                <DialogFooter className="mt-6">
+                  <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={saving}>
                     Cancelar
                   </Button>
-                  <Button onClick={handleCreate}>Criar Cápsula</Button>
+                  <Button onClick={editingCapsula ? handleEdit : handleCreate} disabled={saving}>
+                    {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    {editingCapsula ? "Salvar Alterações" : "Criar Cápsula"}
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -348,17 +796,6 @@ export function CapsulasManager() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => {
-                            setEditingContentCapsula(capsula);
-                            setContentEditorOpen(true);
-                          }}
-                          title="Editar Conteúdo"
-                        >
-                          <FileEdit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
                           onClick={() => handleTogglePublish(capsula.id, capsula.is_published)}
                         >
                           {capsula.is_published ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -379,82 +816,6 @@ export function CapsulasManager() {
         </CardContent>
       </Card>
 
-      {/* Edit Dialog */}
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Editar Cápsula</DialogTitle>
-            <DialogDescription>Atualize as informações da cápsula</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="edit-title">Título</Label>
-              <Input
-                id="edit-title"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-description">Descrição</Label>
-              <Textarea
-                id="edit-description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={2}
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-module">Módulo (opcional)</Label>
-              <Select value={formData.module_id} onValueChange={(value) => setFormData({ ...formData, module_id: value })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sem módulo</SelectItem>
-                  {modules.map((module) => (
-                    <SelectItem key={module.id} value={module.id}>
-                      {module.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="edit-duration">Duração (minutos)</Label>
-              <Input
-                id="edit-duration"
-                type="number"
-                value={formData.duration_minutes}
-                onChange={(e) => setFormData({ ...formData, duration_minutes: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-thumbnail">URL da Thumbnail</Label>
-              <Input
-                id="edit-thumbnail"
-                value={formData.thumbnail_url}
-                onChange={(e) => setFormData({ ...formData, thumbnail_url: e.target.value })}
-              />
-            </div>
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="edit-published"
-                checked={formData.is_published}
-                onCheckedChange={(checked) => setFormData({ ...formData, is_published: checked })}
-              />
-              <Label htmlFor="edit-published">Publicado</Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleEdit}>Salvar Alterações</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteCapsulaId} onOpenChange={() => setDeleteCapsulaId(null)}>
         <AlertDialogContent>
@@ -470,16 +831,6 @@ export function CapsulasManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Content Editor */}
-      {editingContentCapsula && (
-        <CapsuleContentEditor
-          capsulaId={editingContentCapsula.id}
-          open={contentEditorOpen}
-          onOpenChange={setContentEditorOpen}
-          onSave={loadCapsulas}
-        />
-      )}
     </div>
   );
 }
