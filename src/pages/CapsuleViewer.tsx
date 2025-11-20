@@ -8,6 +8,7 @@ import { ArrowLeft, CheckCircle2, Clock, XCircle } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
 import { capsulaService, Capsula } from "@/services/capsulaService";
+import { VirtualLabRenderer } from "@/components/VirtualLabRenderer";
 
 const CapsuleViewer = () => {
   const { capsulaId } = useParams();
@@ -190,6 +191,13 @@ const CapsuleViewer = () => {
                   )}
                 </Card>
               ))}
+
+              {/* Virtual Lab Content */}
+              {contentData.virtualLabId && (
+                <Card className="p-6">
+                  <VirtualLabRenderer labId={contentData.virtualLabId} />
+                </Card>
+              )}
 
               {/* Quiz Content */}
               {contentData.quiz && contentData.quiz.length > 0 && (

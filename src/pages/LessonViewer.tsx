@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ChevronLeft, FileText, Video, CheckCircle2, ExternalLink, Beaker, Image as ImageIcon, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { VirtualLabRenderer } from "@/components/VirtualLabRenderer";
 export default function LessonViewer() {
   const {
     lessonId
@@ -227,17 +228,11 @@ export default function LessonViewer() {
 
                     {/* Bloco de Lab Virtual */}
                     {block.type === "virtualLab" && block.data.labId && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-3">
-                          <Beaker className="h-5 w-5" />
-                          <h3 className="font-semibold">Laboratório Virtual</h3>
-                        </div>
-                        <div className="bg-muted rounded-lg p-8 text-center">
-                          <p className="text-muted-foreground">
-                            Laboratório virtual será carregado aqui
-                          </p>
-                        </div>
-                      </div>
+                      <Card>
+                        <CardContent className="pt-6">
+                          <VirtualLabRenderer labId={block.data.labId} />
+                        </CardContent>
+                      </Card>
                     )}
                   </CardContent>
                 </Card>
