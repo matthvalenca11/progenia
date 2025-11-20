@@ -100,7 +100,7 @@ const CapsuleViewer = () => {
   if (!capsula) return null;
 
   const contentData = capsula.content_data as any;
-  const hasContent = contentData && (contentData.text || contentData.media?.length > 0 || contentData.quiz?.length > 0);
+  const hasContent = contentData && (contentData.text || contentData.media?.length > 0 || contentData.quiz?.length > 0 || contentData.virtualLabId);
 
   return (
     <div className="min-h-screen bg-background">
