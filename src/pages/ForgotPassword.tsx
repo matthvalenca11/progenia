@@ -27,21 +27,19 @@ const ForgotPassword = () => {
       const validated = emailSchema.parse({ email });
       setLoading(true);
 
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        validated.email,
-        {
-          redirectTo: `${window.location.origin}/reset-password`,
-        }
-      );
+      // Use our custom edge function instead of Supabase's resetPasswordForEmail
+      const { error } = await supabase.functions.invoke('request-password-reset', {
+        body: { email: validated.email },
+      });
 
       if (error) {
-        toast.error("Erro ao enviar e-mail", {
+        toast.error("Erro ao processar solicitação", {
           description: error.message,
         });
       } else {
         setEmailSent(true);
-        toast.success("E-mail enviado!", {
-          description: "Verifique sua caixa de entrada para redefinir sua senha.",
+        toast.success("Solicitação enviada!", {
+          description: "Se o e-mail existir, você receberá um link de recuperação.",
         });
       }
     } catch (error) {

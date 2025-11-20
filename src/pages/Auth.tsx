@@ -65,11 +65,11 @@ const Auth = () => {
       const validated = signUpSchema.parse(signUpData);
       setLoading(true);
 
-      const { error } = await supabase.auth.signUp({
+      // Create user with Supabase Auth (no email confirmation)
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: validated.email,
         password: validated.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/dashboard`,
           data: {
             full_name: validated.fullName,
             institution: validated.institution,
@@ -77,14 +77,49 @@ const Auth = () => {
         },
       });
 
-      if (error) {
-        if (error.message.includes("already registered")) {
+      if (signUpError) {
+        if (signUpError.message.includes("already registered")) {
           toast.error("Este e-mail já está registrado. Por favor, faça login.");
         } else {
-          toast.error(error.message);
+          toast.error(signUpError.message);
         }
-      } else {
-        toast.success("Conta criada! Redirecionando para o painel...");
+        return;
+      }
+
+      // Generate verification token
+      const token = crypto.randomUUID() + '-' + Date.now();
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 24);
+
+      if (authData.user) {
+        // Store verification token in profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            verification_token: token,
+            verification_expires_at: expiresAt.toISOString(),
+          })
+          .eq('id', authData.user.id);
+
+        if (profileError) {
+          console.error('Error storing verification token:', profileError);
+        }
+
+        // Send verification email via edge function
+        const { error: emailError } = await supabase.functions.invoke('send-verification-email', {
+          body: { email: validated.email, token },
+        });
+
+        if (emailError) {
+          console.error('Error sending verification email:', emailError);
+        }
+
+        toast.success("Conta criada!", {
+          description: "Verifique seu e-mail para confirmar seu cadastro.",
+        });
+        
+        // Sign out the user until they verify email
+        await supabase.auth.signOut();
       }
     } catch (error) {
       if (error instanceof z.ZodError) {

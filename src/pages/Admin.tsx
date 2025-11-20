@@ -12,7 +12,8 @@ import {
   UsersRound,
   Beaker,
   Award,
-  FlaskConical
+  FlaskConical,
+  Mail
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
@@ -22,6 +23,7 @@ import { UsersManager } from "@/components/admin/UsersManager";
 import { ModulesManager } from "@/components/admin/ModulesManager";
 import { MediaLibrary } from "@/components/admin/MediaLibrary";
 import VirtualLabsAdmin from "./VirtualLabsAdmin";
+import { EmailSettingsManager } from "@/components/admin/EmailSettingsManager";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -95,7 +97,7 @@ const Admin = () => {
       {/* Conteúdo Principal */}
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="modules" className="w-full">
-          <TabsList className="grid w-full grid-cols-6 gap-1">
+          <TabsList className="grid w-full grid-cols-7 gap-1">
             <TabsTrigger value="modules">
               <BookOpen className="h-4 w-4 mr-2" />
               Módulos
@@ -119,6 +121,10 @@ const Admin = () => {
             <TabsTrigger value="users">
               <Users className="h-4 w-4 mr-2" />
               Usuários
+            </TabsTrigger>
+            <TabsTrigger value="email">
+              <Mail className="h-4 w-4 mr-2" />
+              E-mails
             </TabsTrigger>
           </TabsList>
 
@@ -150,6 +156,11 @@ const Admin = () => {
           {/* Tab: Usuários */}
           <TabsContent value="users" className="mt-6">
             <UsersManager />
+          </TabsContent>
+
+          {/* Tab: Configurações de E-mail */}
+          <TabsContent value="email" className="mt-6">
+            <EmailSettingsManager />
           </TabsContent>
         </Tabs>
       </div>

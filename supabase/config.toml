@@ -1,1 +1,16 @@
 project_id = "cycthtodyhyssfirdrzh"
+
+[functions.send-verification-email]
+verify_jwt = false
+
+[functions.send-reset-email]
+verify_jwt = false
+
+[functions.verify-email]
+verify_jwt = false
+
+[functions.request-password-reset]
+verify_jwt = false
+
+[functions.reset-password]
+verify_jwt = false
