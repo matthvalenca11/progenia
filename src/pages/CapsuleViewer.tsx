@@ -4,11 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, CheckCircle2, Clock } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, XCircle } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
 import { capsulaService, Capsula } from "@/services/capsulaService";
-import { ContentBlock } from "@/components/lesson/ContentBlock";
 
 const CapsuleViewer = () => {
   const { capsulaId } = useParams();
@@ -17,6 +16,8 @@ const CapsuleViewer = () => {
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [quizAnswers, setQuizAnswers] = useState<{ [key: number]: number }>({});
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
 
   useEffect(() => {
     const loadCapsula = async () => {
@@ -180,8 +181,12 @@ const CapsuleViewer = () => {
                     <video 
                       controls 
                       className="w-full rounded-lg"
-                      src={item.url}
-                    />
+                      preload="metadata"
+                    >
+                      <source src={item.url} type="video/mp4" />
+                      <source src={item.url} type="video/webm" />
+                      Seu navegador não suporta reprodução de vídeo.
+                    </video>
                   )}
                 </Card>
               ))}
@@ -191,22 +196,68 @@ const CapsuleViewer = () => {
                 <Card className="p-6">
                   <h3 className="text-xl font-semibold mb-4">Mini Quiz</h3>
                   <div className="space-y-6">
-                    {contentData.quiz.map((question: any, qIndex: number) => (
-                      <div key={qIndex} className="space-y-3">
-                        <p className="font-medium">{qIndex + 1}. {question.question}</p>
-                        <div className="space-y-2 pl-4">
-                          {question.options.map((option: string, oIndex: number) => (
-                            <div 
-                              key={oIndex}
-                              className="p-3 rounded-lg border border-border hover:bg-accent/5 cursor-pointer transition-colors"
-                            >
-                              {option}
-                            </div>
-                          ))}
+                    {contentData.quiz.map((question: any, qIndex: number) => {
+                      const selectedAnswer = quizAnswers[qIndex];
+                      const isCorrect = selectedAnswer === question.correctAnswer;
+                      const showFeedback = quizSubmitted && selectedAnswer !== undefined;
+
+                      return (
+                        <div key={qIndex} className="space-y-3">
+                          <p className="font-medium">{qIndex + 1}. {question.question}</p>
+                          <div className="space-y-2 pl-4">
+                            {question.options.map((option: string, oIndex: number) => {
+                              const isSelected = selectedAnswer === oIndex;
+                              const isCorrectOption = oIndex === question.correctAnswer;
+                              
+                              return (
+                                <div 
+                                  key={oIndex}
+                                  onClick={() => !quizSubmitted && setQuizAnswers({...quizAnswers, [qIndex]: oIndex})}
+                                  className={`p-3 rounded-lg border transition-all cursor-pointer ${
+                                    isSelected && !quizSubmitted
+                                      ? 'border-primary bg-primary/5'
+                                      : showFeedback && isCorrectOption
+                                      ? 'border-green-500 bg-green-50 dark:bg-green-950'
+                                      : showFeedback && isSelected && !isCorrect
+                                      ? 'border-red-500 bg-red-50 dark:bg-red-950'
+                                      : 'border-border hover:bg-accent/5'
+                                  } ${quizSubmitted ? 'cursor-default' : ''}`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span>{option}</span>
+                                    {showFeedback && isCorrectOption && (
+                                      <CheckCircle2 className="h-5 w-5 text-green-600" />
+                                    )}
+                                    {showFeedback && isSelected && !isCorrect && (
+                                      <XCircle className="h-5 w-5 text-red-600" />
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
+                  {!quizSubmitted && (
+                    <Button 
+                      onClick={() => setQuizSubmitted(true)}
+                      className="mt-6 w-full"
+                      disabled={Object.keys(quizAnswers).length !== contentData.quiz.length}
+                    >
+                      Verificar Respostas
+                    </Button>
+                  )}
+                  {quizSubmitted && (
+                    <div className="mt-6 p-4 rounded-lg bg-accent/10">
+                      <p className="text-center font-medium">
+                        Você acertou {Object.keys(quizAnswers).filter((key) => 
+                          quizAnswers[parseInt(key)] === contentData.quiz[parseInt(key)].correctAnswer
+                        ).length} de {contentData.quiz.length} questões!
+                      </p>
+                    </div>
+                  )}
                 </Card>
               )}
             </>
