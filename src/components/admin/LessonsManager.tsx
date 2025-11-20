@@ -778,9 +778,9 @@ export function LessonsManager() {
                                           <SelectValue placeholder="Escolha um lab virtual" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {virtualLabs.map((lab) => (
+                                           {virtualLabs.map((lab) => (
                                             <SelectItem key={lab.id} value={lab.id}>
-                                              {lab.title}
+                                              {lab.name}
                                             </SelectItem>
                                           ))}
                                         </SelectContent>
