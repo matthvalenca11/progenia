@@ -6,8 +6,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, FileText, Video, CheckCircle2, ExternalLink, Beaker, Image as ImageIcon } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ChevronLeft, FileText, Video, CheckCircle2, ExternalLink, Beaker, Image as ImageIcon, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 export default function LessonViewer() {
   const {
     lessonId
@@ -20,6 +22,8 @@ export default function LessonViewer() {
   const [lesson, setLesson] = useState<any>(null);
   const [progress, setProgress] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [nextLesson, setNextLesson] = useState<any>(null);
+  const [showNextLessonDialog, setShowNextLessonDialog] = useState(false);
   useEffect(() => {
     if (!authLoading && !user) {
       navigate("/auth");
@@ -34,6 +38,23 @@ export default function LessonViewer() {
     try {
       const data = await lessonService.getLessonById(lessonId!);
       setLesson(data);
+
+      // Buscar próxima aula do módulo
+      if (data.module_id) {
+        const { data: lessons } = await supabase
+          .from("lessons")
+          .select("*")
+          .eq("module_id", data.module_id)
+          .eq("is_published", true)
+          .order("order_index", { ascending: true });
+
+        if (lessons && lessons.length > 0) {
+          const currentIndex = lessons.findIndex(l => l.id === lessonId);
+          if (currentIndex >= 0 && currentIndex < lessons.length - 1) {
+            setNextLesson(lessons[currentIndex + 1]);
+          }
+        }
+      }
     } catch (error: any) {
       console.error("Erro ao carregar aula:", error);
       toast({
@@ -67,7 +88,12 @@ export default function LessonViewer() {
         title: "Aula concluída!",
         description: "Você ganhou pontos por completar esta aula"
       });
-      loadProgress();
+      await loadProgress();
+      
+      // Mostrar diálogo de próxima aula se houver
+      if (nextLesson) {
+        setShowNextLessonDialog(true);
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -292,10 +318,55 @@ export default function LessonViewer() {
               </CardContent>
             </Card>
           )}
-
-          {/* Info da Aula */}
-          
         </div>
       </div>
+
+      {/* Diálogo de Próxima Aula */}
+      <Dialog open={showNextLessonDialog} onOpenChange={setShowNextLessonDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-500" />
+              Parabéns! Aula Concluída
+            </DialogTitle>
+            <DialogDescription>
+              Você completou esta aula com sucesso. Quer continuar para a próxima?
+            </DialogDescription>
+          </DialogHeader>
+          {nextLesson && (
+            <div className="py-4">
+              <div className="border rounded-lg p-4 bg-accent/50">
+                <h4 className="font-semibold mb-2">Próxima Aula:</h4>
+                <p className="text-sm mb-1">{nextLesson.title}</p>
+                {nextLesson.description && (
+                  <p className="text-xs text-muted-foreground">{nextLesson.description}</p>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowNextLessonDialog(false);
+                navigate(`/module/${lesson.module_id}`);
+              }}
+            >
+              Voltar ao Módulo
+            </Button>
+            {nextLesson && (
+              <Button
+                onClick={() => {
+                  setShowNextLessonDialog(false);
+                  navigate(`/lesson/${nextLesson.id}`);
+                }}
+              >
+                Próxima Aula
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>;
 }
