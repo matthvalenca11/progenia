@@ -431,122 +431,199 @@ export function CapsulasManager() {
                   Nova Cápsula
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{editingCapsula ? "Editar Cápsula" : "Criar Nova Cápsula"}</DialogTitle>
                   <DialogDescription>
-                    Preencha as informações e conteúdo da cápsula
+                    Preencha as informações básicas e adicione conteúdo à cápsula
                   </DialogDescription>
                 </DialogHeader>
 
-                <Tabs defaultValue="basic" className="w-full">
-                  <TabsList className="grid w-full grid-cols-6">
-                    <TabsTrigger value="basic">Básico</TabsTrigger>
-                    <TabsTrigger value="text">Texto</TabsTrigger>
-                    <TabsTrigger value="media">Mídia</TabsTrigger>
-                    <TabsTrigger value="thumbnail">Thumbnail</TabsTrigger>
-                    <TabsTrigger value="lab">Lab Virtual</TabsTrigger>
-                    <TabsTrigger value="quiz">Mini Quiz</TabsTrigger>
-                  </TabsList>
+                <div className="space-y-6">
+                  {/* Informações Básicas */}
+                  <div className="space-y-4 border-b pb-6">
+                    <h3 className="font-semibold text-lg">Informações Básicas</h3>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-2">
+                        <Label htmlFor="title">Título da Cápsula</Label>
+                        <Input
+                          id="title"
+                          value={formData.title}
+                          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                          placeholder="Ex: Fundamentos do Ultrassom"
+                        />
+                      </div>
+                      
+                      <div className="col-span-2">
+                        <Label htmlFor="description">Descrição</Label>
+                        <Textarea
+                          id="description"
+                          value={formData.description}
+                          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                          placeholder="Breve descrição sobre o conteúdo da cápsula"
+                          rows={2}
+                        />
+                      </div>
 
-                  {/* Tab Básico */}
-                  <TabsContent value="basic" className="space-y-4 mt-4">
-                    <div>
-                      <Label htmlFor="title">Título</Label>
-                      <Input
-                        id="title"
-                        value={formData.title}
-                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                        placeholder="Nome da cápsula"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="description">Descrição</Label>
-                      <Textarea
-                        id="description"
-                        value={formData.description}
-                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        placeholder="Descrição breve"
-                        rows={2}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="module">Módulo (opcional)</Label>
-                      <Select value={formData.module_id} onValueChange={(value) => setFormData({ ...formData, module_id: value })}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione um módulo" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Sem módulo</SelectItem>
-                          {modules.map((module) => (
-                            <SelectItem key={module.id} value={module.id}>
-                              {module.title}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="duration">Duração (minutos)</Label>
-                      <Input
-                        id="duration"
-                        type="number"
-                        value={formData.duration_minutes}
-                        onChange={(e) => setFormData({ ...formData, duration_minutes: e.target.value })}
-                        placeholder="5-10"
-                      />
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        id="published"
-                        checked={formData.is_published}
-                        onCheckedChange={(checked) => setFormData({ ...formData, is_published: checked })}
-                      />
-                      <Label htmlFor="published">Publicar imediatamente</Label>
-                    </div>
-                  </TabsContent>
+                      <div>
+                        <Label htmlFor="module">Módulo (opcional)</Label>
+                        <Select value={formData.module_id} onValueChange={(value) => setFormData({ ...formData, module_id: value })}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione um módulo" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Sem módulo</SelectItem>
+                            {modules.map((module) => (
+                              <SelectItem key={module.id} value={module.id}>
+                                {module.title}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                  {/* Tab Texto */}
-                  <TabsContent value="text" className="space-y-4 mt-4">
-                    <div>
-                      <Label htmlFor="text">Conteúdo de Texto</Label>
-                      <Textarea
-                        id="text"
-                        value={formData.contentText}
-                        onChange={(e) => setFormData({ ...formData, contentText: e.target.value })}
-                        placeholder="Digite o conteúdo da cápsula..."
-                        rows={10}
-                        className="mt-2"
-                      />
-                    </div>
-                  </TabsContent>
+                      <div>
+                        <Label htmlFor="duration">Duração (minutos)</Label>
+                        <Input
+                          id="duration"
+                          type="number"
+                          value={formData.duration_minutes}
+                          onChange={(e) => setFormData({ ...formData, duration_minutes: e.target.value })}
+                          placeholder="Ex: 10"
+                        />
+                      </div>
 
-                  {/* Tab Mídia */}
-                  <TabsContent value="media" className="space-y-4 mt-4">
-                    <div className="flex justify-between items-center">
-                      <Label>Vídeos e Imagens</Label>
-                      <div className="space-x-2">
-                        <Button type="button" variant="outline" size="sm" onClick={() => handleAddMedia("video")}>
+                      <div className="col-span-2">
+                        <Label>Thumbnail da Cápsula</Label>
+                        <div className="grid grid-cols-2 gap-4 mt-2">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Link da Imagem</Label>
+                            <Input
+                              placeholder="https://..."
+                              value={formData.thumbnail_url}
+                              onChange={(e) => setFormData({ ...formData, thumbnail_url: e.target.value, thumbnailSource: "link" })}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Ou fazer Upload</Label>
+                            <FileUploadField
+                              accept="image/*"
+                              maxSize={5}
+                              onFilesSelected={(files) => setFormData({ ...formData, thumbnailFile: files[0], thumbnailSource: "upload" })}
+                            />
+                          </div>
+                        </div>
+                        {(formData.thumbnail_url || formData.thumbnailFile) && (
+                          <img
+                            src={formData.thumbnailFile ? URL.createObjectURL(formData.thumbnailFile) : formData.thumbnail_url}
+                            alt="Preview"
+                            className="mt-2 w-48 h-32 object-cover rounded-lg border"
+                          />
+                        )}
+                      </div>
+
+                      <div className="col-span-2 flex items-center space-x-2">
+                        <Switch
+                          id="published"
+                          checked={formData.is_published}
+                          onCheckedChange={(checked) => setFormData({ ...formData, is_published: checked })}
+                        />
+                        <Label htmlFor="published">Publicar imediatamente</Label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Adicionar Conteúdo */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-lg">Conteúdo da Cápsula</h3>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setFormData({ ...formData, contentText: formData.contentText || " " })}
+                        >
                           <Plus className="h-4 w-4 mr-2" />
-                          Adicionar Vídeo
+                          Texto
                         </Button>
-                        <Button type="button" variant="outline" size="sm" onClick={() => handleAddMedia("image")}>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleAddMedia("image")}
+                        >
                           <Plus className="h-4 w-4 mr-2" />
-                          Adicionar Imagem
+                          Imagem
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleAddMedia("video")}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Vídeo
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setFormData({ ...formData, virtualLabId: formData.virtualLabId || "none" })}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Lab Virtual
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleAddQuizQuestion}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Questão Quiz
                         </Button>
                       </div>
                     </div>
 
-                    {formData.media.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-8">
-                        Nenhuma mídia adicionada ainda
-                      </p>
-                    ) : (
-                      <div className="space-y-4">
-                        {formData.media.map((media, index) => (
-                          <div key={index} className="border rounded-lg p-4 space-y-3">
-                            <div className="flex justify-between items-center">
-                              <Label className="capitalize">{media.type === "video" ? "Vídeo" : "Imagem"}</Label>
+                    {/* Lista de Conteúdo Adicionado */}
+                    <div className="space-y-3">
+                      {/* Texto */}
+                      {formData.contentText && (
+                        <Card>
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-sm font-medium">Texto</CardTitle>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setFormData({ ...formData, contentText: "" })}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </CardHeader>
+                          <CardContent>
+                            <Textarea
+                              value={formData.contentText}
+                              onChange={(e) => setFormData({ ...formData, contentText: e.target.value })}
+                              placeholder="Digite o conteúdo de texto da cápsula..."
+                              rows={6}
+                            />
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {/* Mídias (Imagens e Vídeos) */}
+                      {formData.media.map((media, index) => (
+                        <Card key={index}>
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-sm font-medium capitalize">
+                                {media.type === "video" ? "Vídeo" : "Imagem"}
+                              </CardTitle>
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -556,138 +633,72 @@ export function CapsulasManager() {
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
-
-                            <Tabs
-                              value={media.source}
-                              onValueChange={(value) =>
-                                handleMediaChange(index, { source: value as "upload" | "link" })
-                              }
-                            >
-                              <TabsList className="grid w-full grid-cols-2">
-                                <TabsTrigger value="link">
-                                  <LinkIcon className="h-4 w-4 mr-2" />
-                                  Link
-                                </TabsTrigger>
-                                <TabsTrigger value="upload">
-                                  <Upload className="h-4 w-4 mr-2" />
-                                  Upload
-                                </TabsTrigger>
-                              </TabsList>
-
-                              <TabsContent value="link">
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Link</Label>
                                 <Input
-                                  placeholder={`URL do ${media.type === "video" ? "vídeo" : "imagem"}`}
+                                  placeholder="https://..."
                                   value={media.url || ""}
-                                  onChange={(e) => handleMediaChange(index, { url: e.target.value })}
+                                  onChange={(e) => handleMediaChange(index, { url: e.target.value, source: "link" })}
                                 />
-                              </TabsContent>
-
-                              <TabsContent value="upload">
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Ou fazer Upload</Label>
                                 <FileUploadField
                                   accept={media.type === "video" ? "video/*" : "image/*"}
                                   maxSize={media.type === "video" ? 100 : 10}
-                                  onFilesSelected={(files) => handleMediaChange(index, { file: files[0] })}
-                                  label={`Selecione o ${media.type === "video" ? "vídeo" : "imagem"}`}
+                                  onFilesSelected={(files) => handleMediaChange(index, { file: files[0], source: "upload" })}
                                 />
-                              </TabsContent>
-                            </Tabs>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </TabsContent>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
 
-                  {/* Tab Thumbnail */}
-                  <TabsContent value="thumbnail" className="space-y-4 mt-4">
-                    <Label>Thumbnail da Cápsula</Label>
-                    <Tabs 
-                      value={formData.thumbnailSource} 
-                      onValueChange={(v) => setFormData({ ...formData, thumbnailSource: v as "upload" | "link" })}
-                    >
-                      <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="link">
-                          <LinkIcon className="h-4 w-4 mr-2" />
-                          Link
-                        </TabsTrigger>
-                        <TabsTrigger value="upload">
-                          <Upload className="h-4 w-4 mr-2" />
-                          Upload
-                        </TabsTrigger>
-                      </TabsList>
+                      {/* Lab Virtual */}
+                      {formData.virtualLabId && formData.virtualLabId !== "none" && (
+                        <Card>
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-sm font-medium">Lab Virtual</CardTitle>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setFormData({ ...formData, virtualLabId: "none" })}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </CardHeader>
+                          <CardContent>
+                            <Select
+                              value={formData.virtualLabId}
+                              onValueChange={(value) => setFormData({ ...formData, virtualLabId: value })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione um lab virtual" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {virtualLabs.map((lab) => (
+                                  <SelectItem key={lab.id} value={lab.id!}>
+                                    {lab.title}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </CardContent>
+                        </Card>
+                      )}
 
-                      <TabsContent value="link">
-                        <Input
-                          placeholder="URL da thumbnail"
-                          value={formData.thumbnail_url}
-                          onChange={(e) => setFormData({ ...formData, thumbnail_url: e.target.value })}
-                        />
-                      </TabsContent>
-
-                      <TabsContent value="upload">
-                        <FileUploadField
-                          accept="image/*"
-                          maxSize={5}
-                          onFilesSelected={(files) => setFormData({ ...formData, thumbnailFile: files[0] })}
-                          label="Selecione a thumbnail"
-                        />
-                      </TabsContent>
-                    </Tabs>
-
-                    {(formData.thumbnail_url || formData.thumbnailFile) && (
-                      <div className="mt-4">
-                        <Label className="mb-2 block">Preview:</Label>
-                        <img
-                          src={formData.thumbnailFile ? URL.createObjectURL(formData.thumbnailFile) : formData.thumbnail_url}
-                          alt="Thumbnail preview"
-                          className="w-full max-w-sm rounded-lg border"
-                        />
-                      </div>
-                    )}
-                  </TabsContent>
-
-                  {/* Tab Lab Virtual */}
-                  <TabsContent value="lab" className="space-y-4 mt-4">
-                    <div>
-                      <Label htmlFor="virtualLab">Selecionar Lab Virtual</Label>
-                      <Select
-                        value={formData.virtualLabId}
-                        onValueChange={(value) => setFormData({ ...formData, virtualLabId: value })}
-                      >
-                        <SelectTrigger className="mt-2">
-                          <SelectValue placeholder="Selecione um lab virtual" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Nenhum lab virtual</SelectItem>
-                          {virtualLabs.map((lab) => (
-                            <SelectItem key={lab.id} value={lab.id!}>
-                              {lab.title}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </TabsContent>
-
-                  {/* Tab Mini Quiz */}
-                  <TabsContent value="quiz" className="space-y-4 mt-4">
-                    <div className="flex justify-between items-center">
-                      <Label>Mini Quiz</Label>
-                      <Button type="button" variant="outline" size="sm" onClick={handleAddQuizQuestion}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Adicionar Questão
-                      </Button>
-                    </div>
-
-                    {formData.quiz.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-8">
-                        Nenhuma questão adicionada ainda
-                      </p>
-                    ) : (
-                      <div className="space-y-6">
-                        {formData.quiz.map((question, qIndex) => (
-                          <div key={qIndex} className="border rounded-lg p-4 space-y-4">
-                            <div className="flex justify-between items-start">
-                              <Label>Questão {qIndex + 1}</Label>
+                      {/* Questões do Quiz */}
+                      {formData.quiz.map((question, qIndex) => (
+                        <Card key={qIndex}>
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-sm font-medium">Questão {qIndex + 1}</CardTitle>
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -697,23 +708,21 @@ export function CapsulasManager() {
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
-
-                            <Textarea
-                              placeholder="Digite a pergunta..."
-                              value={question.question}
-                              onChange={(e) => handleQuizQuestionChange(qIndex, "question", e.target.value)}
-                              rows={2}
-                            />
-
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            <div>
+                              <Label>Pergunta</Label>
+                              <Textarea
+                                placeholder="Digite a pergunta..."
+                                value={question.question}
+                                onChange={(e) => handleQuizQuestionChange(qIndex, "question", e.target.value)}
+                                rows={2}
+                              />
+                            </div>
                             <div className="space-y-2">
-                              <Label>Opções de Resposta</Label>
+                              <Label>Opções de Resposta (marque a correta)</Label>
                               {question.options.map((option, oIndex) => (
                                 <div key={oIndex} className="flex items-center gap-2">
-                                  <Input
-                                    placeholder={`Opção ${oIndex + 1}`}
-                                    value={option}
-                                    onChange={(e) => handleQuizOptionChange(qIndex, oIndex, e.target.value)}
-                                  />
                                   <input
                                     type="radio"
                                     name={`correct-${qIndex}`}
@@ -721,15 +730,32 @@ export function CapsulasManager() {
                                     onChange={() => handleQuizQuestionChange(qIndex, "correctAnswer", oIndex)}
                                     className="h-4 w-4"
                                   />
+                                  <Input
+                                    placeholder={`Opção ${oIndex + 1}`}
+                                    value={option}
+                                    onChange={(e) => handleQuizOptionChange(qIndex, oIndex, e.target.value)}
+                                  />
                                 </div>
                               ))}
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </TabsContent>
-                </Tabs>
+                          </CardContent>
+                        </Card>
+                      ))}
+
+                      {/* Mensagem quando não há conteúdo */}
+                      {!formData.contentText && 
+                       formData.media.length === 0 && 
+                       (!formData.virtualLabId || formData.virtualLabId === "none") && 
+                       formData.quiz.length === 0 && (
+                        <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                          <p className="text-muted-foreground">
+                            Clique nos botões acima para adicionar conteúdo à cápsula
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
 
                 <DialogFooter className="mt-6">
                   <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={saving}>
