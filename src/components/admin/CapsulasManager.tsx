@@ -69,6 +69,7 @@ export function CapsulasManager() {
   const [filterModuleId, setFilterModuleId] = useState<string>("all");
   const [saving, setSaving] = useState(false);
   const [virtualLabs, setVirtualLabs] = useState<VirtualLab[]>([]);
+  const [showVirtualLab, setShowVirtualLab] = useState(false);
   const [formData, setFormData] = useState<CapsulaFormData>({
     title: "",
     description: "",
@@ -123,6 +124,7 @@ export function CapsulasManager() {
   };
 
   const resetForm = () => {
+    setShowVirtualLab(false);
     setFormData({
       title: "",
       description: "",
@@ -336,6 +338,8 @@ export function CapsulasManager() {
   const openEditDialog = (capsula: Capsula) => {
     setEditingCapsula(capsula);
     const contentData = capsula.content_data as any || {};
+    const hasVirtualLab = contentData.virtualLabId && contentData.virtualLabId !== "none";
+    setShowVirtualLab(hasVirtualLab);
     setFormData({
       title: capsula.title,
       description: capsula.description || "",
@@ -570,7 +574,7 @@ export function CapsulasManager() {
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => setFormData({ ...formData, virtualLabId: formData.virtualLabId || "none" })}
+                          onClick={() => setShowVirtualLab(true)}
                         >
                           <Plus className="h-4 w-4 mr-2" />
                           Lab Virtual
@@ -658,7 +662,7 @@ export function CapsulasManager() {
                       ))}
 
                       {/* Lab Virtual */}
-                      {formData.virtualLabId && formData.virtualLabId !== "none" && (
+                      {showVirtualLab && (
                         <Card>
                           <CardHeader className="pb-3">
                             <div className="flex items-center justify-between">
@@ -667,7 +671,10 @@ export function CapsulasManager() {
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => setFormData({ ...formData, virtualLabId: "none" })}
+                                onClick={() => {
+                                  setShowVirtualLab(false);
+                                  setFormData({ ...formData, virtualLabId: "none" });
+                                }}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -752,7 +759,7 @@ export function CapsulasManager() {
                       {/* Mensagem quando não há conteúdo */}
                       {!formData.contentText && 
                        formData.media.length === 0 && 
-                       (!formData.virtualLabId || formData.virtualLabId === "none") && 
+                       !showVirtualLab && 
                        formData.quiz.length === 0 && (
                         <div className="text-center py-12 border-2 border-dashed rounded-lg">
                           <p className="text-muted-foreground">
