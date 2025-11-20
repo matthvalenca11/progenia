@@ -145,32 +145,14 @@ const Dashboard = () => {
       
       // Load recommended capsules covers
       for (const capsula of capsulaRecomendadas) {
-        if (capsula.capa_path) {
-          try {
-            const { data } = await supabase.storage
-              .from("lesson-assets")
-              .createSignedUrl(capsula.capa_path, 3600);
-            if (data?.signedUrl) {
-              urls[capsula.id!] = data.signedUrl;
-            }
-          } catch (error) {
-            console.error("Erro ao carregar capa:", error);
-          }
+        if (capsula.thumbnail_url) {
+          urls[capsula.id!] = capsula.thumbnail_url;
         }
       }
 
       // Load unfinished capsule cover
-      if (capsulaInacabada?.capa_path) {
-        try {
-          const { data } = await supabase.storage
-            .from("lesson-assets")
-            .createSignedUrl(capsulaInacabada.capa_path, 3600);
-          if (data?.signedUrl) {
-            urls[capsulaInacabada.id!] = data.signedUrl;
-          }
-        } catch (error) {
-          console.error("Erro ao carregar capa:", error);
-        }
+      if (capsulaInacabada?.thumbnail_url) {
+        urls[capsulaInacabada.id!] = capsulaInacabada.thumbnail_url;
       }
 
       setCapaUrls(urls);
@@ -354,23 +336,8 @@ const Dashboard = () => {
                     {capaUrls[capsula.id!] ? (
                       <img 
                         src={capaUrls[capsula.id!]} 
-                        alt={capsula.titulo}
+                        alt={capsula.title}
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        style={
-                          capaUrls[capsula.id!]?.endsWith('.gif')
-                            ? { animationPlayState: 'paused' }
-                            : undefined
-                        }
-                        onMouseEnter={(e) => {
-                          if (capaUrls[capsula.id!]?.endsWith('.gif')) {
-                            e.currentTarget.style.animationPlayState = 'running';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (capaUrls[capsula.id!]?.endsWith('.gif')) {
-                            e.currentTarget.style.animationPlayState = 'paused';
-                          }
-                        }}
                       />
                     ) : (
                       <Sparkles className="h-12 w-12 text-muted-foreground" />
@@ -378,10 +345,10 @@ const Dashboard = () => {
                   </div>
                   <div className="p-6">
                     <div className="inline-block px-2 py-1 bg-accent/10 text-accent text-xs rounded-full mb-2">
-                      {capsula.categoria}
+                      Cápsula Rápida
                     </div>
-                    <h3 className="font-semibold text-lg mb-2">{capsula.titulo}</h3>
-                    <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{capsula.pergunta_gatilho}</p>
+                    <h3 className="font-semibold text-lg mb-2">{capsula.title}</h3>
+                    <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{capsula.description}</p>
                     <Button size="sm" className="w-full">
                       Começar <ArrowRight className="h-4 w-4 ml-2" />
                     </Button>
@@ -405,23 +372,8 @@ const Dashboard = () => {
                   {capaUrls[capsulaInacabada.id!] ? (
                     <img 
                       src={capaUrls[capsulaInacabada.id!]} 
-                      alt={capsulaInacabada.titulo}
+                      alt={capsulaInacabada.title}
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      style={
-                        capaUrls[capsulaInacabada.id!]?.endsWith('.gif')
-                          ? { animationPlayState: 'paused' }
-                          : undefined
-                      }
-                      onMouseEnter={(e) => {
-                        if (capaUrls[capsulaInacabada.id!]?.endsWith('.gif')) {
-                          e.currentTarget.style.animationPlayState = 'running';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (capaUrls[capsulaInacabada.id!]?.endsWith('.gif')) {
-                          e.currentTarget.style.animationPlayState = 'paused';
-                        }
-                      }}
                     />
                   ) : (
                     <BookOpen className="h-12 w-12 text-muted-foreground" />
@@ -429,10 +381,10 @@ const Dashboard = () => {
                 </div>
                 <div className="p-6 flex-1">
                   <div className="inline-block px-2 py-1 bg-accent/10 text-accent text-xs rounded-full mb-2">
-                    {capsulaInacabada.categoria}
+                    Cápsula em Progresso
                   </div>
-                  <h3 className="font-semibold text-xl mb-2">{capsulaInacabada.titulo}</h3>
-                  <p className="text-muted-foreground mb-4">{capsulaInacabada.pergunta_gatilho}</p>
+                  <h3 className="font-semibold text-xl mb-2">{capsulaInacabada.title}</h3>
+                  <p className="text-muted-foreground mb-4">{capsulaInacabada.description}</p>
                   <Button>
                     Continuar <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
