@@ -97,7 +97,8 @@ const CapsuleViewer = () => {
 
   if (!capsula) return null;
 
-  const contentBlocks = capsula.content_data?.blocks || [];
+  const contentData = capsula.content_data as any;
+  const hasContent = contentData && (contentData.text || contentData.media?.length > 0 || contentData.quiz?.length > 0);
 
   return (
     <div className="min-h-screen bg-background">
@@ -152,12 +153,63 @@ const CapsuleViewer = () => {
           )}
         </div>
 
-        {/* Content Blocks */}
+        {/* Content */}
         <div className="space-y-6 mb-8">
-          {contentBlocks.length > 0 ? (
-            contentBlocks.map((block: any, index: number) => (
-              <ContentBlock key={block.id || index} block={block} />
-            ))
+          {hasContent ? (
+            <>
+              {/* Text Content */}
+              {contentData.text && (
+                <Card className="p-6">
+                  <div className="prose prose-slate dark:prose-invert max-w-none">
+                    <p className="whitespace-pre-wrap">{contentData.text}</p>
+                  </div>
+                </Card>
+              )}
+
+              {/* Media Content */}
+              {contentData.media && contentData.media.map((item: any, index: number) => (
+                <Card key={index} className="p-6">
+                  {item.type === 'image' && (
+                    <img 
+                      src={item.url} 
+                      alt={`Media ${index + 1}`}
+                      className="w-full rounded-lg"
+                    />
+                  )}
+                  {item.type === 'video' && (
+                    <video 
+                      controls 
+                      className="w-full rounded-lg"
+                      src={item.url}
+                    />
+                  )}
+                </Card>
+              ))}
+
+              {/* Quiz Content */}
+              {contentData.quiz && contentData.quiz.length > 0 && (
+                <Card className="p-6">
+                  <h3 className="text-xl font-semibold mb-4">Mini Quiz</h3>
+                  <div className="space-y-6">
+                    {contentData.quiz.map((question: any, qIndex: number) => (
+                      <div key={qIndex} className="space-y-3">
+                        <p className="font-medium">{qIndex + 1}. {question.question}</p>
+                        <div className="space-y-2 pl-4">
+                          {question.options.map((option: string, oIndex: number) => (
+                            <div 
+                              key={oIndex}
+                              className="p-3 rounded-lg border border-border hover:bg-accent/5 cursor-pointer transition-colors"
+                            >
+                              {option}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+            </>
           ) : (
             <Card className="p-8 text-center">
               <p className="text-muted-foreground">
