@@ -80,7 +80,9 @@ export function VirtualLabRenderer({ labId, className }: VirtualLabRendererProps
       
       case "ultrassom_simulador":
       case "ultrasound":
-        return <UltrasoundSimulator config={config} />;
+        // Extract ultrasound config if it's nested
+        const ultrasoundConfig = (config as any).ultrasoundConfig || config;
+        return <UltrasoundSimulator config={ultrasoundConfig} />;
       
       case "eletroterapia_sim":
       case "electrotherapy":
