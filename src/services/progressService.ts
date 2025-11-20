@@ -11,6 +11,8 @@ export const progressService = {
         status: "concluido",
         progress_percentage: 100,
         data_conclusao: new Date().toISOString()
+      }, {
+        onConflict: "user_id,lesson_id"
       });
     
     if (error) throw error;
@@ -38,6 +40,8 @@ export const progressService = {
         lesson_id: lessonId,
         status: "em_andamento",
         progress_percentage: 0
+      }, {
+        onConflict: "user_id,lesson_id"
       });
     if (error) throw error;
   },
