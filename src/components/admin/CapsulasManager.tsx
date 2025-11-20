@@ -697,7 +697,7 @@ export function CapsulasManager() {
                                 <SelectContent>
                                   {virtualLabs.map((lab) => (
                                     <SelectItem key={lab.id} value={lab.id!}>
-                                      {lab.title}
+                                      {lab.name}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
