@@ -29,7 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Edit, Trash2, Search, Beaker, Play } from "lucide-react";
+import { Plus, Edit, Trash2, Search, Beaker, Play, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
 import { format } from "date-fns";
@@ -106,6 +106,20 @@ export default function VirtualLabsAdmin() {
   const handleTestClick = (lab: VirtualLab) => {
     setLabToTest(lab);
     setTestDialogOpen(true);
+  };
+
+  const handleTogglePublish = async (lab: VirtualLab) => {
+    if (!lab.id) return;
+
+    try {
+      await virtualLabService.updateLab(lab.id, {
+        is_published: !lab.is_published
+      });
+      toast.success(lab.is_published ? "Laboratório despublicado!" : "Laboratório publicado!");
+      loadLabs();
+    } catch (error: any) {
+      toast.error("Erro ao alterar status", { description: error.message });
+    }
   };
 
   const getLabTypeBadge = (type: string) => {
@@ -199,6 +213,7 @@ export default function VirtualLabsAdmin() {
                   <TableHead>Nome</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Descrição</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Última Atualização</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -212,12 +227,29 @@ export default function VirtualLabsAdmin() {
                       {lab.description || <span className="text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell>
+                      <Badge variant={lab.is_published ? "default" : "secondary"}>
+                        {lab.is_published ? "Publicado" : "Rascunho"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
                       {lab.updated_at
                         ? format(new Date(lab.updated_at), "dd/MM/yyyy HH:mm", { locale: ptBR })
                         : "—"}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleTogglePublish(lab)}
+                          title={lab.is_published ? "Despublicar" : "Publicar"}
+                        >
+                          {lab.is_published ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
