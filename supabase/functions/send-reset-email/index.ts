@@ -44,8 +44,8 @@ serve(async (req) => {
     const bodyIntro = settings?.reset_body_intro || 
                      "Você solicitou a redefinição de senha na plataforma. Se não foi você, ignore este e-mail.";
 
-    // Build reset URL - use the project's actual domain
-    const appUrl = "https://progenia.com.br";
+    // Build reset URL - use environment variable for flexibility
+    const appUrl = Deno.env.get('APP_URL') || 'https://progenia.com.br';
     const resetUrl = `${appUrl}/reset-password?token=${token}`;
 
     // Send email using Resend

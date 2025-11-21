@@ -44,8 +44,8 @@ serve(async (req) => {
     const bodyIntro = settings?.verification_body_intro || 
                      "Olá! Bem-vindo(a) à plataforma ProGenia. Clique no botão abaixo para confirmar seu e-mail.";
 
-    // Build verification URL - use the project's actual domain
-    const appUrl = "https://progenia.com.br";
+    // Build verification URL - use environment variable for flexibility
+    const appUrl = Deno.env.get('APP_URL') || 'https://progenia.com.br';
     const verificationUrl = `${appUrl}/verify-email?token=${token}`;
 
     // Send email using Resend
