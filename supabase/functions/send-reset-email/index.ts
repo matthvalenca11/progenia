@@ -44,8 +44,8 @@ serve(async (req) => {
     const bodyIntro = settings?.reset_body_intro || 
                      "Você solicitou a redefinição de senha na plataforma. Se não foi você, ignore este e-mail.";
 
-    // Build reset URL
-    const appUrl = Deno.env.get("VITE_SUPABASE_URL")?.replace("/supabase.co", ".lovable.app") || "https://mouvai.com";
+    // Build reset URL - use the project's actual domain
+    const appUrl = "https://cb43ed61-670b-41fa-9cc7-7cad0c4541b2.lovableproject.com";
     const resetUrl = `${appUrl}/reset-password?token=${token}`;
 
     // Send email using Resend
