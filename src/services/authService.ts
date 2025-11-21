@@ -27,7 +27,8 @@ export const authService = {
    * Registrar novo usuário
    */
   async signUp(data: SignUpData) {
-    const { error } = await supabase.auth.signUp({
+    // 1. Criar usuário no Supabase Auth
+    const { data: authData, error } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
       options: {
@@ -35,11 +36,45 @@ export const authService = {
           full_name: data.full_name,
           institution: data.institution || "",
         },
-        emailRedirectTo: `${window.location.origin}/`,
+        emailRedirectTo: `${window.location.origin}/verify-email`,
       },
     });
 
     if (error) throw error;
+    if (!authData.user) throw new Error("Falha ao criar usuário");
+
+    // 2. Gerar token de verificação
+    const token = crypto.randomUUID();
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24); // 24 horas
+
+    // 3. Atualizar perfil com token de verificação
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({
+        verification_token: token,
+        verification_expires_at: expiresAt.toISOString(),
+      })
+      .eq("id", authData.user.id);
+
+    if (profileError) {
+      console.error("Erro ao salvar token de verificação:", profileError);
+      throw profileError;
+    }
+
+    // 4. Enviar email de verificação via edge function
+    const { error: emailError } = await supabase.functions.invoke(
+      "send-verification-email",
+      {
+        body: { email: data.email, token },
+      }
+    );
+
+    if (emailError) {
+      console.error("Erro ao enviar email de verificação:", emailError);
+      // Não throw aqui - usuário foi criado, apenas o email falhou
+    }
+
     return { success: true };
   },
 
@@ -94,8 +129,8 @@ export const authService = {
    * Resetar senha
    */
   async resetPassword(email: string) {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth`,
+    const { error } = await supabase.functions.invoke("request-password-reset", {
+      body: { email },
     });
     if (error) throw error;
   },
