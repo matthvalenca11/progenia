@@ -45,7 +45,7 @@ serve(async (req) => {
                      "Olá! Bem-vindo(a) à plataforma ProGenia. Clique no botão abaixo para confirmar seu e-mail.";
 
     // Build verification URL - use the project's actual domain
-    const appUrl = "https://cb43ed61-670b-41fa-9cc7-7cad0c4541b2.lovableproject.com";
+    const appUrl = "https://progenia.com.br";
     const verificationUrl = `${appUrl}/verify-email?token=${token}`;
 
     // Send email using Resend

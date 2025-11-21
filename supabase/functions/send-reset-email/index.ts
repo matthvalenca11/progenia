@@ -45,7 +45,7 @@ serve(async (req) => {
                      "Você solicitou a redefinição de senha na plataforma. Se não foi você, ignore este e-mail.";
 
     // Build reset URL - use the project's actual domain
-    const appUrl = "https://cb43ed61-670b-41fa-9cc7-7cad0c4541b2.lovableproject.com";
+    const appUrl = "https://progenia.com.br";
     const resetUrl = `${appUrl}/reset-password?token=${token}`;
 
     // Send email using Resend
