@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "./hooks/useAuth";
 import AITutor from "@/components/AITutor";
 import Landing from "@/pages/Landing";
 import Sobre from "@/pages/Sobre";
+import Contact from "@/pages/Contact";
 import Auth from "@/pages/Auth";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
@@ -45,6 +46,7 @@ const AppContent = () => {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/sobre" element={<Sobre />} />
+          <Route path="/contato" element={<Contact />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
