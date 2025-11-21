@@ -44,8 +44,8 @@ serve(async (req) => {
     const bodyIntro = settings?.verification_body_intro || 
                      "Olá! Bem-vindo(a) à plataforma ProGenia. Clique no botão abaixo para confirmar seu e-mail.";
 
-    // Build verification URL
-    const appUrl = Deno.env.get("VITE_SUPABASE_URL")?.replace("/supabase.co", ".lovable.app") || "https://mouvai.com";
+    // Build verification URL - use the project's actual domain
+    const appUrl = "https://cb43ed61-670b-41fa-9cc7-7cad0c4541b2.lovableproject.com";
     const verificationUrl = `${appUrl}/verify-email?token=${token}`;
 
     // Send email using Resend
