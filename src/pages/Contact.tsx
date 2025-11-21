@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Mail, Phone, User, Send } from "lucide-react";
 import { z } from "zod";
+import logo from "@/assets/logo.png";
 
 const contactSchema = z.object({
   name: z.string().trim().min(1, "Nome é obrigatório").max(100, "Nome muito longo"),
@@ -85,7 +86,10 @@ const Contact = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+      <Link to="/" className="mb-8">
+        <img src={logo} alt="ProGenia" className="h-16 hover:opacity-80 transition-opacity cursor-pointer" />
+      </Link>
       <Card className="w-full max-w-2xl">
         <CardHeader>
           <Button
