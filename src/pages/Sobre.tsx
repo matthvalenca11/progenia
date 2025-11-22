@@ -3,18 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { 
-  GraduationCap, 
-  Lightbulb, 
-  Target, 
-  Users, 
-  TrendingUp,
-  CheckCircle2,
-  Sparkles,
-  ArrowRight
-} from "lucide-react";
+import { GraduationCap, Lightbulb, Target, Users, TrendingUp, CheckCircle2, Sparkles, ArrowRight } from "lucide-react";
 import logo from "@/assets/logo.png";
-
 interface Partner {
   id: string;
   name: string;
@@ -23,7 +13,6 @@ interface Partner {
   website_url: string;
   order_index: number;
 }
-
 interface TeamMember {
   id: string;
   name: string;
@@ -31,33 +20,28 @@ interface TeamMember {
   photo_url: string | null;
   order_index: number;
 }
-
 const Sobre = () => {
   const navigate = useNavigate();
   const [partners, setPartners] = useState<Partner[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
-
   useEffect(() => {
     loadPartnersAndTeam();
   }, []);
-
   const loadPartnersAndTeam = async () => {
-    const { data: partnersData } = await supabase
-      .from('partners')
-      .select('*')
-      .order('order_index', { ascending: true });
-    
-    const { data: teamData } = await supabase
-      .from('team_members')
-      .select('*')
-      .order('order_index', { ascending: true });
-    
+    const {
+      data: partnersData
+    } = await supabase.from('partners').select('*').order('order_index', {
+      ascending: true
+    });
+    const {
+      data: teamData
+    } = await supabase.from('team_members').select('*').order('order_index', {
+      ascending: true
+    });
     if (partnersData) setPartners(partnersData);
     if (teamData) setTeam(teamData);
   };
-
-  return (
-    <div className="min-h-screen bg-background">
+  return <div className="min-h-screen bg-background">
       {/* Navigation */}
       <nav className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -112,17 +96,10 @@ const Sobre = () => {
                 sem compreender profundamente os princípios físicos e fisiológicos por trás delas.
               </p>
               <ul className="space-y-3">
-                {[
-                  "Lacunas na formação sobre física aplicada à saúde",
-                  "Riscos do uso inadequado de eletroterapias e equipamentos",
-                  "Recursos de treinamento limitados e fragmentados",
-                  "Dificuldade em visualizar conceitos abstratos"
-                ].map((item, i) => (
-                  <li key={i} className="flex items-start gap-3">
+                {["Lacunas na formação sobre física aplicada à saúde", "Riscos do uso inadequado de eletroterapias e equipamentos", "Recursos de treinamento limitados e fragmentados", "Dificuldade em visualizar conceitos abstratos"].map((item, i) => <li key={i} className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-secondary mt-1 flex-shrink-0" />
                     <span>{item}</span>
-                  </li>
-                ))}
+                  </li>)}
               </ul>
             </div>
             <div className="relative">
@@ -145,48 +122,48 @@ const Sobre = () => {
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 mb-12">
-            {[
-              {
-                icon: GraduationCap,
-                title: "Micro-Learning Estruturado",
-                description: "Conteúdo dividido em módulos curtos e focados, facilitando a absorção do conhecimento"
-              },
-              {
-                icon: Sparkles,
-                title: "Simulações Interativas",
-                description: "Laboratórios virtuais onde você pode experimentar e visualizar conceitos complexos"
-              },
-              {
-                icon: TrendingUp,
-                title: "Aprendizado Personalizado",
-                description: "IA que acompanha seu progresso e sugere conteúdos baseados nas suas necessidades"
-              }
-            ].map((feature, i) => (
-              <Card key={i} className="p-6 hover:shadow-lg transition-shadow">
+            {[{
+            icon: GraduationCap,
+            title: "Micro-Learning Estruturado",
+            description: "Conteúdo dividido em módulos curtos e focados, facilitando a absorção do conhecimento"
+          }, {
+            icon: Sparkles,
+            title: "Simulações Interativas",
+            description: "Laboratórios virtuais onde você pode experimentar e visualizar conceitos complexos"
+          }, {
+            icon: TrendingUp,
+            title: "Aprendizado Personalizado",
+            description: "IA que acompanha seu progresso e sugere conteúdos baseados nas suas necessidades"
+          }].map((feature, i) => <Card key={i} className="p-6 hover:shadow-lg transition-shadow">
                 <feature.icon className="h-12 w-12 text-primary mb-4" />
                 <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
                 <p className="text-muted-foreground">{feature.description}</p>
-              </Card>
-            ))}
+              </Card>)}
           </div>
 
           {/* Learning Journey */}
           <div className="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-lg p-8">
             <h3 className="text-2xl font-bold mb-6 text-center">Jornada de Aprendizado</h3>
             <div className="grid md:grid-cols-3 gap-6">
-              {[
-                { step: "1", title: "Fundamentos", desc: "Base teórica essencial" },
-                { step: "2", title: "Prática Virtual", desc: "Simulações e labs" },
-                { step: "3", title: "Avaliação", desc: "Quizzes e casos clínicos" }
-              ].map((item, i) => (
-                <div key={i} className="text-center">
+              {[{
+              step: "1",
+              title: "Fundamentos",
+              desc: "Base teórica essencial"
+            }, {
+              step: "2",
+              title: "Prática Virtual",
+              desc: "Simulações e labs"
+            }, {
+              step: "3",
+              title: "Avaliação",
+              desc: "Quizzes e casos clínicos"
+            }].map((item, i) => <div key={i} className="text-center">
                   <div className="w-16 h-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-bold mx-auto mb-3">
                     {item.step}
                   </div>
                   <h4 className="font-semibold mb-1">{item.title}</h4>
                   <p className="text-sm text-muted-foreground">{item.desc}</p>
-                </div>
-              ))}
+                </div>)}
             </div>
           </div>
         </div>
@@ -203,61 +180,51 @@ const Sobre = () => {
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 mb-12">
-            {[
-              { icon: "👨‍⚕️", title: "Profissionais da Saúde no Brasil", count: "300.000+", subtitle: "Registrados no COFFITO" },
-              { icon: "🎓", title: "Cursos de Graduação", count: "600+", subtitle: "Fisioterapia, Fonoaudiologia e TO" },
-              { icon: "🏥", title: "Clínicas e centros de reabilitação física", count: "20.000+", subtitle: "Profissionais ativos" }
-            ].map((audience, i) => (
-              <Card key={i} className="p-6 text-center hover:shadow-lg transition-shadow">
+            {[{
+            icon: "👨‍⚕️",
+            title: "Profissionais da Saúde no Brasil",
+            count: "300.000+",
+            subtitle: "Registrados no COFFITO"
+          }, {
+            icon: "🎓",
+            title: "Cursos de Graduação",
+            count: "600+",
+            subtitle: "Fisioterapia, Fonoaudiologia e TO"
+          }, {
+            icon: "🏥",
+            title: "Clínicas e centros de reabilitação física",
+            count: "20.000+",
+            subtitle: "Profissionais ativos"
+          }].map((audience, i) => <Card key={i} className="p-6 text-center hover:shadow-lg transition-shadow">
                 <div className="text-5xl mb-3">{audience.icon}</div>
                 <h3 className="text-lg font-semibold mb-2">{audience.title}</h3>
                 <p className="text-3xl font-bold text-primary mb-1">{audience.count}</p>
                 <p className="text-sm text-muted-foreground">{audience.subtitle}</p>
-              </Card>
-            ))}
+              </Card>)}
           </div>
         </div>
       </section>
 
       {/* Parceiros & Apoiadores */}
-      {partners.length > 0 && (
-        <section className="py-16 px-4">
+      {partners.length > 0 && <section className="py-16 px-4">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold mb-4">Nossos Parceiros</h2>
-              <p className="text-lg text-muted-foreground">
-                Empresas que apoiam nossa missão
-              </p>
+              <p className="text-lg text-muted-foreground">Parceiros e apoiadores da nossa missão</p>
             </div>
 
             <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {partners.map((partner) => (
-                <a
-                  key={partner.id}
-                  href={partner.website_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex flex-col items-center justify-center p-6 bg-background border rounded-lg hover:shadow-lg transition-all cursor-pointer group"
-                >
-                  <img 
-                    src={partner.logo_url} 
-                    alt={partner.name}
-                    className="max-h-16 w-full object-contain transition-all mb-3"
-                  />
+              {partners.map(partner => <a key={partner.id} href={partner.website_url} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center p-6 bg-background border rounded-lg hover:shadow-lg transition-all cursor-pointer group">
+                  <img src={partner.logo_url} alt={partner.name} className="max-h-16 w-full object-contain transition-all mb-3" />
                   <p className="font-medium text-center text-sm">{partner.name}</p>
-                  {partner.description && (
-                    <p className="text-xs text-muted-foreground text-center mt-1">{partner.description}</p>
-                  )}
-                </a>
-              ))}
+                  {partner.description && <p className="text-xs text-muted-foreground text-center mt-1">{partner.description}</p>}
+                </a>)}
             </div>
           </div>
-        </section>
-      )}
+        </section>}
 
       {/* Equipe */}
-      {team.length > 0 && (
-        <section className="py-16 px-4 bg-muted/30">
+      {team.length > 0 && <section className="py-16 px-4 bg-muted/30">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold mb-4">Nossa Equipe</h2>
@@ -267,27 +234,16 @@ const Sobre = () => {
             </div>
 
             <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {team.map((member) => (
-                <Card key={member.id} className="p-6 text-center">
-                  {member.photo_url ? (
-                    <img 
-                      src={member.photo_url} 
-                      alt={member.name}
-                      className="w-32 h-32 rounded-full mx-auto mb-4 object-cover"
-                    />
-                  ) : (
-                    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 mx-auto mb-4 flex items-center justify-center">
+              {team.map(member => <Card key={member.id} className="p-6 text-center">
+                  {member.photo_url ? <img src={member.photo_url} alt={member.name} className="w-32 h-32 rounded-full mx-auto mb-4 object-cover" /> : <div className="w-32 h-32 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 mx-auto mb-4 flex items-center justify-center">
                       <Users className="h-12 w-12 text-primary" />
-                    </div>
-                  )}
+                    </div>}
                   <h3 className="font-semibold mb-1">{member.name}</h3>
                   <p className="text-sm text-muted-foreground">{member.role}</p>
-                </Card>
-              ))}
+                </Card>)}
             </div>
           </div>
-        </section>
-      )}
+        </section>}
 
       {/* Final CTA */}
       <section className="py-20 px-4 bg-gradient-to-br from-primary/10 via-secondary/10 to-primary/10">
@@ -316,8 +272,6 @@ const Sobre = () => {
           <p>© 2026 ProGenia - Learn & Evolve. Todos os direitos reservados.</p>
         </div>
       </footer>
-    </div>
-  );
+    </div>;
 };
-
 export default Sobre;
