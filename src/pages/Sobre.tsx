@@ -18,6 +18,7 @@ import logo from "@/assets/logo.png";
 interface Partner {
   id: string;
   name: string;
+  description: string | null;
   logo_url: string;
   website_url: string;
   order_index: number;
@@ -236,13 +237,17 @@ const Sobre = () => {
                   href={partner.website_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center p-6 bg-background border rounded-lg hover:shadow-lg transition-all cursor-pointer group"
+                  className="flex flex-col items-center justify-center p-6 bg-background border rounded-lg hover:shadow-lg transition-all cursor-pointer group"
                 >
                   <img 
                     src={partner.logo_url} 
                     alt={partner.name}
-                    className="max-h-16 w-full object-contain grayscale group-hover:grayscale-0 transition-all"
+                    className="max-h-16 w-full object-contain grayscale group-hover:grayscale-0 transition-all mb-3"
                   />
+                  <p className="font-medium text-center text-sm">{partner.name}</p>
+                  {partner.description && (
+                    <p className="text-xs text-muted-foreground text-center mt-1">{partner.description}</p>
+                  )}
                 </a>
               ))}
             </div>
