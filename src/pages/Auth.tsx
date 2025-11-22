@@ -87,23 +87,23 @@ const Auth = () => {
       }
 
       if (authData.user) {
-        // Aguardar criação do perfil (trigger automático)
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
         // Generate verification token
         const token = crypto.randomUUID();
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + 24);
 
-        // Store verification token in profile
+        // Create profile manually (since auto_confirm is disabled, trigger won't fire)
         const { error: profileError } = await supabase
           .from('profiles')
-          .update({
+          .insert({
+            id: authData.user.id,
+            full_name: validated.fullName,
+            email: validated.email,
+            institution: validated.institution || null,
             verification_token: token,
             verification_expires_at: expiresAt.toISOString(),
             email_verified: false,
-          })
-          .eq('id', authData.user.id);
+          });
 
         if (profileError) {
           console.error('Error storing verification token:', profileError);
