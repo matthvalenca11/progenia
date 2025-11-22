@@ -43,27 +43,49 @@ serve(async (req) => {
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
           </head>
-          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="color: white; margin: 0;">Nova Mensagem de Contato</h1>
-            </div>
-            <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
-              <h2 style="color: #667eea; margin-top: 0;">Dados do contato</h2>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 0; background-color: #f5f5f5;">
+            <div style="background-color: #ffffff; margin: 20px auto; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+              <!-- Header with Logo -->
+              <div style="background: linear-gradient(135deg, #0B3B66 0%, #2D9B95 100%); padding: 40px 30px; text-align: center;">
+                <div style="background: white; width: 80px; height: 80px; margin: 0 auto 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                  <img src="https://www.progenia.com.br/logo.png" alt="ProGenia" style="width: 60px; height: auto;" />
+                </div>
+                <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">Nova Mensagem de Contato</h1>
+                <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 14px;">Formulário ProGenia</p>
+              </div>
               
-              <div style="background: white; padding: 20px; border-radius: 5px; margin-bottom: 20px;">
-                <p style="margin: 10px 0;"><strong>Nome:</strong> ${name}</p>
-                <p style="margin: 10px 0;"><strong>Email:</strong> ${email}</p>
-                <p style="margin: 10px 0;"><strong>Telefone:</strong> ${phone}</p>
-              </div>
+              <!-- Content -->
+              <div style="padding: 40px 30px;">
+                <h2 style="color: #0B3B66; font-size: 20px; margin-top: 0; margin-bottom: 25px;">Dados do Contato</h2>
+                
+                <div style="background: #f9f9f9; padding: 25px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #2D9B95;">
+                  <div style="margin-bottom: 15px;">
+                    <strong style="color: #0B3B66; display: block; margin-bottom: 5px;">👤 Nome:</strong>
+                    <span style="color: #555;">${name}</span>
+                  </div>
+                  <div style="margin-bottom: 15px;">
+                    <strong style="color: #0B3B66; display: block; margin-bottom: 5px;">📧 Email:</strong>
+                    <a href="mailto:${email}" style="color: #2D9B95; text-decoration: none;">${email}</a>
+                  </div>
+                  <div>
+                    <strong style="color: #0B3B66; display: block; margin-bottom: 5px;">📱 Telefone:</strong>
+                    <a href="tel:${phone}" style="color: #2D9B95; text-decoration: none;">${phone}</a>
+                  </div>
+                </div>
 
-              <h3 style="color: #667eea;">Mensagem:</h3>
-              <div style="background: white; padding: 20px; border-radius: 5px; white-space: pre-wrap;">
-                ${message}
+                <h3 style="color: #0B3B66; font-size: 18px; margin-bottom: 15px;">💬 Mensagem:</h3>
+                <div style="background: white; padding: 25px; border-radius: 8px; border: 1px solid #e5e5e5; white-space: pre-wrap; line-height: 1.8; color: #555;">
+${message}
+                </div>
               </div>
-
-              <p style="font-size: 12px; color: #999; margin-top: 30px; text-align: center;">
-                Enviado via formulário de contato ProGenia
-              </p>
+              
+              <!-- Footer -->
+              <div style="background-color: #f9f9f9; padding: 25px 30px; text-align: center; border-top: 1px solid #e5e5e5;">
+                <p style="margin: 0; font-size: 13px; color: #888;">
+                  © 2025 ProGenia - Learn & Evolve<br/>
+                  Enviado via formulário de contato ProGenia
+                </p>
+              </div>
             </div>
           </body>
         </html>

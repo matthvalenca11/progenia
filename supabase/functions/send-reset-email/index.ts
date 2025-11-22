@@ -60,30 +60,56 @@ serve(async (req) => {
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
           </head>
-          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="color: white; margin: 0;">ProGenia</h1>
-            </div>
-            <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
-              <p style="font-size: 16px; margin-bottom: 20px;">${bodyIntro}</p>
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${resetUrl}" 
-                   style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                          color: white; 
-                          padding: 15px 30px; 
-                          text-decoration: none; 
-                          border-radius: 5px; 
-                          display: inline-block;
-                          font-weight: bold;">
-                  Redefinir Senha
-                </a>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 0; background-color: #f5f5f5;">
+            <div style="background-color: #ffffff; margin: 20px auto; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+              <!-- Header with Logo -->
+              <div style="background: linear-gradient(135deg, #0B3B66 0%, #2D9B95 100%); padding: 40px 30px; text-align: center;">
+                <div style="background: white; width: 80px; height: 80px; margin: 0 auto 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                  <img src="https://www.progenia.com.br/logo.png" alt="ProGenia" style="width: 60px; height: auto;" />
+                </div>
+                <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">ProGenia</h1>
+                <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 14px;">Learn & Evolve</p>
               </div>
-              <p style="font-size: 14px; color: #666; margin-top: 30px;">
-                Se você não solicitou a redefinição de senha, ignore este e-mail. Sua senha permanecerá inalterada.
-              </p>
-              <p style="font-size: 12px; color: #999; margin-top: 20px;">
-                Este link expira em 1 hora.
-              </p>
+              
+              <!-- Content -->
+              <div style="padding: 40px 30px;">
+                <h2 style="color: #0B3B66; font-size: 22px; margin-top: 0; margin-bottom: 20px;">Redefinição de Senha</h2>
+                <p style="font-size: 16px; margin-bottom: 25px; color: #555; line-height: 1.8;">${bodyIntro}</p>
+                
+                <div style="text-align: center; margin: 35px 0;">
+                  <a href="${resetUrl}" 
+                     style="background: linear-gradient(135deg, #0B3B66 0%, #2D9B95 100%); 
+                            color: white; 
+                            padding: 16px 40px; 
+                            text-decoration: none; 
+                            border-radius: 8px; 
+                            display: inline-block;
+                            font-weight: 600;
+                            font-size: 16px;
+                            box-shadow: 0 4px 12px rgba(11, 59, 102, 0.3);
+                            transition: all 0.3s ease;">
+                    Redefinir Senha
+                  </a>
+                </div>
+                
+                <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; border-left: 4px solid #2D9B95; margin-top: 30px;">
+                  <p style="font-size: 14px; color: #666; margin: 0;">
+                    <strong style="color: #0B3B66;">Segurança:</strong> Se você não solicitou a redefinição de senha, ignore este e-mail. Sua senha permanecerá inalterada.
+                  </p>
+                </div>
+                
+                <p style="font-size: 12px; color: #999; margin-top: 25px; text-align: center;">
+                  ⏱️ Este link expira em 1 hora
+                </p>
+              </div>
+              
+              <!-- Footer -->
+              <div style="background-color: #f9f9f9; padding: 25px 30px; text-align: center; border-top: 1px solid #e5e5e5;">
+                <p style="margin: 0; font-size: 13px; color: #888;">
+                  © 2025 ProGenia - Learn & Evolve<br/>
+                  Transformando a educação em saúde através da tecnologia
+                </p>
+              </div>
             </div>
           </body>
         </html>
