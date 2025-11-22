@@ -287,17 +287,33 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
             {section.subtitle && <p className="text-xl text-muted-foreground max-w-3xl mx-auto">{section.subtitle}</p>}
           </div>
 
-          <div className="space-y-12 relative">
-            <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary via-primary/50 to-transparent" />
+          <div className="space-y-16 relative">
+            <div className="absolute left-20 md:left-24 top-0 bottom-0 w-px bg-gradient-to-b from-primary/30 via-primary/20 to-transparent" />
             {items.map((item: any, i: number) => (
-              <div key={i} className="flex gap-8 group relative">
-                <div className="flex flex-col items-center relative z-10">
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg group-hover:scale-125 transition-transform">
-                    <span className="text-white font-bold">{item.year}</span>
+              <div key={i} className="flex gap-8 md:gap-12 group relative">
+                {/* Badge de Data Redesenhado */}
+                <div className="relative z-10 flex-shrink-0">
+                  <div className="relative">
+                    {/* Círculo de conexão */}
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-primary ring-4 ring-primary/20 group-hover:ring-8 transition-all" />
+                    
+                    {/* Badge de ano/data */}
+                    <div className="w-32 md:w-40 bg-gradient-to-br from-primary via-primary to-primary/80 rounded-2xl p-4 shadow-xl group-hover:shadow-2xl group-hover:scale-105 transition-all">
+                      <div className="text-center">
+                        <div className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-1">
+                          {item.year.includes(' ') ? item.year.split(' ')[0] : ''}
+                        </div>
+                        <div className="text-3xl font-bold text-white leading-none">
+                          {item.year.includes(' ') ? item.year.split(' ').slice(1).join(' ') : item.year}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <Card className="flex-1 p-8 hover:shadow-2xl transition-all hover:-translate-y-1 border-border/50">
-                  <h3 className="text-2xl font-bold mb-3">{item.title}</h3>
+
+                {/* Card de Conteúdo */}
+                <Card className="flex-1 p-8 hover:shadow-2xl transition-all hover:-translate-y-1 border-border/50 bg-gradient-to-br from-card to-card/50">
+                  <h3 className="text-2xl font-bold mb-3 bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">{item.title}</h3>
                   <p className="text-muted-foreground text-lg leading-relaxed">{item.description}</p>
                 </Card>
               </div>
