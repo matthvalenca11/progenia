@@ -20,6 +20,7 @@ import LessonViewer from "@/pages/LessonViewer";
 import CapsuleViewer from "@/pages/CapsuleViewer";
 import VirtualLabEditor from "@/components/admin/VirtualLabEditor";
 import VirtualLabsAdmin from "@/pages/VirtualLabsAdmin";
+import DeleteUserTest from "@/pages/DeleteUserTest";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -60,6 +61,7 @@ const AppContent = () => {
           <Route path="/admin/labs" element={<VirtualLabsAdmin />} />
           <Route path="/admin/labs/novo" element={<VirtualLabEditor />} />
           <Route path="/admin/labs/editar/:labId" element={<VirtualLabEditor />} />
+          <Route path="/delete-user-test" element={<DeleteUserTest />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
