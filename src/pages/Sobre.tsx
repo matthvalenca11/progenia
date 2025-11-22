@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { GraduationCap, Lightbulb, Target, Users, TrendingUp, CheckCircle2, Sparkles, ArrowRight } from "lucide-react";
 import logo from "@/assets/logo.png";
+
 interface Partner {
   id: string;
   name: string;
@@ -13,6 +14,7 @@ interface Partner {
   website_url: string;
   order_index: number;
 }
+
 interface TeamMember {
   id: string;
   name: string;
@@ -20,26 +22,63 @@ interface TeamMember {
   photo_url: string | null;
   order_index: number;
 }
+
+interface AboutPageContent {
+  hero_title: string;
+  hero_subtitle: string;
+  motivation_title: string;
+  motivation_description: string;
+  motivation_challenges: string[];
+  solution_title: string;
+  solution_subtitle: string;
+  solution_features: Array<{ title: string; description: string }>;
+  audience_title: string;
+  audience_subtitle: string;
+  audience_stats: Array<{ icon: string; title: string; count: string; subtitle: string }>;
+  partners_title: string;
+  partners_subtitle: string;
+  team_title: string;
+  team_subtitle: string;
+  cta_title: string;
+  cta_subtitle: string;
+}
 const Sobre = () => {
   const navigate = useNavigate();
   const [partners, setPartners] = useState<Partner[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
+  const [content, setContent] = useState<AboutPageContent | null>(null);
+
   useEffect(() => {
-    loadPartnersAndTeam();
+    loadData();
   }, []);
-  const loadPartnersAndTeam = async () => {
-    const {
-      data: partnersData
-    } = await supabase.from('partners').select('*').order('order_index', {
-      ascending: true
-    });
-    const {
-      data: teamData
-    } = await supabase.from('team_members').select('*').order('order_index', {
-      ascending: true
-    });
+
+  const loadData = async () => {
+    const { data: partnersData } = await supabase
+      .from('partners')
+      .select('*')
+      .order('order_index', { ascending: true });
+    
+    const { data: teamData } = await supabase
+      .from('team_members')
+      .select('*')
+      .order('order_index', { ascending: true });
+    
+    const { data: contentData } = await supabase
+      .from('about_page_content')
+      .select('*')
+      .limit(1)
+      .maybeSingle();
+
     if (partnersData) setPartners(partnersData);
     if (teamData) setTeam(teamData);
+    if (contentData) {
+      setContent({
+        ...contentData,
+        motivation_challenges: contentData.motivation_challenges as string[],
+        solution_features: contentData.solution_features as Array<{ title: string; description: string }>,
+        audience_stats: contentData.audience_stats as Array<{ icon: string; title: string; count: string; subtitle: string }>,
+      });
+    }
   };
   return <div className="min-h-screen bg-background">
       {/* Navigation */}
@@ -64,11 +103,10 @@ const Sobre = () => {
       <section className="py-20 px-4">
         <div className="container mx-auto max-w-6xl text-center">
           <h1 className="text-5xl md:text-6xl font-bold mb-6 gradient-text">
-            Sobre a ProGenia
+            {content?.hero_title || "Sobre a ProGenia"}
           </h1>
           <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-            Democratizando o acesso ao conhecimento científico em saúde através de aprendizado 
-            interativo, simulações práticas e tecnologia de ponta.
+            {content?.hero_subtitle || "Democratizando o acesso ao conhecimento científico em saúde através de aprendizado interativo, simulações práticas e tecnologia de ponta."}
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
             <Button size="lg" className="gradient-accent text-white" onClick={() => navigate("/auth")}>
@@ -89,17 +127,23 @@ const Sobre = () => {
             <div>
               <div className="flex items-center gap-3 mb-4">
                 <Lightbulb className="h-8 w-8 text-primary" />
-                <h2 className="text-3xl font-bold">Por Que ProGenia Existe?</h2>
+                <h2 className="text-3xl font-bold">{content?.motivation_title || "Por Que ProGenia Existe?"}</h2>
               </div>
               <p className="text-lg text-muted-foreground mb-6">
-                Profissionais de saúde frequentemente utilizam tecnologias terapêuticas e diagnósticas 
-                sem compreender profundamente os princípios físicos e fisiológicos por trás delas.
+                {content?.motivation_description || "Profissionais de saúde frequentemente utilizam tecnologias terapêuticas e diagnósticas sem compreender profundamente os princípios físicos e fisiológicos por trás delas."}
               </p>
               <ul className="space-y-3">
-                {["Lacunas na formação sobre física aplicada à saúde", "Riscos do uso inadequado de eletroterapias e equipamentos", "Recursos de treinamento limitados e fragmentados", "Dificuldade em visualizar conceitos abstratos"].map((item, i) => <li key={i} className="flex items-start gap-3">
+                {(content?.motivation_challenges || [
+                  "Lacunas na formação sobre física aplicada à saúde",
+                  "Riscos do uso inadequado de eletroterapias e equipamentos",
+                  "Recursos de treinamento limitados e fragmentados",
+                  "Dificuldade em visualizar conceitos abstratos"
+                ]).map((item, i) => (
+                  <li key={i} className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-secondary mt-1 flex-shrink-0" />
                     <span>{item}</span>
-                  </li>)}
+                  </li>
+                ))}
               </ul>
             </div>
             <div className="relative">
@@ -115,30 +159,37 @@ const Sobre = () => {
       <section className="py-16 px-4">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">Nossa Solução</h2>
+            <h2 className="text-3xl font-bold mb-4">{content?.solution_title || "Nossa Solução"}</h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              ProGenia oferece uma abordagem moderna e eficaz para o aprendizado científico em saúde
+              {content?.solution_subtitle || "ProGenia oferece uma abordagem moderna e eficaz para o aprendizado científico em saúde"}
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 mb-12">
-            {[{
-            icon: GraduationCap,
-            title: "Micro-Learning Estruturado",
-            description: "Conteúdo dividido em módulos curtos e focados, facilitando a absorção do conhecimento"
-          }, {
-            icon: Sparkles,
-            title: "Simulações Interativas",
-            description: "Laboratórios virtuais onde você pode experimentar e visualizar conceitos complexos"
-          }, {
-            icon: TrendingUp,
-            title: "Aprendizado Personalizado",
-            description: "IA que acompanha seu progresso e sugere conteúdos baseados nas suas necessidades"
-          }].map((feature, i) => <Card key={i} className="p-6 hover:shadow-lg transition-shadow">
-                <feature.icon className="h-12 w-12 text-primary mb-4" />
-                <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
-                <p className="text-muted-foreground">{feature.description}</p>
-              </Card>)}
+            {(content?.solution_features || [
+              {
+                title: "Micro-Learning Estruturado",
+                description: "Conteúdo dividido em módulos curtos e focados, facilitando a absorção do conhecimento"
+              },
+              {
+                title: "Simulações Interativas",
+                description: "Laboratórios virtuais onde você pode experimentar e visualizar conceitos complexos"
+              },
+              {
+                title: "Aprendizado Personalizado",
+                description: "IA que acompanha seu progresso e sugere conteúdos baseados nas suas necessidades"
+              }
+            ]).map((feature, i) => {
+              const icons = [GraduationCap, Sparkles, TrendingUp];
+              const Icon = icons[i] || GraduationCap;
+              return (
+                <Card key={i} className="p-6 hover:shadow-lg transition-shadow">
+                  <Icon className="h-12 w-12 text-primary mb-4" />
+                  <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
+                  <p className="text-muted-foreground">{feature.description}</p>
+                </Card>
+              );
+            })}
           </div>
 
           {/* Learning Journey */}
@@ -173,86 +224,104 @@ const Sobre = () => {
       <section className="py-16 px-4 bg-muted/30">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">Quem se Beneficia?</h2>
+            <h2 className="text-3xl font-bold mb-4">{content?.audience_title || "Quem se Beneficia?"}</h2>
             <p className="text-lg text-muted-foreground">
-              ProGenia foi desenvolvido para profissionais e estudantes da área da saúde
+              {content?.audience_subtitle || "ProGenia foi desenvolvido para profissionais e estudantes da área da saúde"}
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 mb-12">
-            {[{
-            icon: "👨‍⚕️",
-            title: "Profissionais da Saúde no Brasil",
-            count: "300.000+",
-            subtitle: "Registrados no COFFITO"
-          }, {
-            icon: "🎓",
-            title: "Cursos de Graduação",
-            count: "600+",
-            subtitle: "Fisioterapia, Fonoaudiologia e TO"
-          }, {
-            icon: "🏥",
-            title: "Clínicas e centros de reabilitação física",
-            count: "20.000+",
-            subtitle: "Profissionais ativos"
-          }].map((audience, i) => <Card key={i} className="p-6 text-center hover:shadow-lg transition-shadow">
+            {(content?.audience_stats || [
+              {
+                icon: "👨‍⚕️",
+                title: "Profissionais da Saúde no Brasil",
+                count: "300.000+",
+                subtitle: "Registrados no COFFITO"
+              },
+              {
+                icon: "🎓",
+                title: "Cursos de Graduação",
+                count: "600+",
+                subtitle: "Fisioterapia, Fonoaudiologia e TO"
+              },
+              {
+                icon: "🏥",
+                title: "Clínicas e centros de reabilitação física",
+                count: "20.000+",
+                subtitle: "Profissionais ativos"
+              }
+            ]).map((audience, i) => (
+              <Card key={i} className="p-6 text-center hover:shadow-lg transition-shadow">
                 <div className="text-5xl mb-3">{audience.icon}</div>
                 <h3 className="text-lg font-semibold mb-2">{audience.title}</h3>
                 <p className="text-3xl font-bold text-primary mb-1">{audience.count}</p>
                 <p className="text-sm text-muted-foreground">{audience.subtitle}</p>
-              </Card>)}
+              </Card>
+            ))}
           </div>
         </div>
       </section>
 
       {/* Parceiros & Apoiadores */}
-      {partners.length > 0 && <section className="py-16 px-4">
+      {partners.length > 0 && (
+        <section className="py-16 px-4">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold mb-4">Nossos Parceiros</h2>
-              <p className="text-lg text-muted-foreground">Parceiros e apoiadores da nossa missão</p>
+              <h2 className="text-3xl font-bold mb-4">{content?.partners_title || "Nossos Parceiros"}</h2>
+              <p className="text-lg text-muted-foreground">{content?.partners_subtitle || "Parceiros e apoiadores da nossa missão"}</p>
             </div>
 
             <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {partners.map(partner => <a key={partner.id} href={partner.website_url} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center p-6 bg-background border rounded-lg hover:shadow-lg transition-all cursor-pointer group">
+              {partners.map(partner => (
+                <a key={partner.id} href={partner.website_url} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center p-6 bg-background border rounded-lg hover:shadow-lg transition-all cursor-pointer group">
                   <img src={partner.logo_url} alt={partner.name} className="max-h-16 w-full object-contain transition-all mb-3" />
                   <p className="font-medium text-center text-sm">{partner.name}</p>
                   {partner.description && <p className="text-xs text-muted-foreground text-center mt-1">{partner.description}</p>}
-                </a>)}
+                </a>
+              ))}
             </div>
           </div>
-        </section>}
+        </section>
+      )}
 
       {/* Equipe */}
-      {team.length > 0 && <section className="py-16 px-4 bg-muted/30">
+      {team.length > 0 && (
+        <section className="py-16 px-4 bg-muted/30">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold mb-4">Nossa Equipe</h2>
+              <h2 className="text-3xl font-bold mb-4">{content?.team_title || "Nossa Equipe"}</h2>
               <p className="text-lg text-muted-foreground">
-                Especialistas dedicados a revolucionar a educação em saúde
+                {content?.team_subtitle || "Especialistas dedicados a revolucionar a educação em saúde"}
               </p>
             </div>
 
             <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {team.map(member => <Card key={member.id} className="p-6 text-center">
-                  {member.photo_url ? <img src={member.photo_url} alt={member.name} className="w-32 h-32 rounded-full mx-auto mb-4 object-cover" /> : <div className="w-32 h-32 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 mx-auto mb-4 flex items-center justify-center">
+              {team.map(member => (
+                <Card key={member.id} className="p-6 text-center">
+                  {member.photo_url ? (
+                    <img src={member.photo_url} alt={member.name} className="w-32 h-32 rounded-full mx-auto mb-4 object-cover" />
+                  ) : (
+                    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 mx-auto mb-4 flex items-center justify-center">
                       <Users className="h-12 w-12 text-primary" />
-                    </div>}
+                    </div>
+                  )}
                   <h3 className="font-semibold mb-1">{member.name}</h3>
                   <p className="text-sm text-muted-foreground">{member.role}</p>
-                </Card>)}
+                </Card>
+              ))}
             </div>
           </div>
-        </section>}
+        </section>
+      )}
 
       {/* Final CTA */}
       <section className="py-20 px-4 bg-gradient-to-br from-primary/10 via-secondary/10 to-primary/10">
         <div className="container mx-auto max-w-4xl text-center">
           <h2 className="text-4xl font-bold mb-6">
-            Pronto para Transformar Seu Aprendizado?
+            {content?.cta_title || "Pronto para Transformar Seu Aprendizado?"}
           </h2>
           <p className="text-xl text-muted-foreground mb-8">
-            Faça parte da nova geração de profissionais que dominam a ciência por trás da tecnologia médica
+            {content?.cta_subtitle || "Faça parte da nova geração de profissionais que dominam a ciência por trás da tecnologia médica"}
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
             <Button size="lg" className="gradient-accent text-white" onClick={() => navigate("/auth")}>
