@@ -93,18 +93,18 @@ const Auth = () => {
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + 24);
 
-        // Create profile manually (since auto_confirm is disabled, trigger won't fire)
+        // Wait a bit for the trigger to create the profile
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Update profile with verification token
         const { error: profileError } = await supabase
           .from('profiles')
-          .insert({
-            id: authData.user.id,
-            full_name: validated.fullName,
-            email: validated.email,
-            institution: validated.institution || null,
+          .update({
             verification_token: token,
             verification_expires_at: expiresAt.toISOString(),
             email_verified: false,
-          });
+          })
+          .eq('id', authData.user.id);
 
         if (profileError) {
           console.error('Error storing verification token:', profileError);
