@@ -69,7 +69,6 @@ const Sobre = () => {
     const { data: sectionsData } = await supabase
       .from('about_page_sections')
       .select('*')
-      .eq('is_published', true)
       .order('order_index', { ascending: true });
 
     if (partnersData) setPartners(partnersData);
