@@ -87,17 +87,17 @@ const Sobre = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <nav className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate("/")}>
-            <img src={logo} alt="ProGenia" className="h-10" />
-            <span className="text-xl font-bold gradient-text">ProGenia</span>
+      <nav className="border-b border-border/50 bg-background/80 backdrop-blur-xl sticky top-0 z-50 shadow-sm">
+        <div className="container mx-auto px-6 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-3 cursor-pointer hover-scale" onClick={() => navigate("/")}>
+            <img src={logo} alt="ProGenia" className="h-12" />
+            <span className="text-2xl font-bold gradient-text">ProGenia</span>
           </div>
-          <div className="flex gap-3">
-            <Button variant="ghost" onClick={() => navigate("/auth")}>
+          <div className="flex gap-4">
+            <Button variant="ghost" className="font-medium" onClick={() => navigate("/auth")}>
               Entrar
             </Button>
-            <Button className="gradient-accent text-white" onClick={() => navigate("/auth")}>
+            <Button className="gradient-accent text-white font-semibold px-6" onClick={() => navigate("/auth")}>
               Criar Conta
             </Button>
           </div>
@@ -111,19 +111,40 @@ const Sobre = () => {
 
       {/* Parceiros & Apoiadores */}
       {partners.length > 0 && (
-        <section className="py-16 px-4">
-          <div className="container mx-auto max-w-6xl">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold mb-4">Nossos Parceiros</h2>
-              <p className="text-lg text-muted-foreground">Parceiros e apoiadores da nossa missão</p>
+        <section className="py-20 px-4 bg-gradient-to-b from-background to-muted/20">
+          <div className="container mx-auto max-w-7xl">
+            <div className="text-center mb-16 animate-fade-in">
+              <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                Parceiros & Apoiadores
+              </h2>
+              <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
+                Organizações que acreditam na transformação da educação em saúde
+              </p>
             </div>
 
-            <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {partners.map(partner => (
-                <a key={partner.id} href={partner.website_url} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center p-6 bg-background border rounded-lg hover:shadow-lg transition-all cursor-pointer group">
-                  <img src={partner.logo_url} alt={partner.name} className="max-h-16 w-full object-contain transition-all mb-3" />
-                  <p className="font-medium text-center text-sm">{partner.name}</p>
-                  {partner.description && <p className="text-xs text-muted-foreground text-center mt-1">{partner.description}</p>}
+            <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-8 animate-fade-in" style={{ animationDelay: '100ms' }}>
+              {partners.map((partner, index) => (
+                <a 
+                  key={partner.id} 
+                  href={partner.website_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="group flex flex-col items-center justify-center p-8 bg-card border border-border/50 rounded-xl hover:border-primary/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
+                  style={{ animationDelay: `${(index + 1) * 50}ms` }}
+                >
+                  <div className="w-full h-20 flex items-center justify-center mb-4">
+                    <img 
+                      src={partner.logo_url} 
+                      alt={partner.name} 
+                      className="max-h-16 max-w-full object-contain grayscale group-hover:grayscale-0 transition-all duration-300" 
+                    />
+                  </div>
+                  <p className="font-semibold text-center text-sm mb-1">{partner.name}</p>
+                  {partner.description && (
+                    <p className="text-xs text-muted-foreground text-center leading-relaxed">
+                      {partner.description}
+                    </p>
+                  )}
                 </a>
               ))}
             </div>
@@ -133,27 +154,37 @@ const Sobre = () => {
 
       {/* Equipe */}
       {team.length > 0 && (
-        <section className="py-16 px-4 bg-muted/30">
-          <div className="container mx-auto max-w-6xl">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold mb-4">Nossa Equipe</h2>
-              <p className="text-lg text-muted-foreground">
-                Especialistas dedicados a revolucionar a educação em saúde
+        <section className="py-20 px-4 bg-gradient-to-b from-muted/20 to-background">
+          <div className="container mx-auto max-w-7xl">
+            <div className="text-center mb-16 animate-fade-in">
+              <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                Nossa Equipe
+              </h2>
+              <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
+                Especialistas dedicados à revolução da educação científica em saúde
               </p>
             </div>
 
-            <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {team.map(member => (
-                <Card key={member.id} className="p-6 text-center">
+            <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-8 animate-fade-in" style={{ animationDelay: '100ms' }}>
+              {team.map((member, index) => (
+                <Card 
+                  key={member.id} 
+                  className="p-8 text-center hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 border-border/50 group"
+                  style={{ animationDelay: `${(index + 1) * 50}ms` }}
+                >
                   {member.photo_url ? (
-                    <img src={member.photo_url} alt={member.name} className="w-32 h-32 rounded-full mx-auto mb-4 object-cover" />
+                    <img 
+                      src={member.photo_url} 
+                      alt={member.name} 
+                      className="w-32 h-32 rounded-full mx-auto mb-6 object-cover border-4 border-primary/10 group-hover:border-primary/30 transition-all shadow-lg" 
+                    />
                   ) : (
-                    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 mx-auto mb-4 flex items-center justify-center">
-                      <Users className="h-12 w-12 text-primary" />
+                    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-primary/20 via-primary/10 to-secondary/20 mx-auto mb-6 flex items-center justify-center border-4 border-primary/10 group-hover:border-primary/30 transition-all shadow-lg">
+                      <Users className="h-14 w-14 text-primary" />
                     </div>
                   )}
-                  <h3 className="font-semibold mb-1">{member.name}</h3>
-                  <p className="text-sm text-muted-foreground">{member.role}</p>
+                  <h3 className="font-bold text-lg mb-2">{member.name}</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{member.role}</p>
                 </Card>
               ))}
             </div>
@@ -162,9 +193,12 @@ const Sobre = () => {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-border py-8 px-4">
-        <div className="container mx-auto max-w-6xl text-center text-muted-foreground">
-          <p>© 2026 ProGenia - Learn & Evolve. Todos os direitos reservados.</p>
+      <footer className="border-t border-border/50 bg-muted/10 py-12 px-4">
+        <div className="container mx-auto max-w-7xl text-center">
+          <p className="text-muted-foreground text-sm md:text-base">
+            © 2026 <span className="font-semibold gradient-text">ProGenia</span> - Learn & Evolve. 
+            Todos os direitos reservados.
+          </p>
         </div>
       </footer>
     </div>
