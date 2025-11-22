@@ -177,6 +177,29 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
     handleContentDataUpdate(items.filter((_: any, i: number) => i !== index));
   };
 
+  // FAQ items
+  const addFaqItem = () => {
+    if (!editingSection) return;
+    const items = Array.isArray(editingSection.content_data) ? editingSection.content_data : [];
+    handleContentDataUpdate([
+      ...items,
+      { question: "", answer: "" },
+    ]);
+  };
+
+  const updateFaqItem = (index: number, field: string, value: string) => {
+    if (!editingSection) return;
+    const items = Array.isArray(editingSection.content_data) ? [...editingSection.content_data] : [];
+    items[index] = { ...items[index], [field]: value };
+    handleContentDataUpdate(items);
+  };
+
+  const removeFaqItem = (index: number) => {
+    if (!editingSection) return;
+    const items = Array.isArray(editingSection.content_data) ? editingSection.content_data : [];
+    handleContentDataUpdate(items.filter((_: any, i: number) => i !== index));
+  };
+
   // Button management
   const addButton = () => {
     if (!editingSection) return;
@@ -628,6 +651,49 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
                     <Button variant="outline" onClick={addTimelineItem}>
                       <Plus className="h-4 w-4 mr-2" />
                       Adicionar Item
+                    </Button>
+                  </AccordionContent>
+                </AccordionItem>
+              )}
+
+              {editingSection.section_type === "faq" && (
+                <AccordionItem value="faq">
+                  <AccordionTrigger>Perguntas Frequentes (FAQ)</AccordionTrigger>
+                  <AccordionContent className="space-y-4 pt-4">
+                    {(Array.isArray(editingSection.content_data) ? editingSection.content_data : []).map(
+                      (item: any, index: number) => (
+                        <div key={index} className="p-4 border rounded space-y-2">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="font-medium">Pergunta {index + 1}</span>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => removeFaqItem(index)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <Input
+                            placeholder="Pergunta"
+                            value={item.question || ""}
+                            onChange={(e) =>
+                              updateFaqItem(index, "question", e.target.value)
+                            }
+                          />
+                          <Textarea
+                            placeholder="Resposta"
+                            value={item.answer || ""}
+                            onChange={(e) =>
+                              updateFaqItem(index, "answer", e.target.value)
+                            }
+                            rows={3}
+                          />
+                        </div>
+                      )
+                    )}
+                    <Button variant="outline" onClick={addFaqItem}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Adicionar Pergunta
                     </Button>
                   </AccordionContent>
                 </AccordionItem>
