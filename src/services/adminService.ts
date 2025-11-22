@@ -151,16 +151,15 @@ export const adminService = {
   },
 
   /**
-   * Deletar usuário (cuidado!)
+   * Deletar usuário completamente (auth + perfil)
    */
   async deleteUser(userId: string) {
-    // Isso vai cascatear e deletar todos os dados relacionados
-    const { error } = await supabase
-      .from("profiles")
-      .delete()
-      .eq("id", userId);
+    const { data, error } = await supabase.functions.invoke('delete-user', {
+      body: { userId }
+    });
 
     if (error) throw error;
+    if (data?.error) throw new Error(data.error);
   },
 
   /**
