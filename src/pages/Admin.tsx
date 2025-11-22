@@ -24,6 +24,8 @@ import { ModulesManager } from "@/components/admin/ModulesManager";
 import { MediaLibrary } from "@/components/admin/MediaLibrary";
 import VirtualLabsAdmin from "./VirtualLabsAdmin";
 import { EmailSettingsManager } from "@/components/admin/EmailSettingsManager";
+import { TeamManager } from "@/components/admin/TeamManager";
+import { PartnersManager } from "@/components/admin/PartnersManager";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -97,7 +99,7 @@ const Admin = () => {
       {/* Conteúdo Principal */}
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="modules" className="w-full">
-          <TabsList className="grid w-full grid-cols-7 gap-1">
+          <TabsList className="grid w-full grid-cols-9 gap-1">
             <TabsTrigger value="modules">
               <BookOpen className="h-4 w-4 mr-2" />
               Módulos
@@ -121,6 +123,14 @@ const Admin = () => {
             <TabsTrigger value="users">
               <Users className="h-4 w-4 mr-2" />
               Usuários
+            </TabsTrigger>
+            <TabsTrigger value="team">
+              <UsersRound className="h-4 w-4 mr-2" />
+              Equipe
+            </TabsTrigger>
+            <TabsTrigger value="partners">
+              <Handshake className="h-4 w-4 mr-2" />
+              Parceiros
             </TabsTrigger>
             <TabsTrigger value="email">
               <Mail className="h-4 w-4 mr-2" />
@@ -156,6 +166,16 @@ const Admin = () => {
           {/* Tab: Usuários */}
           <TabsContent value="users" className="mt-6">
             <UsersManager />
+          </TabsContent>
+
+          {/* Tab: Equipe */}
+          <TabsContent value="team" className="mt-6">
+            <TeamManager />
+          </TabsContent>
+
+          {/* Tab: Parceiros */}
+          <TabsContent value="partners" className="mt-6">
+            <PartnersManager />
           </TabsContent>
 
           {/* Tab: Configurações de E-mail */}
