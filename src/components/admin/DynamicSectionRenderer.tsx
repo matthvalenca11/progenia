@@ -158,18 +158,48 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
 
   const renderTextSection = () => (
     <section className={wrapperClasses} style={animationStyle}>
-      <div className="container mx-auto max-w-5xl">
-        <div className="text-center mb-8">
-          {section.title && <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">{section.title}</h2>}
-          {section.subtitle && <p className="text-xl md:text-2xl text-muted-foreground mb-6">{section.subtitle}</p>}
+      <div className="container mx-auto max-w-6xl">
+        <div className="text-center mb-12">
+          {section.title && (
+            <h2 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-primary via-primary to-primary/60 bg-clip-text text-transparent leading-tight">
+              {section.title}
+            </h2>
+          )}
+          {section.subtitle && (
+            <p className="text-2xl md:text-3xl font-semibold text-foreground/80 mb-8 max-w-4xl mx-auto leading-relaxed">
+              {section.subtitle}
+            </p>
+          )}
         </div>
         {section.description && (
-          <div className="prose prose-lg max-w-none text-foreground/90 leading-relaxed">
+          <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
             {section.description.split('\n').map((line: string, i: number) => {
-              if (line.trim().startsWith('•')) {
-                return <li key={i} className="ml-6 mb-3 text-lg">{line.replace('•', '').trim()}</li>;
+              if (line.trim().startsWith('**') && line.trim().endsWith('**')) {
+                return null;
               }
-              return <p key={i} className="mb-4 text-lg">{line}</p>;
+              if (line.trim().startsWith('•')) {
+                const text = line.replace('•', '').trim();
+                const isBold = text.startsWith('**') && text.includes('**');
+                const cleanText = text.replace(/\*\*/g, '');
+                
+                return (
+                  <Card key={i} className="p-6 hover:shadow-xl transition-all hover:-translate-y-1 border-l-4 border-l-primary bg-gradient-to-br from-card to-card/50">
+                    <div className="flex gap-4 items-start">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mt-1">
+                        <CheckCircle2 className="h-5 w-5 text-primary" />
+                      </div>
+                      <p className="text-lg leading-relaxed text-foreground/90 flex-1">
+                        {isBold ? <strong>{cleanText}</strong> : cleanText}
+                      </p>
+                    </div>
+                  </Card>
+                );
+              }
+              return line.trim() ? (
+                <p key={i} className="md:col-span-2 text-xl text-center text-muted-foreground leading-relaxed mb-4">
+                  {line}
+                </p>
+              ) : null;
             })}
           </div>
         )}
