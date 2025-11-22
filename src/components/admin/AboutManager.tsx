@@ -4,11 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Trash2, Plus, ExternalLink, X } from "lucide-react";
+import { Trash2, Plus, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { storageService } from "@/services/storageService";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AboutPageBuilder } from "./AboutPageBuilder";
 
 interface TeamMember {
   id: string;
@@ -27,34 +27,11 @@ interface Partner {
   order_index: number;
 }
 
-interface AboutPageContent {
-  id: string;
-  hero_title: string;
-  hero_subtitle: string;
-  motivation_title: string;
-  motivation_description: string;
-  motivation_challenges: string[];
-  solution_title: string;
-  solution_subtitle: string;
-  solution_features: Array<{ title: string; description: string }>;
-  audience_title: string;
-  audience_subtitle: string;
-  audience_stats: Array<{ icon: string; title: string; count: string; subtitle: string }>;
-  partners_title: string;
-  partners_subtitle: string;
-  team_title: string;
-  team_subtitle: string;
-  cta_title: string;
-  cta_subtitle: string;
-}
-
 export const AboutManager = () => {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
-  const [pageContent, setPageContent] = useState<AboutPageContent | null>(null);
   const [loadingTeam, setLoadingTeam] = useState(false);
   const [loadingPartner, setLoadingPartner] = useState(false);
-  const [loadingContent, setLoadingContent] = useState(false);
   const [newMember, setNewMember] = useState({ name: "", role: "", photo_url: "" });
   const [newPartner, setNewPartner] = useState({ name: "", description: "", logo_url: "", website_url: "" });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -63,87 +40,7 @@ export const AboutManager = () => {
   useEffect(() => {
     loadMembers();
     loadPartners();
-    loadPageContent();
   }, []);
-
-  // Page Content Functions
-  const loadPageContent = async () => {
-    const { data, error } = await supabase
-      .from("about_page_content")
-      .select("*")
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      toast.error("Erro ao carregar conteúdo da página");
-      return;
-    }
-
-    if (data) {
-      setPageContent({
-        ...data,
-        motivation_challenges: data.motivation_challenges as string[],
-        solution_features: data.solution_features as Array<{ title: string; description: string }>,
-        audience_stats: data.audience_stats as Array<{ icon: string; title: string; count: string; subtitle: string }>,
-      });
-    }
-  };
-
-  const handleUpdatePageContent = async () => {
-    if (!pageContent) return;
-
-    setLoadingContent(true);
-    const { error } = await supabase
-      .from("about_page_content")
-      .update(pageContent)
-      .eq("id", pageContent.id);
-
-    if (error) {
-      toast.error("Erro ao atualizar conteúdo da página");
-    } else {
-      toast.success("Conteúdo da página atualizado!");
-    }
-    setLoadingContent(false);
-  };
-
-  const updateChallengeItem = (index: number, value: string) => {
-    if (!pageContent) return;
-    const newChallenges = [...pageContent.motivation_challenges];
-    newChallenges[index] = value;
-    setPageContent({ ...pageContent, motivation_challenges: newChallenges });
-  };
-
-  const addChallengeItem = () => {
-    if (!pageContent) return;
-    setPageContent({
-      ...pageContent,
-      motivation_challenges: [...pageContent.motivation_challenges, ""],
-    });
-  };
-
-  const removeChallengeItem = (index: number) => {
-    if (!pageContent) return;
-    const newChallenges = pageContent.motivation_challenges.filter((_, i) => i !== index);
-    setPageContent({ ...pageContent, motivation_challenges: newChallenges });
-  };
-
-  const updateFeature = (index: number, field: "title" | "description", value: string) => {
-    if (!pageContent) return;
-    const newFeatures = [...pageContent.solution_features];
-    newFeatures[index] = { ...newFeatures[index], [field]: value };
-    setPageContent({ ...pageContent, solution_features: newFeatures });
-  };
-
-  const updateStat = (
-    index: number,
-    field: "icon" | "title" | "count" | "subtitle",
-    value: string
-  ) => {
-    if (!pageContent) return;
-    const newStats = [...pageContent.audience_stats];
-    newStats[index] = { ...newStats[index], [field]: value };
-    setPageContent({ ...pageContent, audience_stats: newStats });
-  };
 
   // Team Members Functions
   const loadMembers = async () => {
@@ -293,276 +190,15 @@ export const AboutManager = () => {
   };
 
   return (
-    <Tabs defaultValue="content" className="w-full">
+    <Tabs defaultValue="builder" className="w-full">
       <TabsList className="grid w-full grid-cols-3">
-        <TabsTrigger value="content">Conteúdo da Página</TabsTrigger>
+        <TabsTrigger value="builder">Page Builder</TabsTrigger>
         <TabsTrigger value="team">Equipe</TabsTrigger>
         <TabsTrigger value="partners">Parceiros</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="content" className="space-y-6 mt-6">
-        {pageContent && (
-          <>
-            {/* Hero Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Seção Hero</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label>Título Principal</Label>
-                  <Input
-                    value={pageContent.hero_title}
-                    onChange={(e) =>
-                      setPageContent({ ...pageContent, hero_title: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Subtítulo</Label>
-                  <Textarea
-                    value={pageContent.hero_subtitle}
-                    onChange={(e) =>
-                      setPageContent({ ...pageContent, hero_subtitle: e.target.value })
-                    }
-                    rows={3}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Motivação */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Seção: Por Que ProGenia Existe?</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label>Título</Label>
-                  <Input
-                    value={pageContent.motivation_title}
-                    onChange={(e) =>
-                      setPageContent({ ...pageContent, motivation_title: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Descrição</Label>
-                  <Textarea
-                    value={pageContent.motivation_description}
-                    onChange={(e) =>
-                      setPageContent({
-                        ...pageContent,
-                        motivation_description: e.target.value,
-                      })
-                    }
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <Label>Desafios (lista de itens)</Label>
-                  {pageContent.motivation_challenges.map((challenge, index) => (
-                    <div key={index} className="flex gap-2 mb-2">
-                      <Input
-                        value={challenge}
-                        onChange={(e) => updateChallengeItem(index, e.target.value)}
-                      />
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        onClick={() => removeChallengeItem(index)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button variant="outline" size="sm" onClick={addChallengeItem}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Adicionar Desafio
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Nossa Solução */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Seção: Nossa Solução</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label>Título</Label>
-                  <Input
-                    value={pageContent.solution_title}
-                    onChange={(e) =>
-                      setPageContent({ ...pageContent, solution_title: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Subtítulo</Label>
-                  <Textarea
-                    value={pageContent.solution_subtitle}
-                    onChange={(e) =>
-                      setPageContent({ ...pageContent, solution_subtitle: e.target.value })
-                    }
-                    rows={2}
-                  />
-                </div>
-                <div>
-                  <Label>Funcionalidades</Label>
-                  {pageContent.solution_features.map((feature, index) => (
-                    <div key={index} className="mb-4 p-4 border rounded">
-                      <Input
-                        placeholder="Título da funcionalidade"
-                        value={feature.title}
-                        onChange={(e) => updateFeature(index, "title", e.target.value)}
-                        className="mb-2"
-                      />
-                      <Textarea
-                        placeholder="Descrição"
-                        value={feature.description}
-                        onChange={(e) => updateFeature(index, "description", e.target.value)}
-                        rows={2}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Público-alvo */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Seção: Quem se Beneficia?</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label>Título</Label>
-                  <Input
-                    value={pageContent.audience_title}
-                    onChange={(e) =>
-                      setPageContent({ ...pageContent, audience_title: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Subtítulo</Label>
-                  <Input
-                    value={pageContent.audience_subtitle}
-                    onChange={(e) =>
-                      setPageContent({ ...pageContent, audience_subtitle: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Estatísticas</Label>
-                  {pageContent.audience_stats.map((stat, index) => (
-                    <div key={index} className="mb-4 p-4 border rounded space-y-2">
-                      <Input
-                        placeholder="Ícone emoji"
-                        value={stat.icon}
-                        onChange={(e) => updateStat(index, "icon", e.target.value)}
-                      />
-                      <Input
-                        placeholder="Título"
-                        value={stat.title}
-                        onChange={(e) => updateStat(index, "title", e.target.value)}
-                      />
-                      <Input
-                        placeholder="Número (ex: 300.000+)"
-                        value={stat.count}
-                        onChange={(e) => updateStat(index, "count", e.target.value)}
-                      />
-                      <Input
-                        placeholder="Subtítulo"
-                        value={stat.subtitle}
-                        onChange={(e) => updateStat(index, "subtitle", e.target.value)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Títulos Parceiros e Equipe */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Seções: Parceiros e Equipe</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label>Título da Seção Parceiros</Label>
-                  <Input
-                    value={pageContent.partners_title}
-                    onChange={(e) =>
-                      setPageContent({ ...pageContent, partners_title: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Subtítulo da Seção Parceiros</Label>
-                  <Input
-                    value={pageContent.partners_subtitle}
-                    onChange={(e) =>
-                      setPageContent({ ...pageContent, partners_subtitle: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Título da Seção Equipe</Label>
-                  <Input
-                    value={pageContent.team_title}
-                    onChange={(e) =>
-                      setPageContent({ ...pageContent, team_title: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Subtítulo da Seção Equipe</Label>
-                  <Input
-                    value={pageContent.team_subtitle}
-                    onChange={(e) =>
-                      setPageContent({ ...pageContent, team_subtitle: e.target.value })
-                    }
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* CTA Final */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Seção: CTA Final</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label>Título</Label>
-                  <Input
-                    value={pageContent.cta_title}
-                    onChange={(e) =>
-                      setPageContent({ ...pageContent, cta_title: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Subtítulo</Label>
-                  <Textarea
-                    value={pageContent.cta_subtitle}
-                    onChange={(e) =>
-                      setPageContent({ ...pageContent, cta_subtitle: e.target.value })
-                    }
-                    rows={2}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Button onClick={handleUpdatePageContent} disabled={loadingContent} className="w-full">
-              {loadingContent ? "Salvando..." : "Salvar Todas as Alterações"}
-            </Button>
-          </>
-        )}
+      <TabsContent value="builder" className="mt-6">
+        <AboutPageBuilder />
       </TabsContent>
 
       <TabsContent value="team" className="space-y-6 mt-6">
