@@ -242,7 +242,7 @@ const Sobre = () => {
                   <img 
                     src={partner.logo_url} 
                     alt={partner.name}
-                    className="max-h-16 w-full object-contain grayscale group-hover:grayscale-0 transition-all mb-3"
+                    className="max-h-16 w-full object-contain transition-all mb-3"
                   />
                   <p className="font-medium text-center text-sm">{partner.name}</p>
                   {partner.description && (
