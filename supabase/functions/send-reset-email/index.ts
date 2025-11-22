@@ -67,12 +67,13 @@ serve(async (req) => {
                 <table width="100%" cellpadding="0" cellspacing="0" border="0">
                   <tr>
                     <td align="center">
-                      <div style="width: 80px; height: 80px; margin: 0 auto 20px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-                        <svg width="60" height="60" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M100 10 L160 50 L160 90 L100 130 L40 90 L40 50 Z" fill="#0B3B66"/>
-                          <circle cx="100" cy="100" r="25" fill="#2D9B95"/>
-                          <path d="M85 100 L95 110 L115 90" stroke="white" stroke-width="4" fill="none" stroke-linecap="round"/>
-                        </svg>
+                      <div style="width: 100px; height: 100px; margin: 0 auto 20px; background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                        <div style="font-size: 48px; font-weight: 800; color: #0B3B66; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1; letter-spacing: -0.02em;">
+                          PG
+                        </div>
+                        <div style="font-size: 10px; font-weight: 600; color: #2D9B95; text-align: center; margin-top: 4px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                          PROGENIA
+                        </div>
                       </div>
                     </td>
                   </tr>
