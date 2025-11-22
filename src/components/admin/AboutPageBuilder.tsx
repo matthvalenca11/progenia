@@ -122,20 +122,25 @@ export const AboutPageBuilder = () => {
       newSections[index],
     ];
 
-    // Update order_index
+    // Update order_index starting from 0
     const updates = newSections.map((section, idx) => ({
       id: section.id,
-      order_index: idx + 1,
+      order_index: idx,
     }));
 
-    for (const update of updates) {
-      await supabase
-        .from("about_page_sections")
-        .update({ order_index: update.order_index })
-        .eq("id", update.id);
+    try {
+      for (const update of updates) {
+        await supabase
+          .from("about_page_sections")
+          .update({ order_index: update.order_index })
+          .eq("id", update.id);
+      }
+      
+      toast.success("Seção reordenada!");
+      loadSections();
+    } catch (error) {
+      toast.error("Erro ao reordenar seção");
     }
-
-    loadSections();
   };
 
   return (
