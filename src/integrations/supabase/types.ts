@@ -83,6 +83,54 @@ export type Database = {
         }
         Relationships: []
       }
+      about_page_sections: {
+        Row: {
+          content_data: Json | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_published: boolean | null
+          layout: string | null
+          media_type: string | null
+          media_url: string | null
+          order_index: number
+          section_type: string
+          subtitle: string | null
+          title: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          content_data?: Json | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_published?: boolean | null
+          layout?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          order_index?: number
+          section_type: string
+          subtitle?: string | null
+          title?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          content_data?: Json | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_published?: boolean | null
+          layout?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          order_index?: number
+          section_type?: string
+          subtitle?: string | null
+          title?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       badges: {
         Row: {
           created_at: string | null
