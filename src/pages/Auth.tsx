@@ -139,7 +139,7 @@ const Auth = () => {
       const validated = signInSchema.parse(signInData);
       setLoading(true);
 
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: validated.email,
         password: validated.password,
       });
@@ -147,12 +147,34 @@ const Auth = () => {
       if (error) {
         if (error.message.includes("Invalid login credentials")) {
           toast.error("E-mail ou senha inválidos");
+        } else if (error.message.includes("Email not confirmed")) {
+          toast.error("E-mail não verificado", {
+            description: "Por favor, verifique seu e-mail e clique no link de confirmação antes de fazer login.",
+          });
         } else {
           toast.error(error.message);
         }
-      } else {
-        toast.success("Bem-vindo de volta!");
+        return;
       }
+
+      // Verificar se o email foi verificado no perfil
+      if (data.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('email_verified')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profile && !profile.email_verified) {
+          await supabase.auth.signOut();
+          toast.error("E-mail não verificado", {
+            description: "Por favor, verifique seu e-mail e clique no link de confirmação para ativar sua conta.",
+          });
+          return;
+        }
+      }
+
+      toast.success("Bem-vindo de volta!");
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
@@ -210,7 +232,7 @@ const Auth = () => {
                   {loading ? "Entrando..." : "Entrar"}
                 </Button>
 
-                <div className="text-center mt-4">
+                <div className="text-center mt-4 space-y-2">
                   <Button
                     type="button"
                     variant="link"
@@ -219,6 +241,9 @@ const Auth = () => {
                   >
                     Esqueceu sua senha?
                   </Button>
+                  <p className="text-xs text-muted-foreground mt-2 px-4">
+                    📧 Após criar sua conta, você receberá um e-mail de verificação. Clique no link para ativar sua conta antes de fazer login.
+                  </p>
                 </div>
               </form>
             </TabsContent>
