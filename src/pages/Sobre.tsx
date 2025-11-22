@@ -136,7 +136,7 @@ const Sobre = () => {
                     <img 
                       src={partner.logo_url} 
                       alt={partner.name} 
-                      className="max-h-16 max-w-full object-contain grayscale group-hover:grayscale-0 transition-all duration-300" 
+                      className="max-h-16 max-w-full object-contain group-hover:scale-110 transition-all duration-300" 
                     />
                   </div>
                   <p className="font-semibold text-center text-sm mb-1">{partner.name}</p>
