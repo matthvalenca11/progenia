@@ -50,7 +50,13 @@ serve(async (req) => {
                 <table width="100%" cellpadding="0" cellspacing="0" border="0">
                   <tr>
                     <td align="center">
-                      <img src="https://cycthtodyhyssfirdrzh.supabase.co/storage/v1/object/public/email-assets/logo-progenia.png" alt="ProGenia" style="width: 80px; height: auto; margin-bottom: 20px;" />
+                      <div style="width: 80px; height: 80px; margin: 0 auto 20px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                        <svg width="60" height="60" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M100 10 L160 50 L160 90 L100 130 L40 90 L40 50 Z" fill="#0B3B66"/>
+                          <circle cx="100" cy="100" r="25" fill="#2D9B95"/>
+                          <path d="M85 100 L95 110 L115 90" stroke="white" stroke-width="4" fill="none" stroke-linecap="round"/>
+                        </svg>
+                      </div>
                     </td>
                   </tr>
                 </table>
