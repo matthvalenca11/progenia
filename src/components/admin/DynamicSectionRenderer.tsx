@@ -131,20 +131,25 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
     <section className={wrapperClasses} style={animationStyle}>
       <div className="container mx-auto max-w-6xl text-center">
         {section.title && (
-          <h1 className="text-5xl md:text-6xl font-bold mb-6 gradient-text">
+          <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent leading-tight">
             {section.title}
           </h1>
         )}
         {section.subtitle && (
-          <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
+          <p className="text-xl md:text-2xl text-muted-foreground mb-6 max-w-3xl mx-auto leading-relaxed">
             {section.subtitle}
           </p>
         )}
+        {section.description && (
+          <p className="text-lg text-muted-foreground/80 mb-10 max-w-4xl mx-auto">
+            {section.description}
+          </p>
+        )}
         {section.media_url && section.media_type === "video" && (
-          <video src={section.media_url} controls className="w-full max-w-4xl mx-auto rounded-lg shadow-xl mb-8" />
+          <video src={section.media_url} controls className="w-full max-w-4xl mx-auto rounded-2xl shadow-2xl mb-8" />
         )}
         {section.media_url && section.media_type === "image" && (
-          <img src={section.media_url} alt={section.title || ""} className="w-full max-w-4xl mx-auto rounded-lg shadow-xl mb-8" />
+          <img src={section.media_url} alt={section.title || ""} className="w-full max-w-4xl mx-auto rounded-2xl shadow-2xl mb-8" />
         )}
         {renderButtons()}
       </div>
@@ -153,10 +158,21 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
 
   const renderTextSection = () => (
     <section className={wrapperClasses} style={animationStyle}>
-      <div className="container mx-auto max-w-4xl">
-        {section.title && <h2 className="text-3xl font-bold mb-4">{section.title}</h2>}
-        {section.subtitle && <p className="text-lg text-muted-foreground mb-6">{section.subtitle}</p>}
-        {section.description && <p className="text-muted-foreground">{section.description}</p>}
+      <div className="container mx-auto max-w-5xl">
+        <div className="text-center mb-8">
+          {section.title && <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">{section.title}</h2>}
+          {section.subtitle && <p className="text-xl md:text-2xl text-muted-foreground mb-6">{section.subtitle}</p>}
+        </div>
+        {section.description && (
+          <div className="prose prose-lg max-w-none text-foreground/90 leading-relaxed">
+            {section.description.split('\n').map((line: string, i: number) => {
+              if (line.trim().startsWith('•')) {
+                return <li key={i} className="ml-6 mb-3 text-lg">{line.replace('•', '').trim()}</li>;
+              }
+              return <p key={i} className="mb-4 text-lg">{line}</p>;
+            })}
+          </div>
+        )}
         {renderButtons()}
       </div>
     </section>
@@ -167,23 +183,37 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
 
     return (
       <section className={wrapperClasses} style={animationStyle}>
-        <div className="container mx-auto max-w-6xl">
-          <div className={`grid md:grid-cols-2 gap-12 items-center`}>
+        <div className="container mx-auto max-w-7xl">
+          <div className={`grid md:grid-cols-2 gap-16 items-center`}>
             <div className={isRightLayout ? "md:order-2" : ""}>
-              {section.title && <h2 className="text-3xl font-bold mb-4">{section.title}</h2>}
-              {section.subtitle && <p className="text-xl text-muted-foreground mb-4">{section.subtitle}</p>}
-              {section.description && <p className="text-muted-foreground mb-6">{section.description}</p>}
+              {section.title && <h2 className="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">{section.title}</h2>}
+              {section.subtitle && <p className="text-xl md:text-2xl text-muted-foreground mb-6">{section.subtitle}</p>}
+              {section.description && (
+                <div className="prose prose-lg max-w-none text-foreground/90 mb-8 leading-relaxed">
+                  {section.description.split('\n').map((line: string, i: number) => {
+                    if (line.trim().startsWith('**') && line.trim().endsWith('**')) {
+                      return <p key={i} className="font-bold text-xl mb-4">{line.replace(/\*\*/g, '')}</p>;
+                    }
+                    if (line.trim().startsWith('•')) {
+                      return <li key={i} className="ml-6 mb-3 text-lg">{line.replace('•', '').trim()}</li>;
+                    }
+                    return line.trim() ? <p key={i} className="mb-4 text-lg">{line}</p> : null;
+                  })}
+                </div>
+              )}
               {renderButtons()}
             </div>
             <div className={isRightLayout ? "md:order-1" : ""}>
               {section.media_url && section.media_type === "image" && (
-                <img src={section.media_url} alt={section.title || ""} className="w-full rounded-lg shadow-lg" />
+                <img src={section.media_url} alt={section.title || ""} className="w-full rounded-2xl shadow-2xl" />
               )}
               {section.media_url && section.media_type === "video" && (
-                <video src={section.media_url} controls className="w-full rounded-lg shadow-lg" />
+                <video src={section.media_url} controls className="w-full rounded-2xl shadow-2xl" />
               )}
               {!section.media_url && (
-                <div className="aspect-video bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg" />
+                <div className="aspect-video bg-gradient-to-br from-primary/30 via-primary/10 to-secondary/30 rounded-2xl shadow-xl flex items-center justify-center">
+                  <GraduationCap className="h-32 w-32 text-primary/40" />
+                </div>
               )}
             </div>
           </div>
@@ -193,24 +223,24 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
   };
 
   const renderFeaturesSection = () => {
-    const features = section.content_data?.features || [];
+    const features = Array.isArray(section.content_data) ? section.content_data : [];
 
     return (
       <section className={wrapperClasses} style={animationStyle}>
-        <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-12">
-            {section.title && <h2 className="text-3xl font-bold mb-4">{section.title}</h2>}
+        <div className="container mx-auto max-w-7xl">
+          <div className="text-center mb-16">
+            {section.title && <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">{section.title}</h2>}
             {section.subtitle && (
-              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">{section.subtitle}</p>
+              <p className="text-xl text-muted-foreground max-w-3xl mx-auto">{section.subtitle}</p>
             )}
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {features.map((feature: any, i: number) => (
-              <Card key={i} className="p-6 hover:shadow-lg transition-shadow hover-scale">
-                <div className="mb-4">{renderIcon(feature.icon)}</div>
-                <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
-                <p className="text-muted-foreground">{feature.description}</p>
+              <Card key={i} className="p-8 hover:shadow-2xl transition-all hover:-translate-y-2 border-border/50 group">
+                <div className="mb-6 text-primary group-hover:scale-110 transition-transform">{renderIcon(feature.icon)}</div>
+                <h3 className="text-xl font-bold mb-3">{feature.title}</h3>
+                <p className="text-muted-foreground leading-relaxed">{feature.description}</p>
               </Card>
             ))}
           </div>
@@ -221,23 +251,23 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
   };
 
   const renderStatsSection = () => {
-    const stats = section.content_data?.stats || [];
+    const stats = Array.isArray(section.content_data) ? section.content_data : [];
 
     return (
       <section className={wrapperClasses} style={animationStyle}>
-        <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-12">
-            {section.title && <h2 className="text-3xl font-bold mb-4">{section.title}</h2>}
-            {section.subtitle && <p className="text-lg text-muted-foreground">{section.subtitle}</p>}
+        <div className="container mx-auto max-w-7xl">
+          <div className="text-center mb-16">
+            {section.title && <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">{section.title}</h2>}
+            {section.subtitle && <p className="text-xl text-muted-foreground max-w-3xl mx-auto">{section.subtitle}</p>}
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {stats.map((stat: any, i: number) => (
-              <Card key={i} className="p-6 text-center hover:shadow-lg transition-shadow hover-scale">
-                <div className="text-5xl mb-3">{stat.icon}</div>
-                <h3 className="text-lg font-semibold mb-2">{stat.title}</h3>
-                <p className="text-3xl font-bold text-primary mb-1">{stat.count}</p>
-                <p className="text-sm text-muted-foreground">{stat.subtitle}</p>
+              <Card key={i} className="p-10 text-center hover:shadow-2xl transition-all hover:-translate-y-2 border-border/50 group bg-gradient-to-br from-card to-card/50">
+                <div className="text-6xl mb-4 group-hover:scale-125 transition-transform">{stat.icon}</div>
+                <p className="text-5xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent mb-3">{stat.count}</p>
+                <h3 className="text-lg font-bold mb-2">{stat.title}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{stat.subtitle}</p>
               </Card>
             ))}
           </div>
@@ -247,28 +277,29 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
   };
 
   const renderTimelineSection = () => {
-    const items = section.content_data?.timeline_items || [];
+    const items = Array.isArray(section.content_data) ? section.content_data : [];
 
     return (
       <section className={wrapperClasses} style={animationStyle}>
-        <div className="container mx-auto max-w-4xl">
-          <div className="text-center mb-12">
-            {section.title && <h2 className="text-3xl font-bold mb-4">{section.title}</h2>}
-            {section.subtitle && <p className="text-lg text-muted-foreground">{section.subtitle}</p>}
+        <div className="container mx-auto max-w-5xl">
+          <div className="text-center mb-16">
+            {section.title && <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">{section.title}</h2>}
+            {section.subtitle && <p className="text-xl text-muted-foreground max-w-3xl mx-auto">{section.subtitle}</p>}
           </div>
 
-          <div className="space-y-8">
+          <div className="space-y-12 relative">
+            <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary via-primary/50 to-transparent" />
             {items.map((item: any, i: number) => (
-              <div key={i} className="flex gap-6 group">
-                <div className="flex flex-col items-center">
-                  <div className="w-4 h-4 rounded-full bg-primary group-hover:scale-150 transition-transform" />
-                  {i < items.length - 1 && <div className="w-0.5 flex-1 bg-border mt-2" />}
+              <div key={i} className="flex gap-8 group relative">
+                <div className="flex flex-col items-center relative z-10">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg group-hover:scale-125 transition-transform">
+                    <span className="text-white font-bold">{item.year}</span>
+                  </div>
                 </div>
-                <div className="flex-1 pb-8">
-                  <span className="text-sm font-bold text-primary">{item.year}</span>
-                  <h3 className="text-xl font-semibold mt-1 mb-2">{item.title}</h3>
-                  <p className="text-muted-foreground">{item.description}</p>
-                </div>
+                <Card className="flex-1 p-8 hover:shadow-2xl transition-all hover:-translate-y-1 border-border/50">
+                  <h3 className="text-2xl font-bold mb-3">{item.title}</h3>
+                  <p className="text-muted-foreground text-lg leading-relaxed">{item.description}</p>
+                </Card>
               </div>
             ))}
           </div>
@@ -311,21 +342,23 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
   };
 
   const renderFAQSection = () => {
-    const faqs = section.content_data?.faq_items || [];
+    const faqs = Array.isArray(section.content_data) ? section.content_data : [];
 
     return (
       <section className={wrapperClasses} style={animationStyle}>
-        <div className="container mx-auto max-w-3xl">
-          <div className="text-center mb-12">
-            {section.title && <h2 className="text-3xl font-bold mb-4">{section.title}</h2>}
-            {section.subtitle && <p className="text-lg text-muted-foreground">{section.subtitle}</p>}
+        <div className="container mx-auto max-w-4xl">
+          <div className="text-center mb-16">
+            {section.title && <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">{section.title}</h2>}
+            {section.subtitle && <p className="text-xl text-muted-foreground max-w-3xl mx-auto">{section.subtitle}</p>}
           </div>
 
-          <Accordion type="single" collapsible className="w-full">
+          <Accordion type="single" collapsible className="w-full space-y-4">
             {faqs.map((item: any, i: number) => (
-              <AccordionItem key={i} value={`item-${i}`}>
-                <AccordionTrigger className="text-left">{item.question}</AccordionTrigger>
-                <AccordionContent className="text-muted-foreground">
+              <AccordionItem key={i} value={`item-${i}`} className="border border-border/50 rounded-lg px-6 hover:border-primary/30 transition-colors bg-card/50">
+                <AccordionTrigger className="text-left text-lg font-semibold py-6 hover:no-underline">
+                  {item.question}
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground text-base leading-relaxed pb-6">
                   {item.answer}
                 </AccordionContent>
               </AccordionItem>
@@ -363,18 +396,25 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
     );
   };
 
-  const renderCTASection = () => (
-    <section className={wrapperClasses} style={animationStyle}>
-      <div className="container mx-auto max-w-4xl text-center">
-        {section.title && <h2 className="text-4xl font-bold mb-6">{section.title}</h2>}
-        {section.subtitle && <p className="text-xl text-muted-foreground mb-8">{section.subtitle}</p>}
-        {section.media_url && section.media_type === "image" && (
-          <img src={section.media_url} alt={section.title || ""} className="w-full max-w-2xl mx-auto rounded-lg shadow-xl mb-8" />
-        )}
-        {renderButtons()}
-      </div>
-    </section>
-  );
+  const renderCTASection = () => {
+    const gradientStyle = section.background_gradient 
+      ? { background: `linear-gradient(${section.background_gradient.direction || 'to-br'}, ${section.background_gradient.from}, ${section.background_gradient.to})` }
+      : {};
+
+    return (
+      <section className={wrapperClasses} style={{...animationStyle, ...gradientStyle}}>
+        <div className="container mx-auto max-w-5xl text-center py-20">
+          {section.title && <h2 className="text-4xl md:text-6xl font-bold mb-6 text-white drop-shadow-lg">{section.title}</h2>}
+          {section.subtitle && <p className="text-xl md:text-2xl text-white/90 mb-6 max-w-3xl mx-auto">{section.subtitle}</p>}
+          {section.description && <p className="text-lg text-white/80 mb-10 max-w-2xl mx-auto">{section.description}</p>}
+          {section.media_url && section.media_type === "image" && (
+            <img src={section.media_url} alt={section.title || ""} className="w-full max-w-2xl mx-auto rounded-2xl shadow-2xl mb-8" />
+          )}
+          {renderButtons()}
+        </div>
+      </section>
+    );
+  };
 
   switch (section.section_type) {
     case "hero":
