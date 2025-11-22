@@ -14,6 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
+      about_page_content: {
+        Row: {
+          audience_stats: Json | null
+          audience_subtitle: string | null
+          audience_title: string | null
+          created_at: string | null
+          cta_subtitle: string | null
+          cta_title: string | null
+          hero_subtitle: string | null
+          hero_title: string | null
+          id: string
+          motivation_challenges: Json | null
+          motivation_description: string | null
+          motivation_title: string | null
+          partners_subtitle: string | null
+          partners_title: string | null
+          solution_features: Json | null
+          solution_subtitle: string | null
+          solution_title: string | null
+          team_subtitle: string | null
+          team_title: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          audience_stats?: Json | null
+          audience_subtitle?: string | null
+          audience_title?: string | null
+          created_at?: string | null
+          cta_subtitle?: string | null
+          cta_title?: string | null
+          hero_subtitle?: string | null
+          hero_title?: string | null
+          id?: string
+          motivation_challenges?: Json | null
+          motivation_description?: string | null
+          motivation_title?: string | null
+          partners_subtitle?: string | null
+          partners_title?: string | null
+          solution_features?: Json | null
+          solution_subtitle?: string | null
+          solution_title?: string | null
+          team_subtitle?: string | null
+          team_title?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          audience_stats?: Json | null
+          audience_subtitle?: string | null
+          audience_title?: string | null
+          created_at?: string | null
+          cta_subtitle?: string | null
+          cta_title?: string | null
+          hero_subtitle?: string | null
+          hero_title?: string | null
+          id?: string
+          motivation_challenges?: Json | null
+          motivation_description?: string | null
+          motivation_title?: string | null
+          partners_subtitle?: string | null
+          partners_title?: string | null
+          solution_features?: Json | null
+          solution_subtitle?: string | null
+          solution_title?: string | null
+          team_subtitle?: string | null
+          team_title?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       badges: {
         Row: {
           created_at: string | null
