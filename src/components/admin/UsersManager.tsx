@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Users, Shield, ShieldOff, Search } from "lucide-react";
+import { Users, Shield, ShieldOff, Search, Trash2 } from "lucide-react";
+import { adminService } from "@/services/adminService";
 
 interface UserWithRole {
   id: string;
@@ -126,6 +127,23 @@ export function UsersManager() {
     }
   };
 
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!confirm(`Tem certeza que deseja excluir o usuário "${userName}"? Esta ação não pode ser desfeita.`)) return;
+
+    setProcessing(userId);
+    try {
+      await adminService.deleteUser(userId);
+      toast.success(`Usuário ${userName} excluído com sucesso`);
+      loadUsers();
+    } catch (error: any) {
+      toast.error("Erro ao excluir usuário", {
+        description: error.message,
+      });
+    } finally {
+      setProcessing(null);
+    }
+  };
+
   const filteredUsers = users.filter(
     (user) =>
       user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -202,6 +220,15 @@ export function UsersManager() {
                           Tornar Admin
                         </Button>
                       )}
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeleteUser(user.id, user.full_name)}
+                        disabled={processing === user.id}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Excluir
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
