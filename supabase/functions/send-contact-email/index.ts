@@ -47,8 +47,16 @@ serve(async (req) => {
             <div style="background-color: #ffffff; margin: 20px auto; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
               <!-- Header with Logo -->
               <div style="background: linear-gradient(135deg, #0B3B66 0%, #2D9B95 100%); padding: 40px 30px; text-align: center;">
-                <div style="background: white; width: 80px; height: 80px; margin: 0 auto 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
-                  <img src="https://www.progenia.com.br/logo.png" alt="ProGenia" style="width: 60px; height: auto;" />
+                <div style="margin: 0 auto 20px;">
+                  <svg width="80" height="80" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Graduation Cap -->
+                    <path d="M100 40 L160 60 L160 80 L100 100 L40 80 L40 60 Z" fill="#2D9B95"/>
+                    <path d="M100 100 L160 80 L160 100 L100 120 Z" fill="#0B3B66"/>
+                    <rect x="155" y="60" width="10" height="60" fill="#0B3B66"/>
+                    <!-- Medical Cross -->
+                    <rect x="85" y="120" width="30" height="50" rx="5" fill="#2D9B95"/>
+                    <rect x="70" y="135" width="60" height="20" rx="5" fill="#2D9B95"/>
+                  </svg>
                 </div>
                 <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">Nova Mensagem de Contato</h1>
                 <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 14px;">Formulário ProGenia</p>
