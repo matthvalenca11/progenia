@@ -97,13 +97,23 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
           };
 
           const isExternal = button.link?.startsWith("http");
+          
+          const handleClick = () => {
+            console.log("Button clicked:", button);
+            if (isExternal) {
+              window.open(button.link, "_blank");
+            } else {
+              console.log("Navigating to:", button.link);
+              navigate(button.link);
+            }
+          };
 
           return (
             <Button
               key={i}
               size="lg"
               className={variants[button.style] || variants.primary}
-              onClick={() => (isExternal ? window.open(button.link, "_blank") : navigate(button.link))}
+              onClick={handleClick}
             >
               {button.text}
               <ArrowRight className="ml-2 h-5 w-5" />
