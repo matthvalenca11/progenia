@@ -35,6 +35,14 @@ interface AboutSection {
   media_type: string | null;
   content_data: any;
   layout: string;
+  theme: string;
+  background_gradient: any;
+  animation_type: string;
+  animation_delay: number;
+  spacing_top: string;
+  spacing_bottom: string;
+  custom_css: string | null;
+  buttons: any[];
 }
 
 const Sobre = () => {
@@ -66,7 +74,14 @@ const Sobre = () => {
 
     if (partnersData) setPartners(partnersData);
     if (teamData) setTeam(teamData);
-    if (sectionsData) setSections(sectionsData);
+    if (sectionsData) {
+      setSections(
+        sectionsData.map((section) => ({
+          ...section,
+          buttons: (section.buttons as any) || [],
+        }))
+      );
+    }
   };
 
   return (

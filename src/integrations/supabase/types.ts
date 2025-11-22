@@ -85,8 +85,13 @@ export type Database = {
       }
       about_page_sections: {
         Row: {
+          animation_delay: number | null
+          animation_type: string | null
+          background_gradient: Json | null
+          buttons: Json | null
           content_data: Json | null
           created_at: string | null
+          custom_css: string | null
           description: string | null
           id: string
           is_published: boolean | null
@@ -95,13 +100,21 @@ export type Database = {
           media_url: string | null
           order_index: number
           section_type: string
+          spacing_bottom: string | null
+          spacing_top: string | null
           subtitle: string | null
+          theme: string | null
           title: string | null
           updated_at: string | null
         }
         Insert: {
+          animation_delay?: number | null
+          animation_type?: string | null
+          background_gradient?: Json | null
+          buttons?: Json | null
           content_data?: Json | null
           created_at?: string | null
+          custom_css?: string | null
           description?: string | null
           id?: string
           is_published?: boolean | null
@@ -110,13 +123,21 @@ export type Database = {
           media_url?: string | null
           order_index?: number
           section_type: string
+          spacing_bottom?: string | null
+          spacing_top?: string | null
           subtitle?: string | null
+          theme?: string | null
           title?: string | null
           updated_at?: string | null
         }
         Update: {
+          animation_delay?: number | null
+          animation_type?: string | null
+          background_gradient?: Json | null
+          buttons?: Json | null
           content_data?: Json | null
           created_at?: string | null
+          custom_css?: string | null
           description?: string | null
           id?: string
           is_published?: boolean | null
@@ -125,7 +146,10 @@ export type Database = {
           media_url?: string | null
           order_index?: number
           section_type?: string
+          spacing_bottom?: string | null
+          spacing_top?: string | null
           subtitle?: string | null
+          theme?: string | null
           title?: string | null
           updated_at?: string | null
         }

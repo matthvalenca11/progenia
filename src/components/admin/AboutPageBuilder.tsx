@@ -18,6 +18,14 @@ interface AboutSection {
   media_type: string | null;
   content_data: any;
   layout: string;
+  theme: string;
+  background_gradient: any;
+  animation_type: string;
+  animation_delay: number;
+  spacing_top: string;
+  spacing_bottom: string;
+  custom_css: string | null;
+  buttons: any[];
 }
 
 export const AboutPageBuilder = () => {
@@ -39,7 +47,14 @@ export const AboutPageBuilder = () => {
       return;
     }
 
-    setSections(data || []);
+    if (data) {
+      setSections(
+        data.map((section) => ({
+          ...section,
+          buttons: (section.buttons as any) || [],
+        }))
+      );
+    }
   };
 
   const handleAddSection = async () => {
@@ -52,6 +67,12 @@ export const AboutPageBuilder = () => {
       title: "Nova Seção",
       layout: "default",
       is_published: true,
+      theme: "default",
+      animation_type: "fade-in",
+      animation_delay: 0,
+      spacing_top: "default",
+      spacing_bottom: "default",
+      buttons: [],
     });
 
     if (error) {
