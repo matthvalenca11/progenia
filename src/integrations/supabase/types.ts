@@ -324,6 +324,36 @@ export type Database = {
         }
         Relationships: []
       }
+      partners: {
+        Row: {
+          created_at: string | null
+          id: string
+          logo_url: string
+          name: string
+          order_index: number | null
+          updated_at: string | null
+          website_url: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          logo_url: string
+          name: string
+          order_index?: number | null
+          updated_at?: string | null
+          website_url: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          logo_url?: string
+          name?: string
+          order_index?: number | null
+          updated_at?: string | null
+          website_url?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -544,6 +574,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      team_members: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          order_index: number | null
+          photo_url: string | null
+          role: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          order_index?: number | null
+          photo_url?: string | null
+          role: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          order_index?: number | null
+          photo_url?: string | null
+          role?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       user_badges: {
         Row: {

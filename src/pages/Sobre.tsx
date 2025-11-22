@@ -18,17 +18,17 @@ import logo from "@/assets/logo.png";
 interface Partner {
   id: string;
   name: string;
-  logo_url: string | null;
-  description: string | null;
-  website_url: string | null;
+  logo_url: string;
+  website_url: string;
+  order_index: number;
 }
 
 interface TeamMember {
   id: string;
   name: string;
   role: string;
-  bio: string | null;
   photo_url: string | null;
+  order_index: number;
 }
 
 const Sobre = () => {
@@ -41,8 +41,18 @@ const Sobre = () => {
   }, []);
 
   const loadPartnersAndTeam = async () => {
-    // Partners and team_members tables don't exist - skip loading
-    console.log("Partners and team tables not configured");
+    const { data: partnersData } = await supabase
+      .from('partners')
+      .select('*')
+      .order('order_index', { ascending: true });
+    
+    const { data: teamData } = await supabase
+      .from('team_members')
+      .select('*')
+      .order('order_index', { ascending: true });
+    
+    if (partnersData) setPartners(partnersData);
+    if (teamData) setTeam(teamData);
   };
 
   return (
@@ -213,29 +223,27 @@ const Sobre = () => {
         <section className="py-16 px-4">
           <div className="container mx-auto max-w-6xl">
             <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold mb-4">Apoiadores do Projeto</h2>
+              <h2 className="text-3xl font-bold mb-4">Nossos Parceiros</h2>
               <p className="text-lg text-muted-foreground">
-                Instituições que acreditam na democratização do conhecimento científico em saúde
+                Empresas que apoiam nossa missão
               </p>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-6">
               {partners.map((partner) => (
-                <Card key={partner.id} className="p-6 text-center hover:shadow-lg transition-shadow">
-                  {partner.logo_url && (
-                    <div className="h-20 flex items-center justify-center mb-4">
-                      <img 
-                        src={partner.logo_url} 
-                        alt={partner.name}
-                        className="max-h-full max-w-full object-contain"
-                      />
-                    </div>
-                  )}
-                  <h3 className="text-xl font-semibold mb-2">{partner.name}</h3>
-                  {partner.description && (
-                    <p className="text-sm text-muted-foreground">{partner.description}</p>
-                  )}
-                </Card>
+                <a
+                  key={partner.id}
+                  href={partner.website_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center p-6 bg-background border rounded-lg hover:shadow-lg transition-all cursor-pointer group"
+                >
+                  <img 
+                    src={partner.logo_url} 
+                    alt={partner.name}
+                    className="max-h-16 w-full object-contain grayscale group-hover:grayscale-0 transition-all"
+                  />
+                </a>
               ))}
             </div>
           </div>
@@ -253,25 +261,22 @@ const Sobre = () => {
               </p>
             </div>
 
-            <div className="grid md:grid-cols-4 gap-6">
+            <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-6">
               {team.map((member) => (
                 <Card key={member.id} className="p-6 text-center">
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 mx-auto mb-4 flex items-center justify-center overflow-hidden">
-                    {member.photo_url ? (
-                      <img 
-                        src={member.photo_url} 
-                        alt={member.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
+                  {member.photo_url ? (
+                    <img 
+                      src={member.photo_url} 
+                      alt={member.name}
+                      className="w-32 h-32 rounded-full mx-auto mb-4 object-cover"
+                    />
+                  ) : (
+                    <div className="w-32 h-32 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 mx-auto mb-4 flex items-center justify-center">
                       <Users className="h-12 w-12 text-primary" />
-                    )}
-                  </div>
-                  <h3 className="font-semibold mb-1">{member.name}</h3>
-                  <p className="text-sm text-primary mb-2">{member.role}</p>
-                  {member.bio && (
-                    <p className="text-xs text-muted-foreground">{member.bio}</p>
+                    </div>
                   )}
+                  <h3 className="font-semibold mb-1">{member.name}</h3>
+                  <p className="text-sm text-muted-foreground">{member.role}</p>
                 </Card>
               ))}
             </div>
