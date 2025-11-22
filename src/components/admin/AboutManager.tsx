@@ -20,6 +20,7 @@ interface TeamMember {
 interface Partner {
   id: string;
   name: string;
+  description: string | null;
   logo_url: string;
   website_url: string;
   order_index: number;
@@ -31,7 +32,7 @@ export const AboutManager = () => {
   const [loadingTeam, setLoadingTeam] = useState(false);
   const [loadingPartner, setLoadingPartner] = useState(false);
   const [newMember, setNewMember] = useState({ name: "", role: "", photo_url: "" });
-  const [newPartner, setNewPartner] = useState({ name: "", logo_url: "", website_url: "" });
+  const [newPartner, setNewPartner] = useState({ name: "", description: "", logo_url: "", website_url: "" });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
@@ -150,7 +151,7 @@ export const AboutManager = () => {
   };
 
   const handleAddPartner = async () => {
-    if (!newPartner.name || !newPartner.logo_url || !newPartner.website_url) {
+    if (!newPartner.name || !newPartner.logo_url || !newPartner.website_url || !newPartner.description) {
       toast.error("Preencha todos os campos");
       return;
     }
@@ -158,6 +159,7 @@ export const AboutManager = () => {
     setLoadingPartner(true);
     const { error } = await supabase.from("partners").insert({
       name: newPartner.name,
+      description: newPartner.description,
       logo_url: newPartner.logo_url,
       website_url: newPartner.website_url,
       order_index: partners.length,
@@ -167,7 +169,7 @@ export const AboutManager = () => {
       toast.error("Erro ao adicionar parceiro");
     } else {
       toast.success("Parceiro adicionado!");
-      setNewPartner({ name: "", logo_url: "", website_url: "" });
+      setNewPartner({ name: "", description: "", logo_url: "", website_url: "" });
       loadPartners();
     }
     setLoadingPartner(false);
@@ -279,12 +281,12 @@ export const AboutManager = () => {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="partner-name">Nome do Parceiro</Label>
+                <Label htmlFor="partner-name">Nome do Parceiro (sigla)</Label>
                 <Input
                   id="partner-name"
                   value={newPartner.name}
                   onChange={(e) => setNewPartner({ ...newPartner, name: e.target.value })}
-                  placeholder="Nome da empresa"
+                  placeholder="Ex: UNIFESP, USP"
                 />
               </div>
               <div>
@@ -296,6 +298,16 @@ export const AboutManager = () => {
                   placeholder="https://exemplo.com.br"
                 />
               </div>
+            </div>
+
+            <div>
+              <Label htmlFor="partner-description">Nome Completo / Descrição</Label>
+              <Input
+                id="partner-description"
+                value={newPartner.description}
+                onChange={(e) => setNewPartner({ ...newPartner, description: e.target.value })}
+                placeholder="Ex: Universidade Federal de São Paulo"
+              />
             </div>
 
             <div>
@@ -330,7 +342,12 @@ export const AboutManager = () => {
               {partners.map((partner) => (
                 <div key={partner.id} className="border rounded p-4 space-y-2">
                   <img src={partner.logo_url} alt={partner.name} className="h-20 w-full object-contain" />
-                  <p className="font-medium text-center">{partner.name}</p>
+                  <div className="text-center">
+                    <p className="font-medium">{partner.name}</p>
+                    {partner.description && (
+                      <p className="text-sm text-muted-foreground mt-1">{partner.description}</p>
+                    )}
+                  </div>
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" asChild className="flex-1">
                       <a href={partner.website_url} target="_blank" rel="noopener noreferrer">
