@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { storageService } from "@/services/storageService";
 import { toast } from "sonner";
-import { Upload, Trash2, ArrowUp, ArrowDown, Plus, X, Palette, Sparkles, Layout, Link as LinkIcon } from "lucide-react";
+import { Upload, Trash2, ArrowUp, ArrowDown, Plus, X, Palette, Sparkles, Layout, Link as LinkIcon, Eye, EyeOff } from "lucide-react";
 
 interface AboutSection {
   id: string;
@@ -43,6 +43,15 @@ interface Props {
 export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, onSave }: Props) => {
   const [editingSection, setEditingSection] = useState<AboutSection | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  const toggleVisibility = async (section: AboutSection) => {
+    const updatedSection = {
+      ...section,
+      is_published: !section.is_published
+    };
+    await onSave(updatedSection);
+    toast.success(updatedSection.is_published ? "Seção visível" : "Seção ocultada");
+  };
 
   const sectionTypes = [
     { value: "hero", label: "🎯 Hero (Destaque Principal)" },
@@ -658,6 +667,14 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
                     </div>
                   </div>
                   <div className="flex gap-2">
+                    <Button
+                      variant={section.is_published ? "outline" : "secondary"}
+                      size="sm"
+                      onClick={() => toggleVisibility(section)}
+                      title={section.is_published ? "Ocultar seção" : "Mostrar seção"}
+                    >
+                      {section.is_published ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
