@@ -1,5 +1,13 @@
 project_id = "cycthtodyhyssfirdrzh"
 
+[auth]
+enable_signup = true
+enable_confirmations = false
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
+
 [functions.send-verification-email]
 verify_jwt = false
 
@@ -13,4 +21,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.reset-password]
+verify_jwt = false
+
+[functions.delete-user]
+verify_jwt = false
+
+[functions.send-contact-email]
 verify_jwt = false
