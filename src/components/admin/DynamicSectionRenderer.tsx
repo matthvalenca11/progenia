@@ -159,20 +159,23 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
   const renderTextSection = () => (
     <section className={wrapperClasses} style={animationStyle}>
       <div className="container mx-auto max-w-6xl">
-        <div className="text-center mb-12">
+        <div className="text-center mb-16 relative">
           {section.title && (
-            <h2 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-primary via-primary to-primary/60 bg-clip-text text-transparent leading-tight">
-              {section.title}
-            </h2>
+            <div className="relative inline-block">
+              <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-primary/10 to-primary/20 blur-3xl" />
+              <h2 className="relative text-5xl md:text-7xl font-bold mb-8 bg-gradient-to-r from-primary via-primary/90 to-primary/70 bg-clip-text text-transparent leading-tight drop-shadow-sm">
+                {section.title}
+              </h2>
+            </div>
           )}
           {section.subtitle && (
-            <p className="text-2xl md:text-3xl font-semibold text-foreground/80 mb-8 max-w-4xl mx-auto leading-relaxed">
+            <p className="text-2xl md:text-3xl font-semibold text-foreground mb-4 max-w-4xl mx-auto leading-relaxed">
               {section.subtitle}
             </p>
           )}
         </div>
         {section.description && (
-          <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto">
             {section.description.split('\n').map((line: string, i: number) => {
               if (line.trim().startsWith('**') && line.trim().endsWith('**')) {
                 return null;
@@ -183,20 +186,23 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
                 const cleanText = text.replace(/\*\*/g, '');
                 
                 return (
-                  <Card key={i} className="p-6 hover:shadow-xl transition-all hover:-translate-y-1 border-l-4 border-l-primary bg-gradient-to-br from-card to-card/50">
-                    <div className="flex gap-4 items-start">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mt-1">
-                        <CheckCircle2 className="h-5 w-5 text-primary" />
+                  <Card key={i} className="group relative p-8 hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border-2 border-primary/20 hover:border-primary/40 bg-gradient-to-br from-card via-card to-card/80 overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    <div className="relative flex gap-4 items-start">
+                      <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                        <CheckCircle2 className="h-6 w-6 text-white" />
                       </div>
-                      <p className="text-lg leading-relaxed text-foreground/90 flex-1">
-                        {isBold ? <strong>{cleanText}</strong> : cleanText}
-                      </p>
+                      <div className="flex-1 pt-1">
+                        <p className="text-lg leading-relaxed text-foreground font-medium">
+                          {isBold ? <strong className="text-xl">{cleanText}</strong> : cleanText}
+                        </p>
+                      </div>
                     </div>
                   </Card>
                 );
               }
               return line.trim() ? (
-                <p key={i} className="md:col-span-2 text-xl text-center text-muted-foreground leading-relaxed mb-4">
+                <p key={i} className="md:col-span-2 text-xl text-center text-muted-foreground leading-relaxed mb-6">
                   {line}
                 </p>
               ) : null;
