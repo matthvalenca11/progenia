@@ -86,23 +86,29 @@ const Auth = () => {
         return;
       }
 
-      // Generate verification token
-      const token = crypto.randomUUID() + '-' + Date.now();
-      const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + 24);
-
       if (authData.user) {
+        // Aguardar criação do perfil (trigger automático)
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Generate verification token
+        const token = crypto.randomUUID();
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 24);
+
         // Store verification token in profile
         const { error: profileError } = await supabase
           .from('profiles')
           .update({
             verification_token: token,
             verification_expires_at: expiresAt.toISOString(),
+            email_verified: false,
           })
           .eq('id', authData.user.id);
 
         if (profileError) {
           console.error('Error storing verification token:', profileError);
+          toast.error("Erro ao criar conta. Tente novamente.");
+          return;
         }
 
         // Send verification email via edge function
@@ -112,6 +118,8 @@ const Auth = () => {
 
         if (emailError) {
           console.error('Error sending verification email:', emailError);
+          toast.error("Erro ao enviar email de verificação. Tente novamente.");
+          return;
         }
 
         toast.success("Conta criada!", {
