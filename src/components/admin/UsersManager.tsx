@@ -31,7 +31,7 @@ export function UsersManager() {
       // Buscar perfis de usuários
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, full_name, created_at")
+        .select("id, full_name, email, created_at")
         .order("created_at", { ascending: false });
 
       if (profilesError) throw profilesError;
@@ -43,13 +43,13 @@ export function UsersManager() {
 
       if (rolesError) throw rolesError;
 
-      // Para emails, vamos usar placeholder por enquanto
+      // Mapear usuários com roles
       const usersWithRoles: UserWithRole[] = (profiles || []).map((profile) => {
         const userRole = roles?.find((r) => r.user_id === profile.id);
 
         return {
           id: profile.id,
-          email: `user-${profile.id.slice(0, 8)}@email.com`,
+          email: profile.email || "",
           full_name: profile.full_name,
           created_at: profile.created_at || "",
           role: userRole?.role as "admin" | "student" | null,
