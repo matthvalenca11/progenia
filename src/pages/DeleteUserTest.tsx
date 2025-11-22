@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 
 export default function DeleteUserTest() {
-  const [userId, setUserId] = useState("b56c1387-8cb9-402b-94c3-365ebb0a5cab");
+  const [userId, setUserId] = useState("427d54cd-70ca-486e-acf7-6b9642e44f4e");
   const [loading, setLoading] = useState(false);
 
   const handleDelete = async () => {
