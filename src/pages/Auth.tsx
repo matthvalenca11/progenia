@@ -65,11 +65,12 @@ const Auth = () => {
       const validated = signUpSchema.parse(signUpData);
       setLoading(true);
 
-      // Create user with Supabase Auth (no email confirmation)
+      // Create user with Supabase Auth
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: validated.email,
         password: validated.password,
         options: {
+          emailRedirectTo: `${window.location.origin}/verify-email`,
           data: {
             full_name: validated.fullName,
             institution: validated.institution,
