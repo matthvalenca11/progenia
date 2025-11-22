@@ -114,22 +114,19 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
     }
   };
 
-  const handleContentDataUpdate = (field: string, value: any) => {
+  const handleContentDataUpdate = (value: any) => {
     if (!editingSection) return;
     setEditingSection({
       ...editingSection,
-      content_data: {
-        ...editingSection.content_data,
-        [field]: value,
-      },
+      content_data: value,
     });
   };
 
   // Feature items management
   const addFeatureItem = () => {
     if (!editingSection) return;
-    const features = editingSection.content_data?.features || [];
-    handleContentDataUpdate("features", [
+    const features = Array.isArray(editingSection.content_data) ? editingSection.content_data : [];
+    handleContentDataUpdate([
       ...features,
       { title: "", description: "", icon: "" },
     ]);
@@ -137,22 +134,22 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
 
   const updateFeatureItem = (index: number, field: string, value: string) => {
     if (!editingSection) return;
-    const features = [...(editingSection.content_data?.features || [])];
+    const features = Array.isArray(editingSection.content_data) ? [...editingSection.content_data] : [];
     features[index] = { ...features[index], [field]: value };
-    handleContentDataUpdate("features", features);
+    handleContentDataUpdate(features);
   };
 
   const removeFeatureItem = (index: number) => {
     if (!editingSection) return;
-    const features = editingSection.content_data?.features || [];
-    handleContentDataUpdate("features", features.filter((_: any, i: number) => i !== index));
+    const features = Array.isArray(editingSection.content_data) ? editingSection.content_data : [];
+    handleContentDataUpdate(features.filter((_: any, i: number) => i !== index));
   };
 
   // Timeline items
   const addTimelineItem = () => {
     if (!editingSection) return;
-    const items = editingSection.content_data?.timeline_items || [];
-    handleContentDataUpdate("timeline_items", [
+    const items = Array.isArray(editingSection.content_data) ? editingSection.content_data : [];
+    handleContentDataUpdate([
       ...items,
       { year: "", title: "", description: "" },
     ]);
@@ -160,15 +157,15 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
 
   const updateTimelineItem = (index: number, field: string, value: string) => {
     if (!editingSection) return;
-    const items = [...(editingSection.content_data?.timeline_items || [])];
+    const items = Array.isArray(editingSection.content_data) ? [...editingSection.content_data] : [];
     items[index] = { ...items[index], [field]: value };
-    handleContentDataUpdate("timeline_items", items);
+    handleContentDataUpdate(items);
   };
 
   const removeTimelineItem = (index: number) => {
     if (!editingSection) return;
-    const items = editingSection.content_data?.timeline_items || [];
-    handleContentDataUpdate("timeline_items", items.filter((_: any, i: number) => i !== index));
+    const items = Array.isArray(editingSection.content_data) ? editingSection.content_data : [];
+    handleContentDataUpdate(items.filter((_: any, i: number) => i !== index));
   };
 
   // Button management
@@ -531,7 +528,7 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
                 <AccordionItem value="features">
                   <AccordionTrigger>Funcionalidades</AccordionTrigger>
                   <AccordionContent className="space-y-4 pt-4">
-                    {(editingSection.content_data?.features || []).map(
+                    {(Array.isArray(editingSection.content_data) ? editingSection.content_data : []).map(
                       (feature: any, index: number) => (
                         <div key={index} className="p-4 border rounded space-y-2">
                           <div className="flex justify-between items-center mb-2">
@@ -581,7 +578,7 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
                 <AccordionItem value="timeline">
                   <AccordionTrigger>Linha do Tempo</AccordionTrigger>
                   <AccordionContent className="space-y-4 pt-4">
-                    {(editingSection.content_data?.timeline_items || []).map(
+                    {(Array.isArray(editingSection.content_data) ? editingSection.content_data : []).map(
                       (item: any, index: number) => (
                         <div key={index} className="p-4 border rounded space-y-2">
                           <div className="flex justify-between items-center mb-2">
