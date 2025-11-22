@@ -7,7 +7,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
+    // Create admin client with service role
+    const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
       {
@@ -18,6 +19,38 @@ Deno.serve(async (req) => {
       }
     )
 
+    // Create regular client to verify caller is admin
+    const authHeader = req.headers.get('Authorization')
+    if (authHeader) {
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+        {
+          global: {
+            headers: { Authorization: authHeader }
+          }
+        }
+      )
+
+      // Verify caller is admin
+      const { data: { user } } = await supabaseClient.auth.getUser()
+      if (user) {
+        const { data: roles } = await supabaseClient
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .eq('role', 'admin')
+          .maybeSingle()
+
+        if (!roles) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized - Admin access required' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+          )
+        }
+      }
+    }
+
     const { userId } = await req.json()
 
     if (!userId) {
@@ -27,19 +60,23 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Delete user from auth.users (this will cascade to profiles via trigger)
-    const { error } = await supabaseClient.auth.admin.deleteUser(userId)
+    console.log('Deleting user from auth:', userId)
 
-    if (error) {
-      console.error('Error deleting user:', error)
+    // Delete user from auth.users (this will cascade to profiles)
+    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId)
+
+    if (deleteError) {
+      console.error('Error deleting user:', deleteError)
       return new Response(
-        JSON.stringify({ error: error.message }),
+        JSON.stringify({ error: deleteError.message }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }
 
+    console.log('User deleted successfully:', userId)
+
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ success: true, message: 'User deleted from auth' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     )
   } catch (err) {
