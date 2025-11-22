@@ -466,9 +466,9 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
     return (
       <section className={wrapperClasses} style={{...animationStyle, ...gradientStyle}}>
         <div className="container mx-auto max-w-5xl text-center py-20">
-          {section.title && <h2 className="text-4xl md:text-6xl font-bold mb-6 text-white drop-shadow-lg">{section.title}</h2>}
-          {section.subtitle && <p className="text-xl md:text-2xl text-white/90 mb-6 max-w-3xl mx-auto">{section.subtitle}</p>}
-          {section.description && <p className="text-lg text-white/80 mb-10 max-w-2xl mx-auto">{section.description}</p>}
+          {section.title && <h2 className="text-4xl md:text-6xl font-bold mb-6 text-gray-900 dark:text-white drop-shadow-xl">{section.title}</h2>}
+          {section.subtitle && <p className="text-xl md:text-2xl text-gray-800 dark:text-white/90 mb-6 max-w-3xl mx-auto font-medium">{section.subtitle}</p>}
+          {section.description && <p className="text-lg text-gray-700 dark:text-white/80 mb-10 max-w-2xl mx-auto font-medium">{section.description}</p>}
           {section.media_url && section.media_type === "image" && (
             <img src={section.media_url} alt={section.title || ""} className="w-full max-w-2xl mx-auto rounded-2xl shadow-2xl mb-8" />
           )}
