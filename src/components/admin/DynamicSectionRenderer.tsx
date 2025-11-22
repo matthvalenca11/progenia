@@ -340,9 +340,6 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
                 {/* Badge de Data Redesenhado */}
                 <div className="relative z-10 flex-shrink-0">
                   <div className="relative">
-                    {/* Círculo de conexão */}
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-primary ring-4 ring-primary/20 group-hover:ring-8 transition-all" />
-                    
                     {/* Badge de ano/data */}
                     <div className="w-32 md:w-40 bg-gradient-to-br from-primary via-primary to-primary/80 rounded-2xl p-4 shadow-xl group-hover:shadow-2xl group-hover:scale-105 transition-all">
                       <div className="text-center">
