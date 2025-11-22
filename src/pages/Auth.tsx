@@ -42,16 +42,33 @@ const Auth = () => {
 
   useEffect(() => {
     // 1) Ouvir mudanças de auth primeiro
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
-        navigate('/dashboard');
+        // Verificar se email foi verificado antes de navegar
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('email_verified')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        if (profile?.email_verified) {
+          navigate('/dashboard');
+        }
       }
     });
 
-    // 2) Verificar estado atual com getUser (evita sessão local "fantasma")
-    supabase.auth.getUser().then(({ data }) => {
+    // 2) Verificar estado atual com getUser
+    supabase.auth.getUser().then(async ({ data }) => {
       if (data?.user) {
-        navigate('/dashboard');
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('email_verified')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        if (profile?.email_verified) {
+          navigate('/dashboard');
+        }
       }
     });
 
