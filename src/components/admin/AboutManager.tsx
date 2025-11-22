@@ -62,9 +62,10 @@ export const AboutManager = () => {
 
     setUploadingPhoto(true);
     try {
+      const fileName = storageService.generateUniqueFileName(file.name);
       const result = await storageService.uploadFile({
         bucket: "team-photos",
-        path: `team/${Date.now()}-${file.name}`,
+        path: `team/${fileName}`,
         file,
       });
 
@@ -134,9 +135,10 @@ export const AboutManager = () => {
 
     setUploadingLogo(true);
     try {
+      const fileName = storageService.generateUniqueFileName(file.name);
       const result = await storageService.uploadFile({
         bucket: "partner-logos",
-        path: `partners/${Date.now()}-${file.name}`,
+        path: `partners/${fileName}`,
         file,
       });
 
