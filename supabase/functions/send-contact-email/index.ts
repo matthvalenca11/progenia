@@ -50,13 +50,25 @@ serve(async (req) => {
                 <table width="100%" cellpadding="0" cellspacing="0" border="0">
                   <tr>
                     <td align="center">
-                      <div style="width: 100px; height: 100px; margin: 0 auto 20px; background: white; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
-                        <div style="font-size: 48px; font-weight: 800; color: #0B3B66; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1; letter-spacing: -0.02em;">
-                          PG
-                        </div>
-                        <div style="font-size: 10px; font-weight: 600; color: #2D9B95; text-align: center; margin-top: 4px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-                          PROGENIA
-                        </div>
+                      <div style="width: 120px; margin: 0 auto 20px;">
+                        <svg width="120" height="140" viewBox="0 0 120 140" xmlns="http://www.w3.org/2000/svg">
+                          <!-- Graduation Cap -->
+                          <g transform="translate(10, 0)">
+                            <!-- Cap base -->
+                            <path d="M 50 25 L 90 35 L 90 50 L 50 60 L 10 50 L 10 35 Z" fill="#0B3B66"/>
+                            <!-- Cap top -->
+                            <ellipse cx="50" cy="35" rx="42" ry="12" fill="#0B3B66"/>
+                            <!-- Tassel -->
+                            <line x1="90" y1="35" x2="95" y2="55" stroke="#0B3B66" stroke-width="2"/>
+                            <circle cx="95" cy="58" r="3" fill="#0B3B66"/>
+                          </g>
+                          
+                          <!-- Medical Cross -->
+                          <g transform="translate(35, 70)">
+                            <rect x="15" y="0" width="20" height="50" rx="3" fill="#2D9B95"/>
+                            <rect x="0" y="15" width="50" height="20" rx="3" fill="#2D9B95"/>
+                          </g>
+                        </svg>
                       </div>
                     </td>
                   </tr>
