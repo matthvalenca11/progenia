@@ -49,7 +49,7 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
       mediumInsideId: "cyst_fluid",
       hasStrongShadow: false,
       posteriorEnhancement: false,
-      borderEchogenicity: "soft",
+      borderEchogenicity: "soft", // Padrão: difusa (mal definida)
     };
     onChange([...inclusions, newInclusion]);
   };
