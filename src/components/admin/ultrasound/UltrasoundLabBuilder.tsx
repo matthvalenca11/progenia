@@ -6,10 +6,12 @@ import { UltrasoundPreview } from "./UltrasoundPreview";
 import { AcousticLayersEditor } from "../AcousticLayersEditor";
 import { InclusionsEditor } from "../InclusionsEditor";
 import { useUltrasoundLabStore } from "@/stores/ultrasoundLabStore";
-import { UltrasoundLayerConfig } from "@/types/acousticMedia";
+import { UltrasoundLayerConfig, getAcousticMedium } from "@/types/acousticMedia";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Layers, TestTube2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
 
 export const UltrasoundLabBuilder = () => {
   const { layers, setLayers, acousticLayers, setAcousticLayers, inclusions, setInclusions } = useUltrasoundLabStore();
@@ -59,6 +61,11 @@ export const UltrasoundLabBuilder = () => {
     setLayers(anatomyLayers);
   };
   
+  const getTotalDepth = () => {
+    const layerConfigs = convertToLayerConfigs();
+    return layerConfigs.reduce((sum, layer) => sum + layer.thicknessCm, 0);
+  };
+  
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div className="space-y-6">
@@ -82,7 +89,6 @@ export const UltrasoundLabBuilder = () => {
             <AcousticLayersEditor
               layers={convertToLayerConfigs()}
               onChange={handleLayersChange}
-              inclusions={inclusions}
             />
           </TabsContent>
           <TabsContent value="inclusions" className="mt-4">
@@ -99,8 +105,75 @@ export const UltrasoundLabBuilder = () => {
         <StudentControlsSection />
       </div>
       
-      <div>
+      <div className="space-y-4">
         <UltrasoundPreview />
+        
+        {/* Schematic visualization */}
+        {convertToLayerConfigs().length > 0 && (
+          <Card>
+            <CardContent className="pt-6">
+              <Label className="mb-3 block text-base font-semibold">
+                Visualização esquemática (profundidade total: {getTotalDepth().toFixed(1)} cm)
+              </Label>
+              <div className="relative space-y-1">
+                {convertToLayerConfigs().map((layer, index) => {
+                  const medium = getAcousticMedium(layer.mediumId);
+                  const heightPercent = (layer.thicknessCm / getTotalDepth()) * 100;
+                  
+                  // Color mapping based on medium
+                  const colorMap: Record<string, string> = {
+                    skin: "bg-amber-200",
+                    fat: "bg-yellow-300",
+                    muscle: "bg-red-300",
+                    tendon: "bg-gray-300",
+                    bone_cortical: "bg-gray-100",
+                    water: "bg-blue-200",
+                    blood: "bg-red-400",
+                    cyst_fluid: "bg-blue-100",
+                    liver: "bg-orange-300",
+                    cartilage: "bg-gray-200",
+                    generic_soft: "bg-pink-200",
+                  };
+                  
+                  return (
+                    <div
+                      key={layer.id}
+                      className={`${colorMap[layer.mediumId] || "bg-gray-300"} rounded px-2 py-1 flex items-center justify-between text-xs`}
+                      style={{ height: `${Math.max(heightPercent, 10)}px` }}
+                    >
+                      <span className="font-medium">{layer.name}</span>
+                      <span>{layer.thicknessCm.toFixed(1)} cm</span>
+                    </div>
+                  );
+                })}
+                
+                {/* Overlay inclusions */}
+                {inclusions.map((inclusion) => {
+                  const totalDepth = getTotalDepth();
+                  const topPercent = (inclusion.centerDepthCm / totalDepth) * 100;
+                  const size = typeof inclusion.sizeCm === 'number' ? inclusion.sizeCm : inclusion.sizeCm.height;
+                  const heightPercent = (size / totalDepth) * 100;
+                  
+                  return (
+                    <div
+                      key={inclusion.id}
+                      className="absolute left-1/2 -translate-x-1/2 border-2 border-orange-500 border-dashed rounded-full bg-orange-500/20 flex items-center justify-center"
+                      style={{
+                        top: `${topPercent - heightPercent / 2}%`,
+                        width: `${heightPercent}%`,
+                        height: `${heightPercent}%`,
+                        minWidth: '40px',
+                        minHeight: '40px',
+                      }}
+                    >
+                      <span className="text-xs font-bold text-orange-700">{inclusion.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
