@@ -497,51 +497,49 @@ export class UnifiedUltrasoundEngine {
         // Distance behind the inclusion
         const posteriorDepth = depth - inclusionBottomDepth;
         
-        // Acoustic shadow (ultra-realistic cone with physics-based attenuation)
+        // Acoustic shadow (highly realistic with natural appearance)
         if (this.config.enableAcousticShadow && inclusion.hasStrongShadow) {
-          // Shadow cone geometry
           const inclusionRadius = inclusion.sizeCm.width / 2;
           
-          // Shadow expands with realistic beam divergence angle (very subtle)
-          const divergenceAngle = 0.04; // Minimal expansion for realistic cone
-          const shadowWidth = inclusionRadius + posteriorDepth * Math.tan(divergenceAngle);
+          // Very subtle cone expansion (realistic beam physics)
+          const coneAngle = 0.03;
+          const coneWidth = inclusionRadius + posteriorDepth * Math.tan(coneAngle);
           
-          // Smooth falloff zone beyond core shadow
-          const transitionZone = shadowWidth * 2.5;
+          // Calculate shadow with ultra-smooth falloff
+          const lateralNormalized = lateralDist / (coneWidth + 0.5);
           
-          // Calculate if we're within the shadow influence zone
-          if (lateralDist < transitionZone) {
-            let shadowIntensity = 0;
+          if (lateralNormalized < 2.0) {
+            // Multi-component shadow intensity
+            let shadowStrength = 0;
             
-            // Distance-based intensity with very smooth transitions
-            if (lateralDist < inclusionRadius * 0.8) {
-              // Core umbra - strongest shadow but not completely black
-              const coreVariation = Math.sin(posteriorDepth * 3 + lateral * 2.5) * 0.08;
-              shadowIntensity = 0.65 + coreVariation; // 65% max intensity (not total black)
-            } else if (lateralDist < shadowWidth) {
-              // Inner penumbra - moderate shadow
-              const t = (lateralDist - inclusionRadius * 0.8) / (shadowWidth - inclusionRadius * 0.8);
-              const smoothT = t * t * (3 - 2 * t); // Smoothstep
-              shadowIntensity = 0.65 * (1 - smoothT) + 0.35 * smoothT;
-            } else {
-              // Outer penumbra - gentle falloff
-              const t = (lateralDist - shadowWidth) / (transitionZone - shadowWidth);
-              const smoothT = Math.pow(t, 1.5); // Gradual falloff
-              shadowIntensity = 0.35 * (1 - smoothT);
+            // Central core - darkest region
+            if (lateralNormalized < 0.6) {
+              shadowStrength = 0.5 - lateralNormalized * 0.3;
+            } 
+            // Transition zone - smooth falloff
+            else if (lateralNormalized < 1.2) {
+              const t = (lateralNormalized - 0.6) / 0.6;
+              shadowStrength = 0.32 * (1 - t * t * (3 - 2 * t)); // Smoothstep
+            }
+            // Outer penumbra - gentle fade
+            else {
+              const t = (lateralNormalized - 1.2) / 0.8;
+              shadowStrength = 0.32 * (1 - t) * Math.exp(-t * 2);
             }
             
-            // Depth-based attenuation: shadow fades with distance
-            const depthFalloff = Math.exp(-posteriorDepth * 0.6);
-            shadowIntensity *= depthFalloff;
+            // Depth-based attenuation (fades naturally)
+            const depthFade = Math.exp(-posteriorDepth * 0.55);
+            shadowStrength *= depthFade;
             
-            // Add organic texture variation to avoid uniform darkness
-            const textureNoise = Math.sin(posteriorDepth * 4 + lateral * 5) * 0.06;
-            const fineNoise = Math.sin(posteriorDepth * 12 + lateral * 15) * 0.02;
-            shadowIntensity += textureNoise + fineNoise;
+            // Add natural texture variation (irregular shadow edges)
+            const coarseNoise = Math.sin(posteriorDepth * 2.5 + lateral * 3.2) * 0.04;
+            const fineNoise = Math.sin(posteriorDepth * 8 + lateral * 11) * 0.015;
+            const organicTexture = (coarseNoise + fineNoise) * depthFade;
+            shadowStrength += organicTexture;
             
-            // Apply shadow with smooth clamping
-            const finalShadow = Math.max(0, Math.min(0.75, shadowIntensity)); // Max 75% shadow
-            attenuationFactor *= (0.25 + 0.75 * (1 - finalShadow)); // Never completely black
+            // Clamp and apply
+            shadowStrength = Math.max(0, Math.min(0.6, shadowStrength));
+            attenuationFactor *= (0.4 + 0.6 * (1 - shadowStrength));
           }
         }
         
