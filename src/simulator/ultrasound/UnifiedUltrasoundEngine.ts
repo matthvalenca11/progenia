@@ -186,6 +186,9 @@ export class UnifiedUltrasoundEngine {
     const gainLinear = Math.pow(10, (this.config.gain - 50) / 20);
     const drFactor = this.config.dynamicRange / 60;
     
+    // Temporal noise seed for "live" effect
+    const temporalSeed = this.time * 2;
+    
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const idx = (y * width + x) * 4;
@@ -200,6 +203,15 @@ export class UnifiedUltrasoundEngine {
         
         // Calculate intensity with all physics
         let intensity = this.calculatePixelIntensity(x, y, physCoords);
+        
+        // Add temporal "live" noise (chuviscos) - subtle flickering
+        const liveNoise = (Math.sin(x * 0.1 + temporalSeed) * Math.cos(y * 0.1 + temporalSeed * 1.3)) * 0.03;
+        const frameNoise = (Math.random() - 0.5) * 0.015; // Random per-frame variation
+        intensity *= (1 + liveNoise + frameNoise);
+        
+        // Scanline effect (very subtle horizontal patterns)
+        const scanlineEffect = Math.sin(y * 0.5 + temporalSeed * 3) * 0.008;
+        intensity *= (1 + scanlineEffect);
         
         // Apply gain and compression
         intensity *= gainLinear;
@@ -230,7 +242,7 @@ export class UnifiedUltrasoundEngine {
     // 2. Base echogenicity
     let intensity = this.getBaseEchogenicity(tissue.echogenicity);
     
-    // 3. Realistic speckle (Rayleigh distributed with depth variation)
+    // 3. Realistic speckle (Rayleigh distributed with depth variation + temporal variation)
     if (this.config.enableSpeckle) {
       const speckleIdx = y * this.canvas.width + x;
       const rayleigh = Math.abs(this.rayleighCache[speckleIdx % this.rayleighCache.length]);
@@ -239,9 +251,12 @@ export class UnifiedUltrasoundEngine {
       // Speckle size increases with depth (lower frequency)
       const depthFactor = 1 + depth / this.config.depth * 0.3;
       
+      // Temporal variation in speckle (subtle movement/flickering)
+      const temporalVar = Math.sin(this.time * 1.5 + x * 0.05 + y * 0.05) * 0.08;
+      
       // Combine for organic texture with depth-dependent characteristics
       const speckle = (rayleigh * 0.35 + (perlin * 0.5 + 0.5) * 0.65) * depthFactor;
-      intensity *= (0.4 + speckle * 0.6);
+      intensity *= (0.4 + (speckle + temporalVar) * 0.6);
     }
     
     // 4. Frequency-dependent attenuation
