@@ -519,26 +519,36 @@ export class UnifiedUltrasoundEngine {
         
         // Acoustic shadow - physics-based with thickness-dependent intensity
         if (this.config.enableAcousticShadow && inclusion.hasStrongShadow) {
-          const inclusionRadius = inclusion.sizeCm.width / 2;
-          const inclusionThickness = inclusion.sizeCm.height; // Key factor!
+          const inclusionThickness = inclusion.sizeCm.height;
           
           // Ray-based shadow calculation
           const inclusionTop = inclusion.centerDepthCm - inclusion.sizeCm.height / 2;
           const inclusionBottom = inclusion.centerDepthCm + inclusion.sizeCm.height / 2;
           
-          // Only apply shadow posterior to the inclusion
-          if (depth > inclusionBottom) {
+          // Only apply shadow posterior to the inclusion (IMMEDIATELY after)
+          if (depth >= inclusionBottom) {
             const posteriorDepth = depth - inclusionBottom;
             const inclLateral = inclusion.centerLateralPos * 1.75;
             
+            // Calculate effective width at the bottom edge of inclusion
+            let effectiveWidth;
+            if (inclusion.shape === 'circle') {
+              effectiveWidth = (inclusion.sizeCm.width + inclusion.sizeCm.height) / 4;
+            } else if (inclusion.shape === 'ellipse') {
+              // For ellipse, width at bottom edge
+              effectiveWidth = inclusion.sizeCm.width / 2;
+            } else {
+              // Rectangle
+              effectiveWidth = inclusion.sizeCm.width / 2;
+            }
+            
             // Shadow intensity based on thickness (thicker = stronger shadow)
-            // Normalize thickness: 0.5cm = weak, 2cm+ = very strong
             const thicknessFactor = Math.min(1, inclusionThickness / 2.0);
             const baseShadowStrength = 0.5 + thicknessFactor * 0.45; // 50% to 95%
             
             // Tight cone (realistic)
             const shadowSpreadAngle = 0.02;
-            const shadowHalfWidth = inclusionRadius + posteriorDepth * Math.tan(shadowSpreadAngle);
+            const shadowHalfWidth = effectiveWidth + posteriorDepth * Math.tan(shadowSpreadAngle);
             
             const distFromShadowCenter = Math.abs(lateral - inclLateral);
             
