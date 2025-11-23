@@ -344,10 +344,14 @@ export class UnifiedUltrasoundEngine {
         const medium = getAcousticMedium(inclusion.mediumInsideId);
         
         // Smooth transition at border (soft tissue blending)
-        // REDUCED transition zone to 0.05cm to avoid gap with shadow
+        // BUT: Skip transition zone at the very bottom edge to avoid gap with shadow
+        const inclusionBottomDepth = inclusion.centerDepthCm + inclusion.sizeCm.height / 2;
+        const distToBottom = Math.abs(depth - inclusionBottomDepth);
+        
         let blendFactor = 1;
-        if (distInfo.distanceFromEdge < 0.05) {
-          // Tighter gradual transition zone
+        // Only blend on sides and top, NOT on bottom (to avoid shadow gap)
+        if (distInfo.distanceFromEdge < 0.05 && distToBottom > 0.02) {
+          // Tighter gradual transition zone (but not at bottom)
           blendFactor = Math.pow(1 - distInfo.distanceFromEdge / 0.05, 0.7);
         }
         
@@ -508,7 +512,21 @@ export class UnifiedUltrasoundEngine {
       // Check if we're in shadow/enhancement zone
       for (const inclusion of this.config.inclusions) {
         const inclusionBottomDepth = inclusion.centerDepthCm + inclusion.sizeCm.height / 2;
-        const isPosterior = depth >= inclusionBottomDepth; // Changed to >= for immediate shadow start
+        
+        // Check if we're at the exact bottom edge or just below
+        const atBottomEdge = Math.abs(depth - inclusionBottomDepth) < 0.01;
+        
+        // Log for the very first pixels after bottom edge
+        if (atBottomEdge && this.frameCount % 60 === 0) {
+          console.log('Bottom edge check:', {
+            depth,
+            inclusionBottomDepth,
+            diff: depth - inclusionBottomDepth,
+            isInclusion: tissue.isInclusion
+          });
+        }
+        
+        const isPosterior = depth >= inclusionBottomDepth;
         if (!isPosterior) continue;
         
         // Convert inclusion lateral position to physical coordinates
