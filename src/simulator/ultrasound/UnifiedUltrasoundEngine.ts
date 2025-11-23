@@ -563,7 +563,7 @@ export class UnifiedUltrasoundEngine {
             
             // Shadow intensity based on thickness (thicker = stronger shadow)
             const thicknessFactor = Math.min(1, inclusionThickness / 2.0);
-            const baseShadowStrength = 0.5 + thicknessFactor * 0.45; // 50% to 95%
+            const baseShadowStrength = 0.25 + thicknessFactor * 0.35; // 25% to 60% (more realistic)
             
             // Shadow spread depends on transducer type
             // Linear: nearly parallel (minimal spread)
@@ -583,23 +583,23 @@ export class UnifiedUltrasoundEngine {
                 const depthDecay = Math.exp(-posteriorDepth * 0.35);
                 const finalShadowStrength = shadowCore * depthDecay;
                 
-                attenuationFactor *= (0.05 + 0.95 * (1 - finalShadowStrength));
+                attenuationFactor *= (0.15 + 0.85 * (1 - finalShadowStrength)); // Less aggressive attenuation
               }
               // Penumbra - also affected by thickness
               else if (distFromShadowCenter < shadowHalfWidth * 1.5) {
                 const edgeDist = (distFromShadowCenter - shadowHalfWidth * 0.85) / (shadowHalfWidth * 0.65);
-                const penumbraStrength = (baseShadowStrength * 0.7) * Math.exp(-edgeDist * edgeDist * 2);
+                const penumbraStrength = (baseShadowStrength * 0.6) * Math.exp(-edgeDist * edgeDist * 2);
                 
                 const depthDecay = Math.exp(-posteriorDepth * 0.4);
-                attenuationFactor *= (0.3 + 0.7 * (1 - penumbraStrength * depthDecay));
+                attenuationFactor *= (0.45 + 0.55 * (1 - penumbraStrength * depthDecay)); // Less dark
               }
               // Outer fade
               else {
                 const outerDist = (distFromShadowCenter - shadowHalfWidth * 1.5) / (shadowHalfWidth * 0.5);
-                const outerFade = (baseShadowStrength * 0.35) * Math.exp(-outerDist * outerDist * 3);
+                const outerFade = (baseShadowStrength * 0.3) * Math.exp(-outerDist * outerDist * 3);
                 
                 const depthDecay = Math.exp(-posteriorDepth * 0.5);
-                attenuationFactor *= (0.65 + 0.35 * (1 - outerFade * depthDecay));
+                attenuationFactor *= (0.7 + 0.3 * (1 - outerFade * depthDecay)); // Subtle fade
               }
             }
           }
