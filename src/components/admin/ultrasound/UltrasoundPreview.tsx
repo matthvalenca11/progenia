@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUltrasoundLabStore } from "@/stores/ultrasoundLabStore";
 import { UnifiedUltrasoundEngine } from "@/simulator/ultrasound/UnifiedUltrasoundEngine";
 import { Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
+import { Label } from "@/components/ui/label";
 
 export const UltrasoundPreview = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -23,7 +25,25 @@ export const UltrasoundPreview = () => {
     mode,
     simulationFeatures,
     studentControls,
+    setGain,
+    setDepth,
+    setFrequency,
+    setFocus,
   } = useUltrasoundLabStore();
+  
+  // Local state for sliders
+  const [localGain, setLocalGain] = useState(gain);
+  const [localDepth, setLocalDepth] = useState(depth);
+  const [localFrequency, setLocalFrequency] = useState(frequency);
+  const [localFocus, setLocalFocus] = useState(focus);
+  
+  // Sync local state with store
+  useEffect(() => {
+    setLocalGain(gain);
+    setLocalDepth(depth);
+    setLocalFrequency(frequency);
+    setLocalFocus(focus);
+  }, [gain, depth, frequency, focus]);
   
   // Initialize engine with fallback for empty layers
   useEffect(() => {
@@ -161,22 +181,73 @@ export const UltrasoundPreview = () => {
           />
         </div>
         
-        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-          <div className="bg-muted/50 p-2 rounded">
-            <span className="text-muted-foreground">Profundidade:</span>
-            <span className="ml-2 font-mono font-medium">{depth.toFixed(1)} cm</span>
+        <div className="mt-4 space-y-4">
+          <div>
+            <Label className="mb-3 flex justify-between">
+              <span>Ganho</span>
+              <span className="font-mono text-sm">{localGain.toFixed(0)} dB</span>
+            </Label>
+            <Slider
+              value={[localGain]}
+              onValueChange={([v]) => {
+                setLocalGain(v);
+                setGain(v);
+              }}
+              min={0}
+              max={100}
+              step={1}
+            />
           </div>
-          <div className="bg-muted/50 p-2 rounded">
-            <span className="text-muted-foreground">Frequência:</span>
-            <span className="ml-2 font-mono font-medium">{frequency.toFixed(1)} MHz</span>
+          
+          <div>
+            <Label className="mb-3 flex justify-between">
+              <span>Profundidade</span>
+              <span className="font-mono text-sm">{localDepth.toFixed(1)} cm</span>
+            </Label>
+            <Slider
+              value={[localDepth]}
+              onValueChange={([v]) => {
+                setLocalDepth(v);
+                setDepth(v);
+              }}
+              min={1}
+              max={15}
+              step={0.5}
+            />
           </div>
-          <div className="bg-muted/50 p-2 rounded">
-            <span className="text-muted-foreground">Ganho:</span>
-            <span className="ml-2 font-mono font-medium">{gain.toFixed(0)} dB</span>
+          
+          <div>
+            <Label className="mb-3 flex justify-between">
+              <span>Frequência</span>
+              <span className="font-mono text-sm">{localFrequency.toFixed(1)} MHz</span>
+            </Label>
+            <Slider
+              value={[localFrequency]}
+              onValueChange={([v]) => {
+                setLocalFrequency(v);
+                setFrequency(v);
+              }}
+              min={2}
+              max={15}
+              step={0.5}
+            />
           </div>
-          <div className="bg-muted/50 p-2 rounded">
-            <span className="text-muted-foreground">Foco:</span>
-            <span className="ml-2 font-mono font-medium">{focus.toFixed(1)} cm</span>
+          
+          <div>
+            <Label className="mb-3 flex justify-between">
+              <span>Foco</span>
+              <span className="font-mono text-sm">{localFocus.toFixed(1)} cm</span>
+            </Label>
+            <Slider
+              value={[localFocus]}
+              onValueChange={([v]) => {
+                setLocalFocus(v);
+                setFocus(v);
+              }}
+              min={0.5}
+              max={localDepth}
+              step={0.1}
+            />
           </div>
         </div>
       </CardContent>
