@@ -10,6 +10,7 @@ export const UltrasoundPreview = () => {
   const engineRef = useRef<PhysicsUltrasoundEngine | null>(null);
   
   const {
+    presetId,
     layers,
     inclusions,
     transducerType,
@@ -22,13 +23,18 @@ export const UltrasoundPreview = () => {
     simulationFeatures,
   } = useUltrasoundLabStore();
   
-  // Initialize engine
+  // Initialize engine with fallback for empty layers
   useEffect(() => {
     if (!canvasRef.current) return;
     
+    // Use layers from store, or load from preset if empty
+    const effectiveLayers = layers.length > 0 ? layers : [];
+    const effectiveInclusions = inclusions.length > 0 ? inclusions : [];
+    
+    
     const config = {
-      layers,
-      inclusions,
+      layers: effectiveLayers,
+      inclusions: effectiveInclusions,
       transducerType,
       frequency,
       depth,
@@ -55,9 +61,13 @@ export const UltrasoundPreview = () => {
   useEffect(() => {
     if (!engineRef.current) return;
     
+    const effectiveLayers = layers.length > 0 ? layers : [];
+    const effectiveInclusions = inclusions.length > 0 ? inclusions : [];
+    
+    
     engineRef.current.updateConfig({
-      layers,
-      inclusions,
+      layers: effectiveLayers,
+      inclusions: effectiveInclusions,
       transducerType,
       frequency,
       depth,
@@ -68,6 +78,7 @@ export const UltrasoundPreview = () => {
       features: simulationFeatures,
     });
   }, [
+    presetId,
     layers,
     inclusions,
     transducerType,

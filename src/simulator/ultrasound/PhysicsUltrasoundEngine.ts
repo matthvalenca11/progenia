@@ -276,6 +276,18 @@ export class PhysicsUltrasoundEngine {
   }
 
   private getLayerAtDepth(normalizedDepth: number): AnatomyLayer {
+    // If no layers configured, return default
+    if (!this.config.layers || this.config.layers.length === 0) {
+      return {
+        name: 'Generic Tissue',
+        depthRange: [0, 1],
+        reflectivity: 0.5,
+        echogenicity: 'isoechoic',
+        texture: 'homogeneous',
+        attenuationCoeff: 0.7
+      };
+    }
+
     // Find layer that contains this normalized depth (0-1)
     for (const layer of this.config.layers) {
       if (normalizedDepth >= layer.depthRange[0] && normalizedDepth <= layer.depthRange[1]) {
@@ -283,8 +295,8 @@ export class PhysicsUltrasoundEngine {
       }
     }
 
-    // Default layer if none found
-    return {
+    // Return first layer if no match (shouldn't happen but safe)
+    return this.config.layers[0] || {
       name: 'Generic Tissue',
       depthRange: [0, 1],
       reflectivity: 0.5,
