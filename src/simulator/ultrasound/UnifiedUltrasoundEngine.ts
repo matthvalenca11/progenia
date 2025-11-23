@@ -230,15 +230,18 @@ export class UnifiedUltrasoundEngine {
     // 2. Base echogenicity
     let intensity = this.getBaseEchogenicity(tissue.echogenicity);
     
-    // 3. Realistic speckle (Rayleigh distributed)
+    // 3. Realistic speckle (Rayleigh distributed with depth variation)
     if (this.config.enableSpeckle) {
       const speckleIdx = y * this.canvas.width + x;
       const rayleigh = Math.abs(this.rayleighCache[speckleIdx % this.rayleighCache.length]);
       const perlin = this.perlinCache[speckleIdx % this.perlinCache.length];
       
-      // Combine for organic texture
-      const speckle = (rayleigh * 0.4 + (perlin * 0.5 + 0.5) * 0.6);
-      intensity *= (0.5 + speckle * 0.5);
+      // Speckle size increases with depth (lower frequency)
+      const depthFactor = 1 + depth / this.config.depth * 0.3;
+      
+      // Combine for organic texture with depth-dependent characteristics
+      const speckle = (rayleigh * 0.35 + (perlin * 0.5 + 0.5) * 0.65) * depthFactor;
+      intensity *= (0.4 + speckle * 0.6);
     }
     
     // 4. Frequency-dependent attenuation
@@ -426,49 +429,87 @@ export class UnifiedUltrasoundEngine {
         // Distance behind the inclusion
         const posteriorDepth = depth - inclusionBottomDepth;
         
-        // Acoustic shadow (realistic cone shape with soft edges)
+        // Acoustic shadow (ultra-realistic cone with physics-based attenuation)
         if (this.config.enableAcousticShadow && inclusion.hasStrongShadow) {
-          // Shadow cone: width increases linearly with depth
-          const shadowConeAngle = 0.15; // radians, controls how fast shadow expands
-          const baseWidth = inclusion.sizeCm.width / 2;
-          const shadowWidth = baseWidth + posteriorDepth * Math.tan(shadowConeAngle);
+          // Shadow cone geometry
+          const inclusionRadius = inclusion.sizeCm.width / 2;
           
-          // Soft edges: Gaussian falloff at shadow boundaries
-          const edgeSoftness = shadowWidth * 0.3; // 30% of width is soft transition
-          const normalizedLateralDist = (lateralDist - baseWidth) / edgeSoftness;
-          const edgeFalloff = Math.exp(-normalizedLateralDist * normalizedLateralDist * 0.5);
+          // Shadow expands with realistic beam divergence angle
+          const divergenceAngle = 0.08; // Very subtle expansion (realistic for high-impedance objects)
+          const shadowWidth = inclusionRadius + posteriorDepth * Math.tan(divergenceAngle);
           
-          // Only apply shadow if within cone
-          if (lateralDist < shadowWidth) {
-            // Shadow intensity decreases with depth
-            const depthFalloff = Math.exp(-posteriorDepth * 0.8);
+          // Calculate if we're within the shadow cone
+          if (lateralDist < shadowWidth * 1.5) { // Extended for soft edges
+            // Core shadow (umbra) - strong attenuation
+            const umbra = lateralDist < inclusionRadius;
             
-            // Combine factors for realistic shadow
-            const shadowStrength = depthFalloff * Math.max(0, Math.min(1, edgeFalloff));
+            // Penumbra (transition zone) - gradual falloff
+            let shadowIntensity = 0;
             
-            // Strong shadow (0.1 = 90% signal reduction at peak)
-            attenuationFactor *= (0.1 + 0.9 * (1 - shadowStrength));
+            if (umbra) {
+              // Inside core shadow: very dark with slight texture variation
+              const coreVariation = Math.sin(posteriorDepth * 3 + lateral * 2) * 0.05;
+              shadowIntensity = 0.95 + coreVariation; // 95% shadow strength
+            } else {
+              // Penumbra: smooth Gaussian falloff from edge
+              const edgeDistance = lateralDist - inclusionRadius;
+              const penumbraWidth = shadowWidth - inclusionRadius;
+              const normalizedEdgeDist = edgeDistance / penumbraWidth;
+              
+              // Super smooth Gaussian edge
+              shadowIntensity = Math.exp(-normalizedEdgeDist * normalizedEdgeDist * 4) * 0.85;
+            }
+            
+            // Depth attenuation: shadow weakens gradually with depth
+            const depthFalloff = Math.exp(-posteriorDepth * 0.5);
+            shadowIntensity *= depthFalloff;
+            
+            // Add subtle turbulence/noise to shadow edges for realism
+            const turbulence = Math.sin(posteriorDepth * 5 + lateral * 7) * 0.03;
+            shadowIntensity += turbulence;
+            
+            // Apply shadow (darker = lower attenuation factor)
+            const finalShadow = Math.max(0, Math.min(1, shadowIntensity));
+            attenuationFactor *= (0.05 + 0.95 * (1 - finalShadow)); // 95% max attenuation
           }
         }
         
         // Posterior enhancement (for cystic/fluid structures)
         if (this.config.enablePosteriorEnhancement && inclusion.posteriorEnhancement) {
-          // Enhancement zone is narrower and more focused
-          const enhancementWidth = inclusion.sizeCm.width * 0.7;
+          // Enhancement zone is focused and symmetrical
+          const enhancementWidth = inclusion.sizeCm.width * 0.8;
           
-          if (lateralDist < enhancementWidth) {
-            const depthFalloff = Math.exp(-posteriorDepth * 1.2);
-            const lateralFalloff = Math.exp(-Math.pow(lateralDist / enhancementWidth, 2));
-            const enhancementStrength = depthFalloff * lateralFalloff;
+          if (lateralDist < enhancementWidth * 1.2) {
+            // Gaussian lateral profile (brightest at center)
+            const lateralProfile = Math.exp(-Math.pow(lateralDist / enhancementWidth, 2) * 2);
             
+            // Depth profile: peaks slightly below inclusion, then fades
+            const optimalDepth = 0.3; // cm below inclusion where enhancement peaks
+            const depthProfile = Math.exp(-Math.pow((posteriorDepth - optimalDepth) / 0.8, 2));
+            
+            // Combine for realistic enhancement
+            const enhancementStrength = lateralProfile * depthProfile;
+            
+            // Strong enhancement (60% brightness increase)
             attenuationFactor *= (1 + 0.6 * enhancementStrength);
           }
         }
       }
     } else if (tissue.inclusion) {
-      // At inclusion border - add reflection
-      if (tissue.inclusion.borderEchogenicity === 'sharp') {
-        reflection = 0.3;
+      // At inclusion edge - add specular reflection for sharp interfaces
+      const inclLateral = tissue.inclusion.centerLateralPos * 1.75;
+      const dx = lateral - inclLateral;
+      const dy = depth - tissue.inclusion.centerDepthCm;
+      
+      // Calculate distance from center
+      const distFromCenter = Math.sqrt(dx * dx + dy * dy);
+      const radius = tissue.inclusion.sizeCm.width / 2;
+      
+      // Edge detection: bright reflection at boundary
+      const edgeDistance = Math.abs(distFromCenter - radius);
+      if (edgeDistance < 0.08 && tissue.inclusion.borderEchogenicity === 'sharp') {
+        // Strong specular reflection at interface
+        reflection = 0.45 * Math.exp(-edgeDistance * edgeDistance * 100);
       }
     }
     
