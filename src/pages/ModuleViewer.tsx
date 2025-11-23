@@ -97,11 +97,15 @@ export default function ModuleViewer() {
       const lessonsWithProgress: LessonWithProgress[] = lessonsData.map((lesson, index) => {
         const progress = progressMap.get(lesson.id);
         
+        // Primeira lição sempre desbloqueada
         let isUnlocked = index === 0;
+        
+        // Lições subsequentes: desbloqueadas se a anterior foi concluída OU se a própria lição já foi concluída
         if (index > 0) {
           const previousLesson = lessonsData[index - 1];
           const previousProgress = progressMap.get(previousLesson.id);
-          isUnlocked = previousProgress?.status === "concluido";
+          const isCurrentCompleted = progress?.status === "concluido";
+          isUnlocked = previousProgress?.status === "concluido" || isCurrentCompleted;
         }
 
         return {
