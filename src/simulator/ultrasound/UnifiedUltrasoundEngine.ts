@@ -537,39 +537,6 @@ export class UnifiedUltrasoundEngine {
         this.ctx.stroke();
       }
     }
-    
-    // Draw inclusions schematically
-    for (const inclusion of this.config.inclusions) {
-      const centerY = (inclusion.centerDepthCm / this.config.depth) * height;
-      const lateralCm = inclusion.centerLateralPos * 1.75;
-      const centerX = width * 0.5 + (lateralCm / 3.5) * width;
-      
-      // Calculate size in pixels
-      const inclusionSize = typeof inclusion.sizeCm === 'number' ? inclusion.sizeCm : 0.5;
-      const sizeY = (inclusionSize / this.config.depth) * height;
-      const sizeX = (inclusionSize / 3.5) * width;
-      
-      this.ctx.strokeStyle = 'rgba(255, 165, 0, 0.6)';
-      this.ctx.lineWidth = 2;
-      this.ctx.setLineDash([5, 5]);
-      
-      if (inclusion.shape === 'circle') {
-        const radius = sizeY / 2;
-        this.ctx.beginPath();
-        this.ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-        this.ctx.stroke();
-      } else if (inclusion.shape === 'ellipse') {
-        this.ctx.beginPath();
-        this.ctx.ellipse(centerX, centerY, sizeX / 2, sizeY / 2, 0, 0, Math.PI * 2);
-        this.ctx.stroke();
-      } else if (inclusion.shape === 'rectangle') {
-        this.ctx.beginPath();
-        this.ctx.rect(centerX - sizeX / 2, centerY - sizeY / 2, sizeX, sizeY);
-        this.ctx.stroke();
-      }
-      
-      this.ctx.setLineDash([]);
-    }
   }
   
   private drawDepthScale(): void {
