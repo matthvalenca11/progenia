@@ -2,16 +2,73 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUltrasoundLabStore } from "@/stores/ultrasoundLabStore";
-import { ULTRASOUND_PRESETS } from "@/config/ultrasoundPresets";
+import { ULTRASOUND_PRESETS, getDefaultLayersForPreset, getDefaultInclusionsForPreset } from "@/config/ultrasoundPresets";
 import { UltrasoundAnatomyPresetId } from "@/types/ultrasoundPresets";
 import { Info, Lightbulb } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
+import { useEffect } from "react";
+import { getAcousticMedium } from "@/types/acousticMedia";
 
 export const AnatomyPresetSection = () => {
-  const { presetId, setPresetId } = useUltrasoundLabStore();
+  const { 
+    presetId, 
+    setPresetId,
+    setLayers,
+    setInclusions,
+    setTransducerType,
+    setFrequency,
+    setDepth,
+    setFocus,
+    setGain
+  } = useUltrasoundLabStore();
   
   const currentPreset = Object.values(ULTRASOUND_PRESETS).find(p => p.id === presetId);
+
+  // Auto-load preset configuration when preset changes
+  useEffect(() => {
+    if (!presetId || presetId === 'custom') return;
+
+    const preset = ULTRASOUND_PRESETS[presetId as UltrasoundAnatomyPresetId];
+    if (!preset) return;
+
+    // Load layers from preset and convert to AnatomyLayer format
+    const layerConfigs = getDefaultLayersForPreset(presetId as UltrasoundAnatomyPresetId);
+    const totalDepth = layerConfigs.reduce((sum, l) => sum + l.thicknessCm, 0);
+    
+    const anatomyLayers = layerConfigs.map((layerConfig, index) => {
+      const startDepth = layerConfigs.slice(0, index).reduce((sum, l) => sum + l.thicknessCm, 0);
+      const endDepth = startDepth + layerConfig.thicknessCm;
+      const medium = getAcousticMedium(layerConfig.mediumId);
+      
+      return {
+        name: layerConfig.name,
+        depthRange: [startDepth / totalDepth, endDepth / totalDepth] as [number, number],
+        reflectivity: 0.5 + (layerConfig.reflectivityBias || 0),
+        echogenicity: medium.baseEchogenicity,
+        texture: layerConfig.mediumId === 'muscle' ? 'striated' as const : 
+                 layerConfig.mediumId === 'tendon' ? 'fibrillar' as const : 
+                 layerConfig.mediumId === 'fat' ? 'heterogeneous' as const :
+                 'homogeneous' as const,
+        attenuationCoeff: medium.attenuation_dB_per_cm_MHz,
+        hasFlow: layerConfig.mediumId === 'blood',
+        flowVelocity: layerConfig.mediumId === 'blood' ? 20 : undefined,
+      };
+    });
+
+    setLayers(anatomyLayers);
+
+    // Load inclusions from preset
+    const presetInclusions = getDefaultInclusionsForPreset(presetId as UltrasoundAnatomyPresetId);
+    setInclusions(presetInclusions);
+
+    // Apply recommended parameters from preset
+    setTransducerType(preset.transducerType);
+    setFrequency(preset.recommendedFrequencyMHz);
+    setDepth(preset.recommendedDepthCm);
+    setFocus(preset.recommendedFocusCm);
+    setGain(preset.recommendedGain);
+  }, [presetId, setLayers, setInclusions, setTransducerType, setFrequency, setDepth, setFocus, setGain]);
   
   return (
     <Card>

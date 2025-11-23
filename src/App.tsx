@@ -18,7 +18,7 @@ import Profile from "@/pages/Profile";
 import ModuleViewer from "@/pages/ModuleViewer";
 import LessonViewer from "@/pages/LessonViewer";
 import CapsuleViewer from "@/pages/CapsuleViewer";
-import VirtualLabEditor from "@/components/admin/VirtualLabEditor";
+import VirtualLabEditor from "@/pages/VirtualLabEditor";
 import VirtualLabsAdmin from "@/pages/VirtualLabsAdmin";
 import DeleteUserTest from "@/pages/DeleteUserTest";
 import NotFound from "@/pages/NotFound";
