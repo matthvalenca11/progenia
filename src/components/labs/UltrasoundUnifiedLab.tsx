@@ -34,6 +34,16 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
   useEffect(() => {
     if (!canvasRef.current) return;
     
+    console.log('🔧 Initializing engine with config:', {
+      hasLayers: !!config?.layers,
+      layersCount: config?.layers?.length || 0,
+      hasAcousticLayers: !!config?.acousticLayers,
+      acousticLayersCount: config?.acousticLayers?.length || 0,
+      hasInclusions: !!config?.inclusions,
+      inclusionsCount: config?.inclusions?.length || 0,
+      inclusions: config?.inclusions
+    });
+    
     const engine = new UnifiedUltrasoundEngine(canvasRef.current, {
       layers: config?.layers || [{
         name: 'Tissue',
@@ -70,20 +80,41 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
     return () => {
       engine.destroy();
     };
-  }, []);
+  }, [config]);
   
   // Update engine on control changes
   useEffect(() => {
     if (!engineRef.current) return;
     
+    console.log('🔄 Updating engine config:', {
+      gain,
+      depth,
+      frequency,
+      focus,
+      transducerType,
+      hasInclusions: !!config?.inclusions,
+      inclusionsCount: config?.inclusions?.length || 0
+    });
+    
     engineRef.current.updateConfig({
+      layers: config?.layers || [{
+        name: 'Tissue',
+        depthRange: [0, 1],
+        reflectivity: 0.5,
+        echogenicity: 'isoechoic',
+        texture: 'homogeneous',
+        attenuationCoeff: 0.7,
+        hasFlow: false,
+      }],
+      acousticLayers: config?.acousticLayers || [],
+      inclusions: config?.inclusions || [],
       gain,
       depth,
       frequency,
       focus,
       transducerType,
     });
-  }, [gain, depth, frequency, focus, transducerType]);
+  }, [gain, depth, frequency, focus, transducerType, config]);
   
   const handlePlayPause = () => {
     if (!engineRef.current) return;
