@@ -142,7 +142,7 @@ export function getDefaultInclusionsForPreset(presetId: UltrasoundAnatomyPresetI
         mediumInsideId: "blood",
         hasStrongShadow: false,
         posteriorEnhancement: false,
-        borderEchogenicity: "sharp",
+        borderEchogenicity: "soft",
       },
     ],
     
@@ -159,7 +159,7 @@ export function getDefaultInclusionsForPreset(presetId: UltrasoundAnatomyPresetI
         mediumInsideId: "blood",
         hasStrongShadow: false,
         posteriorEnhancement: false,
-        borderEchogenicity: "sharp",
+        borderEchogenicity: "soft",
       },
     ],
   };
