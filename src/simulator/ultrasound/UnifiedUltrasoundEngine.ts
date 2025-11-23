@@ -415,23 +415,53 @@ export class UnifiedUltrasoundEngine {
     if (!tissue.isInclusion) {
       // Check if we're in shadow/enhancement zone
       for (const inclusion of this.config.inclusions) {
-        const isPosterior = depth > inclusion.centerDepthCm + inclusion.sizeCm.height / 2;
+        const inclusionBottomDepth = inclusion.centerDepthCm + inclusion.sizeCm.height / 2;
+        const isPosterior = depth > inclusionBottomDepth;
         if (!isPosterior) continue;
         
-        const inclLateral = inclusion.centerLateralPos * (this.getBeamWidth(depth) / 2);
+        // Convert inclusion lateral position to physical coordinates
+        const inclLateral = inclusion.centerLateralPos * 1.75;
         const lateralDist = Math.abs(lateral - inclLateral);
-        const isAligned = lateralDist < inclusion.sizeCm.width / 2;
         
-        if (isAligned) {
-          const posteriorDepth = depth - (inclusion.centerDepthCm + inclusion.sizeCm.height / 2);
-          const falloff = Math.exp(-posteriorDepth * 1.5);
+        // Distance behind the inclusion
+        const posteriorDepth = depth - inclusionBottomDepth;
+        
+        // Acoustic shadow (realistic cone shape with soft edges)
+        if (this.config.enableAcousticShadow && inclusion.hasStrongShadow) {
+          // Shadow cone: width increases linearly with depth
+          const shadowConeAngle = 0.15; // radians, controls how fast shadow expands
+          const baseWidth = inclusion.sizeCm.width / 2;
+          const shadowWidth = baseWidth + posteriorDepth * Math.tan(shadowConeAngle);
           
-          if (this.config.enableAcousticShadow && inclusion.hasStrongShadow) {
-            attenuationFactor *= (0.15 + 0.85 * (1 - falloff));
+          // Soft edges: Gaussian falloff at shadow boundaries
+          const edgeSoftness = shadowWidth * 0.3; // 30% of width is soft transition
+          const normalizedLateralDist = (lateralDist - baseWidth) / edgeSoftness;
+          const edgeFalloff = Math.exp(-normalizedLateralDist * normalizedLateralDist * 0.5);
+          
+          // Only apply shadow if within cone
+          if (lateralDist < shadowWidth) {
+            // Shadow intensity decreases with depth
+            const depthFalloff = Math.exp(-posteriorDepth * 0.8);
+            
+            // Combine factors for realistic shadow
+            const shadowStrength = depthFalloff * Math.max(0, Math.min(1, edgeFalloff));
+            
+            // Strong shadow (0.1 = 90% signal reduction at peak)
+            attenuationFactor *= (0.1 + 0.9 * (1 - shadowStrength));
           }
+        }
+        
+        // Posterior enhancement (for cystic/fluid structures)
+        if (this.config.enablePosteriorEnhancement && inclusion.posteriorEnhancement) {
+          // Enhancement zone is narrower and more focused
+          const enhancementWidth = inclusion.sizeCm.width * 0.7;
           
-          if (this.config.enablePosteriorEnhancement && inclusion.posteriorEnhancement) {
-            attenuationFactor *= (1 + 0.5 * falloff);
+          if (lateralDist < enhancementWidth) {
+            const depthFalloff = Math.exp(-posteriorDepth * 1.2);
+            const lateralFalloff = Math.exp(-Math.pow(lateralDist / enhancementWidth, 2));
+            const enhancementStrength = depthFalloff * lateralFalloff;
+            
+            attenuationFactor *= (1 + 0.6 * enhancementStrength);
           }
         }
       }
