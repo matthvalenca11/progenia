@@ -109,7 +109,6 @@ export const UltrasoundLabBuilder = () => {
         
         <Separator className="my-6" />
         
-        <SimulationFeaturesSection />
         <StudentControlsSection />
       </div>
       
