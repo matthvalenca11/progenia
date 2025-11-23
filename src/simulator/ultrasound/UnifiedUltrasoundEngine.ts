@@ -272,7 +272,7 @@ export class UnifiedUltrasoundEngine {
       let flowOffset = 0;
       if (tissue.isInclusion && tissue.inclusion?.mediumInsideId === 'blood') {
         // REDESIGNED: Actual speckle displacement (flow simulation)
-        const inclLateral = tissue.inclusion.centerLateralPos * 1.75;
+        const inclLateral = tissue.inclusion.centerLateralPos * 3.25; // Updated for 6.5cm field width
         const dx = lateral - inclLateral;
         const dy = depth - tissue.inclusion.centerDepthCm;
         const radialPos = Math.sqrt(dx * dx + dy * dy) / (tissue.inclusion.sizeCm.width / 2);
@@ -405,7 +405,7 @@ export class UnifiedUltrasoundEngine {
     lateral: number,
     inclusion: UltrasoundInclusionConfig
   ): { isInside: boolean; distanceFromEdge: number } {
-    const inclLateral = inclusion.centerLateralPos * 1.75;
+    const inclLateral = inclusion.centerLateralPos * 3.25; // Updated for 6.5cm field width
     const dx = lateral - inclLateral;
     const dy = depth - inclusion.centerDepthCm;
     
@@ -530,7 +530,7 @@ export class UnifiedUltrasoundEngine {
         if (!isPosterior) continue;
         
         // Convert inclusion lateral position to physical coordinates
-        const inclLateral = inclusion.centerLateralPos * 1.75;
+        const inclLateral = inclusion.centerLateralPos * 3.25; // Updated for 6.5cm field width
         const lateralDist = Math.abs(lateral - inclLateral);
         
         // Distance behind the inclusion (starts at 0 immediately after bottom edge)
@@ -547,7 +547,7 @@ export class UnifiedUltrasoundEngine {
           // Only apply shadow posterior to the inclusion (IMMEDIATELY after)
           if (depth >= inclusionBottom) {
             const posteriorDepth = depth - inclusionBottom;
-            const inclLateral = inclusion.centerLateralPos * 1.75;
+            const inclLateral = inclusion.centerLateralPos * 3.25; // Updated for 6.5cm field width
             
             // Calculate effective width at the bottom edge of inclusion
             let effectiveWidth;
@@ -628,7 +628,7 @@ export class UnifiedUltrasoundEngine {
       }
     } else if (tissue.inclusion) {
       // At inclusion edge - realistic border rendering
-      const inclLateral = tissue.inclusion.centerLateralPos * 1.75;
+      const inclLateral = tissue.inclusion.centerLateralPos * 3.25; // Updated for 6.5cm field width
       const dx = lateral - inclLateral;
       const dy = depth - tissue.inclusion.centerDepthCm;
       
@@ -811,8 +811,8 @@ export class UnifiedUltrasoundEngine {
     for (const inclusion of this.config.inclusions) {
       const y = (inclusion.centerDepthCm / this.config.depth) * this.canvas.height;
       // Use same fixed scale as isPointInInclusion
-      const lateralCm = inclusion.centerLateralPos * 1.75;
-      const x = this.canvas.width * 0.5 + (lateralCm / 3.5) * this.canvas.width;
+      const lateralCm = inclusion.centerLateralPos * 3.25; // Updated for 6.5cm field width
+      const x = this.canvas.width * 0.5 + (lateralCm / 6.5) * this.canvas.width * 2; // Updated denominator
       this.ctx.fillText(inclusion.label, x, y);
     }
   }
