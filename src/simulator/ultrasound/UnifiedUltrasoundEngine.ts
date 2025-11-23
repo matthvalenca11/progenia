@@ -333,8 +333,9 @@ export class UnifiedUltrasoundEngine {
     lateral: number, 
     inclusion: UltrasoundInclusionConfig
   ): boolean {
-    // Convert coordinates
-    const inclLateral = inclusion.centerLateralPos * (this.getBeamWidth(depth) / 2);
+    // Convert coordinates - centerLateralPos is already in normalized units (-1 to 1)
+    // Map to physical lateral position (cm) independent of beam width
+    const inclLateral = inclusion.centerLateralPos * 1.75; // Fixed scale, not dependent on frequency
     const dx = lateral - inclLateral;
     const dy = depth - inclusion.centerDepthCm;
     
@@ -569,7 +570,9 @@ export class UnifiedUltrasoundEngine {
     
     for (const inclusion of this.config.inclusions) {
       const y = (inclusion.centerDepthCm / this.config.depth) * this.canvas.height;
-      const x = this.canvas.width * (inclusion.centerLateralPos * 0.4 + 0.5);
+      // Use same fixed scale as isPointInInclusion
+      const lateralCm = inclusion.centerLateralPos * 1.75;
+      const x = this.canvas.width * 0.5 + (lateralCm / 3.5) * this.canvas.width;
       this.ctx.fillText(inclusion.label, x, y);
     }
   }
