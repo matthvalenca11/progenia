@@ -334,10 +334,33 @@ export class UnifiedUltrasoundEngine {
           blendFactor = Math.pow(1 - distInfo.distanceFromEdge / 0.15, 0.7);
         }
         
+        // Motion effect for blood vessels and arteries
+        let motionFactor = 1;
+        if (inclusion.mediumInsideId === 'blood') {
+          // Pulsatile flow (arterial pulsation)
+          const heartRate = 1.2; // Hz (72 bpm)
+          const pulsation = Math.sin(this.time * heartRate * 2 * Math.PI) * 0.15;
+          
+          // Flow turbulence (varies with position in vessel)
+          const inclLateral = inclusion.centerLateralPos * 1.75;
+          const dx = lateral - inclLateral;
+          const dy = depth - inclusion.centerDepthCm;
+          const radialPos = Math.sqrt(dx * dx + dy * dy) / (inclusion.sizeCm.width / 2);
+          
+          // Laminar flow pattern (faster in center, slower at edges)
+          const flowProfile = 1 - radialPos * radialPos;
+          const flowMovement = Math.sin(this.time * 3 + depth * 5) * flowProfile * 0.12;
+          
+          // Speckle shimmer from moving blood cells
+          const cellMovement = Math.sin(this.time * 8 + lateral * 10 + depth * 8) * 0.08;
+          
+          motionFactor = 1 + pulsation + flowMovement + cellMovement;
+        }
+        
         return {
           echogenicity: medium.baseEchogenicity,
           attenuation: medium.attenuation_dB_per_cm_MHz,
-          reflectivity: 0.5 * blendFactor,
+          reflectivity: 0.5 * blendFactor * motionFactor,
           impedance: medium.acousticImpedance_MRayl,
           isInclusion: true,
           inclusion
