@@ -129,10 +129,11 @@ export default function VirtualLabEditor() {
       if (isEditing && labId) {
         await virtualLabService.update(labId, labData);
         toast.success("Laboratório atualizado com sucesso!");
+        navigate("/admin/labs");
       } else {
-        const newLab = await virtualLabService.create(labData);
+        await virtualLabService.create(labData);
         toast.success("Laboratório criado com sucesso!");
-        navigate(`/admin/labs/editar/${newLab.id}`, { replace: true });
+        navigate("/admin/labs");
       }
     } catch (error: any) {
       console.error("Erro ao salvar laboratório:", error);
