@@ -272,7 +272,7 @@ export class UnifiedUltrasoundEngine {
       let flowOffset = 0;
       if (tissue.isInclusion && tissue.inclusion?.mediumInsideId === 'blood') {
         // REDESIGNED: Actual speckle displacement (flow simulation)
-        const inclLateral = tissue.inclusion.centerLateralPos * 3.25; // Updated for 6.5cm field width
+        const inclLateral = tissue.inclusion.centerLateralPos * 2.5; // 5cm field: -2.5 to +2.5
         const dx = lateral - inclLateral;
         const dy = depth - tissue.inclusion.centerDepthCm;
         const radialPos = Math.sqrt(dx * dx + dy * dy) / (tissue.inclusion.sizeCm.width / 2);
@@ -405,7 +405,7 @@ export class UnifiedUltrasoundEngine {
     lateral: number,
     inclusion: UltrasoundInclusionConfig
   ): { isInside: boolean; distanceFromEdge: number } {
-    const inclLateral = inclusion.centerLateralPos * 3.25; // Updated for 6.5cm field width
+    const inclLateral = inclusion.centerLateralPos * 2.5; // 5cm field: -2.5 to +2.5
     const dx = lateral - inclLateral;
     const dy = depth - inclusion.centerDepthCm;
     
@@ -530,7 +530,7 @@ export class UnifiedUltrasoundEngine {
         if (!isPosterior) continue;
         
         // Convert inclusion lateral position to physical coordinates
-        const inclLateral = inclusion.centerLateralPos * 3.25; // Updated for 6.5cm field width
+        const inclLateral = inclusion.centerLateralPos * 2.5; // 5cm field: -2.5 to +2.5
         const lateralDist = Math.abs(lateral - inclLateral);
         
         // Distance behind the inclusion (starts at 0 immediately after bottom edge)
@@ -547,7 +547,7 @@ export class UnifiedUltrasoundEngine {
           // Only apply shadow posterior to the inclusion (IMMEDIATELY after)
           if (depth >= inclusionBottom) {
             const posteriorDepth = depth - inclusionBottom;
-            const inclLateral = inclusion.centerLateralPos * 3.25; // Updated for 6.5cm field width
+            const inclLateral = inclusion.centerLateralPos * 2.5; // 5cm field: -2.5 to +2.5
             
             // Calculate effective width at the bottom edge of inclusion
             let effectiveWidth;
@@ -628,7 +628,7 @@ export class UnifiedUltrasoundEngine {
       }
     } else if (tissue.inclusion) {
       // At inclusion edge - realistic border rendering
-      const inclLateral = tissue.inclusion.centerLateralPos * 3.25; // Updated for 6.5cm field width
+      const inclLateral = tissue.inclusion.centerLateralPos * 2.5; // 5cm field: -2.5 to +2.5
       const dx = lateral - inclLateral;
       const dy = depth - tissue.inclusion.centerDepthCm;
       
@@ -715,7 +715,8 @@ export class UnifiedUltrasoundEngine {
     let base = 0;
     if (transducerType === 'linear') {
       // Linear array: nearly parallel beam, very minimal divergence
-      base = 3.0 + depth * 0.02; // Much less divergence
+      // Start at 2.5cm width, very slight divergence
+      base = 2.5 + depth * 0.015;
     } else if (transducerType === 'convex') {
       base = 0.8 + depth * 0.25;
     } else {
@@ -731,8 +732,8 @@ export class UnifiedUltrasoundEngine {
     
     let lateral = 0;
     if (this.config.transducerType === 'linear') {
-      // Linear transducer: 4-7cm aperture (much wider field of view)
-      lateral = ((x / width) - 0.5) * 6.5; // Increased from 3.5 to 6.5cm total width
+      // Linear transducer: ~5cm aperture (realistic field of view)
+      lateral = ((x / width) - 0.5) * 5.0; // 5cm total width
     } else {
       const angle = ((x / width) - 0.5) * 0.9;
       lateral = depth * Math.tan(angle);
@@ -811,8 +812,8 @@ export class UnifiedUltrasoundEngine {
     for (const inclusion of this.config.inclusions) {
       const y = (inclusion.centerDepthCm / this.config.depth) * this.canvas.height;
       // Use same fixed scale as isPointInInclusion
-      const lateralCm = inclusion.centerLateralPos * 3.25; // Updated for 6.5cm field width
-      const x = this.canvas.width * 0.5 + (lateralCm / 6.5) * this.canvas.width * 2; // Updated denominator
+      const lateralCm = inclusion.centerLateralPos * 2.5; // 5cm field: -2.5 to +2.5
+      const x = this.canvas.width * 0.5 + (lateralCm / 5.0) * this.canvas.width * 2;
       this.ctx.fillText(inclusion.label, x, y);
     }
   }
