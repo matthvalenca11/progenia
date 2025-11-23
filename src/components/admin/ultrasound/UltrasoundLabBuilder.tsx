@@ -76,7 +76,7 @@ export const UltrasoundLabBuilder = () => {
         <Separator className="my-6" />
         
         <Tabs defaultValue="layers" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="layers" className="flex items-center gap-2">
               <Layers className="h-4 w-4" />
               Camadas Acústicas
@@ -88,6 +88,10 @@ export const UltrasoundLabBuilder = () => {
             <TabsTrigger value="resources" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
               Recursos da Simulação
+            </TabsTrigger>
+            <TabsTrigger value="controls" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Controles do Estudante
             </TabsTrigger>
           </TabsList>
           <TabsContent value="layers" className="mt-4">
@@ -105,11 +109,13 @@ export const UltrasoundLabBuilder = () => {
           <TabsContent value="resources" className="mt-4">
             <SimulationResourcesSection />
           </TabsContent>
+          <TabsContent value="controls" className="mt-4">
+            <StudentControlsSection />
+          </TabsContent>
         </Tabs>
         
         <Separator className="my-6" />
         
-        <StudentControlsSection />
       </div>
       
       <div className="lg:fixed lg:top-20 lg:right-8 lg:w-[600px] space-y-4 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
