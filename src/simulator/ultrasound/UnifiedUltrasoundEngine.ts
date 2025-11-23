@@ -516,11 +516,12 @@ export class UnifiedUltrasoundEngine {
         // Distance behind the inclusion
         const posteriorDepth = depth - inclusionBottomDepth;
         
-        // Acoustic shadow - REDESIGNED for ultra-realism
+        // Acoustic shadow - physics-based with thickness-dependent intensity
         if (this.config.enableAcousticShadow && inclusion.hasStrongShadow) {
           const inclusionRadius = inclusion.sizeCm.width / 2;
+          const inclusionThickness = inclusion.sizeCm.height; // Key factor!
           
-          // Ray-based shadow calculation (physics-accurate)
+          // Ray-based shadow calculation
           const inclusionTop = inclusion.centerDepthCm - inclusion.sizeCm.height / 2;
           const inclusionBottom = inclusion.centerDepthCm + inclusion.sizeCm.height / 2;
           
@@ -529,30 +530,33 @@ export class UnifiedUltrasoundEngine {
             const posteriorDepth = depth - inclusionBottom;
             const inclLateral = inclusion.centerLateralPos * 1.75;
             
-            // Calculate if this point is in the shadow ray
-            // Shadow spreads very minimally (realistic for high-impedance blockers)
-            const shadowSpreadAngle = 0.02; // Very tight cone
+            // Shadow intensity based on thickness (thicker = stronger shadow)
+            // Normalize thickness: 0.5cm = weak, 2cm+ = very strong
+            const thicknessFactor = Math.min(1, inclusionThickness / 2.0);
+            const baseShadowStrength = 0.5 + thicknessFactor * 0.45; // 50% to 95%
+            
+            // Tight cone (realistic)
+            const shadowSpreadAngle = 0.02;
             const shadowHalfWidth = inclusionRadius + posteriorDepth * Math.tan(shadowSpreadAngle);
             
             const distFromShadowCenter = Math.abs(lateral - inclLateral);
             
             if (distFromShadowCenter < shadowHalfWidth * 2) {
-              // Core shadow (umbra) - blocked rays
+              // Core shadow (umbra) - intensity varies with thickness
               if (distFromShadowCenter < shadowHalfWidth * 0.85) {
-                // Very dark core with subtle internal structure
                 const internalTexture = Math.sin(posteriorDepth * 8 + lateral * 6) * 0.03;
-                const shadowCore = 0.95 + internalTexture;
+                const shadowCore = baseShadowStrength + internalTexture;
                 
-                // Exponential decay with depth (shadow weakens slowly)
+                // Depth decay
                 const depthDecay = Math.exp(-posteriorDepth * 0.35);
                 const finalShadowStrength = shadowCore * depthDecay;
                 
                 attenuationFactor *= (0.05 + 0.95 * (1 - finalShadowStrength));
               }
-              // Penumbra - partial ray blocking
+              // Penumbra - also affected by thickness
               else if (distFromShadowCenter < shadowHalfWidth * 1.5) {
                 const edgeDist = (distFromShadowCenter - shadowHalfWidth * 0.85) / (shadowHalfWidth * 0.65);
-                const penumbraStrength = 0.7 * Math.exp(-edgeDist * edgeDist * 2);
+                const penumbraStrength = (baseShadowStrength * 0.7) * Math.exp(-edgeDist * edgeDist * 2);
                 
                 const depthDecay = Math.exp(-posteriorDepth * 0.4);
                 attenuationFactor *= (0.3 + 0.7 * (1 - penumbraStrength * depthDecay));
@@ -560,7 +564,7 @@ export class UnifiedUltrasoundEngine {
               // Outer fade
               else {
                 const outerDist = (distFromShadowCenter - shadowHalfWidth * 1.5) / (shadowHalfWidth * 0.5);
-                const outerFade = 0.35 * Math.exp(-outerDist * outerDist * 3);
+                const outerFade = (baseShadowStrength * 0.35) * Math.exp(-outerDist * outerDist * 3);
                 
                 const depthDecay = Math.exp(-posteriorDepth * 0.5);
                 attenuationFactor *= (0.65 + 0.35 * (1 - outerFade * depthDecay));
