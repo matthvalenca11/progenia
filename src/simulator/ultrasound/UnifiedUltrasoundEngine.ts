@@ -322,12 +322,22 @@ export class UnifiedUltrasoundEngine {
   } {
     // Check inclusions first (they override layers)
     for (const inclusion of this.config.inclusions) {
-      if (this.isPointInInclusion(depth, lateral, inclusion)) {
+      const distInfo = this.getDistanceFromInclusion(depth, lateral, inclusion);
+      
+      if (distInfo.isInside) {
         const medium = getAcousticMedium(inclusion.mediumInsideId);
+        
+        // Smooth transition at border (soft tissue blending)
+        let blendFactor = 1;
+        if (distInfo.distanceFromEdge < 0.15) {
+          // Gradual transition zone
+          blendFactor = Math.pow(1 - distInfo.distanceFromEdge / 0.15, 0.7);
+        }
+        
         return {
           echogenicity: medium.baseEchogenicity,
           attenuation: medium.attenuation_dB_per_cm_MHz,
-          reflectivity: 0.5,
+          reflectivity: 0.5 * blendFactor,
           impedance: medium.acousticImpedance_MRayl,
           isInclusion: true,
           inclusion
@@ -366,28 +376,51 @@ export class UnifiedUltrasoundEngine {
     };
   }
   
-  private isPointInInclusion(
-    depth: number, 
-    lateral: number, 
+  private getDistanceFromInclusion(
+    depth: number,
+    lateral: number,
     inclusion: UltrasoundInclusionConfig
-  ): boolean {
-    // Convert coordinates - centerLateralPos is already in normalized units (-1 to 1)
-    // Map to physical lateral position (cm) independent of beam width
-    const inclLateral = inclusion.centerLateralPos * 1.75; // Fixed scale, not dependent on frequency
+  ): { isInside: boolean; distanceFromEdge: number } {
+    const inclLateral = inclusion.centerLateralPos * 1.75;
     const dx = lateral - inclLateral;
     const dy = depth - inclusion.centerDepthCm;
     
     if (inclusion.shape === 'circle') {
       const r = inclusion.sizeCm.width / 2;
-      return (dx * dx + dy * dy) <= r * r;
+      const distFromCenter = Math.sqrt(dx * dx + dy * dy);
+      return {
+        isInside: distFromCenter <= r,
+        distanceFromEdge: Math.abs(r - distFromCenter)
+      };
     } else if (inclusion.shape === 'ellipse') {
       const rx = inclusion.sizeCm.width / 2;
       const ry = inclusion.sizeCm.height / 2;
-      return (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) <= 1;
+      const normalizedDist = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+      const isInside = normalizedDist <= 1;
+      const distFromCenter = Math.sqrt(normalizedDist);
+      return {
+        isInside,
+        distanceFromEdge: Math.abs(1 - distFromCenter) * Math.min(rx, ry)
+      };
     } else { // rectangle
-      return Math.abs(dx) <= inclusion.sizeCm.width / 2 && 
-             Math.abs(dy) <= inclusion.sizeCm.height / 2;
+      const halfW = inclusion.sizeCm.width / 2;
+      const halfH = inclusion.sizeCm.height / 2;
+      const isInside = Math.abs(dx) <= halfW && Math.abs(dy) <= halfH;
+      const distX = halfW - Math.abs(dx);
+      const distY = halfH - Math.abs(dy);
+      return {
+        isInside,
+        distanceFromEdge: Math.min(distX, distY)
+      };
     }
+  }
+  
+  private isPointInInclusion(
+    depth: number, 
+    lateral: number, 
+    inclusion: UltrasoundInclusionConfig
+  ): boolean {
+    return this.getDistanceFromInclusion(depth, lateral, inclusion).isInside;
   }
   
   private getBaseEchogenicity(echogenicity: string): number {
@@ -534,7 +567,7 @@ export class UnifiedUltrasoundEngine {
         }
       }
     } else if (tissue.inclusion) {
-      // At inclusion edge - add specular reflection for sharp interfaces
+      // At inclusion edge - realistic border rendering
       const inclLateral = tissue.inclusion.centerLateralPos * 1.75;
       const dx = lateral - inclLateral;
       const dy = depth - tissue.inclusion.centerDepthCm;
@@ -542,12 +575,33 @@ export class UnifiedUltrasoundEngine {
       // Calculate distance from center
       const distFromCenter = Math.sqrt(dx * dx + dy * dy);
       const radius = tissue.inclusion.sizeCm.width / 2;
-      
-      // Edge detection: bright reflection at boundary
       const edgeDistance = Math.abs(distFromCenter - radius);
-      if (edgeDistance < 0.08 && tissue.inclusion.borderEchogenicity === 'sharp') {
-        // Strong specular reflection at interface
-        reflection = 0.45 * Math.exp(-edgeDistance * edgeDistance * 100);
+      
+      // Multi-layer border rendering for realism
+      if (tissue.inclusion.borderEchogenicity === 'sharp') {
+        // Outer specular highlight (bright reflection)
+        if (edgeDistance < 0.15) {
+          const outerHighlight = Math.exp(-Math.pow(edgeDistance / 0.08, 2)) * 0.35;
+          reflection += outerHighlight;
+        }
+        
+        // Inner bright rim (interface reflection)
+        if (edgeDistance < 0.05) {
+          const innerRim = Math.exp(-Math.pow(edgeDistance / 0.025, 2)) * 0.25;
+          reflection += innerRim;
+        }
+        
+        // Angular-dependent specular reflection (realistic beam angle effects)
+        const angle = Math.atan2(dy, dx);
+        const beamAngleFactor = Math.abs(Math.cos(angle)) * 0.15;
+        if (edgeDistance < 0.1) {
+          reflection += beamAngleFactor * Math.exp(-edgeDistance * edgeDistance * 80);
+        }
+      } else {
+        // Soft border - gentle transition
+        if (edgeDistance < 0.12) {
+          reflection += 0.15 * Math.exp(-Math.pow(edgeDistance / 0.06, 2));
+        }
       }
     }
     
