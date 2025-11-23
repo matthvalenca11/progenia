@@ -344,10 +344,11 @@ export class UnifiedUltrasoundEngine {
         const medium = getAcousticMedium(inclusion.mediumInsideId);
         
         // Smooth transition at border (soft tissue blending)
+        // REDUCED transition zone to 0.05cm to avoid gap with shadow
         let blendFactor = 1;
-        if (distInfo.distanceFromEdge < 0.15) {
-          // Gradual transition zone
-          blendFactor = Math.pow(1 - distInfo.distanceFromEdge / 0.15, 0.7);
+        if (distInfo.distanceFromEdge < 0.05) {
+          // Tighter gradual transition zone
+          blendFactor = Math.pow(1 - distInfo.distanceFromEdge / 0.05, 0.7);
         }
         
         // Simplified - motion is now in speckle calculation above
@@ -514,7 +515,7 @@ export class UnifiedUltrasoundEngine {
         const inclLateral = inclusion.centerLateralPos * 1.75;
         const lateralDist = Math.abs(lateral - inclLateral);
         
-        // Distance behind the inclusion
+        // Distance behind the inclusion (starts at 0 immediately after bottom edge)
         const posteriorDepth = depth - inclusionBottomDepth;
         
         // Acoustic shadow - physics-based with thickness-dependent intensity
