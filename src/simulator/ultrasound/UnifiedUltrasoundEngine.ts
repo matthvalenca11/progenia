@@ -187,7 +187,8 @@ export class UnifiedUltrasoundEngine {
     const drFactor = this.config.dynamicRange / 60;
     
     // Temporal noise seed for "live" effect
-    const temporalSeed = this.time * 2;
+    const temporalSeed = this.time * 2.5;
+    const framePhase = Math.sin(this.time * 8) * 0.5 + 0.5; // Refresh cycle
     
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
@@ -204,14 +205,30 @@ export class UnifiedUltrasoundEngine {
         // Calculate intensity with all physics
         let intensity = this.calculatePixelIntensity(x, y, physCoords);
         
-        // Add temporal "live" noise (chuviscos) - subtle flickering
-        const liveNoise = (Math.sin(x * 0.1 + temporalSeed) * Math.cos(y * 0.1 + temporalSeed * 1.3)) * 0.03;
-        const frameNoise = (Math.random() - 0.5) * 0.015; // Random per-frame variation
-        intensity *= (1 + liveNoise + frameNoise);
+        // Temporal "live" noise (chuviscos) - increases with depth
+        const depthRatio = physCoords.depth / this.config.depth;
         
-        // Scanline effect (very subtle horizontal patterns)
-        const scanlineEffect = Math.sin(y * 0.5 + temporalSeed * 3) * 0.008;
+        // Multi-frequency temporal noise (like electronic noise in transducer)
+        const highFreqNoise = Math.sin(x * 0.3 + y * 0.2 + temporalSeed * 12) * 0.012;
+        const midFreqNoise = Math.sin(x * 0.08 + y * 0.1 + temporalSeed * 4) * 0.018;
+        const lowFreqNoise = Math.sin(temporalSeed * 1.5) * 0.008;
+        
+        // Random per-frame variation (electronic noise)
+        const frameNoise = (Math.random() - 0.5) * 0.025 * (1 + depthRatio * 0.5);
+        
+        // Combine noises with depth dependency
+        const totalLiveNoise = (highFreqNoise + midFreqNoise + lowFreqNoise + frameNoise) * (1 + depthRatio * 0.8);
+        intensity *= (1 + totalLiveNoise);
+        
+        // Subtle scanline/refresh effect (mimics probe scanning motion)
+        const scanlinePos = (temporalSeed * 50) % height;
+        const scanlineDistance = Math.abs(y - scanlinePos);
+        const scanlineEffect = Math.exp(-scanlineDistance * 0.3) * 0.015 * Math.sin(temporalSeed * 15);
         intensity *= (1 + scanlineEffect);
+        
+        // Very subtle vertical banding (cable/connector interference)
+        const bandingNoise = Math.sin(x * 0.15 + temporalSeed * 2) * 0.006;
+        intensity *= (1 + bandingNoise);
         
         // Apply gain and compression
         intensity *= gainLinear;
@@ -252,11 +269,14 @@ export class UnifiedUltrasoundEngine {
       const depthFactor = 1 + depth / this.config.depth * 0.3;
       
       // Temporal variation in speckle (subtle movement/flickering)
-      const temporalVar = Math.sin(this.time * 1.5 + x * 0.05 + y * 0.05) * 0.08;
+      // Increases with depth (more noise in deeper regions)
+      const depthRatio = depth / this.config.depth;
+      const temporalVar = Math.sin(this.time * 2 + x * 0.04 + y * 0.06) * 0.05 * (1 + depthRatio * 0.6);
+      const microMovement = Math.cos(this.time * 5 + x * 0.1) * 0.02; // High-freq shimmer
       
       // Combine for organic texture with depth-dependent characteristics
       const speckle = (rayleigh * 0.35 + (perlin * 0.5 + 0.5) * 0.65) * depthFactor;
-      intensity *= (0.4 + (speckle + temporalVar) * 0.6);
+      intensity *= (0.4 + (speckle + temporalVar + microMovement) * 0.6);
     }
     
     // 4. Frequency-dependent attenuation
