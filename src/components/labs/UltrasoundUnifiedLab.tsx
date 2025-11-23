@@ -30,18 +30,20 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
     config?.transducerType || 'linear'
   );
   
-  // Initialize engine
+  // Initialize engine ONCE
   useEffect(() => {
     if (!canvasRef.current) return;
     
-    console.log('🔧 Initializing engine with config:', {
+    console.log('🔧 Initializing Test Engine with config:', {
       hasLayers: !!config?.layers,
       layersCount: config?.layers?.length || 0,
       hasAcousticLayers: !!config?.acousticLayers,
       acousticLayersCount: config?.acousticLayers?.length || 0,
       hasInclusions: !!config?.inclusions,
       inclusionsCount: config?.inclusions?.length || 0,
-      inclusions: config?.inclusions
+      inclusions: config?.inclusions,
+      layers: config?.layers,
+      acousticLayers: config?.acousticLayers
     });
     
     const engine = new UnifiedUltrasoundEngine(canvasRef.current, {
@@ -77,21 +79,28 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
     engineRef.current = engine;
     engine.start();
     
+    console.log('✅ Test Engine started and animating');
+    
     return () => {
+      console.log('🛑 Test Engine destroyed');
       engine.destroy();
     };
-  }, [config]);
+  }, []);
   
-  // Update engine on control changes
+  // Update engine on control changes OR config changes
   useEffect(() => {
     if (!engineRef.current) return;
     
-    console.log('🔄 Updating engine config:', {
+    console.log('🔄 Updating Test Engine config:', {
       gain,
       depth,
       frequency,
       focus,
       transducerType,
+      hasLayers: !!config?.layers,
+      layersCount: config?.layers?.length || 0,
+      hasAcousticLayers: !!config?.acousticLayers,
+      acousticLayersCount: config?.acousticLayers?.length || 0,
       hasInclusions: !!config?.inclusions,
       inclusionsCount: config?.inclusions?.length || 0
     });
@@ -113,6 +122,15 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
       frequency,
       focus,
       transducerType,
+      dynamicRange: config?.dynamicRange || 60,
+      mode: config?.mode || 'b-mode',
+      enablePosteriorEnhancement: config?.simulationFeatures?.enablePosteriorEnhancement ?? true,
+      enableAcousticShadow: config?.simulationFeatures?.enableAcousticShadow ?? true,
+      enableReverberation: config?.simulationFeatures?.enableReverberation ?? true,
+      showBeamLines: config?.simulationFeatures?.showBeamOverlay ?? false,
+      showDepthScale: config?.simulationFeatures?.showDepthScale ?? true,
+      showFocusMarker: config?.simulationFeatures?.showFocusMarker ?? true,
+      showLabels: config?.simulationFeatures?.showAnatomyLabels ?? false,
     });
   }, [gain, depth, frequency, focus, transducerType, config]);
   
