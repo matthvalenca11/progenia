@@ -10,16 +10,9 @@ import { UltrasoundLayerConfig, getAllAcousticMedia, getAcousticMedium } from "@
 interface AcousticLayersEditorProps {
   layers: UltrasoundLayerConfig[];
   onChange: (layers: UltrasoundLayerConfig[]) => void;
-  inclusions?: Array<{
-    id: string;
-    label: string;
-    centerDepthCm: number;
-    centerLateralPos: number;
-    sizeCm: number | { width: number; height: number };
-  }>;
 }
 
-export function AcousticLayersEditor({ layers, onChange, inclusions = [] }: AcousticLayersEditorProps) {
+export function AcousticLayersEditor({ layers, onChange }: AcousticLayersEditorProps) {
   const allMedia = getAllAcousticMedia();
 
   const handleAddLayer = () => {
@@ -173,68 +166,6 @@ export function AcousticLayersEditor({ layers, onChange, inclusions = [] }: Acou
           Adicionar camada
         </Button>
 
-        {/* Visual preview schematic */}
-        {layers.length > 0 && (
-          <div className="border rounded-lg p-4 bg-muted/30">
-            <Label className="mb-2 block">Visualização esquemática (profundidade total: {getTotalDepth().toFixed(1)} cm)</Label>
-            <div className="relative space-y-1">
-              {layers.map((layer, index) => {
-                const medium = getAcousticMedium(layer.mediumId);
-                const heightPercent = (layer.thicknessCm / getTotalDepth()) * 100;
-                
-                // Color mapping based on medium
-                const colorMap: Record<string, string> = {
-                  skin: "bg-amber-200",
-                  fat: "bg-yellow-300",
-                  muscle: "bg-red-300",
-                  tendon: "bg-gray-300",
-                  bone_cortical: "bg-gray-100",
-                  water: "bg-blue-200",
-                  blood: "bg-red-400",
-                  cyst_fluid: "bg-blue-100",
-                  liver: "bg-orange-300",
-                  cartilage: "bg-gray-200",
-                  generic_soft: "bg-pink-200",
-                };
-                
-                return (
-                  <div
-                    key={layer.id}
-                    className={`${colorMap[layer.mediumId] || "bg-gray-300"} rounded px-2 py-1 flex items-center justify-between text-xs`}
-                    style={{ height: `${Math.max(heightPercent, 10)}px` }}
-                  >
-                    <span className="font-medium">{layer.name}</span>
-                    <span>{layer.thicknessCm.toFixed(1)} cm</span>
-                  </div>
-                );
-              })}
-              
-              {/* Overlay inclusions */}
-              {inclusions.map((inclusion) => {
-                const totalDepth = getTotalDepth();
-                const topPercent = (inclusion.centerDepthCm / totalDepth) * 100;
-                const size = typeof inclusion.sizeCm === 'number' ? inclusion.sizeCm : inclusion.sizeCm.height;
-                const heightPercent = (size / totalDepth) * 100;
-                
-                return (
-                  <div
-                    key={inclusion.id}
-                    className="absolute left-1/2 -translate-x-1/2 border-2 border-orange-500 border-dashed rounded-full bg-orange-500/20 flex items-center justify-center"
-                    style={{
-                      top: `${topPercent - heightPercent / 2}%`,
-                      width: `${heightPercent}%`,
-                      height: `${heightPercent}%`,
-                      minWidth: '40px',
-                      minHeight: '40px',
-                    }}
-                  >
-                    <span className="text-xs font-bold text-orange-700">{inclusion.label}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
