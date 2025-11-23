@@ -251,7 +251,23 @@ export class UnifiedUltrasoundEngine {
     y: number, 
     coords: { depth: number; lateral: number }
   ): number {
-    const { depth, lateral } = coords;
+    let { depth, lateral } = coords;
+    
+    // MOTION ARTIFACTS - Realistic subtle movements
+    // 1. Breathing motion (cyclic vertical displacement)
+    const breathingCycle = Math.sin(this.time * 0.3) * 0.015; // ~20 breaths/min, ±0.15mm
+    const breathingDepthEffect = depth / this.config.depth; // Deeper = more movement
+    depth += breathingCycle * breathingDepthEffect;
+    
+    // 2. Probe micro-jitter (operator hand tremor)
+    const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008; // ~8Hz tremor
+    const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
+    lateral += jitterLateral;
+    depth += jitterDepth;
+    
+    // 3. Tissue micro-movements (random fibrillar motion)
+    const tissueTremor = Math.sin(x * 0.02 + this.time * 5) * Math.cos(y * 0.015 + this.time * 4) * 0.003;
+    depth += tissueTremor;
     
     // 1. Get tissue properties at this location
     const tissue = this.getTissueAtPosition(depth, lateral);
