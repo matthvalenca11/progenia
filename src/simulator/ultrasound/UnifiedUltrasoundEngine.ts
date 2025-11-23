@@ -565,8 +565,10 @@ export class UnifiedUltrasoundEngine {
             const thicknessFactor = Math.min(1, inclusionThickness / 2.0);
             const baseShadowStrength = 0.5 + thicknessFactor * 0.45; // 50% to 95%
             
-            // Tight cone (realistic)
-            const shadowSpreadAngle = 0.02;
+            // Shadow spread depends on transducer type
+            // Linear: nearly parallel (minimal spread)
+            // Convex/micro: conical spread
+            const shadowSpreadAngle = this.config.transducerType === 'linear' ? 0.005 : 0.02;
             const shadowHalfWidth = effectiveWidth + posteriorDepth * Math.tan(shadowSpreadAngle);
             
             const distFromShadowCenter = Math.abs(lateral - inclLateral);
@@ -712,7 +714,8 @@ export class UnifiedUltrasoundEngine {
     
     let base = 0;
     if (transducerType === 'linear') {
-      base = 0.4 + depth * 0.08;
+      // Linear array: nearly parallel beam, very minimal divergence
+      base = 3.0 + depth * 0.02; // Much less divergence
     } else if (transducerType === 'convex') {
       base = 0.8 + depth * 0.25;
     } else {
@@ -728,7 +731,8 @@ export class UnifiedUltrasoundEngine {
     
     let lateral = 0;
     if (this.config.transducerType === 'linear') {
-      lateral = ((x / width) - 0.5) * 3.5;
+      // Linear transducer: 4-7cm aperture (much wider field of view)
+      lateral = ((x / width) - 0.5) * 6.5; // Increased from 3.5 to 6.5cm total width
     } else {
       const angle = ((x / width) - 0.5) * 0.9;
       lateral = depth * Math.tan(angle);
