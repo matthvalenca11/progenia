@@ -67,7 +67,7 @@ export const UltrasoundLabBuilder = () => {
   };
   
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
       <div className="space-y-6">
         <BasicInfoSection />
         <AnatomyPresetSection />
@@ -105,7 +105,7 @@ export const UltrasoundLabBuilder = () => {
         <StudentControlsSection />
       </div>
       
-      <div className="sticky top-6 self-start space-y-4 max-h-[calc(100vh-3rem)] overflow-y-auto">
+      <div className="lg:sticky lg:top-4 space-y-4">
         <UltrasoundPreview />
         
         {/* Schematic visualization */}
