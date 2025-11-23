@@ -154,12 +154,19 @@ export const UltrasoundLabBuilder = () => {
                   const size = typeof inclusion.sizeCm === 'number' ? inclusion.sizeCm : inclusion.sizeCm.height;
                   const heightPercent = (size / totalDepth) * 100;
                   
+                  // Calculate lateral position (centerLateralPos is from -1 to 1)
+                  // Convert to percentage offset from center (50%)
+                  const lateralOffsetPercent = inclusion.centerLateralPos * 30; // 30% max offset from center
+                  const leftPosition = 50 + lateralOffsetPercent; // 50% is center
+                  
                   return (
                     <div
-                      key={inclusion.id}
-                      className="absolute left-1/2 -translate-x-1/2 border-2 border-orange-500 border-dashed rounded-full bg-orange-500/20 flex items-center justify-center"
+                      key={`${inclusion.id}-${inclusion.centerLateralPos}-${inclusion.centerDepthCm}`}
+                      className="absolute border-2 border-orange-500 border-dashed rounded-full bg-orange-500/20 flex items-center justify-center"
                       style={{
                         top: `${topPercent - heightPercent / 2}%`,
+                        left: `${leftPosition}%`,
+                        transform: 'translate(-50%, 0)',
                         width: `${heightPercent}%`,
                         height: `${heightPercent}%`,
                         minWidth: '40px',
@@ -170,6 +177,7 @@ export const UltrasoundLabBuilder = () => {
                     </div>
                   );
                 })}
+              
               </div>
             </CardContent>
           </Card>
