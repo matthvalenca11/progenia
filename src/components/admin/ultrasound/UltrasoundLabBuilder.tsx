@@ -82,6 +82,7 @@ export const UltrasoundLabBuilder = () => {
             <AcousticLayersEditor
               layers={convertToLayerConfigs()}
               onChange={handleLayersChange}
+              inclusions={inclusions}
             />
           </TabsContent>
           <TabsContent value="inclusions" className="mt-4">
