@@ -33,7 +33,7 @@ serve(async (req) => {
     // Enviar email para a ProGenia
     const { error: emailError } = await resend.emails.send({
       from: "Fale Conosco ProGenia <noreply@progenia.com.br>",
-      to: ["matheusvalenca@progenia.com.br"],
+      to: ["matheusvalenca@progenia.com.br", "mathvalenca@alumni.usp.br"],
       replyTo: email,
       subject: `Nova mensagem de contato - ${name}`,
       html: `
