@@ -21,13 +21,13 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
   const engineRef = useRef<UnifiedUltrasoundEngine | null>(null);
   const [isRunning, setIsRunning] = useState(true);
   
-  // Control states
-  const [gain, setGain] = useState(config?.initialGain || 50);
-  const [depth, setDepth] = useState(config?.initialDepth || 6);
-  const [frequency, setFrequency] = useState(config?.initialFrequency || 7.5);
-  const [focus, setFocus] = useState(config?.initialDepth ? config.initialDepth / 2 : 3);
+  // Control states - use config values directly
+  const [gain, setGain] = useState(config?.gain || 50);
+  const [depth, setDepth] = useState(config?.depth || 6);
+  const [frequency, setFrequency] = useState(config?.frequency || 7.5);
+  const [focus, setFocus] = useState(config?.focus || (config?.depth ? config.depth / 2 : 3));
   const [transducerType, setTransducerType] = useState<'linear' | 'convex' | 'microconvex'>(
-    config?.initialTransducer || 'linear'
+    config?.transducerType || 'linear'
   );
   
   // Initialize engine
@@ -51,17 +51,17 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
       depth,
       focus,
       gain,
-      dynamicRange: 60,
+      dynamicRange: config?.dynamicRange || 60,
       tgc: [],
-      mode: 'b-mode',
-      enablePosteriorEnhancement: true,
-      enableAcousticShadow: true,
-      enableReverberation: true,
+      mode: config?.mode || 'b-mode',
+      enablePosteriorEnhancement: config?.simulationFeatures?.enablePosteriorEnhancement ?? true,
+      enableAcousticShadow: config?.simulationFeatures?.enableAcousticShadow ?? true,
+      enableReverberation: config?.simulationFeatures?.enableReverberation ?? true,
       enableSpeckle: true,
-      showBeamLines: false,
-      showDepthScale: true,
-      showFocusMarker: true,
-      showLabels: false,
+      showBeamLines: config?.simulationFeatures?.showBeamOverlay ?? false,
+      showDepthScale: config?.simulationFeatures?.showDepthScale ?? true,
+      showFocusMarker: config?.simulationFeatures?.showFocusMarker ?? true,
+      showLabels: config?.simulationFeatures?.showAnatomyLabels ?? false,
     });
     
     engineRef.current = engine;
@@ -97,11 +97,11 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
   };
   
   const handleReset = () => {
-    setGain(config?.initialGain || 50);
-    setDepth(config?.initialDepth || 6);
-    setFrequency(config?.initialFrequency || 7.5);
-    setFocus(config?.initialDepth ? config.initialDepth / 2 : 3);
-    setTransducerType(config?.initialTransducer || 'linear');
+    setGain(config?.gain || 50);
+    setDepth(config?.depth || 6);
+    setFrequency(config?.frequency || 7.5);
+    setFocus(config?.focus || (config?.depth ? config.depth / 2 : 3));
+    setTransducerType(config?.transducerType || 'linear');
   };
   
   return (
@@ -150,13 +150,13 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
                 <span>Ganho</span>
                 <span className="font-mono text-sm">{gain.toFixed(0)} dB</span>
               </Label>
-              <Slider
+                <Slider
                 value={[gain]}
                 onValueChange={([v]) => setGain(v)}
                 min={0}
                 max={100}
                 step={1}
-                disabled={config?.lockGain}
+                disabled={config?.studentControls?.lockGain || !config?.studentControls?.showGain}
               />
             </div>
             
@@ -165,13 +165,13 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
                 <span>Profundidade</span>
                 <span className="font-mono text-sm">{depth.toFixed(1)} cm</span>
               </Label>
-              <Slider
+                <Slider
                 value={[depth]}
                 onValueChange={([v]) => setDepth(v)}
                 min={1}
                 max={15}
                 step={0.5}
-                disabled={config?.lockDepth}
+                disabled={config?.studentControls?.lockDepth || !config?.studentControls?.showDepth}
               />
             </div>
             
@@ -180,13 +180,13 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
                 <span>Frequência</span>
                 <span className="font-mono text-sm">{frequency.toFixed(1)} MHz</span>
               </Label>
-              <Slider
+                <Slider
                 value={[frequency]}
                 onValueChange={([v]) => setFrequency(v)}
                 min={2}
                 max={15}
                 step={0.5}
-                disabled={config?.lockFrequency}
+                disabled={config?.studentControls?.lockFrequency || !config?.studentControls?.showFrequency}
               />
             </div>
             
@@ -195,13 +195,13 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
                 <span>Foco</span>
                 <span className="font-mono text-sm">{focus.toFixed(1)} cm</span>
               </Label>
-              <Slider
+                <Slider
                 value={[focus]}
                 onValueChange={([v]) => setFocus(v)}
                 min={0.5}
                 max={depth}
                 step={0.1}
-                disabled={config?.lockFocus}
+                disabled={config?.studentControls?.lockFocus || !config?.studentControls?.showFocus}
               />
             </div>
           </CardContent>

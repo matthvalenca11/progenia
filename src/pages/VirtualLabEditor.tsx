@@ -19,6 +19,7 @@ export default function VirtualLabEditor() {
     labDescription,
     presetId,
     layers,
+    acousticLayers,
     inclusions,
     transducerType,
     frequency,
@@ -62,6 +63,7 @@ export default function VirtualLabEditor() {
           labDescription: lab.description || "",
           presetId: config.presetId || "muscle_generic",
           layers: config.layers || [],
+          acousticLayers: config.acousticLayers || [],
           inclusions: config.inclusions || [],
           transducerType: config.transducerType || "linear",
           frequency: config.frequency || 10,
@@ -108,6 +110,7 @@ export default function VirtualLabEditor() {
         config_data: {
           presetId,
           layers,
+          acousticLayers,
           inclusions,
           transducerType,
           frequency,

@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
 import { MRIViewer } from "@/components/labs/MRIViewer";
-import { UltrasoundSimulator } from "@/components/labs/UltrasoundSimulator";
-import { UltrasoundSimulatorAdvanced } from "@/components/labs/UltrasoundSimulatorAdvanced";
+import { UltrasoundUnifiedLab } from "@/components/labs/UltrasoundUnifiedLab";
 import { EletroterapiaLab } from "@/components/labs/EletroterapiaLab";
 import { ThermalLab } from "@/components/labs/ThermalLab";
 import { ElectrotherapyDoseLab } from "@/components/labs/ElectrotherapyDoseLab";
@@ -81,33 +80,8 @@ export function VirtualLabRenderer({ labId, className }: VirtualLabRendererProps
       
       case "ultrassom_simulador":
       case "ultrasound":
-        // Extract ultrasound config and build proper configuration
-        const rawConfig = (config as any).ultrasoundConfig || config;
-        
-        // Build unified configuration from stored data
-        const labConfig = {
-          enabled: true,
-          showGain: rawConfig.studentControls?.showGain ?? rawConfig.showGain ?? true,
-          showDepth: rawConfig.studentControls?.showDepth ?? rawConfig.showDepth ?? true,
-          showFrequency: rawConfig.studentControls?.showFrequency ?? rawConfig.showFrequency ?? true,
-          showFocus: rawConfig.studentControls?.showFocus ?? rawConfig.showFocus ?? true,
-          showTGC: false,
-          showDynamicRange: false,
-          showTransducerSelector: rawConfig.studentControls?.showTransducerSelector ?? false,
-          showModeSelector: rawConfig.studentControls?.showModeSelector ?? false,
-          presetAnatomy: rawConfig.presetId || 'generic',
-          initialGain: rawConfig.gain || 50,
-          initialDepth: rawConfig.depth || 6,
-          initialFrequency: rawConfig.frequency || 7.5,
-          initialTransducer: rawConfig.transducerType || 'linear',
-          initialMode: rawConfig.mode || 'b-mode',
-          simulationFeatures: rawConfig.simulationFeatures || {},
-          lockGain: rawConfig.studentControls?.lockGain ?? false,
-          lockDepth: rawConfig.studentControls?.lockDepth ?? false,
-          lockFrequency: rawConfig.studentControls?.lockFrequency ?? false,
-        } as any;
-        
-        return <UltrasoundSimulatorAdvanced config={labConfig} />;
+        // Pass the complete configuration directly to UltrasoundUnifiedLab
+        return <UltrasoundUnifiedLab config={config} />;
       
       case "eletroterapia_sim":
       case "electrotherapy":
