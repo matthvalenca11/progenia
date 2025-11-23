@@ -16,6 +16,7 @@ import Dashboard from "@/pages/Dashboard";
 import Admin from "@/pages/Admin";
 import Profile from "@/pages/Profile";
 import ModuleViewer from "@/pages/ModuleViewer";
+import ModuleCapsules from "@/pages/ModuleCapsules";
 import LessonViewer from "@/pages/LessonViewer";
 import CapsuleViewer from "@/pages/CapsuleViewer";
 import VirtualLabEditor from "@/pages/VirtualLabEditor";
@@ -56,6 +57,7 @@ const AppContent = () => {
           <Route path="/admin" element={<Admin />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/module/:moduleId" element={<ModuleViewer />} />
+          <Route path="/module/:moduleId/capsulas" element={<ModuleCapsules />} />
           <Route path="/lesson/:lessonId" element={<LessonViewer />} />
           <Route path="/capsula/:capsulaId" element={<CapsuleViewer />} />
           <Route path="/admin/labs" element={<VirtualLabsAdmin />} />
