@@ -426,7 +426,7 @@ const Dashboard = () => {
                         <Button 
                           className="w-full" 
                           variant="default" 
-                          onClick={() => navigate(`/modulo/${module.id}/capsulas`)}
+                          onClick={() => navigate(`/module/${module.id}/capsulas`)}
                         >
                           <Sparkles className="mr-2 h-4 w-4" />
                           Ver Cápsulas
