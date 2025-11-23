@@ -470,42 +470,42 @@ export class UnifiedUltrasoundEngine {
           const inclusionRadius = inclusion.sizeCm.width / 2;
           
           // Shadow expands with realistic beam divergence angle
-          const divergenceAngle = 0.08; // Very subtle expansion (realistic for high-impedance objects)
+          const divergenceAngle = 0.06; // Subtle expansion
           const shadowWidth = inclusionRadius + posteriorDepth * Math.tan(divergenceAngle);
           
           // Calculate if we're within the shadow cone
-          if (lateralDist < shadowWidth * 1.5) { // Extended for soft edges
+          if (lateralDist < shadowWidth * 1.8) { // Extended for soft edges
             // Core shadow (umbra) - strong attenuation
-            const umbra = lateralDist < inclusionRadius;
+            const umbra = lateralDist < inclusionRadius * 0.9;
             
             // Penumbra (transition zone) - gradual falloff
             let shadowIntensity = 0;
             
             if (umbra) {
               // Inside core shadow: very dark with slight texture variation
-              const coreVariation = Math.sin(posteriorDepth * 3 + lateral * 2) * 0.05;
-              shadowIntensity = 0.95 + coreVariation; // 95% shadow strength
+              const coreVariation = Math.sin(posteriorDepth * 4 + lateral * 3) * 0.04;
+              shadowIntensity = 0.92 + coreVariation; // 92% shadow strength in core
             } else {
               // Penumbra: smooth Gaussian falloff from edge
-              const edgeDistance = lateralDist - inclusionRadius;
-              const penumbraWidth = shadowWidth - inclusionRadius;
+              const edgeDistance = lateralDist - inclusionRadius * 0.9;
+              const penumbraWidth = shadowWidth - inclusionRadius * 0.9;
               const normalizedEdgeDist = edgeDistance / penumbraWidth;
               
-              // Super smooth Gaussian edge
-              shadowIntensity = Math.exp(-normalizedEdgeDist * normalizedEdgeDist * 4) * 0.85;
+              // Super smooth Gaussian edge with steeper falloff
+              shadowIntensity = Math.exp(-normalizedEdgeDist * normalizedEdgeDist * 3) * 0.8;
             }
             
             // Depth attenuation: shadow weakens gradually with depth
-            const depthFalloff = Math.exp(-posteriorDepth * 0.5);
+            const depthFalloff = Math.exp(-posteriorDepth * 0.4);
             shadowIntensity *= depthFalloff;
             
             // Add subtle turbulence/noise to shadow edges for realism
-            const turbulence = Math.sin(posteriorDepth * 5 + lateral * 7) * 0.03;
+            const turbulence = Math.sin(posteriorDepth * 6 + lateral * 8) * 0.025;
             shadowIntensity += turbulence;
             
             // Apply shadow (darker = lower attenuation factor)
             const finalShadow = Math.max(0, Math.min(1, shadowIntensity));
-            attenuationFactor *= (0.05 + 0.95 * (1 - finalShadow)); // 95% max attenuation
+            attenuationFactor *= (0.08 + 0.92 * (1 - finalShadow)); // 92% max attenuation, darker shadow
           }
         }
         
