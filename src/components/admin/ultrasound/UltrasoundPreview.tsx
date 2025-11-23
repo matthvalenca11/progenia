@@ -45,11 +45,12 @@ export const UltrasoundPreview = () => {
     setLocalFocus(focus);
   }, [gain, depth, frequency, focus]);
   
-  // Initialize engine with fallback for empty layers
+  // Initialize engine once
   useEffect(() => {
     if (!canvasRef.current) return;
     
-    // Use layers from store, or fallback
+    console.log('🎬 Initializing Preview Engine');
+    
     const effectiveLayers = layers.length > 0 ? layers : [{
       name: 'Generic Tissue',
       depthRange: [0, 1] as [number, number],
@@ -72,20 +73,23 @@ export const UltrasoundPreview = () => {
       dynamicRange: dynamicRange || 60,
       tgc: [],
       mode: mode || 'b-mode',
-      enablePosteriorEnhancement: simulationFeatures?.enablePosteriorEnhancement || true,
-      enableAcousticShadow: simulationFeatures?.enableAcousticShadow || true,
-      enableReverberation: simulationFeatures?.enableReverberation || true,
+      enablePosteriorEnhancement: simulationFeatures?.enablePosteriorEnhancement ?? true,
+      enableAcousticShadow: simulationFeatures?.enableAcousticShadow ?? true,
+      enableReverberation: simulationFeatures?.enableReverberation ?? true,
       enableSpeckle: true,
-      showBeamLines: simulationFeatures?.showBeamOverlay || false,
-      showDepthScale: simulationFeatures?.showDepthScale || true,
-      showFocusMarker: simulationFeatures?.showFocusMarker || true,
-      showLabels: simulationFeatures?.showAnatomyLabels || false,
+      showBeamLines: simulationFeatures?.showBeamOverlay ?? false,
+      showDepthScale: simulationFeatures?.showDepthScale ?? true,
+      showFocusMarker: simulationFeatures?.showFocusMarker ?? true,
+      showLabels: simulationFeatures?.showAnatomyLabels ?? false,
     });
     
     engineRef.current = engine;
     engine.start();
     
+    console.log('✅ Preview Engine started and animating');
+    
     return () => {
+      console.log('🛑 Preview Engine destroyed');
       engine.destroy();
       engineRef.current = null;
     };
