@@ -74,7 +74,6 @@ serve(async (req) => {
                   </tr>
                 </table>
                 <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">Nova Mensagem de Contato</h1>
-                <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 14px;">Formulário ProGenia</p>
               </div>
               
               <!-- Content -->
@@ -105,7 +104,7 @@ ${message}
               <!-- Footer -->
               <div style="background-color: #f9f9f9; padding: 25px 30px; text-align: center; border-top: 1px solid #e5e5e5;">
                 <p style="margin: 0; font-size: 13px; color: #888;">
-                  © 2025 ProGenia - Learn & Evolve<br/>
+                  © 2025 ProGenia
                   Enviado via formulário de contato ProGenia
                 </p>
               </div>
