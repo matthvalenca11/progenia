@@ -507,7 +507,7 @@ export class UnifiedUltrasoundEngine {
       // Check if we're in shadow/enhancement zone
       for (const inclusion of this.config.inclusions) {
         const inclusionBottomDepth = inclusion.centerDepthCm + inclusion.sizeCm.height / 2;
-        const isPosterior = depth > inclusionBottomDepth;
+        const isPosterior = depth >= inclusionBottomDepth; // Changed to >= for immediate shadow start
         if (!isPosterior) continue;
         
         // Convert inclusion lateral position to physical coordinates
