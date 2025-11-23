@@ -1,17 +1,18 @@
 import { useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUltrasoundLabStore } from "@/stores/ultrasoundLabStore";
-import { PhysicsUltrasoundEngine } from "@/simulator/ultrasound/PhysicsUltrasoundEngine";
+import { UnifiedUltrasoundEngine } from "@/simulator/ultrasound/UnifiedUltrasoundEngine";
 import { Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export const UltrasoundPreview = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const engineRef = useRef<PhysicsUltrasoundEngine | null>(null);
+  const engineRef = useRef<UnifiedUltrasoundEngine | null>(null);
   
   const {
     presetId,
     layers,
+    acousticLayers,
     inclusions,
     transducerType,
     frequency,
@@ -21,65 +22,92 @@ export const UltrasoundPreview = () => {
     dynamicRange,
     mode,
     simulationFeatures,
+    studentControls,
   } = useUltrasoundLabStore();
   
   // Initialize engine with fallback for empty layers
   useEffect(() => {
     if (!canvasRef.current) return;
     
-    // Use layers from store, or load from preset if empty
-    const effectiveLayers = layers.length > 0 ? layers : [];
-    const effectiveInclusions = inclusions.length > 0 ? inclusions : [];
+    // Use layers from store, or fallback
+    const effectiveLayers = layers.length > 0 ? layers : [{
+      name: 'Generic Tissue',
+      depthRange: [0, 1] as [number, number],
+      reflectivity: 0.5,
+      echogenicity: 'isoechoic' as const,
+      texture: 'homogeneous' as const,
+      attenuationCoeff: 0.7,
+      hasFlow: false,
+    }];
     
-    
-    const config = {
+    const engine = new UnifiedUltrasoundEngine(canvasRef.current, {
       layers: effectiveLayers,
-      inclusions: effectiveInclusions,
-      transducerType,
-      frequency,
-      depth,
-      focus,
-      gain,
-      dynamicRange,
-      mode,
-      features: simulationFeatures,
-      time: 0,
-    };
+      acousticLayers: acousticLayers || [],
+      inclusions: inclusions || [],
+      transducerType: transducerType || 'linear',
+      frequency: frequency || 7.5,
+      depth: depth || 5,
+      focus: focus || 2.5,
+      gain: gain || 50,
+      dynamicRange: dynamicRange || 60,
+      tgc: [],
+      mode: mode || 'b-mode',
+      enablePosteriorEnhancement: simulationFeatures?.enablePosteriorEnhancement || true,
+      enableAcousticShadow: simulationFeatures?.enableAcousticShadow || true,
+      enableReverberation: simulationFeatures?.enableReverberation || true,
+      enableSpeckle: true,
+      showBeamLines: simulationFeatures?.showBeamOverlay || false,
+      showDepthScale: simulationFeatures?.showDepthScale || true,
+      showFocusMarker: simulationFeatures?.showFocusMarker || true,
+      showLabels: simulationFeatures?.showAnatomyLabels || false,
+    });
     
-    engineRef.current = new PhysicsUltrasoundEngine(canvasRef.current, config);
-    engineRef.current.start();
+    engineRef.current = engine;
+    engine.start();
     
     return () => {
-      if (engineRef.current) {
-        engineRef.current.destroy();
-        engineRef.current = null;
-      }
+      engine.destroy();
+      engineRef.current = null;
     };
-  }, []); // Only initialize once
+  }, []);
   
   // Update config when state changes
   useEffect(() => {
     if (!engineRef.current) return;
     
-    const effectiveLayers = layers.length > 0 ? layers : [];
-    const effectiveInclusions = inclusions.length > 0 ? inclusions : [];
-    
+    const effectiveLayers = layers.length > 0 ? layers : [{
+      name: 'Generic Tissue',
+      depthRange: [0, 1] as [number, number],
+      reflectivity: 0.5,
+      echogenicity: 'isoechoic' as const,
+      texture: 'homogeneous' as const,
+      attenuationCoeff: 0.7,
+      hasFlow: false,
+    }];
     
     engineRef.current.updateConfig({
       layers: effectiveLayers,
-      inclusions: effectiveInclusions,
-      transducerType,
-      frequency,
-      depth,
-      focus,
-      gain,
-      dynamicRange,
-      mode,
-      features: simulationFeatures,
+      acousticLayers: acousticLayers || [],
+      inclusions: inclusions || [],
+      transducerType: transducerType || 'linear',
+      frequency: frequency || 7.5,
+      depth: depth || 5,
+      focus: focus || 2.5,
+      gain: gain || 50,
+      dynamicRange: dynamicRange || 60,
+      mode: mode || 'b-mode',
+      enablePosteriorEnhancement: simulationFeatures?.enablePosteriorEnhancement || true,
+      enableAcousticShadow: simulationFeatures?.enableAcousticShadow || true,
+      enableReverberation: simulationFeatures?.enableReverberation || true,
+      showBeamLines: simulationFeatures?.showBeamOverlay || false,
+      showDepthScale: simulationFeatures?.showDepthScale || true,
+      showFocusMarker: simulationFeatures?.showFocusMarker || true,
+      showLabels: simulationFeatures?.showAnatomyLabels || false,
     });
   }, [
     presetId,
     layers,
+    acousticLayers,
     inclusions,
     transducerType,
     frequency,
