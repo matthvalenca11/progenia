@@ -1,7 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { useUltrasoundLabStore } from "@/stores/ultrasoundLabStore";
 import { virtualLabService } from "@/services/virtualLabService";
 import { toast } from "sonner";
@@ -9,8 +9,10 @@ import { UltrasoundLabBuilder } from "@/components/admin/ultrasound/UltrasoundLa
 
 export default function VirtualLabEditor() {
   const navigate = useNavigate();
-  const { id } = useParams();
-  const isEditing = Boolean(id);
+  const { labId } = useParams();
+  const isEditing = Boolean(labId);
+  const [loading, setLoading] = useState(isEditing);
+  const [saving, setSaving] = useState(false);
 
   const {
     labName,
@@ -37,13 +39,15 @@ export default function VirtualLabEditor() {
   // Load lab data if editing
   useEffect(() => {
     const loadLab = async () => {
-      if (!id) {
+      if (!labId) {
         resetToDefaults();
+        setLoading(false);
         return;
       }
 
       try {
-        const lab = await virtualLabService.getById(id);
+        setLoading(true);
+        const lab = await virtualLabService.getById(labId);
         if (!lab) {
           toast.error("Laboratório não encontrado");
           navigate("/admin/labs");
@@ -71,16 +75,18 @@ export default function VirtualLabEditor() {
           studentControls: config.studentControls || {},
         });
 
-        toast.success("Laboratório carregado");
+        toast.success("Laboratório carregado com sucesso!");
       } catch (error: any) {
         console.error("Erro ao carregar laboratório:", error);
         toast.error("Erro ao carregar laboratório", { description: error.message });
         navigate("/admin/labs");
+      } finally {
+        setLoading(false);
       }
     };
 
     loadLab();
-  }, [id]);
+  }, [labId]);
 
   const handleSave = async () => {
     // Validate configuration
@@ -93,6 +99,7 @@ export default function VirtualLabEditor() {
     }
 
     try {
+      setSaving(true);
       const labData = {
         name: labName,
         title: labName,
@@ -116,8 +123,8 @@ export default function VirtualLabEditor() {
         is_published: false,
       };
 
-      if (isEditing && id) {
-        await virtualLabService.update(id, labData);
+      if (isEditing && labId) {
+        await virtualLabService.update(labId, labData);
         toast.success("Laboratório atualizado com sucesso!");
       } else {
         const newLab = await virtualLabService.create(labData);
@@ -127,8 +134,21 @@ export default function VirtualLabEditor() {
     } catch (error: any) {
       console.error("Erro ao salvar laboratório:", error);
       toast.error("Erro ao salvar laboratório", { description: error.message });
+    } finally {
+      setSaving(false);
     }
   };
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Carregando laboratório...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -148,9 +168,18 @@ export default function VirtualLabEditor() {
               </p>
             </div>
           </div>
-          <Button onClick={handleSave} size="lg">
-            <Save className="h-4 w-4 mr-2" />
-            {isEditing ? "Salvar Alterações" : "Criar Laboratório"}
+          <Button onClick={handleSave} size="lg" disabled={saving}>
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Salvando...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-2" />
+                {isEditing ? "Salvar Alterações" : "Criar Laboratório"}
+              </>
+            )}
           </Button>
         </div>
 
