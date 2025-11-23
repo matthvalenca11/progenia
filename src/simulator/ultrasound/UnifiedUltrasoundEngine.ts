@@ -405,11 +405,15 @@ export class UnifiedUltrasoundEngine {
     const dy = depth - inclusion.centerDepthCm;
     
     if (inclusion.shape === 'circle') {
-      const r = inclusion.sizeCm.width / 2;
-      const distFromCenter = Math.sqrt(dx * dx + dy * dy);
+      // Treat circle as ellipse so both width and height are considered
+      const rx = inclusion.sizeCm.width / 2;
+      const ry = inclusion.sizeCm.height / 2;
+      const normalizedDist = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+      const isInside = normalizedDist <= 1;
+      const distFromCenter = Math.sqrt(normalizedDist);
       return {
-        isInside: distFromCenter <= r,
-        distanceFromEdge: Math.abs(r - distFromCenter)
+        isInside,
+        distanceFromEdge: Math.abs(1 - distFromCenter) * Math.min(rx, ry)
       };
     } else if (inclusion.shape === 'ellipse') {
       const rx = inclusion.sizeCm.width / 2;
