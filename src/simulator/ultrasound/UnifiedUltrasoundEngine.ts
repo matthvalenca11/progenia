@@ -337,9 +337,9 @@ export class UnifiedUltrasoundEngine {
         // Motion effect for blood vessels and arteries
         let motionFactor = 1;
         if (inclusion.mediumInsideId === 'blood') {
-          // Pulsatile flow (arterial pulsation)
+          // Strong pulsatile flow (arterial pulsation) - more visible
           const heartRate = 1.2; // Hz (72 bpm)
-          const pulsation = Math.sin(this.time * heartRate * 2 * Math.PI) * 0.15;
+          const pulsation = Math.sin(this.time * heartRate * 2 * Math.PI) * 0.35;
           
           // Flow turbulence (varies with position in vessel)
           const inclLateral = inclusion.centerLateralPos * 1.75;
@@ -347,14 +347,17 @@ export class UnifiedUltrasoundEngine {
           const dy = depth - inclusion.centerDepthCm;
           const radialPos = Math.sqrt(dx * dx + dy * dy) / (inclusion.sizeCm.width / 2);
           
-          // Laminar flow pattern (faster in center, slower at edges)
+          // Laminar flow pattern (faster in center, slower at edges) - enhanced
           const flowProfile = 1 - radialPos * radialPos;
-          const flowMovement = Math.sin(this.time * 3 + depth * 5) * flowProfile * 0.12;
+          const flowMovement = Math.sin(this.time * 4 + depth * 6) * flowProfile * 0.25;
           
-          // Speckle shimmer from moving blood cells
-          const cellMovement = Math.sin(this.time * 8 + lateral * 10 + depth * 8) * 0.08;
+          // Strong speckle shimmer from moving blood cells
+          const cellMovement = Math.sin(this.time * 10 + lateral * 12 + depth * 10) * 0.18;
           
-          motionFactor = 1 + pulsation + flowMovement + cellMovement;
+          // Swirling turbulence at vessel walls
+          const turbulence = Math.sin(this.time * 6 + radialPos * 15) * 0.12 * (1 - flowProfile);
+          
+          motionFactor = 1 + pulsation + flowMovement + cellMovement + turbulence;
         }
         
         return {
@@ -520,49 +523,53 @@ export class UnifiedUltrasoundEngine {
         // Distance behind the inclusion
         const posteriorDepth = depth - inclusionBottomDepth;
         
-        // Acoustic shadow (highly realistic with natural appearance)
+        // Acoustic shadow (highly realistic with strong visibility)
         if (this.config.enableAcousticShadow && inclusion.hasStrongShadow) {
           const inclusionRadius = inclusion.sizeCm.width / 2;
           
-          // Very subtle cone expansion (realistic beam physics)
-          const coneAngle = 0.03;
+          // Subtle cone expansion
+          const coneAngle = 0.035;
           const coneWidth = inclusionRadius + posteriorDepth * Math.tan(coneAngle);
           
-          // Calculate shadow with ultra-smooth falloff
-          const lateralNormalized = lateralDist / (coneWidth + 0.5);
+          // Calculate shadow with strong, visible attenuation
+          const lateralNormalized = lateralDist / (coneWidth + 0.3);
           
-          if (lateralNormalized < 2.0) {
-            // Multi-component shadow intensity
+          if (lateralNormalized < 2.5) {
             let shadowStrength = 0;
             
-            // Central core - darkest region
-            if (lateralNormalized < 0.6) {
-              shadowStrength = 0.5 - lateralNormalized * 0.3;
+            // Central core - very dark and visible
+            if (lateralNormalized < 0.5) {
+              shadowStrength = 0.85 - lateralNormalized * 0.4;
             } 
-            // Transition zone - smooth falloff
-            else if (lateralNormalized < 1.2) {
-              const t = (lateralNormalized - 0.6) / 0.6;
-              shadowStrength = 0.32 * (1 - t * t * (3 - 2 * t)); // Smoothstep
+            // Transition zone - strong gradual falloff
+            else if (lateralNormalized < 1.0) {
+              const t = (lateralNormalized - 0.5) / 0.5;
+              shadowStrength = 0.65 * (1 - t * t * (3 - 2 * t));
             }
-            // Outer penumbra - gentle fade
+            // Outer penumbra - visible fade
+            else if (lateralNormalized < 1.8) {
+              const t = (lateralNormalized - 1.0) / 0.8;
+              shadowStrength = 0.65 * (1 - t) * Math.exp(-t * 1.5);
+            }
+            // Far penumbra - subtle edge
             else {
-              const t = (lateralNormalized - 1.2) / 0.8;
-              shadowStrength = 0.32 * (1 - t) * Math.exp(-t * 2);
+              const t = (lateralNormalized - 1.8) / 0.7;
+              shadowStrength = 0.2 * (1 - t) * Math.exp(-t * 2);
             }
             
-            // Depth-based attenuation (fades naturally)
-            const depthFade = Math.exp(-posteriorDepth * 0.55);
+            // Depth-based attenuation (more gradual fade)
+            const depthFade = Math.exp(-posteriorDepth * 0.45);
             shadowStrength *= depthFade;
             
-            // Add natural texture variation (irregular shadow edges)
-            const coarseNoise = Math.sin(posteriorDepth * 2.5 + lateral * 3.2) * 0.04;
-            const fineNoise = Math.sin(posteriorDepth * 8 + lateral * 11) * 0.015;
+            // Natural texture variation (more pronounced)
+            const coarseNoise = Math.sin(posteriorDepth * 2.8 + lateral * 3.5) * 0.06;
+            const fineNoise = Math.sin(posteriorDepth * 9 + lateral * 12) * 0.025;
             const organicTexture = (coarseNoise + fineNoise) * depthFade;
             shadowStrength += organicTexture;
             
-            // Clamp and apply
-            shadowStrength = Math.max(0, Math.min(0.6, shadowStrength));
-            attenuationFactor *= (0.4 + 0.6 * (1 - shadowStrength));
+            // Clamp and apply - much darker shadow
+            shadowStrength = Math.max(0, Math.min(0.88, shadowStrength));
+            attenuationFactor *= (0.12 + 0.88 * (1 - shadowStrength)); // Up to 88% attenuation
           }
         }
         
