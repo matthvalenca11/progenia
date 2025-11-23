@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { BasicInfoSection } from "./BasicInfoSection";
 import { AnatomyPresetSection } from "./AnatomyPresetSection";
 import { SimulationFeaturesSection } from "./SimulationFeaturesSection";
@@ -16,8 +17,8 @@ import { Card, CardContent } from "@/components/ui/card";
 export const UltrasoundLabBuilder = () => {
   const { layers, setLayers, acousticLayers, setAcousticLayers, inclusions, setInclusions } = useUltrasoundLabStore();
   
-  // Convert AnatomyLayer to UltrasoundLayerConfig for the editor
-  const convertToLayerConfigs = (): UltrasoundLayerConfig[] => {
+  // Convert AnatomyLayer to UltrasoundLayerConfig for the editor (memoized)
+  const layerConfigs = useMemo((): UltrasoundLayerConfig[] => {
     // Use acousticLayers if available, otherwise convert from anatomy layers
     if (acousticLayers && acousticLayers.length > 0) {
       return acousticLayers;
@@ -33,7 +34,12 @@ export const UltrasoundLabBuilder = () => {
       noiseScale: 1.0,
       reflectivityBias: (layer.reflectivity - 0.5) || 0,
     }));
-  };
+  }, [layers, acousticLayers]);
+  
+  // Calculate total depth (memoized)
+  const totalDepth = useMemo(() => {
+    return layerConfigs.reduce((sum, layer) => sum + layer.thicknessCm, 0);
+  }, [layerConfigs]);
   
   // Convert UltrasoundLayerConfig back to AnatomyLayer AND store acoustic layers
   const handleLayersChange = (newLayerConfigs: UltrasoundLayerConfig[]) => {
@@ -61,11 +67,6 @@ export const UltrasoundLabBuilder = () => {
     setLayers(anatomyLayers);
   };
   
-  const getTotalDepth = () => {
-    const layerConfigs = convertToLayerConfigs();
-    return layerConfigs.reduce((sum, layer) => sum + layer.thicknessCm, 0);
-  };
-  
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr,600px] gap-6 items-start relative">
       <div className="space-y-6">
@@ -87,7 +88,7 @@ export const UltrasoundLabBuilder = () => {
           </TabsList>
           <TabsContent value="layers" className="mt-4">
             <AcousticLayersEditor
-              layers={convertToLayerConfigs()}
+              layers={layerConfigs}
               onChange={handleLayersChange}
             />
           </TabsContent>
@@ -109,16 +110,16 @@ export const UltrasoundLabBuilder = () => {
         <UltrasoundPreview />
         
         {/* Schematic visualization */}
-        {convertToLayerConfigs().length > 0 && (
+        {layerConfigs.length > 0 && (
           <Card>
             <CardContent className="pt-6">
               <Label className="mb-3 block text-base font-semibold">
-                Visualização esquemática (profundidade total: {getTotalDepth().toFixed(1)} cm)
+                Visualização esquemática (profundidade total: {totalDepth.toFixed(1)} cm)
               </Label>
               <div className="relative space-y-1">
-                {convertToLayerConfigs().map((layer, index) => {
+                {layerConfigs.map((layer) => {
                   const medium = getAcousticMedium(layer.mediumId);
-                  const heightPercent = (layer.thicknessCm / getTotalDepth()) * 100;
+                  const heightPercent = (layer.thicknessCm / totalDepth) * 100;
                   
                   // Color mapping based on medium
                   const colorMap: Record<string, string> = {
@@ -149,7 +150,6 @@ export const UltrasoundLabBuilder = () => {
                 
                 {/* Overlay inclusions */}
                 {inclusions.map((inclusion) => {
-                  const totalDepth = getTotalDepth();
                   const topPercent = (inclusion.centerDepthCm / totalDepth) * 100;
                   const size = typeof inclusion.sizeCm === 'number' ? inclusion.sizeCm : inclusion.sizeCm.height;
                   const heightPercent = (size / totalDepth) * 100;
