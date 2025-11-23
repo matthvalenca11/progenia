@@ -105,7 +105,7 @@ export const UltrasoundLabBuilder = () => {
         <StudentControlsSection />
       </div>
       
-      <div className="lg:sticky lg:top-4 space-y-4">
+      <div className="lg:sticky lg:top-6 lg:self-start space-y-4 lg:max-h-[calc(100vh-3rem)]">
         <UltrasoundPreview />
         
         {/* Schematic visualization */}
