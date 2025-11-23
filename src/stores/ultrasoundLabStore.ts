@@ -4,7 +4,7 @@
  */
 
 import { create } from 'zustand';
-import { UltrasoundInclusionConfig } from '@/types/acousticMedia';
+import { UltrasoundInclusionConfig, UltrasoundLayerConfig } from '@/types/acousticMedia';
 import { UltrasoundSimulationFeatures, ComplexityLevel, AnatomyLayer } from '@/types/ultrasoundAdvanced';
 
 export interface UltrasoundLabState {
@@ -18,6 +18,7 @@ export interface UltrasoundLabState {
   
   // Acoustic configuration
   layers: AnatomyLayer[];
+  acousticLayers: UltrasoundLayerConfig[]; // For advanced physics engine
   inclusions: UltrasoundInclusionConfig[];
   
   // Transducer and imaging parameters
@@ -57,6 +58,7 @@ export interface UltrasoundLabState {
   setLabDescription: (description: string) => void;
   setPresetId: (presetId: string) => void;
   setLayers: (layers: AnatomyLayer[]) => void;
+  setAcousticLayers: (layers: UltrasoundLayerConfig[]) => void;
   setInclusions: (inclusions: UltrasoundInclusionConfig[]) => void;
   setTransducerType: (type: 'linear' | 'convex' | 'microconvex') => void;
   setFrequency: (freq: number) => void;
@@ -123,6 +125,7 @@ export const useUltrasoundLabStore = create<UltrasoundLabState>((set, get) => ({
   labDescription: '',
   presetId: 'muscle_generic',
   layers: [],
+  acousticLayers: [],
   inclusions: [],
   transducerType: 'linear',
   frequency: 10, // 10 MHz
@@ -141,6 +144,7 @@ export const useUltrasoundLabStore = create<UltrasoundLabState>((set, get) => ({
   setLabDescription: (description) => set({ labDescription: description }),
   setPresetId: (presetId) => set({ presetId }),
   setLayers: (layers) => set({ layers }),
+  setAcousticLayers: (acousticLayers) => set({ acousticLayers }),
   setInclusions: (inclusions) => set({ inclusions }),
   setTransducerType: (type) => set({ transducerType: type }),
   setFrequency: (frequency) => set({ frequency }),
@@ -265,6 +269,7 @@ export const useUltrasoundLabStore = create<UltrasoundLabState>((set, get) => ({
     labDescription: '',
     presetId: 'muscle_generic',
     layers: [],
+    acousticLayers: [],
     inclusions: [],
     transducerType: 'linear',
     frequency: 10,

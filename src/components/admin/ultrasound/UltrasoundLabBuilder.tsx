@@ -7,16 +7,20 @@ import { AcousticLayersEditor } from "../AcousticLayersEditor";
 import { InclusionsEditor } from "../InclusionsEditor";
 import { useUltrasoundLabStore } from "@/stores/ultrasoundLabStore";
 import { UltrasoundLayerConfig } from "@/types/acousticMedia";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Layers, Sparkles, Sliders, TestTube2 } from "lucide-react";
+import { Layers, TestTube2 } from "lucide-react";
 
 export const UltrasoundLabBuilder = () => {
-  const { layers, setLayers, inclusions, setInclusions } = useUltrasoundLabStore();
+  const { layers, setLayers, acousticLayers, setAcousticLayers, inclusions, setInclusions } = useUltrasoundLabStore();
   
   // Convert AnatomyLayer to UltrasoundLayerConfig for the editor
   const convertToLayerConfigs = (): UltrasoundLayerConfig[] => {
+    // Use acousticLayers if available, otherwise convert from anatomy layers
+    if (acousticLayers && acousticLayers.length > 0) {
+      return acousticLayers;
+    }
+    
     if (!layers || layers.length === 0) return [];
     
     return layers.map((layer, index) => ({
@@ -29,8 +33,12 @@ export const UltrasoundLabBuilder = () => {
     }));
   };
   
-  // Convert UltrasoundLayerConfig back to AnatomyLayer
+  // Convert UltrasoundLayerConfig back to AnatomyLayer AND store acoustic layers
   const handleLayersChange = (newLayerConfigs: UltrasoundLayerConfig[]) => {
+    // Store acoustic layers directly
+    setAcousticLayers(newLayerConfigs);
+    
+    // Also convert to anatomy layers for compatibility
     const totalDepth = newLayerConfigs.reduce((sum, l) => sum + l.thicknessCm, 0);
     
     const anatomyLayers = newLayerConfigs.map((layerConfig, index) => {
