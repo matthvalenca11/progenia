@@ -601,10 +601,25 @@ export class UnifiedUltrasoundEngine {
       const dx = lateral - inclLateral;
       const dy = depth - tissue.inclusion.centerDepthCm;
       
-      // Calculate distance from center
-      const distFromCenter = Math.sqrt(dx * dx + dy * dy);
-      const radius = tissue.inclusion.sizeCm.width / 2;
-      const edgeDistance = Math.abs(distFromCenter - radius);
+      // Calculate distance from edge based on shape
+      let edgeDistance = 0;
+      
+      if (tissue.inclusion.shape === 'circle') {
+        const r = (tissue.inclusion.sizeCm.width + tissue.inclusion.sizeCm.height) / 4;
+        const distFromCenter = Math.sqrt(dx * dx + dy * dy);
+        edgeDistance = Math.abs(distFromCenter - r);
+      } else if (tissue.inclusion.shape === 'ellipse') {
+        const rx = tissue.inclusion.sizeCm.width / 2;
+        const ry = tissue.inclusion.sizeCm.height / 2;
+        const normalizedDist = Math.sqrt((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry));
+        edgeDistance = Math.abs(normalizedDist - 1) * Math.min(rx, ry);
+      } else { // rectangle
+        const halfW = tissue.inclusion.sizeCm.width / 2;
+        const halfH = tissue.inclusion.sizeCm.height / 2;
+        const distX = halfW - Math.abs(dx);
+        const distY = halfH - Math.abs(dy);
+        edgeDistance = Math.min(Math.abs(distX), Math.abs(distY));
+      }
       
       // Multi-layer border rendering for realism
       if (tissue.inclusion.borderEchogenicity === 'sharp') {
