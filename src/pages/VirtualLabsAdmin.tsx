@@ -34,7 +34,7 @@ import { toast } from "sonner";
 import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { UltrasoundSimulatorAdvanced } from "@/components/labs/UltrasoundSimulatorAdvanced";
+import { UltrasoundUnifiedLab } from "@/components/labs/UltrasoundUnifiedLab";
 
 export default function VirtualLabsAdmin() {
   const navigate = useNavigate();
@@ -316,63 +316,9 @@ export default function VirtualLabsAdmin() {
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto">
-            {labToTest?.lab_type === "ultrasound" && labToTest.config_data && (() => {
-              // Convert lab config to simulator format with ALL controls enabled for testing
-              const labConfig = labToTest.config_data as any;
-              const ultrasoundConfig = labConfig.ultrasoundConfig || labConfig;
-              
-              // Build full test configuration with all features enabled
-              const testConfig = {
-                enabled: true,
-                // Enable ALL controls for admin testing
-                showGain: true,
-                showDepth: true,
-                showFrequency: true,
-                showFocus: true,
-                showTGC: true,
-                showDynamicRange: true,
-                showTransducerSelector: true,
-                showModeSelector: true,
-                // Use configured values or sensible defaults
-                presetAnatomy: ultrasoundConfig.presetId || 'generic',
-                initialGain: ultrasoundConfig.initialGain || ultrasoundConfig.gain || 50,
-                initialDepth: ultrasoundConfig.initialDepth || ultrasoundConfig.depth || 6,
-                initialFrequency: ultrasoundConfig.initialFrequency || ultrasoundConfig.frequency || 7.5,
-                initialTransducer: ultrasoundConfig.transducerType || ultrasoundConfig.initialTransducer || 'linear',
-                initialMode: ultrasoundConfig.mode || ultrasoundConfig.initialMode || 'b-mode',
-                // Enable ALL simulation features for complete testing
-                simulationFeatures: {
-                  showStructuralBMode: true,
-                  showBeamOverlay: true,
-                  showDepthScale: true,
-                  showFocusMarker: true,
-                  showPhysicsPanel: true,
-                  enablePosteriorEnhancement: true,
-                  enableAcousticShadow: true,
-                  enableReverberation: true,
-                  enableNearFieldClutter: true,
-                  showFieldLines: true,
-                  showAttenuationMap: true,
-                  enableColorDoppler: true,
-                  showAnatomyLabels: true,
-                  ...(ultrasoundConfig.simulationFeatures || {}),
-                },
-                complexityLevel: ultrasoundConfig.complexityLevel || 'avancado',
-                // Don't lock anything in test mode
-                lockGain: false,
-                lockDepth: false,
-                lockFrequency: false,
-                lockTransducer: false,
-              };
-
-              return (
-                <UltrasoundSimulatorAdvanced
-                  config={testConfig}
-                  title={labToTest.name}
-                  description={labToTest.description || ""}
-                />
-              );
-            })()}
+            {labToTest?.lab_type === "ultrasound" && labToTest.config_data && (
+              <UltrasoundUnifiedLab config={labToTest.config_data as any} />
+            )}
             {labToTest?.lab_type === "electrotherapy" && (
               <div className="p-8 text-center text-muted-foreground">
                 <Beaker className="w-16 h-16 mx-auto mb-4 opacity-50" />
