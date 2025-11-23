@@ -2,6 +2,7 @@ import { BasicInfoSection } from "./BasicInfoSection";
 import { AnatomyPresetSection } from "./AnatomyPresetSection";
 import { SimulationFeaturesSection } from "./SimulationFeaturesSection";
 import { StudentControlsSection } from "./StudentControlsSection";
+import { SimulationResourcesSection } from "./SimulationResourcesSection";
 import { UltrasoundPreview } from "./UltrasoundPreview";
 import { AcousticLayersEditor } from "../AcousticLayersEditor";
 import { InclusionsEditor } from "../InclusionsEditor";
@@ -9,7 +10,7 @@ import { useUltrasoundLabStore } from "@/stores/ultrasoundLabStore";
 import { UltrasoundLayerConfig, getAcousticMedium } from "@/types/acousticMedia";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Layers, TestTube2 } from "lucide-react";
+import { Layers, TestTube2, Settings } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -75,7 +76,7 @@ export const UltrasoundLabBuilder = () => {
         <Separator className="my-6" />
         
         <Tabs defaultValue="layers" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="layers" className="flex items-center gap-2">
               <Layers className="h-4 w-4" />
               Camadas Acústicas
@@ -83,6 +84,10 @@ export const UltrasoundLabBuilder = () => {
             <TabsTrigger value="inclusions" className="flex items-center gap-2">
               <TestTube2 className="h-4 w-4" />
               Inclusões
+            </TabsTrigger>
+            <TabsTrigger value="resources" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Recursos da Simulação
             </TabsTrigger>
           </TabsList>
           <TabsContent value="layers" className="mt-4">
@@ -96,6 +101,9 @@ export const UltrasoundLabBuilder = () => {
               inclusions={inclusions}
               onChange={setInclusions}
             />
+          </TabsContent>
+          <TabsContent value="resources" className="mt-4">
+            <SimulationResourcesSection />
           </TabsContent>
         </Tabs>
         
