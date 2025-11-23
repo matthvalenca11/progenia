@@ -10,7 +10,7 @@ import { useUltrasoundLabStore } from "@/stores/ultrasoundLabStore";
 import { UltrasoundLayerConfig, getAcousticMedium } from "@/types/acousticMedia";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Layers, TestTube2, Settings } from "lucide-react";
+import { Layers, TestTube2, Sparkles, UserCog } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -86,11 +86,11 @@ export const UltrasoundLabBuilder = () => {
               Inclusões
             </TabsTrigger>
             <TabsTrigger value="resources" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
+              <Sparkles className="h-4 w-4" />
               Recursos da Simulação
             </TabsTrigger>
             <TabsTrigger value="controls" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
+              <UserCog className="h-4 w-4" />
               Controles do Estudante
             </TabsTrigger>
           </TabsList>
