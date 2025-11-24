@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { UnifiedUltrasoundEngine } from '@/simulator/ultrasound/UnifiedUltrasoundEngine';
-import { Play, Pause, RotateCcw } from 'lucide-react';
+import { Play, Pause, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface UltrasoundUnifiedLabProps {
   config?: any;
@@ -29,6 +29,9 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
   const [transducerType, setTransducerType] = useState<'linear' | 'convex' | 'microconvex'>(
     config?.transducerType || 'linear'
   );
+  
+  // Transducer movement state
+  const [transducerPosition, setTransducerPosition] = useState(0); // -0.5 to +0.5
   
   // Initialize engine ONCE
   useEffect(() => {
@@ -97,6 +100,7 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
       frequency,
       focus,
       transducerType,
+      transducerPosition,
       hasLayers: !!config?.layers,
       layersCount: config?.layers?.length || 0,
       hasAcousticLayers: !!config?.acousticLayers,
@@ -104,6 +108,12 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
       hasInclusions: !!config?.inclusions,
       inclusionsCount: config?.inclusions?.length || 0
     });
+    
+    // Adjust inclusion positions based on transducer movement
+    const adjustedInclusions = (config?.inclusions || []).map(inclusion => ({
+      ...inclusion,
+      centerLateralPos: inclusion.centerLateralPos - transducerPosition
+    }));
     
     engineRef.current.updateConfig({
       layers: config?.layers || [{
@@ -116,7 +126,7 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
         hasFlow: false,
       }],
       acousticLayers: config?.acousticLayers || [],
-      inclusions: config?.inclusions || [],
+      inclusions: adjustedInclusions,
       gain,
       depth,
       frequency,
@@ -132,7 +142,7 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
       showFocusMarker: config?.simulationFeatures?.showFocusMarker ?? true,
       showLabels: config?.simulationFeatures?.showAnatomyLabels ?? false,
     });
-  }, [gain, depth, frequency, focus, transducerType, config]);
+  }, [gain, depth, frequency, focus, transducerType, transducerPosition, config]);
   
   const handlePlayPause = () => {
     if (!engineRef.current) return;
@@ -151,6 +161,20 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
     setFrequency(config?.frequency || 7.5);
     setFocus(config?.focus || (config?.depth ? config.depth / 2 : 3));
     setTransducerType(config?.transducerType || 'linear');
+    setTransducerPosition(0);
+  };
+  
+  const handleMoveTransducer = (direction: 'left' | 'right') => {
+    const step = 0.1;
+    const maxMovement = 0.5;
+    
+    setTransducerPosition(prev => {
+      if (direction === 'left') {
+        return Math.max(-maxMovement, prev - step);
+      } else {
+        return Math.min(maxMovement, prev + step);
+      }
+    });
   };
   
   return (
@@ -167,6 +191,36 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
                 className="w-full h-auto"
               />
             </div>
+            
+            {/* Movement controls - only show if enabled */}
+            {config?.studentControls?.enableTransducerMovement && (
+              <div className="mt-4 flex items-center justify-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleMoveTransducer('left')}
+                  disabled={transducerPosition <= -0.5}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Mover Esquerda
+                </Button>
+                <div className="px-4 py-2 bg-muted rounded-md min-w-[100px] text-center">
+                  <span className="text-xs text-muted-foreground">Posição</span>
+                  <div className="font-mono text-sm font-medium">
+                    {transducerPosition.toFixed(1)}
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleMoveTransducer('right')}
+                  disabled={transducerPosition >= 0.5}
+                >
+                  Mover Direita
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            )}
             
             <div className="flex items-center justify-between mt-4">
               <div className="flex gap-2">

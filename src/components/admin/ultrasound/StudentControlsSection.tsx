@@ -181,6 +181,28 @@ export const StudentControlsSection = () => {
             />
           </div>
         </div>
+        
+        <Separator />
+        
+        <div className="space-y-4">
+          <h4 className="font-medium text-sm">Simulação de Movimento</h4>
+          
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <Label htmlFor="enable-movement">Movimento do transdutor</Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Permite simular movimento lateral do transdutor com setas (inclusões se deslocam)
+              </p>
+            </div>
+            <Switch
+              id="enable-movement"
+              checked={studentControls.enableTransducerMovement}
+              onCheckedChange={(checked) => 
+                setStudentControls({ enableTransducerMovement: checked })
+              }
+            />
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

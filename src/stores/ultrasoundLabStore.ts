@@ -50,6 +50,7 @@ export interface UltrasoundLabState {
     lockDepth: boolean;
     lockFrequency: boolean;
     lockFocus: boolean;
+    enableTransducerMovement: boolean;
   };
   
   // Actions
@@ -116,6 +117,7 @@ const DEFAULT_STUDENT_CONTROLS = {
   lockDepth: false,
   lockFrequency: false,
   lockFocus: false,
+  enableTransducerMovement: false, // Nova funcionalidade
 };
 
 export const useUltrasoundLabStore = create<UltrasoundLabState>((set, get) => ({
