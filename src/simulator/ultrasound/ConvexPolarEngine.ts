@@ -76,7 +76,7 @@ export class ConvexPolarEngine {
 
   /**
    * ═══════════════════════════════════════════════════════════════════
-   * ETAPA 1: Gera imagem polar com física completa
+   * ETAPA 1: Gera imagem polar com motor B-mode realista
    * ═══════════════════════════════════════════════════════════════════
    */
   private generatePolarImageWithPhysics() {
@@ -89,6 +89,13 @@ export class ConvexPolarEngine {
     
     // ═══ PROCESSAR INCLUSÕES PARA CRIAR SHADOW MAP ═══
     this.computeAcousticShadows();
+    
+    // Parâmetros de física realista
+    const focalDepthCm = maxDepthCm * 0.5; // Foco no meio por padrão
+    const focalZoneWidth = maxDepthCm * 0.3; // Zona focal ~30% da profundidade
+    
+    // Atenuação base depende da frequência (dB/cm/MHz)
+    const attenuationCoeff = 0.5; // Coeficiente médio para tecidos moles
     
     // ═══ GERAR IMAGEM POLAR ═══
     for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
@@ -104,41 +111,80 @@ export class ConvexPolarEngine {
         // ═══ 1. OBTER TECIDO EM (r, θ) ═══
         const tissue = this.getTissueAtPolar(r, theta);
         
-        // ═══ 2. ECHOGENICIDADE BASE ═══
-        let intensity = this.getBaseEchogenicity(tissue.echogenicity);
+        // ═══ 2. SPECKLE TEXTURE REALISTA (Rayleigh) ═══
+        const speckleBase = this.generateRealisticSpeckle(r, theta);
         
-        // ═══ 3. SPECKLE NOISE (Rayleigh) ═══
-        const speckle = this.rayleighSpeckle(r, theta);
-        intensity *= (0.4 + speckle * 0.6);
+        // ═══ 3. ECHOGENICIDADE BASE DO TECIDO ═══
+        let baseIntensity = this.getBaseEchogenicity(tissue.echogenicity);
         
-        // ═══ 4. ATENUAÇÃO POR PROFUNDIDADE ═══
-        const attenuationDB = tissue.attenuation * frequency * r;
-        const attenuation = Math.pow(10, -attenuationDB / 20);
-        intensity *= attenuation;
+        // ═══ 4. ATENUAÇÃO COM PROFUNDIDADE ═══
+        // Frequência maior = mais atenuação
+        // exp(-α * f * r) para atenuação exponencial suave
+        const attenuationFactor = Math.exp(-attenuationCoeff * (frequency / 5) * r);
         
-        // ═══ 5. APLICAR SOMBRA ACÚSTICA ═══
+        // ═══ 5. EFEITO DO FOCO (nitidez aumenta perto do foco) ═══
+        const distFromFocus = Math.abs(r - focalDepthCm);
+        const focusFactor = 1.0 + 0.4 * Math.exp(-(distFromFocus * distFromFocus) / (focalZoneWidth * focalZoneWidth));
+        
+        // ═══ 6. COMBINAR TUDO ═══
+        let intensity = baseIntensity * speckleBase * attenuationFactor * focusFactor;
+        
+        // ═══ 7. APLICAR SOMBRA ACÚSTICA ═══
         intensity *= this.shadowMap[idx];
         
-        // ═══ 6. REALCE POSTERIOR (se aplicável) ═══
+        // ═══ 8. REALCE POSTERIOR (se aplicável) ═══
         if (tissue.posteriorEnhancement) {
-          const enhancementFactor = 1.0 + (r / maxDepthCm) * 0.3;
+          const enhancementFactor = 1.2 + (r / maxDepthCm) * 0.4;
           intensity *= enhancementFactor;
         }
         
-        // ═══ 7. GANHO ═══
-        intensity *= (gain / 100);
+        // ═══ 9. COMPRESSÃO DINÂMICA LOGARÍTMICA ═══
+        // Mapear para escala logarítmica (similar a scanners reais)
+        const gainLinear = Math.pow(10, (gain - 50) / 20); // 50 dB como referência
+        intensity *= gainLinear;
         
-        // ═══ 8. CLAMPAR ═══
-        intensity = Math.max(0, Math.min(1, intensity));
+        // Compressão log para dynamic range realista
+        const compressed = Math.log(1 + intensity * 10) / Math.log(11);
         
-        this.polarImage[idx] = intensity;
+        // ═══ 10. CLAMPAR ═══
+        this.polarImage[idx] = Math.max(0, Math.min(1, compressed));
       }
     }
   }
+  
+  /**
+   * Gera speckle texture realista usando distribuição Rayleigh
+   */
+  private generateRealisticSpeckle(r: number, theta: number): number {
+    // Múltiplas octaves de noise para textura mais realista
+    let speckle = 0;
+    
+    // Octave 1: textura grossa
+    const seed1 = r * 47.3 + theta * 89.7 + this.time * 0.3;
+    const u1 = this.pseudoRandom(seed1);
+    const u2 = this.pseudoRandom(seed1 * 1.414);
+    
+    // Box-Muller para Gaussiano
+    const g1 = Math.sqrt(-2 * Math.log(u1 + 0.0001)) * Math.cos(2 * Math.PI * u2);
+    
+    // Rayleigh base
+    const rayleigh1 = Math.abs(g1);
+    speckle += rayleigh1 * 0.6;
+    
+    // Octave 2: textura fina
+    const seed2 = r * 127.1 + theta * 311.7 + this.time * 0.5;
+    const u3 = this.pseudoRandom(seed2);
+    const u4 = this.pseudoRandom(seed2 * 2.718);
+    const g2 = Math.sqrt(-2 * Math.log(u3 + 0.0001)) * Math.cos(2 * Math.PI * u4);
+    const rayleigh2 = Math.abs(g2);
+    speckle += rayleigh2 * 0.4;
+    
+    // Normalizar para média ~1.0
+    return Math.min(2.0, speckle * 0.8);
+  }
 
   /**
-   * Calcula shadow map em coordenadas polares
-   * Sombras divergem conforme o feixe
+   * Calcula shadow map em coordenadas polares com divergência correta
    */
   private computeAcousticShadows() {
     if (!this.config.inclusions || this.config.inclusions.length === 0) return;
@@ -149,38 +195,40 @@ export class ConvexPolarEngine {
     for (const inclusion of this.config.inclusions) {
       if (!inclusion.hasStrongShadow) continue;
       
-      // Converter posição da inclusão para polar
       const inclDepth = inclusion.centerDepthCm;
       const inclLateral = inclusion.centerLateralPos; // -0.5 to +0.5
       
-      // Converter lateral normalizado para ângulo
-      const inclTheta = inclLateral * halfFOVRad * 2; // aproximação
+      // Converter posição lateral para ângulo
+      const inclTheta = inclLateral * fovDegrees * (Math.PI / 180);
       
-      // Encontrar índices polares da inclusão
+      // Índices polares da inclusão
       const inclRIdx = Math.floor((inclDepth / maxDepthCm) * numDepthSamples);
-      const inclThetaIdx = Math.floor(((inclTheta / halfFOVRad + 1) / 2) * numAngleSamples);
+      const inclThetaIdx = Math.floor(((inclTheta / (2 * halfFOVRad)) + 0.5) * numAngleSamples);
       
-      // Sombra diverge a partir da inclusão
-      const shadowWidth = inclusion.sizeCm.width;
+      if (inclRIdx < 0 || inclRIdx >= numDepthSamples) continue;
+      if (inclThetaIdx < 0 || inclThetaIdx >= numAngleSamples) continue;
       
+      // Largura angular da inclusão (em radianos)
+      const angularWidth = inclusion.sizeCm.width / inclDepth; // aproximação para ângulo pequeno
+      const angularSpan = Math.floor((angularWidth / (2 * halfFOVRad)) * numAngleSamples);
+      
+      // Criar sombra que diverge com a profundidade
       for (let rIdx = inclRIdx + 1; rIdx < numDepthSamples; rIdx++) {
         const r = (rIdx / numDepthSamples) * maxDepthCm;
         const depthBelowInclusion = r - inclDepth;
         
-        // Divergência da sombra proporcional à profundidade
-        const shadowDivergence = depthBelowInclusion * 0.3; // 30% de abertura
-        const shadowAngularWidth = (shadowWidth + shadowDivergence) / r; // rad
+        // Divergência: sombra se abre proporcionalmente à profundidade
+        const divergenceFactor = 1.0 + (depthBelowInclusion / inclDepth) * 0.5;
+        const currentAngularSpan = Math.floor(angularSpan * divergenceFactor);
         
-        const shadowThetaSpan = Math.floor((shadowAngularWidth / (2 * halfFOVRad)) * numAngleSamples);
-        
-        for (let dTheta = -shadowThetaSpan; dTheta <= shadowThetaSpan; dTheta++) {
+        for (let dTheta = -currentAngularSpan; dTheta <= currentAngularSpan; dTheta++) {
           const thetaIdx = inclThetaIdx + dTheta;
           if (thetaIdx >= 0 && thetaIdx < numAngleSamples) {
             const idx = rIdx * numAngleSamples + thetaIdx;
             
-            // Atenuação da sombra (mais forte no centro)
-            const distFromCenter = Math.abs(dTheta) / Math.max(1, shadowThetaSpan);
-            const shadowStrength = 0.1 + 0.9 * (1 - distFromCenter);
+            // Atenuação da sombra (mais forte no centro, gradiente nas bordas)
+            const distFromCenter = Math.abs(dTheta) / Math.max(1, currentAngularSpan);
+            const shadowStrength = Math.max(0.15, 1.0 - (1.0 - 0.15) * (1.0 - distFromCenter));
             
             this.shadowMap[idx] *= shadowStrength;
           }
@@ -276,33 +324,16 @@ export class ConvexPolarEngine {
   }
 
   /**
-   * Echogenicidade base por tipo
+   * Echogenicidade base realista por tipo
    */
   private getBaseEchogenicity(type: string): number {
     switch (type) {
-      case 'hyperechoic': return 0.75;
-      case 'isoechoic': return 0.50;
-      case 'hypoechoic': return 0.25;
-      case 'anechoic': return 0.05;
-      default: return 0.50;
+      case 'hyperechoic': return 0.85;
+      case 'isoechoic': return 0.65;
+      case 'hypoechoic': return 0.35;
+      case 'anechoic': return 0.08;
+      default: return 0.65;
     }
-  }
-
-  /**
-   * Speckle noise com distribuição Rayleigh
-   */
-  private rayleighSpeckle(r: number, theta: number): number {
-    const seed = r * 73.12 + theta * 127.45 + this.time * 0.5;
-    const u1 = this.pseudoRandom(seed);
-    const u2 = this.pseudoRandom(seed * 1.618);
-    
-    // Box-Muller para Gaussiano
-    const gaussian = Math.sqrt(-2 * Math.log(u1 + 0.001)) * Math.cos(2 * Math.PI * u2);
-    
-    // Rayleigh
-    const rayleigh = Math.abs(gaussian);
-    
-    return Math.min(1.5, rayleigh);
   }
 
   /**
