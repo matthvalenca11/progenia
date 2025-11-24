@@ -11,6 +11,7 @@ import {
   getAcousticMedium,
   calculateReflectionCoefficient 
 } from '@/types/acousticMedia';
+import { ConvexPolarEngine } from './ConvexPolarEngine';
 
 export interface UnifiedEngineConfig {
   // Anatomical structure
@@ -62,6 +63,9 @@ export class UnifiedUltrasoundEngine {
   private rayleighCache: Float32Array;
   private perlinCache: Float32Array;
   
+  // Motor polar para convexo
+  private convexEngine: ConvexPolarEngine | null = null;
+  
   constructor(canvas: HTMLCanvasElement, config: UnifiedEngineConfig) {
     this.canvas = canvas;
     const ctx = canvas.getContext('2d', { 
@@ -78,6 +82,11 @@ export class UnifiedUltrasoundEngine {
     this.rayleighCache = new Float32Array(cacheSize);
     this.perlinCache = new Float32Array(cacheSize);
     this.generateCaches();
+    
+    // Inicializar motor polar para convexo/microconvexo
+    if (config.transducerType === 'convex' || config.transducerType === 'microconvex') {
+      this.initConvexEngine();
+    }
   }
   
   private generateCaches(): void {
@@ -125,12 +134,51 @@ export class UnifiedUltrasoundEngine {
   }
   
   public updateConfig(updates: Partial<UnifiedEngineConfig>): void {
+    const oldType = this.config.transducerType;
     this.config = { ...this.config, ...updates };
     
     // Regenerate caches if resolution changed
     if (updates.depth || updates.frequency) {
       this.generateCaches();
     }
+    
+    // Se mudou tipo de transdutor, reinicializar motor convexo
+    if (oldType !== this.config.transducerType) {
+      if (this.config.transducerType === 'convex' || this.config.transducerType === 'microconvex') {
+        this.initConvexEngine();
+      } else {
+        this.convexEngine = null;
+      }
+    }
+    
+    // Atualizar configuração do motor convexo se existir
+    if (this.convexEngine) {
+      this.convexEngine.updateConfig({
+        fovDegrees: this.config.transducerType === 'convex' ? 70 : 60,
+        maxDepthCm: this.config.depth,
+        gain: this.config.gain,
+        frequency: this.config.frequency,
+        layers: this.config.acousticLayers,
+        inclusions: this.config.inclusions,
+      });
+    }
+  }
+  
+  private initConvexEngine() {
+    const fovDegrees = this.config.transducerType === 'convex' ? 70 : 60;
+    
+    this.convexEngine = new ConvexPolarEngine({
+      fovDegrees,
+      maxDepthCm: this.config.depth,
+      numDepthSamples: 512,
+      numAngleSamples: 512,
+      gain: this.config.gain,
+      frequency: this.config.frequency,
+      canvasWidth: this.canvas.width,
+      canvasHeight: this.canvas.height,
+      layers: this.config.acousticLayers,
+      inclusions: this.config.inclusions,
+    });
   }
   
   public start(): void {
@@ -150,6 +198,9 @@ export class UnifiedUltrasoundEngine {
   
   public destroy(): void {
     this.stop();
+    if (this.convexEngine) {
+      this.convexEngine.stop();
+    }
   }
   
   private animate = (): void => {
@@ -169,14 +220,11 @@ export class UnifiedUltrasoundEngine {
   };
   
   public renderFrame(): void {
-    if (this.config.transducerType === 'convex') {
-      // CONVEX ONLY: Full polar rendering with trapezoidal FOV
-      this.renderPolarBMode();
-    } else if (this.config.transducerType === 'microconvex') {
-      // MICROCONVEX: Keep existing cartesian rendering (works fine)
-      this.renderBMode();
+    // USAR MOTOR POLAR PURO para convexo/microconvexo
+    if ((this.config.transducerType === 'convex' || this.config.transducerType === 'microconvex') && this.convexEngine) {
+      this.convexEngine.render(this.ctx);
     } else {
-      // LINEAR: Standard cartesian rendering
+      // LINEAR: renderização cartesiana padrão
       this.renderBMode();
     }
     
