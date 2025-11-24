@@ -117,7 +117,7 @@ const DEFAULT_STUDENT_CONTROLS = {
   lockDepth: false,
   lockFrequency: false,
   lockFocus: false,
-  enableTransducerMovement: false, // Nova funcionalidade
+  enableTransducerMovement: true, // Habilitado por padrão
 };
 
 export const useUltrasoundLabStore = create<UltrasoundLabState>((set, get) => ({
