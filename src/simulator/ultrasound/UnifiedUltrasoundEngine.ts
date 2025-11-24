@@ -610,11 +610,25 @@ export class UnifiedUltrasoundEngine {
             const thicknessFactor = Math.min(1, inclusionThickness / 2.0);
             const baseShadowStrength = 0.25 + thicknessFactor * 0.35; // 25% to 60% (more realistic)
             
-            // Shadow spread depends on transducer type
-            // Linear: nearly parallel (minimal spread)
-            // Convex/micro: conical spread
-            const shadowSpreadAngle = this.config.transducerType === 'linear' ? 0.005 : 0.02;
-            const shadowHalfWidth = effectiveWidth + posteriorDepth * Math.tan(shadowSpreadAngle);
+            // Shadow spread follows beam geometry
+            let shadowHalfWidth;
+            if (this.config.transducerType === 'linear') {
+              // Linear: nearly parallel (minimal spread)
+              const shadowSpreadAngle = 0.005;
+              shadowHalfWidth = effectiveWidth + posteriorDepth * Math.tan(shadowSpreadAngle);
+            } else {
+              // Convex/Microconvex: shadow follows divergent beam geometry
+              // Shadow spreads based on the angle of the ray that hit the inclusion
+              const virtualRadius = this.config.transducerType === 'convex' ? 3.0 : 2.5;
+              
+              // Calculate angle of ray that passes through inclusion center
+              const rayAngle = Math.atan2(inclLateral, virtualRadius + inclusionBottom);
+              
+              // At posterior depth, calculate shadow width based on beam divergence
+              const distanceFromFocus = virtualRadius + depth;
+              const shadowEdgeAngle = Math.abs(rayAngle) + Math.atan(effectiveWidth / (virtualRadius + inclusionBottom));
+              shadowHalfWidth = distanceFromFocus * Math.tan(shadowEdgeAngle) - Math.abs(inclLateral);
+            }
             
             const distFromShadowCenter = Math.abs(lateral - inclLateral);
             
