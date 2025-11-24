@@ -1576,7 +1576,147 @@ export class UnifiedUltrasoundEngine {
     return 0.6 + gaussianFalloff * 0.4;
   }
   
-  private pixelToPhysical(x: number, y: number): { depth: number; lateral: number } {
+  /**
+   * ═══ CONVEX SHADOW & POSTERIOR ENHANCEMENT ═══
+   * Shadows DIVERGE along each ray (not vertical!)
+   */
+  private convexShadowAndEnhancement(
+    rayAngle: number,
+    currentDepth: number,
+    tissue: any
+  ): { attenuationFactor: number; reflection: number } {
+    let attenuationFactor = 1;
+    let reflection = 0;
+    
+    if (!tissue.isInclusion) {
+      const virtualApex = -5.0;
+      const rayDirX = Math.sin(rayAngle);
+      const rayDirY = Math.cos(rayAngle);
+      
+      // March THIS ray from depth=0 to current checking for occlusions
+      let isRayShadowed = false;
+      let shadowInclusion: UltrasoundInclusionConfig | null = null;
+      let shadowStartDepth = 0;
+      
+      const marchSteps = 40;
+      for (let step = 0; step < marchSteps; step++) {
+        const marchDepth = (step / marchSteps) * currentDepth;
+        if (marchDepth >= currentDepth) break;
+        
+        const marchDist = Math.abs(virtualApex) + marchDepth;
+        const marchX = marchDist * rayDirX;
+        const marchY = marchDist * rayDirY;
+        
+        // Check if ray hits any inclusion
+        for (const inclusion of this.config.inclusions) {
+          if (!this.config.enableAcousticShadow || !inclusion.hasStrongShadow) continue;
+          
+          const fieldWidth = 5.0;
+          const inclX = inclusion.centerLateralPos * fieldWidth;
+          const inclY = inclusion.centerDepthCm;
+          
+          const dx = marchX - inclX;
+          const dy = marchY - inclY;
+          
+          // Radial distortion
+          const depthFactor = 1.0 + (marchDepth / this.config.depth) * 0.3;
+          const distortedDx = dx / depthFactor;
+          
+          const halfWidth = inclusion.sizeCm.width / 2;
+          const halfHeight = inclusion.sizeCm.height / 2;
+          
+          let hitInclusion = false;
+          if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+            const normX = distortedDx / halfWidth;
+            const normY = dy / halfHeight;
+            const dist = Math.sqrt(normX * normX + normY * normY);
+            hitInclusion = dist <= 1.0;
+          } else {
+            hitInclusion = Math.abs(distortedDx) <= halfWidth && Math.abs(dy) <= halfHeight;
+          }
+          
+          if (hitInclusion) {
+            isRayShadowed = true;
+            shadowInclusion = inclusion;
+            shadowStartDepth = marchDepth;
+            break;
+          }
+        }
+        
+        if (isRayShadowed) break;
+      }
+      
+      // Apply shadow
+      if (isRayShadowed && shadowInclusion) {
+        const posteriorDepth = currentDepth - shadowStartDepth;
+        const inclusionThickness = shadowInclusion.sizeCm.height;
+        
+        const thicknessFactor = Math.min(1, inclusionThickness / 2.0);
+        const baseShadowStrength = 0.25 + thicknessFactor * 0.35;
+        
+        const shadowTexture = Math.sin(posteriorDepth * 8) * 0.03;
+        const shadowCore = baseShadowStrength + shadowTexture;
+        
+        const depthDecay = Math.exp(-posteriorDepth * 0.35);
+        const finalShadowStrength = shadowCore * depthDecay;
+        
+        attenuationFactor *= (0.15 + 0.85 * (1 - finalShadowStrength));
+      }
+      
+      // Posterior enhancement for fluid
+      if (this.config.enablePosteriorEnhancement) {
+        for (const inclusion of this.config.inclusions) {
+          if (inclusion.mediumInsideId === 'cyst_fluid' || 
+              inclusion.mediumInsideId === 'blood' || 
+              inclusion.mediumInsideId === 'water') {
+            
+            const fieldWidth = 5.0;
+            const inclX = inclusion.centerLateralPos * fieldWidth;
+            const inclY = inclusion.centerDepthCm;
+            
+            const currentDist = Math.abs(virtualApex) + currentDepth;
+            const currentX = currentDist * rayDirX;
+            const currentY = currentDist * rayDirY;
+            
+            const dx = currentX - inclX;
+            const dy = currentY - inclY;
+            
+            const bottomDepth = inclY + inclusion.sizeCm.height / 2;
+            const isPosterior = currentDepth >= bottomDepth;
+            
+            if (isPosterior && Math.abs(dx) < inclusion.sizeCm.width / 2) {
+              const posteriorDepth = currentDepth - bottomDepth;
+              if (posteriorDepth < 1.5) {
+                const enhancementStrength = 0.25 * Math.exp(-posteriorDepth * 0.8);
+                attenuationFactor *= (1 + enhancementStrength);
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    return { attenuationFactor, reflection };
+  }
+  
+  /**
+   * ═══ CONVEX BEAM PROFILE ═══
+   */
+  private convexBeamProfile(rayAngle: number): number {
+    const halfSectorAngle = 0.87 / 2;
+    
+    if (Math.abs(rayAngle) > halfSectorAngle) {
+      return 0;
+    }
+    
+    // Gaussian intensity distribution
+    const angleRatio = Math.abs(rayAngle) / halfSectorAngle;
+    const gaussianFalloff = Math.exp(-angleRatio * angleRatio * 0.5);
+    
+    return 0.6 + gaussianFalloff * 0.4;
+  }
+  
+  private pixelToPhysical(x: number, y: number): { depth: number; lateral: number} {
     const { width, height } = this.canvas;
     const depth = (y / height) * this.config.depth;
     
