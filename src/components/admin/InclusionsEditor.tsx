@@ -47,8 +47,8 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
       centerLateralPos: 0,
       sizeCm: { width: 0.5, height: 0.5 },
       mediumInsideId: "cyst_fluid",
-      hasStrongShadow: false,
-      posteriorEnhancement: false,
+      hasStrongShadow: true,
+      posteriorEnhancement: true,
       borderEchogenicity: "soft", // Padrão: difusa (mal definida)
     };
     onChange([...inclusions, newInclusion]);
