@@ -203,16 +203,16 @@ export class UnifiedUltrasoundEngine {
     const drFactor = this.config.dynamicRange / 60;
     
     // ═══ FIXED SECTOR GEOMETRY (NEVER CHANGES) ═══
-    const sectorFOVDegrees = 80; // Total field of view
+    const sectorFOVDegrees = 90; // Total field of view - wider for convex
     const sectorAngleRad = (sectorFOVDegrees * Math.PI) / 180;
     const halfSectorAngle = sectorAngleRad / 2;
     
-    // Virtual apex: fixed distance above transducer face
+    // Virtual apex: CLOSER to transducer for wider fan
     // This creates the fan shape and NEVER changes with depth setting
-    const virtualApexDistanceCm = 5.0; // cm above the transducer face
+    const virtualApexDistanceCm = 2.0; // cm above the transducer face (closer = wider fan)
     
     // FIXED: The maximum distance from apex to bottom of sector (visual geometry)
-    const maxDistanceFromApex = 20.0; // cm - fixed visual sector size
+    const maxDistanceFromApex = 15.0; // cm - fixed visual sector size
     
     // Temporal seed for live effect
     const temporalSeed = this.time * 2.5;
