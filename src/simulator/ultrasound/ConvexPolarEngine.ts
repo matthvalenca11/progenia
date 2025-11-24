@@ -326,98 +326,103 @@ export class ConvexPolarEngine {
     
     const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
     
-    // ═══ GEOMETRIA DO ARCO DO TRANSDUTOR ═══
-    // Centro do arco (topo do canvas)
-    const arcCenterX = canvasWidth / 2;
-    const arcCenterY = 0;
+    // ═══ GEOMETRIA SIMPLIFICADA ═══
+    // O arco do transdutor está no topo, raios divergem dele
+    // Vamos usar uma geometria mais simples e direta
     
-    // Raio do arco em pixels
-    const pixelsPerCm = canvasHeight / maxDepthCm;
-    const arcRadiusPixels = transducerRadiusCm * pixelsPerCm;
+    const centerX = canvasWidth / 2;
+    
+    // Escala: pixels por cm
+    const pixelsPerCm = canvasHeight / (maxDepthCm + transducerRadiusCm);
+    
+    // O centro virtual do arco está ACIMA do canvas
+    const virtualCenterY = -transducerRadiusCm * pixelsPerCm;
+    
+    let pixelsRendered = 0;
+    let pixelsBlocked = 0;
     
     // ═══ RENDERIZAR CADA PIXEL ═══
     for (let y = 0; y < canvasHeight; y++) {
       for (let x = 0; x < canvasWidth; x++) {
         const pixelIdx = (y * canvasWidth + x) * 4;
         
-        // Posição relativa ao centro do arco
-        const dx = x - arcCenterX;
-        const dy = y - arcCenterY;
+        // Posição relativa ao centro virtual
+        const dx = x - centerX;
+        const dy = y - virtualCenterY;
         
-        // Distância do centro do arco
-        const distFromArcCenter = Math.sqrt(dx * dx + dy * dy);
+        // Distância radial do centro virtual
+        const radiusFromCenter = Math.sqrt(dx * dx + dy * dy);
         
         // Ângulo do pixel
         const pixelAngle = Math.atan2(dx, dy);
         
-        // ═══ MÁSCARA DO SETOR ═══
-        // 1. Verificar se está dentro do FOV angular
+        // ═══ MÁSCARA 1: FOV ANGULAR ═══
         if (Math.abs(pixelAngle) > halfFOVRad) {
           data[pixelIdx] = 0;
           data[pixelIdx + 1] = 0;
           data[pixelIdx + 2] = 0;
           data[pixelIdx + 3] = 255;
+          pixelsBlocked++;
           continue;
         }
         
-        // 2. Verificar se está abaixo do arco do transdutor
-        if (distFromArcCenter < arcRadiusPixels) {
+        // ═══ MÁSCARA 2: ACIMA DO ARCO DO TRANSDUTOR ═══
+        const arcRadiusPixels = transducerRadiusCm * pixelsPerCm;
+        if (radiusFromCenter < arcRadiusPixels) {
           data[pixelIdx] = 0;
           data[pixelIdx + 1] = 0;
           data[pixelIdx + 2] = 0;
           data[pixelIdx + 3] = 255;
+          pixelsBlocked++;
           continue;
         }
         
-        // ═══ CALCULAR PROFUNDIDADE FÍSICA ═══
-        // Profundidade = distância do arco do transdutor
-        const physicalDepthPixels = distFromArcCenter - arcRadiusPixels;
-        const physicalDepthCm = physicalDepthPixels / pixelsPerCm;
+        // ═══ PROFUNDIDADE FÍSICA ═══
+        // Distância do pixel até a superfície do arco (ao longo do raio)
+        const depthFromTransducer = radiusFromCenter - arcRadiusPixels;
+        const depthCm = depthFromTransducer / pixelsPerCm;
         
-        // 3. Verificar se está dentro da profundidade máxima
-        if (physicalDepthCm > maxDepthCm || physicalDepthCm < 0) {
+        // ═══ MÁSCARA 3: PROFUNDIDADE MÁXIMA ═══
+        if (depthCm > maxDepthCm || depthCm < 0) {
           data[pixelIdx] = 0;
           data[pixelIdx + 1] = 0;
           data[pixelIdx + 2] = 0;
           data[pixelIdx + 3] = 255;
+          pixelsBlocked++;
           continue;
         }
         
         // ═══ SAMPLE DA IMAGEM POLAR ═══
-        const rNorm = physicalDepthCm / maxDepthCm;
+        const rNorm = depthCm / maxDepthCm;
         const thetaNorm = (pixelAngle / halfFOVRad + 1) / 2; // [0, 1]
         
-        const rIdx = Math.floor(rNorm * (numDepthSamples - 1));
-        const thetaIdx = Math.floor(thetaNorm * (numAngleSamples - 1));
+        let rIdx = Math.floor(rNorm * (numDepthSamples - 1));
+        let thetaIdx = Math.floor(thetaNorm * (numAngleSamples - 1));
         
-        if (rIdx < 0 || rIdx >= numDepthSamples || thetaIdx < 0 || thetaIdx >= numAngleSamples) {
-          data[pixelIdx] = 0;
-          data[pixelIdx + 1] = 0;
-          data[pixelIdx + 2] = 0;
-          data[pixelIdx + 3] = 255;
-          continue;
-        }
+        // Clampar índices
+        rIdx = Math.max(0, Math.min(numDepthSamples - 1, rIdx));
+        thetaIdx = Math.max(0, Math.min(numAngleSamples - 1, thetaIdx));
         
         const polarIdx = rIdx * numAngleSamples + thetaIdx;
         let intensity = this.polarImage[polarIdx];
         
-        // ═══ RUÍDO TEMPORAL PARA EFEITO VIVO ═══
-        const frameNoise = (this.pseudoRandom(x * 0.123 + y * 0.456 + this.time * 100) - 0.5) * 0.015;
+        // ═══ RUÍDO TEMPORAL ═══
+        const frameNoise = (this.pseudoRandom(x * 0.123 + y * 0.456 + this.time * 100) - 0.5) * 0.02;
         intensity += frameNoise;
         
-        // ═══ FEATHERING NAS BORDAS DO SETOR ═══
+        // ═══ FEATHERING NAS BORDAS ═══
         const angleFromEdge = halfFOVRad - Math.abs(pixelAngle);
-        const edgeFeatherAngle = halfFOVRad * 0.03;
+        const edgeFeatherAngle = halfFOVRad * 0.05;
         if (angleFromEdge < edgeFeatherAngle) {
           const edgeFalloff = angleFromEdge / edgeFeatherAngle;
           intensity *= edgeFalloff;
         }
         
-        // Near-field feathering (perto do arco)
-        const nearFieldCm = 0.5;
-        if (physicalDepthCm < nearFieldCm) {
-          const nearFalloff = physicalDepthCm / nearFieldCm;
-          intensity *= (0.2 + 0.8 * nearFalloff);
+        // Near-field feathering
+        const nearFieldCm = 0.3;
+        if (depthCm < nearFieldCm) {
+          const nearFalloff = depthCm / nearFieldCm;
+          intensity *= (0.3 + 0.7 * nearFalloff);
         }
         
         // ═══ RENDERIZAR ═══
@@ -426,13 +431,28 @@ export class ConvexPolarEngine {
         data[pixelIdx + 1] = gray;
         data[pixelIdx + 2] = gray;
         data[pixelIdx + 3] = 255;
+        
+        pixelsRendered++;
       }
     }
     
     ctx.putImageData(imageData, 0, 0);
     
-    // ═══ DESENHAR ARCO DO TRANSDUTOR (DEBUG - opcional) ═══
-    // this.drawTransducerArc(ctx, arcCenterX, arcCenterY, arcRadiusPixels, halfFOVRad);
+    // Debug log apenas na primeira vez
+    if (this.time < 0.1) {
+      console.log('🔍 Convex Debug:', {
+        canvasSize: `${canvasWidth}x${canvasHeight}`,
+        transducerRadiusCm,
+        maxDepthCm,
+        fovDegrees,
+        pixelsPerCm: pixelsPerCm.toFixed(2),
+        virtualCenterY: virtualCenterY.toFixed(2),
+        arcRadiusPixels: (transducerRadiusCm * pixelsPerCm).toFixed(2),
+        pixelsRendered,
+        pixelsBlocked,
+        percentRendered: ((pixelsRendered / (canvasWidth * canvasHeight)) * 100).toFixed(1) + '%'
+      });
+    }
   }
 
   /**
