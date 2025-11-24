@@ -293,50 +293,112 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
         {inclusions.length > 0 && (
           <div className="border rounded-lg p-4 bg-muted/30">
             <Label className="mb-2 block">Visualização esquemática 2D</Label>
-            <div className="relative w-full h-64 bg-gray-900 rounded overflow-hidden">
+            <div className="relative w-full h-80 bg-slate-950 rounded overflow-hidden border border-border">
               {/* Depth scale */}
-              <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col justify-between text-xs text-gray-400 py-2">
-                {[0, 2, 4, 6, 8].map(depth => (
-                  <span key={depth}>{depth}cm</span>
+              <div className="absolute left-0 top-0 bottom-0 w-12 flex flex-col justify-between text-xs text-slate-400 py-4 bg-slate-900/50 border-r border-slate-700">
+                {[0, 2, 4, 6, 8, 10].map(depth => (
+                  <span key={depth} className="px-1 font-mono">{depth}cm</span>
                 ))}
               </div>
               
+              {/* Grid lines */}
+              <div className="absolute left-12 right-0 top-0 bottom-0">
+                {[0, 20, 40, 60, 80, 100].map(percent => (
+                  <div
+                    key={`h-${percent}`}
+                    className="absolute left-0 right-0 border-t border-slate-800/50"
+                    style={{ top: `${percent}%` }}
+                  />
+                ))}
+                {[0, 25, 50, 75, 100].map(percent => (
+                  <div
+                    key={`v-${percent}`}
+                    className="absolute top-0 bottom-0 border-l border-slate-800/50"
+                    style={{ left: `${percent}%` }}
+                  />
+                ))}
+              </div>
+              
+              {/* Transducer representation at top */}
+              <div className="absolute left-12 right-0 top-0 h-2 bg-gradient-to-b from-blue-500/40 to-transparent" />
+              
               {/* Inclusions */}
-              <div className="absolute left-8 right-0 top-0 bottom-0">
+              <div className="absolute left-12 right-0 top-0 bottom-0">
                 {inclusions.map((inclusion) => {
-                  const top = (inclusion.centerDepthCm / 8) * 100;
+                  const top = (inclusion.centerDepthCm / 10) * 100;
                   const left = ((inclusion.centerLateralPos + 1) / 2) * 100;
-                  const width = (inclusion.sizeCm.width / 3) * 100;
-                  const height = (inclusion.sizeCm.height / 8) * 100;
+                  const width = Math.max((inclusion.sizeCm.width / 4) * 100, 3);
+                  const height = Math.max((inclusion.sizeCm.height / 10) * 100, 2);
                   
                   const shapeClass = inclusion.shape === "circle" ? "rounded-full" : 
                                    inclusion.shape === "ellipse" ? "rounded-full" : 
-                                   "rounded";
+                                   "rounded-sm";
                   
-                  const colorClass = inclusion.type === "cyst" ? "bg-blue-400/60" :
-                                   inclusion.type === "vessel" ? "bg-red-400/60" :
-                                   inclusion.type === "bone_surface" ? "bg-gray-200/80" :
-                                   "bg-yellow-400/60";
+                  let colorClass = "";
+                  let borderClass = "";
+                  let labelColor = "";
+                  
+                  switch (inclusion.type) {
+                    case "cyst":
+                      colorClass = "bg-blue-500/70";
+                      borderClass = "border-blue-300/60";
+                      labelColor = "text-blue-200";
+                      break;
+                    case "vessel":
+                      colorClass = "bg-red-500/70";
+                      borderClass = "border-red-300/60";
+                      labelColor = "text-red-200";
+                      break;
+                    case "bone_surface":
+                      colorClass = "bg-gray-200/90";
+                      borderClass = "border-gray-100";
+                      labelColor = "text-gray-900";
+                      break;
+                    default:
+                      colorClass = "bg-yellow-500/70";
+                      borderClass = "border-yellow-300/60";
+                      labelColor = "text-yellow-200";
+                  }
+                  
+                  // Add shadow effect if configured
+                  const shadowClass = inclusion.hasStrongShadow ? "shadow-lg shadow-black/50" : "";
+                  
+                  // Add enhancement glow if configured
+                  const glowClass = inclusion.posteriorEnhancement ? "ring-2 ring-white/30" : "";
                   
                   return (
                     <div
                       key={inclusion.id}
-                      className={`absolute ${shapeClass} ${colorClass} border border-white/40`}
+                      className="absolute group"
                       style={{
                         top: `${top}%`,
                         left: `${left}%`,
-                        width: `${width}%`,
-                        height: `${height}%`,
                         transform: "translate(-50%, -50%)",
                       }}
-                      title={inclusion.label}
-                    />
+                    >
+                      <div
+                        className={`${shapeClass} ${colorClass} ${shadowClass} ${glowClass} border-2 ${borderClass} transition-all hover:scale-110`}
+                        style={{
+                          width: `${width}px`,
+                          height: `${height}px`,
+                          minWidth: '12px',
+                          minHeight: '12px',
+                        }}
+                      />
+                      {/* Label on hover */}
+                      <div className={`absolute left-full ml-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap text-xs ${labelColor} bg-slate-900/90 px-2 py-1 rounded border border-slate-700 pointer-events-none z-10`}>
+                        {inclusion.label}
+                        <div className="text-[10px] text-slate-400">
+                          {inclusion.centerDepthCm.toFixed(1)}cm × {inclusion.sizeCm.width.toFixed(1)}cm
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              Representação aproximada das posições e tamanhos das inclusões
+              Representação esquemática das inclusões (passe o mouse para detalhes)
             </p>
           </div>
         )}
