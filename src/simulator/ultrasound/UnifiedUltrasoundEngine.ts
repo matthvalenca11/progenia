@@ -758,13 +758,15 @@ export class UnifiedUltrasoundEngine {
       }
       return 1;
     } else {
-      // Convex/Microconvex: fan-shaped beam that DIVERGES
-      // beamHalfWidth should match the lateral calculation in pixelToPhysical
-      const beamAngle = transducerType === 'convex' ? 0.61 : 0.52; // radians (max angle from center)
+      // Convex/Microconvex: fan-shaped beam that DIVERGES from virtual focal point
+      const beamAngle = transducerType === 'convex' ? 0.61 : 0.52;
+      const virtualRadius = transducerType === 'convex' ? 3.0 : 2.5;
       
-      // At this depth, the beam half-width = depth * tan(maxAngle)
-      // This INCREASES with depth (true divergence)
-      const beamHalfWidth = depth * Math.tan(beamAngle);
+      // Distance from virtual focal point
+      const distanceFromFocus = virtualRadius + depth;
+      
+      // At this distance, the beam half-width INCREASES with distance from focus
+      const beamHalfWidth = distanceFromFocus * Math.tan(beamAngle);
       
       const lateralDist = Math.abs(lateral);
       if (lateralDist > beamHalfWidth) {
@@ -784,22 +786,27 @@ export class UnifiedUltrasoundEngine {
       // Linear transducer: ~5cm aperture (realistic field of view)
       lateral = ((x / width) - 0.5) * 5.0; // 5cm total width
     } else if (this.config.transducerType === 'convex') {
-      // Convex: Fan-shaped beam that DIVERGES (opens up) with depth
-      // Each pixel X maps to an angle; lateral position grows with depth
+      // Convex: Fan-shaped beam emanating from virtual focal point
       const maxAngle = 0.61; // ~35 degrees from center (70 degrees total)
+      const virtualRadius = 3.0; // cm - same as mask calculation
+      
+      // Each pixel X maps to an angle from the virtual focal point
       const normalizedX = x / width; // 0 to 1
       const angle = (normalizedX - 0.5) * maxAngle * 2; // -0.61 to +0.61 rad
       
-      // TRUE divergence: lateral = depth * tan(angle)
-      // At surface (depth→0): all rays converge to center (lateral→0)
-      // At depth: lateral displacement INCREASES linearly with depth
-      lateral = depth * Math.tan(angle);
+      // Distance from virtual focal point
+      const distanceFromFocus = virtualRadius + depth;
+      
+      // Lateral position based on angle and distance from focus
+      lateral = distanceFromFocus * Math.tan(angle);
     } else {
       // Microconvex: Similar but smaller angle
       const maxAngle = 0.52; // ~30 degrees from center (60 degrees total)
+      const virtualRadius = 2.5; // cm - smaller for microconvex
       const normalizedX = x / width;
       const angle = (normalizedX - 0.5) * maxAngle * 2;
-      lateral = depth * Math.tan(angle);
+      const distanceFromFocus = virtualRadius + depth;
+      lateral = distanceFromFocus * Math.tan(angle);
     }
     
     return { depth, lateral };
