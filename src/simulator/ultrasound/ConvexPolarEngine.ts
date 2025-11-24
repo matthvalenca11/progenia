@@ -480,22 +480,20 @@ export class ConvexPolarEngine {
     const imageData = ctx.createImageData(canvasWidth, canvasHeight);
     const data = imageData.data;
     
-    // ═══ GEOMETRIA ADAPTATIVA INTELIGENTE ═══
+    // ═══ GEOMETRIA CORRETA - PROFUNDIDADE MÁXIMA NO FUNDO DO CANVAS ═══
     const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
     const centerX = canvasWidth / 2;
     
-    // Zoom adaptativo: maior para profundidades pequenas, mas limitado
-    // Profundidade de referência: 8cm (valor médio típico)
-    const referenceDepth = 8.0;
-    const depthRatio = referenceDepth / Math.max(3, maxDepthCm); // Limita zoom mínimo a depth=3cm
-    const zoomFactor = Math.min(1.8, Math.max(1.0, depthRatio * 0.8)); // Zoom entre 1.0x e 1.8x
+    // Calcular escala para que maxDepthCm coincida EXATAMENTE com o fundo do canvas
+    // A distância do centro virtual até o fundo = transducerRadius + maxDepth
+    const totalDistanceFromCenter = transducerRadiusCm + maxDepthCm;
+    const pixelsPerCm = canvasHeight / totalDistanceFromCenter;
     
-    // Escala base para preencher canvas + zoom adaptativo
-    const basePixelsPerCm = canvasHeight / (maxDepthCm + transducerRadiusCm * 0.3);
-    const pixelsPerCm = basePixelsPerCm * zoomFactor;
-    
-    // Centro virtual do arco
-    const virtualCenterY = -transducerRadiusCm * pixelsPerCm * 0.4;
+    // Posicionar centro virtual para que:
+    // - O arco do transdutor fique logo acima do canvas (ou no topo)
+    // - A profundidade máxima chegue exatamente no fundo
+    const arcRadiusPixels = transducerRadiusCm * pixelsPerCm;
+    const virtualCenterY = -arcRadiusPixels; // Centro virtual está acima por 1 raio do arco
     
     
     let pixelsRendered = 0;
