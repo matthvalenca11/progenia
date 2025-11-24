@@ -195,39 +195,34 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
             
             {/* Movement controls - sempre mostrar, exceto se explicitamente desabilitado */}
             {(!config?.studentControls || config?.studentControls?.enableTransducerMovement !== false) && (
-              <div className="mt-6 p-4 bg-muted/30 rounded-lg border-2 border-muted">
-                <h4 className="text-sm font-medium mb-3 text-center">Movimento do Transdutor</h4>
-                <div className="flex items-center justify-center gap-3">
+              <div className="mt-4 p-3 bg-muted/10 rounded-md border border-muted/50">
+                <div className="flex items-center justify-center gap-2">
                   <Button
-                    variant="default"
-                    size="lg"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleMoveTransducer('left')}
                     disabled={transducerPosition <= -0.8}
-                    className="min-w-[140px]"
+                    className="h-8"
                   >
-                    <ChevronLeft className="h-5 w-5 mr-2" />
+                    <ChevronLeft className="h-4 w-4 mr-1" />
                     Esquerda
                   </Button>
-                  <div className="px-6 py-3 bg-background rounded-md min-w-[120px] text-center border-2 border-primary/20">
-                    <span className="text-xs text-muted-foreground block mb-1">Posição Lateral</span>
-                    <div className="font-mono text-lg font-bold text-primary">
+                  <div className="px-3 py-1 bg-muted/30 rounded text-center min-w-[80px]">
+                    <div className="font-mono text-sm">
                       {transducerPosition >= 0 ? '+' : ''}{transducerPosition.toFixed(1)} cm
                     </div>
                   </div>
                   <Button
-                    variant="default"
-                    size="lg"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleMoveTransducer('right')}
                     disabled={transducerPosition >= 0.8}
-                    className="min-w-[140px]"
+                    className="h-8"
                   >
                     Direita
-                    <ChevronRight className="h-5 w-5 ml-2" />
+                    <ChevronRight className="h-4 w-4 ml-1" />
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground text-center mt-3">
-                  Mova o transdutor lateralmente para explorar as estruturas anatômicas (±0.8 cm)
-                </p>
               </div>
             )}
             
