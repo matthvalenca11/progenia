@@ -734,9 +734,16 @@ export class UnifiedUltrasoundEngine {
       // Start at 2.5cm width, very slight divergence
       base = 2.5 + depth * 0.015;
     } else if (transducerType === 'convex') {
-      base = 0.8 + depth * 0.25;
+      // Convex: Fan-shaped beam with realistic aperture
+      // Starts narrow at the transducer surface, expands with depth
+      const aperture = 3.5; // cm at transducer surface
+      const beamAngle = 0.52; // ~30 degrees half-angle (60 degrees total)
+      base = aperture + depth * Math.tan(beamAngle);
     } else {
-      base = 0.6 + depth * 0.15;
+      // Microconvex: Similar to convex but smaller aperture
+      const aperture = 2.0;
+      const beamAngle = 0.45; // ~25 degrees half-angle
+      base = aperture + depth * Math.tan(beamAngle);
     }
     
     // Frequency effect on beam width is subtle - only 10% variation
@@ -752,9 +759,29 @@ export class UnifiedUltrasoundEngine {
     if (this.config.transducerType === 'linear') {
       // Linear transducer: ~5cm aperture (realistic field of view)
       lateral = ((x / width) - 0.5) * 5.0; // 5cm total width
+    } else if (this.config.transducerType === 'convex') {
+      // Convex: Fan-shaped geometry
+      // Total beam angle ~60 degrees (±30 degrees from center)
+      const maxAngle = 0.52; // 30 degrees in radians
+      const angle = ((x / width) - 0.5) * 2 * maxAngle;
+      
+      // For convex, lateral position increases with depth (fan shape)
+      // At surface (depth=0): narrower aperture
+      // At max depth: wider field of view
+      const aperture = 3.5; // cm aperture at transducer surface
+      const lateralAtSurface = ((x / width) - 0.5) * aperture;
+      const lateralFromAngle = depth * Math.tan(angle);
+      
+      // Combine: smooth transition from aperture to angle-based
+      lateral = lateralAtSurface + lateralFromAngle;
     } else {
-      const angle = ((x / width) - 0.5) * 0.9;
-      lateral = depth * Math.tan(angle);
+      // Microconvex: Similar but smaller
+      const maxAngle = 0.45; // ~25 degrees
+      const angle = ((x / width) - 0.5) * 2 * maxAngle;
+      const aperture = 2.0;
+      const lateralAtSurface = ((x / width) - 0.5) * aperture;
+      const lateralFromAngle = depth * Math.tan(angle);
+      lateral = lateralAtSurface + lateralFromAngle;
     }
     
     return { depth, lateral };
