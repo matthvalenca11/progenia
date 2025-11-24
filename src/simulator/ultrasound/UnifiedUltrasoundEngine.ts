@@ -169,13 +169,197 @@ export class UnifiedUltrasoundEngine {
   };
   
   public renderFrame(): void {
-    this.renderBMode();
+    if (this.config.transducerType === 'convex' || this.config.transducerType === 'microconvex') {
+      this.renderPolarBMode();
+    } else {
+      this.renderBMode();
+    }
     
     if (this.config.mode === 'color-doppler') {
       this.renderDopplerOverlay();
     }
     
     this.renderOverlays();
+  }
+  
+  /**
+   * POLAR-BASED RENDERING for Convex/Microconvex Transducers
+   * Renders in native polar coordinates (angle, depth) then maps to cartesian
+   */
+  private renderPolarBMode(): void {
+    const { width, height } = this.canvas;
+    const imageData = this.ctx.createImageData(width, height);
+    const data = imageData.data;
+    
+    const gainLinear = Math.pow(10, (this.config.gain - 50) / 20);
+    const drFactor = this.config.dynamicRange / 60;
+    
+    // Polar coordinate system parameters
+    const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
+    const maxAngle = this.config.transducerType === 'convex' ? 0.61 : 0.52; // radians
+    
+    // Temporal noise seed
+    const temporalSeed = this.time * 2.5;
+    
+    // Render in POLAR space: each pixel maps to (angle, depth)
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = (y * width + x) * 4;
+        
+        // 1. Pixel to POLAR coordinates
+        const normalizedX = x / width; // 0 to 1
+        const normalizedY = y / height; // 0 to 1
+        
+        const angle = (normalizedX - 0.5) * maxAngle * 2; // -maxAngle to +maxAngle
+        const depth = normalizedY * this.config.depth; // 0 to maxDepth
+        
+        // 2. Convert polar to physical cartesian (for calculations)
+        const distFromCenter = radiusOfCurvature + depth;
+        const lateral = distFromCenter * Math.sin(angle);
+        
+        // 3. Mask outside the fan sector
+        if (Math.abs(angle) > maxAngle) {
+          data[idx] = data[idx + 1] = data[idx + 2] = 0;
+          data[idx + 3] = 255;
+          continue;
+        }
+        
+        if (depth > this.config.depth) {
+          data[idx] = data[idx + 1] = data[idx + 2] = 0;
+          data[idx + 3] = 255;
+          continue;
+        }
+        
+        // 4. Calculate intensity using POLAR ray marching
+        let intensity = this.calculatePolarPixelIntensity(angle, depth, lateral);
+        
+        // 5. Temporal noise (same as cartesian)
+        const depthRatio = depth / this.config.depth;
+        const highFreqNoise = Math.sin(x * 0.3 + y * 0.2 + temporalSeed * 12) * 0.012;
+        const midFreqNoise = Math.sin(x * 0.08 + y * 0.1 + temporalSeed * 4) * 0.018;
+        const lowFreqNoise = Math.sin(temporalSeed * 1.5) * 0.008;
+        const frameNoise = (Math.random() - 0.5) * 0.025 * (1 + depthRatio * 0.5);
+        const totalLiveNoise = (highFreqNoise + midFreqNoise + lowFreqNoise + frameNoise) * (1 + depthRatio * 0.8);
+        intensity *= (1 + totalLiveNoise);
+        
+        const scanlinePos = (temporalSeed * 50) % height;
+        const scanlineDistance = Math.abs(y - scanlinePos);
+        const scanlineEffect = Math.exp(-scanlineDistance * 0.3) * 0.015 * Math.sin(temporalSeed * 15);
+        intensity *= (1 + scanlineEffect);
+        
+        const bandingNoise = Math.sin(x * 0.15 + temporalSeed * 2) * 0.006;
+        intensity *= (1 + bandingNoise);
+        
+        // 6. Apply gain and compression
+        intensity *= gainLinear;
+        intensity = Math.pow(Math.max(0, intensity), drFactor);
+        
+        // 7. Convert to grayscale
+        const gray = Math.max(0, Math.min(255, intensity * 255));
+        data[idx] = gray;
+        data[idx + 1] = gray;
+        data[idx + 2] = gray;
+        data[idx + 3] = 255;
+      }
+    }
+    
+    this.ctx.putImageData(imageData, 0, 0);
+  }
+  
+  /**
+   * Calculate pixel intensity in POLAR coordinates
+   * angle: ray angle from center (-maxAngle to +maxAngle)
+   * depth: depth from transducer surface (0 to maxDepth)
+   * lateral: physical lateral position (for compatibility)
+   */
+  private calculatePolarPixelIntensity(
+    angle: number,
+    depth: number,
+    lateral: number
+  ): number {
+    // Motion artifacts
+    const breathingCycle = Math.sin(this.time * 0.3) * 0.015;
+    const breathingDepthEffect = depth / this.config.depth;
+    let adjustedDepth = depth + breathingCycle * breathingDepthEffect;
+    
+    const jitterAngle = Math.sin(this.time * 8.5) * 0.002; // Angle jitter
+    const jitterDepth = Math.cos(this.time * 7.2) * 0.006;
+    let adjustedAngle = angle + jitterAngle;
+    adjustedDepth += jitterDepth;
+    
+    // 1. Get tissue at this POLAR position
+    const tissue = this.getPolarTissueAtPosition(adjustedAngle, adjustedDepth);
+    
+    // 2. Base echogenicity
+    let intensity = this.getBaseEchogenicity(tissue.echogenicity);
+    
+    // 3. Speckle
+    if (this.config.enableSpeckle) {
+      // Use angle and depth for speckle addressing
+      const speckleX = Math.floor((adjustedAngle + Math.PI) / (2 * Math.PI) * this.canvas.width);
+      const speckleY = Math.floor((adjustedDepth / this.config.depth) * this.canvas.height);
+      const speckleIdx = speckleY * this.canvas.width + speckleX;
+      
+      const rayleigh = Math.abs(this.rayleighCache[speckleIdx % this.rayleighCache.length]);
+      const perlin = this.perlinCache[speckleIdx % this.perlinCache.length];
+      
+      const depthFactor = 1 + adjustedDepth / this.config.depth * 0.3;
+      
+      // Flow simulation for blood
+      let flowOffset = 0;
+      if (tissue.isInclusion && tissue.inclusion?.mediumInsideId === 'blood') {
+        const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
+        const distFromCenter = radiusOfCurvature + adjustedDepth;
+        const currentLateral = distFromCenter * Math.sin(adjustedAngle);
+        
+        const inclLateral = tissue.inclusion.centerLateralPos * 2.5;
+        const dx = currentLateral - inclLateral;
+        const dy = adjustedDepth - tissue.inclusion.centerDepthCm;
+        const radialPos = Math.sqrt(dx * dx + dy * dy) / (tissue.inclusion.sizeCm.width / 2);
+        
+        const flowSpeed = (1 - radialPos * radialPos) * 0.8;
+        const flowPhase = this.time * flowSpeed * 25;
+        flowOffset = Math.sin(flowPhase + adjustedDepth * 8 + currentLateral * 6) * 0.3;
+        
+        const pulse = 0.5 + 0.5 * Math.sin(this.time * 1.2 * 2 * Math.PI);
+        flowOffset *= pulse;
+      }
+      
+      const speckle = (rayleigh * 0.35 + (perlin * 0.5 + 0.5) * 0.65) * depthFactor;
+      intensity *= (0.4 + (speckle + flowOffset) * 0.6);
+    }
+    
+    // 4. Attenuation
+    const attenuation = this.calculateAttenuation(adjustedDepth, tissue);
+    intensity *= attenuation;
+    
+    // 5. Focal gain
+    const focalGain = this.calculateFocalGain(adjustedDepth);
+    intensity *= focalGain;
+    
+    // 6. TGC
+    const tgc = this.getTGC(adjustedDepth);
+    intensity *= tgc;
+    
+    // 7. Interface reflections
+    const reflection = this.calculateInterfaceReflection(adjustedDepth, lateral);
+    intensity += reflection;
+    
+    // 8. POLAR inclusion effects (ray marching in polar space)
+    const polarEffect = this.calculatePolarInclusionEffects(adjustedAngle, adjustedDepth, tissue);
+    intensity *= polarEffect.attenuationFactor;
+    intensity += polarEffect.reflection;
+    
+    // 9. Artifacts
+    if (this.config.enableReverberation) {
+      intensity += this.calculateReverberation(adjustedDepth) * 0.15;
+    }
+    
+    // 10. Beam geometry (polar-aware)
+    const beamFalloff = this.calculatePolarBeamFalloff(adjustedAngle, adjustedDepth);
+    intensity *= beamFalloff;
+    
+    return intensity;
   }
   
   private renderBMode(): void {
@@ -740,6 +924,229 @@ export class UnifiedUltrasoundEngine {
       }
       return 1;
     }
+  }
+  
+  /**
+   * Get tissue properties at POLAR coordinates
+   * This is the key function that makes inclusions appear distorted in convex mode
+   */
+  private getPolarTissueAtPosition(angle: number, depth: number): {
+    echogenicity: string;
+    attenuation: number;
+    reflectivity: number;
+    impedance: number;
+    isInclusion: boolean;
+    inclusion?: UltrasoundInclusionConfig;
+  } {
+    const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
+    
+    // Convert polar to cartesian for current position
+    const distFromCenter = radiusOfCurvature + depth;
+    const lateral = distFromCenter * Math.sin(angle);
+    
+    // Check inclusions in POLAR space
+    for (const inclusion of this.config.inclusions) {
+      // Inclusion center in cartesian
+      const inclLateral = inclusion.centerLateralPos * 2.5;
+      const inclDepth = inclusion.centerDepthCm;
+      
+      // Convert inclusion center to polar
+      const distAtInclusion = radiusOfCurvature + inclDepth;
+      const inclAngle = Math.asin(Math.max(-1, Math.min(1, inclLateral / distAtInclusion)));
+      
+      // Calculate distance in POLAR space (angle, radial)
+      const angleDiff = angle - inclAngle;
+      const depthDiff = depth - inclDepth;
+      
+      // Inclusion size in POLAR space
+      // Width becomes angular width
+      const angularWidth = Math.atan2(inclusion.sizeCm.width / 2, distAtInclusion);
+      const radialHeight = inclusion.sizeCm.height / 2;
+      
+      // Check if point is inside inclusion in POLAR space
+      let isInside = false;
+      let distanceFromEdge = 1.0;
+      
+      if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+        // Elliptical test in polar coordinates
+        const normalizedAngle = angleDiff / angularWidth;
+        const normalizedDepth = depthDiff / radialHeight;
+        const polarDist = Math.sqrt(normalizedAngle * normalizedAngle + normalizedDepth * normalizedDepth);
+        isInside = polarDist <= 1.0;
+        distanceFromEdge = Math.max(0, 1.0 - polarDist);
+      } else {
+        // Rectangle in polar space
+        isInside = Math.abs(angleDiff) <= angularWidth && Math.abs(depthDiff) <= radialHeight;
+        const edgeDistAngle = angularWidth - Math.abs(angleDiff);
+        const edgeDistDepth = radialHeight - Math.abs(depthDiff);
+        distanceFromEdge = Math.min(edgeDistAngle / angularWidth, edgeDistDepth / radialHeight);
+      }
+      
+      if (isInside) {
+        const medium = getAcousticMedium(inclusion.mediumInsideId);
+        
+        // Smooth edge transition (but not at bottom for shadow alignment)
+        const inclusionBottomDepth = inclDepth + radialHeight;
+        const distToBottom = Math.abs(depth - inclusionBottomDepth);
+        
+        let blendFactor = 1;
+        if (distanceFromEdge < 0.15 && distToBottom > 0.02) {
+          blendFactor = Math.pow(distanceFromEdge / 0.15, 0.7);
+        }
+        
+        return {
+          echogenicity: medium.baseEchogenicity,
+          attenuation: medium.attenuation_dB_per_cm_MHz,
+          reflectivity: 0.5 * blendFactor,
+          impedance: medium.acousticImpedance_MRayl,
+          isInclusion: true,
+          inclusion
+        };
+      }
+    }
+    
+    // Use anatomical layers
+    const normalizedDepth = depth / this.config.depth;
+    const layer = this.getLayerAtDepth(normalizedDepth);
+    
+    return {
+      echogenicity: layer.echogenicity,
+      attenuation: layer.attenuationCoeff || 0.7,
+      reflectivity: layer.reflectivity,
+      impedance: 1.63,
+      isInclusion: false
+    };
+  }
+  
+  /**
+   * Calculate inclusion effects in POLAR space (ray marching along angle)
+   */
+  private calculatePolarInclusionEffects(
+    angle: number,
+    depth: number,
+    tissue: any
+  ): { attenuationFactor: number; reflection: number } {
+    let attenuationFactor = 1;
+    let reflection = 0;
+    
+    if (!tissue.isInclusion) {
+      const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
+      
+      // RAY MARCHING in POLAR space: march along this specific angle
+      let isRayShadowed = false;
+      let shadowInclusion: UltrasoundInclusionConfig | null = null;
+      let shadowStartDepth = 0;
+      
+      const marchSteps = 40;
+      for (let step = 0; step < marchSteps; step++) {
+        const marchDepth = (step / marchSteps) * depth;
+        if (marchDepth >= depth) break;
+        
+        // Check if this ray (fixed angle) hits any inclusion at marchDepth
+        for (const inclusion of this.config.inclusions) {
+          if (!this.config.enableAcousticShadow || !inclusion.hasStrongShadow) continue;
+          
+          const inclDepth = inclusion.centerDepthCm;
+          const inclLateral = inclusion.centerLateralPos * 2.5;
+          const distAtInclusion = radiusOfCurvature + inclDepth;
+          const inclAngle = Math.asin(Math.max(-1, Math.min(1, inclLateral / distAtInclusion)));
+          
+          const angleDiff = angle - inclAngle;
+          const depthDiff = marchDepth - inclDepth;
+          
+          const angularWidth = Math.atan2(inclusion.sizeCm.width / 2, distAtInclusion);
+          const radialHeight = inclusion.sizeCm.height / 2;
+          
+          let hitInclusion = false;
+          if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+            const normalizedAngle = angleDiff / angularWidth;
+            const normalizedDepth = depthDiff / radialHeight;
+            const polarDist = Math.sqrt(normalizedAngle * normalizedAngle + normalizedDepth * normalizedDepth);
+            hitInclusion = polarDist <= 1.0;
+          } else {
+            hitInclusion = Math.abs(angleDiff) <= angularWidth && Math.abs(depthDiff) <= radialHeight;
+          }
+          
+          if (hitInclusion) {
+            isRayShadowed = true;
+            shadowInclusion = inclusion;
+            shadowStartDepth = marchDepth;
+            break;
+          }
+        }
+        
+        if (isRayShadowed) break;
+      }
+      
+      // Apply shadow
+      if (isRayShadowed && shadowInclusion) {
+        const posteriorDepth = depth - shadowStartDepth;
+        const inclusionThickness = shadowInclusion.sizeCm.height;
+        
+        const thicknessFactor = Math.min(1, inclusionThickness / 2.0);
+        const baseShadowStrength = 0.25 + thicknessFactor * 0.35;
+        
+        const distFromCenter = radiusOfCurvature + depth;
+        const lateral = distFromCenter * Math.sin(angle);
+        const shadowTexture = Math.sin(posteriorDepth * 8 + lateral * 6) * 0.03;
+        const shadowCore = baseShadowStrength + shadowTexture;
+        
+        const depthDecay = Math.exp(-posteriorDepth * 0.35);
+        const finalShadowStrength = shadowCore * depthDecay;
+        
+        attenuationFactor *= (0.15 + 0.85 * (1 - finalShadowStrength));
+      }
+      
+      // Posterior enhancement
+      if (this.config.enablePosteriorEnhancement) {
+        for (const inclusion of this.config.inclusions) {
+          if (inclusion.mediumInsideId === 'cyst_fluid' || inclusion.mediumInsideId === 'blood' || inclusion.mediumInsideId === 'water') {
+            const inclDepth = inclusion.centerDepthCm;
+            const inclLateral = inclusion.centerLateralPos * 2.5;
+            const distAtInclusion = radiusOfCurvature + inclDepth;
+            const inclAngle = Math.asin(Math.max(-1, Math.min(1, inclLateral / distAtInclusion)));
+            
+            const angleDiff = Math.abs(angle - inclAngle);
+            const angularWidth = Math.atan2(inclusion.sizeCm.width / 2, distAtInclusion);
+            
+            const inclusionBottomDepth = inclDepth + inclusion.sizeCm.height / 2;
+            const isPosterior = depth >= inclusionBottomDepth;
+            
+            if (isPosterior && angleDiff < angularWidth) {
+              const posteriorDepth = depth - inclusionBottomDepth;
+              if (posteriorDepth < 1.5) {
+                const enhancementStrength = 0.25 * Math.exp(-posteriorDepth * 0.8);
+                attenuationFactor *= (1 + enhancementStrength);
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    return { attenuationFactor, reflection };
+  }
+  
+  /**
+   * Calculate beam falloff in POLAR space
+   */
+  private calculatePolarBeamFalloff(angle: number, depth: number): number {
+    const maxAngle = this.config.transducerType === 'convex' ? 0.61 : 0.52;
+    
+    // Simple angular falloff
+    if (Math.abs(angle) > maxAngle) {
+      const excess = Math.abs(angle) - maxAngle;
+      return Math.exp(-excess * excess * 50);
+    }
+    
+    // Smooth edge falloff near the edges
+    const edgeZone = maxAngle * 0.9;
+    if (Math.abs(angle) > edgeZone) {
+      const distFromEdge = (Math.abs(angle) - edgeZone) / (maxAngle - edgeZone);
+      return 1 - distFromEdge * 0.3;
+    }
+    
+    return 1;
   }
   
   private pixelToPhysical(x: number, y: number): { depth: number; lateral: number } {
