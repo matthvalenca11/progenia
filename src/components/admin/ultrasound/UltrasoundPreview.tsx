@@ -6,6 +6,7 @@ import { Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export const UltrasoundPreview = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -25,6 +26,7 @@ export const UltrasoundPreview = () => {
     mode,
     simulationFeatures,
     studentControls,
+    setTransducerType,
     setGain,
     setDepth,
     setFrequency,
@@ -169,8 +171,17 @@ export const UltrasoundPreview = () => {
               Atualização em tempo real conforme você ajusta os parâmetros
             </CardDescription>
           </div>
-          <div className="flex gap-2">
-            <Badge variant="outline" className="whitespace-nowrap">{getTransducerLabel()}</Badge>
+          <div className="flex gap-2 items-center">
+            <Select value={transducerType} onValueChange={(value: any) => setTransducerType(value)}>
+              <SelectTrigger className="w-[140px] h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="z-50 bg-popover">
+                <SelectItem value="linear">Linear</SelectItem>
+                <SelectItem value="convex">Convexo</SelectItem>
+                <SelectItem value="microconvex">Microconvexo</SelectItem>
+              </SelectContent>
+            </Select>
             <Badge variant="outline" className="whitespace-nowrap">{getModeLabel()}</Badge>
           </div>
         </div>
