@@ -162,7 +162,7 @@ export class ConvexPolarEngine {
   }
   
   /**
-   * Gera speckle texture igual ao modo linear
+   * Gera speckle texture igual ao modo linear com motion temporal
    */
   private generateRealisticSpeckle(r: number, theta: number): number {
     // Usar mesma função noise2D do linear
@@ -191,9 +191,12 @@ export class ConvexPolarEngine {
     const x = r * Math.sin(theta) * 10; // escalar para melhor granularidade
     const y = r * Math.cos(theta) * 10;
     
-    // Multi-octave noise igual ao linear
+    // Temporal seed IGUAL ao linear (motion temporal)
+    const temporalSeed = this.time * 2.5;
+    
+    // Multi-octave noise igual ao linear COM motion temporal
     return multiOctaveNoise(
-      x * 0.15 + this.time * 0.01,
+      x * 0.15 + temporalSeed * 0.01,
       y * 0.15,
       4,
       1000
@@ -459,8 +462,10 @@ export class ConvexPolarEngine {
         const polarIdx = rIdx * numAngleSamples + thetaIdx;
         let intensity = this.polarImage[polarIdx];
         
-        // ═══ RUÍDO TEMPORAL ═══
-        const frameNoise = (this.pseudoRandom(x * 0.123 + y * 0.456 + this.time * 100) - 0.5) * 0.02;
+        // ═══ RUÍDO TEMPORAL (igual ao linear) ═══
+        // Frame phase para "live" effect (igual ao linear)
+        const framePhase = Math.sin(this.time * 8) * 0.5 + 0.5;
+        const frameNoise = (this.pseudoRandom(x * 0.123 + y * 0.456 + this.time * 100) - 0.5) * 0.02 * framePhase;
         intensity += frameNoise;
         
         // ═══ FEATHERING NAS BORDAS ═══

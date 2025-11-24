@@ -1968,8 +1968,35 @@ export class UnifiedUltrasoundEngine {
     this.ctx.strokeStyle = 'rgba(255, 165, 0, 0.8)';
     this.ctx.lineWidth = 2;
     this.ctx.beginPath();
-    this.ctx.moveTo(width * 0.1, focusY);
-    this.ctx.lineTo(width * 0.9, focusY);
+    
+    if (this.config.transducerType === 'linear') {
+      // Linear: linha reta horizontal
+      this.ctx.moveTo(width * 0.1, focusY);
+      this.ctx.lineTo(width * 0.9, focusY);
+    } else {
+      // Convex/Microconvex: arco curvo
+      const fovDegrees = this.config.transducerType === 'convex' ? 70 : 60;
+      const transducerRadiusCm = this.config.transducerType === 'convex' ? 5.0 : 2.5;
+      
+      // Geometria do arco
+      const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
+      const pixelsPerCm = height / (this.config.depth + transducerRadiusCm);
+      const virtualCenterY = -transducerRadiusCm * pixelsPerCm;
+      const centerX = width / 2;
+      
+      // Raio do arco de foco
+      const focusRadiusPixels = (transducerRadiusCm + this.config.focus) * pixelsPerCm;
+      
+      // Desenhar arco
+      this.ctx.arc(
+        centerX,
+        virtualCenterY,
+        focusRadiusPixels,
+        Math.PI / 2 - halfFOVRad,
+        Math.PI / 2 + halfFOVRad
+      );
+    }
+    
     this.ctx.stroke();
   }
   
