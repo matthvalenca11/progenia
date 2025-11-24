@@ -730,12 +730,12 @@ export class UnifiedUltrasoundEngine {
       return 1;
     } else {
       // Convex/Microconvex: fan-shaped beam that DIVERGES
-      // Calculate maximum lateral extent at this depth based on beam angle
-      const beamAngle = transducerType === 'convex' ? 0.61 : 0.52; // radians
-      const surfaceAperture = transducerType === 'convex' ? 3.0 : 2.0;
+      // beamHalfWidth should match the lateral calculation in pixelToPhysical
+      const beamAngle = transducerType === 'convex' ? 0.61 : 0.52; // radians (max angle from center)
       
-      // At this depth, the beam half-width INCREASES with depth (divergence)
-      const beamHalfWidth = (surfaceAperture / 2) + (depth * Math.tan(beamAngle));
+      // At this depth, the beam half-width = depth * tan(maxAngle)
+      // This INCREASES with depth (true divergence)
+      const beamHalfWidth = depth * Math.tan(beamAngle);
       
       const lateralDist = Math.abs(lateral);
       if (lateralDist > beamHalfWidth) {
