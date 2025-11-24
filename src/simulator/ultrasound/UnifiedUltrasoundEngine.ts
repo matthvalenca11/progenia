@@ -153,8 +153,10 @@ export class UnifiedUltrasoundEngine {
     
     // Atualizar configuração do motor convexo se existir
     if (this.convexEngine) {
+      const transducerRadiusCm = this.config.transducerType === 'convex' ? 5.0 : 2.5;
       this.convexEngine.updateConfig({
         fovDegrees: this.config.transducerType === 'convex' ? 70 : 60,
+        transducerRadiusCm,
         maxDepthCm: this.config.depth,
         gain: this.config.gain,
         frequency: this.config.frequency,
@@ -166,9 +168,11 @@ export class UnifiedUltrasoundEngine {
   
   private initConvexEngine() {
     const fovDegrees = this.config.transducerType === 'convex' ? 70 : 60;
+    const transducerRadiusCm = this.config.transducerType === 'convex' ? 5.0 : 2.5;
     
     this.convexEngine = new ConvexPolarEngine({
       fovDegrees,
+      transducerRadiusCm,
       maxDepthCm: this.config.depth,
       numDepthSamples: 512,
       numAngleSamples: 512,
