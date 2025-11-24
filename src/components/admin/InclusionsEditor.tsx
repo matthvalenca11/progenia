@@ -233,7 +233,7 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
                       <div className="flex items-center justify-between">
                         <Label>Produz sombra acústica intensa</Label>
                         <Switch
-                          checked={inclusion.hasStrongShadow || false}
+                          checked={inclusion.hasStrongShadow ?? true}
                           onCheckedChange={(checked) => 
                             handleUpdateInclusion(index, { hasStrongShadow: checked })
                           }
@@ -243,7 +243,7 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
                       <div className="flex items-center justify-between">
                         <Label>Gera reforço posterior</Label>
                         <Switch
-                          checked={inclusion.posteriorEnhancement || false}
+                          checked={inclusion.posteriorEnhancement ?? true}
                           onCheckedChange={(checked) => 
                             handleUpdateInclusion(index, { posteriorEnhancement: checked })
                           }
