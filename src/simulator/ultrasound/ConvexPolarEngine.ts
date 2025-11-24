@@ -119,21 +119,30 @@ export class ConvexPolarEngine {
         const idx = rIdx * numAngleSamples + thetaIdx;
         
         // Profundidade em cm
-        const r = (rIdx / numDepthSamples) * maxDepthCm;
+        let r = (rIdx / numDepthSamples) * maxDepthCm;
         
         // Ângulo em radianos [-halfFOV, +halfFOV]
         const theta = ((thetaIdx / numAngleSamples) * 2 - 1) * halfFOVRad;
         
         // Converter para coordenadas cartesianas para física
-        const x = r * Math.sin(theta);
-        const y = r * Math.cos(theta);
+        let x = r * Math.sin(theta);
+        let y = r * Math.cos(theta);
+        
+        // ═══ APLICAR MOTION ARTIFACTS (breathing, jitter, tremor) ═══
+        const withMotion = this.physicsCore.applyMotionArtifacts(y, x, physicsConfig);
+        const depthWithMotion = withMotion.depth;
+        const lateralWithMotion = withMotion.lateral;
+        
+        // Reconverter para polar com motion aplicado
+        const rWithMotion = Math.sqrt(depthWithMotion * depthWithMotion + lateralWithMotion * lateralWithMotion);
+        const thetaWithMotion = Math.atan2(lateralWithMotion, depthWithMotion);
         
         // Índices de pixel fictícios para cache (mapeamento polar → cartesiano)
         const pixelX = Math.floor((theta / (2 * halfFOVRad) + 0.5) * this.config.canvasWidth);
         const pixelY = Math.floor((r / maxDepthCm) * this.config.canvasHeight);
         
-        // ═══ 1. OBTER TECIDO EM (r, θ) ═══
-        const tissue = this.getTissueAtPolar(r, theta);
+        // ═══ 1. OBTER TECIDO EM (r, θ) COM MOTION ═══
+        const tissue = this.getTissueAtPolar(rWithMotion, thetaWithMotion);
         
         // ═══ 2. ECHOGENICIDADE BASE (motor unificado) ═══
         let intensity = this.physicsCore.getBaseEchogenicity(tissue.echogenicity);
