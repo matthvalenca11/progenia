@@ -195,22 +195,28 @@ export class UnifiedUltrasoundEngine {
         const idx = (y * width + x) * 4;
         const physCoords = this.pixelToPhysical(x, y);
         
-        // For convex/microconvex: mask outside the fan sector
+        // For convex/microconvex: mask outside the curved fan sector
         if (this.config.transducerType === 'convex' || this.config.transducerType === 'microconvex') {
           const maxAngle = this.config.transducerType === 'convex' ? 0.61 : 0.52;
+          
+          // Virtual focal point above the transducer (creates curved borders)
+          const virtualRadius = 3.0; // cm - distance from focal point to transducer surface
           
           // Calculate depth for this Y position
           const depth = (y / height) * this.config.depth;
           
-          // At this depth, calculate maximum lateral extent (in cm)
-          const maxLateralCm = depth * Math.tan(maxAngle);
+          // Distance from virtual focal point
+          const distanceFromFocus = virtualRadius + depth;
           
-          // Convert to pixel offset from center
-          const fieldOfView = 10; // cm total width for mapping
+          // At this distance, calculate maximum lateral extent based on angle
+          const maxLateralCm = distanceFromFocus * Math.tan(maxAngle);
+          
+          // Convert lateral to pixel coordinates
           const xCenter = width / 2;
+          const fieldOfView = 15; // cm total width for mapping
           const maxXOffsetPixels = (maxLateralCm / fieldOfView) * width;
           
-          // If pixel X is outside the fan sector at this depth, make it black
+          // If pixel X is outside the curved fan sector at this depth, make it black
           if (Math.abs(x - xCenter) > maxXOffsetPixels) {
             data[idx] = data[idx + 1] = data[idx + 2] = 0;
             data[idx + 3] = 255;
