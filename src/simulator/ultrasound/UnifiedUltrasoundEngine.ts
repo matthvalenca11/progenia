@@ -195,6 +195,19 @@ export class UnifiedUltrasoundEngine {
         const idx = (y * width + x) * 4;
         const physCoords = this.pixelToPhysical(x, y);
         
+        // For convex/microconvex: mask outside the fan sector
+        if (this.config.transducerType === 'convex' || this.config.transducerType === 'microconvex') {
+          const maxAngle = this.config.transducerType === 'convex' ? 0.61 : 0.52;
+          const expectedMaxLateral = physCoords.depth * Math.tan(maxAngle);
+          
+          // If this pixel is outside the fan sector, make it black
+          if (Math.abs(physCoords.lateral) > expectedMaxLateral) {
+            data[idx] = data[idx + 1] = data[idx + 2] = 0;
+            data[idx + 3] = 255;
+            continue;
+          }
+        }
+        
         if (physCoords.depth > this.config.depth) {
           // Beyond scan depth
           data[idx] = data[idx + 1] = data[idx + 2] = 0;
