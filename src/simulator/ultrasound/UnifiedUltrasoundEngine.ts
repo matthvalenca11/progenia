@@ -558,19 +558,6 @@ export class UnifiedUltrasoundEngine {
       for (const inclusion of this.config.inclusions) {
         const inclusionBottomDepth = inclusion.centerDepthCm + inclusion.sizeCm.height / 2;
         
-        // Check if we're at the exact bottom edge or just below
-        const atBottomEdge = Math.abs(depth - inclusionBottomDepth) < 0.01;
-        
-        // Log for the very first pixels after bottom edge
-        if (atBottomEdge && this.frameCount % 60 === 0) {
-          console.log('Bottom edge check:', {
-            depth,
-            inclusionBottomDepth,
-            diff: depth - inclusionBottomDepth,
-            isInclusion: tissue.isInclusion
-          });
-        }
-        
         const isPosterior = depth >= inclusionBottomDepth;
         if (!isPosterior) continue;
         
@@ -610,49 +597,41 @@ export class UnifiedUltrasoundEngine {
             const thicknessFactor = Math.min(1, inclusionThickness / 2.0);
             const baseShadowStrength = 0.25 + thicknessFactor * 0.35; // 25% to 60% (more realistic)
             
-            // Shadow spread follows beam geometry
+            // RAY-BASED SHADOW: Calculate if current pixel is in the shadow cone
+            let distFromShadowCenter;
             let shadowHalfWidth;
+            
             if (this.config.transducerType === 'linear') {
               // Linear: nearly parallel (minimal spread)
               const shadowSpreadAngle = 0.005;
               shadowHalfWidth = effectiveWidth + posteriorDepth * Math.tan(shadowSpreadAngle);
-            } else {
-              // Convex/Microconvex: shadow follows radial divergence from center of curvature
-              const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
-              const maxAngle = this.config.transducerType === 'convex' ? 0.61 : 0.52;
-              
-              // Calculate the ANGLE of the ray that hit the inclusion
-              // This is the angular position of the inclusion in the fan
-              const distAtInclusion = radiusOfCurvature + inclusionBottom;
-              const angleOfInclusion = Math.asin(Math.max(-1, Math.min(1, inclLateral / distAtInclusion)));
-              
-              // Now, at the CURRENT depth, calculate where this same angular ray is laterally
-              const distAtCurrentDepth = radiusOfCurvature + depth;
-              const lateralAtCurrentRay = distAtCurrentDepth * Math.sin(angleOfInclusion);
-              
-              // The shadow width also expands radially
-              // Calculate angular width of inclusion
-              const angularWidth = Math.atan2(effectiveWidth, distAtInclusion);
-              
-              // At current depth, this angular width translates to:
-              shadowHalfWidth = distAtCurrentDepth * Math.tan(angularWidth);
-              
-              // For shadow center calculation, use the ray's lateral position at current depth
-              // (we'll update distFromShadowCenter calculation below)
-            }
-            
-            // For convex, calculate distance from shadow center along the RAY
-            let distFromShadowCenter;
-            if (this.config.transducerType === 'linear') {
               distFromShadowCenter = Math.abs(lateral - inclLateral);
             } else {
-              // For convex: shadow follows the angular ray
+              // CONVEX/MICROCONVEX: Ray-based divergent shadow
               const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
+              
+              // 1. Calculate angular span of inclusion at its depth
               const distAtInclusion = radiusOfCurvature + inclusionBottom;
-              const angleOfInclusion = Math.asin(Math.max(-1, Math.min(1, inclLateral / distAtInclusion)));
+              const inclusionCenterAngle = Math.asin(Math.max(-1, Math.min(1, inclLateral / distAtInclusion)));
+              
+              // Angular half-width of the inclusion (the cone angle it blocks)
+              const angularHalfWidth = Math.atan2(effectiveWidth, distAtInclusion);
+              
+              // 2. Calculate the angle of the current pixel
               const distAtCurrentDepth = radiusOfCurvature + depth;
-              const lateralAtCurrentRay = distAtCurrentDepth * Math.sin(angleOfInclusion);
-              distFromShadowCenter = Math.abs(lateral - lateralAtCurrentRay);
+              const currentPixelAngle = Math.asin(Math.max(-1, Math.min(1, lateral / distAtCurrentDepth)));
+              
+              // 3. Check if current pixel's angle is within the blocked cone
+              const angleDifference = Math.abs(currentPixelAngle - inclusionCenterAngle);
+              
+              // 4. Calculate shadow width at current depth (expands with depth!)
+              // The blocked angular cone projects to a wider lateral region as depth increases
+              shadowHalfWidth = distAtCurrentDepth * Math.tan(angularHalfWidth);
+              
+              // 5. Convert angular difference to lateral distance at current depth
+              // This ensures shadow follows the divergent rays
+              const shadowCenterLateral = distAtCurrentDepth * Math.sin(inclusionCenterAngle);
+              distFromShadowCenter = Math.abs(lateral - shadowCenterLateral);
             }
             
             if (distFromShadowCenter < shadowHalfWidth * 2) {
