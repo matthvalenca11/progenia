@@ -97,26 +97,26 @@ export class UnifiedPhysicsCore {
   
   /**
    * Apply realistic motion artifacts (breathing, jitter, tremor)
-   * EXACTLY as in Linear mode
+   * EXACTLY as in Linear mode - INCREASED for more visible motion
    */
   applyMotionArtifacts(depth: number, lateral: number, config: PhysicsConfig): { 
     depth: number; 
     lateral: number 
   } {
-    // 1. Breathing motion (cyclic vertical displacement)
-    const breathingCycle = Math.sin(this.time * 0.3) * 0.015; // ~20 breaths/min, ±0.15mm
-    const breathingDepthEffect = depth / config.depth; // Deeper = more movement
+    // 1. Breathing motion (cyclic vertical displacement) - AUMENTADO
+    const breathingCycle = Math.sin(this.time * 0.3) * 0.025; // was 0.015
+    const breathingDepthEffect = depth / config.depth;
     depth += breathingCycle * breathingDepthEffect;
     
-    // 2. Probe micro-jitter (operator hand tremor)
-    const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008; // ~8Hz tremor
-    const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
+    // 2. Probe micro-jitter (operator hand tremor) - AUMENTADO
+    const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.015; // was 0.008
+    const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.012; // was 0.006
     lateral += jitterLateral;
     depth += jitterDepth;
     
-    // 3. Tissue micro-movements (random fibrillar motion)
+    // 3. Tissue micro-movements (random fibrillar motion) - AUMENTADO
     const tissueTremor = Math.sin(lateral * 100 * 0.02 + this.time * 5) * 
-                         Math.cos(depth * 100 * 0.015 + this.time * 4) * 0.003;
+                         Math.cos(depth * 100 * 0.015 + this.time * 4) * 0.006; // was 0.003
     depth += tissueTremor;
     
     return { depth, lateral };
@@ -220,7 +220,7 @@ export class UnifiedPhysicsCore {
   
   /**
    * Apply temporal "live" noise (chuvisco)
-   * EXACTLY as in Linear mode
+   * EXACTLY as in Linear mode - INCREASED INTENSITY for more visible motion
    */
   applyTemporalNoise(
     x: number, 
@@ -233,30 +233,30 @@ export class UnifiedPhysicsCore {
     const temporalSeed = this.time * 2.5;
     const framePhase = Math.sin(this.time * 8) * 0.5 + 0.5; // Refresh cycle
     
-    // Depth-dependent noise
+    // Depth-dependent noise (AUMENTADO para mais movimento visível)
     const depthRatio = depth / maxDepth;
     
-    // Multi-frequency temporal noise (electronic noise)
-    const highFreqNoise = Math.sin(x * 0.3 + y * 0.2 + temporalSeed * 12) * 0.012;
-    const midFreqNoise = Math.sin(x * 0.08 + y * 0.1 + temporalSeed * 4) * 0.018;
-    const lowFreqNoise = Math.sin(temporalSeed * 1.5) * 0.008;
+    // Multi-frequency temporal noise (electronic noise) - INTENSIDADES AUMENTADAS
+    const highFreqNoise = Math.sin(x * 0.3 + y * 0.2 + temporalSeed * 12) * 0.025; // was 0.012
+    const midFreqNoise = Math.sin(x * 0.08 + y * 0.1 + temporalSeed * 4) * 0.035; // was 0.018
+    const lowFreqNoise = Math.sin(temporalSeed * 1.5) * 0.015; // was 0.008
     
-    // Random per-frame variation
-    const frameNoise = (Math.random() - 0.5) * 0.025 * (1 + depthRatio * 0.5);
+    // Random per-frame variation (AUMENTADO)
+    const frameNoise = (Math.random() - 0.5) * 0.045 * (1 + depthRatio * 0.5); // was 0.025
     
     // Combine noises with depth dependency
     const totalLiveNoise = (highFreqNoise + midFreqNoise + lowFreqNoise + frameNoise) * 
                            (1 + depthRatio * 0.8);
     intensity *= (1 + totalLiveNoise);
     
-    // Scanline/refresh effect
+    // Scanline/refresh effect (AUMENTADO)
     const scanlinePos = (temporalSeed * 50) % this.cacheHeight;
     const scanlineDistance = Math.abs(y - scanlinePos);
-    const scanlineEffect = Math.exp(-scanlineDistance * 0.3) * 0.015 * Math.sin(temporalSeed * 15);
+    const scanlineEffect = Math.exp(-scanlineDistance * 0.3) * 0.025 * Math.sin(temporalSeed * 15); // was 0.015
     intensity *= (1 + scanlineEffect);
     
-    // Vertical banding (cable interference)
-    const bandingNoise = Math.sin(x * 0.15 + temporalSeed * 2) * 0.006;
+    // Vertical banding (cable interference) - AUMENTADO
+    const bandingNoise = Math.sin(x * 0.15 + temporalSeed * 2) * 0.012; // was 0.006
     intensity *= (1 + bandingNoise);
     
     return intensity;

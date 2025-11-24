@@ -231,55 +231,63 @@ export class ConvexPolarEngine {
   }
   
 
+
   /**
-   * Calcula shadow map em coordenadas polares com divergência correta
+   * Calcula shadow map em coordenadas polares com RAY MARCHING correto
+   * A sombra deve seguir os raios que divergem do arco do transdutor
    */
   private computeAcousticShadows() {
     if (!this.config.inclusions || this.config.inclusions.length === 0) return;
     
-    const { numDepthSamples, numAngleSamples, maxDepthCm, fovDegrees } = this.config;
+    const { numDepthSamples, numAngleSamples, maxDepthCm, fovDegrees, lateralOffset } = this.config;
     const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
     
-    for (const inclusion of this.config.inclusions) {
-      if (!inclusion.hasStrongShadow) continue;
+    // Para cada raio angular, fazer marching e detectar oclusões
+    for (let thetaIdx = 0; thetaIdx < numAngleSamples; thetaIdx++) {
+      const theta = ((thetaIdx / numAngleSamples) * 2 - 1) * halfFOVRad;
       
-      const inclDepth = inclusion.centerDepthCm;
-      const inclLateral = inclusion.centerLateralPos; // -0.5 to +0.5
+      // Marchar ao longo deste raio específico
+      let shadowStartDepth = -1;
+      let shadowingInclusion: UltrasoundInclusionConfig | null = null;
       
-      // Converter posição lateral para ângulo
-      const inclTheta = inclLateral * fovDegrees * (Math.PI / 180);
-      
-      // Índices polares da inclusão
-      const inclRIdx = Math.floor((inclDepth / maxDepthCm) * numDepthSamples);
-      const inclThetaIdx = Math.floor(((inclTheta / (2 * halfFOVRad)) + 0.5) * numAngleSamples);
-      
-      if (inclRIdx < 0 || inclRIdx >= numDepthSamples) continue;
-      if (inclThetaIdx < 0 || inclThetaIdx >= numAngleSamples) continue;
-      
-      // Largura angular da inclusão (em radianos)
-      const angularWidth = inclusion.sizeCm.width / inclDepth; // aproximação para ângulo pequeno
-      const angularSpan = Math.floor((angularWidth / (2 * halfFOVRad)) * numAngleSamples);
-      
-      // Criar sombra que diverge com a profundidade
-      for (let rIdx = inclRIdx + 1; rIdx < numDepthSamples; rIdx++) {
+      for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
         const r = (rIdx / numDepthSamples) * maxDepthCm;
-        const depthBelowInclusion = r - inclDepth;
         
-        // Divergência: sombra se abre proporcionalmente à profundidade
-        const divergenceFactor = 1.0 + (depthBelowInclusion / inclDepth) * 0.5;
-        const currentAngularSpan = Math.floor(angularSpan * divergenceFactor);
-        
-        for (let dTheta = -currentAngularSpan; dTheta <= currentAngularSpan; dTheta++) {
-          const thetaIdx = inclThetaIdx + dTheta;
-          if (thetaIdx >= 0 && thetaIdx < numAngleSamples) {
-            const idx = rIdx * numAngleSamples + thetaIdx;
-            
-            // Atenuação da sombra (mais forte no centro, gradiente nas bordas)
-            const distFromCenter = Math.abs(dTheta) / Math.max(1, currentAngularSpan);
-            const shadowStrength = Math.max(0.15, 1.0 - (1.0 - 0.15) * (1.0 - distFromCenter));
-            
-            this.shadowMap[idx] *= shadowStrength;
+        // Verificar se este ponto (r, theta) está dentro de alguma inclusão
+        for (const inclusion of this.config.inclusions) {
+          if (!inclusion.hasStrongShadow) continue;
+          
+          // Verificar se ponto está na inclusão
+          const isInside = this.isPointInInclusionPolar(r, theta, inclusion);
+          
+          if (isInside && shadowStartDepth < 0) {
+            // Encontrou início da sombra neste raio
+            shadowStartDepth = r;
+            shadowingInclusion = inclusion;
+            break;
           }
+        }
+        
+        // Se já encontrou uma inclusão bloqueando este raio, aplicar sombra daqui para baixo
+        if (shadowStartDepth >= 0 && r > shadowStartDepth) {
+          const idx = rIdx * numAngleSamples + thetaIdx;
+          const posteriorDepth = r - shadowStartDepth;
+          
+          // Intensidade da sombra baseada na espessura da inclusão e distância posterior
+          const inclusionThickness = shadowingInclusion?.sizeCm.height || 1.0;
+          const thicknessFactor = Math.min(1, inclusionThickness / 1.5);
+          const baseShadowStrength = 0.15 + thicknessFactor * 0.45; // Sombra mais forte
+          
+          // Decay com profundidade posterior
+          const depthDecay = Math.exp(-posteriorDepth * 0.25);
+          
+          // Textura interna da sombra (speckle degradado)
+          const shadowTexture = Math.sin(r * 15 + theta * 20) * 0.04;
+          
+          const finalShadowStrength = (baseShadowStrength + shadowTexture) * depthDecay;
+          
+          // Aplicar atenuação (valores menores = mais escuro)
+          this.shadowMap[idx] *= Math.max(0.08, 1.0 - finalShadowStrength);
         }
       }
     }
