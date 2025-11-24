@@ -480,22 +480,16 @@ export class ConvexPolarEngine {
     const imageData = ctx.createImageData(canvasWidth, canvasHeight);
     const data = imageData.data;
     
-    // ═══ GEOMETRIA COM CENTRALIZAÇÃO INTELIGENTE ═══
+    // ═══ GEOMETRIA SIMPLIFICADA - SEMPRE PREENCHE O CANVAS ═══
+    // Como em máquinas reais: profundidade define "quanto vê", não tamanho da imagem
     const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
-    
-    // Escala baseada em altura disponível (sempre ocupar o canvas verticalmente)
-    const pixelsPerCm = canvasHeight / (maxDepthCm * 1.1); // Usar quase toda altura disponível
-    
-    // Centro horizontal
     const centerX = canvasWidth / 2;
     
-    // Centro vertical: posicionar para que a imagem fique centralizada
-    // O arco começa em virtualCenterY, e se estende por (transducerRadius + depth) * pixelsPerCm
-    const totalImageHeight = (transducerRadiusCm + maxDepthCm) * pixelsPerCm;
-    const topMargin = (canvasHeight - totalImageHeight) / 2;
+    // Escala para SEMPRE preencher verticalmente o canvas
+    const pixelsPerCm = canvasHeight / maxDepthCm;
     
-    // Posição do centro virtual do arco (acima do canvas)
-    const virtualCenterY = topMargin - transducerRadiusCm * pixelsPerCm * 0.8;
+    // Centro virtual do arco - posicionado para que a imagem comece no topo
+    const virtualCenterY = -transducerRadiusCm * pixelsPerCm * 0.5;
     
     
     let pixelsRendered = 0;
