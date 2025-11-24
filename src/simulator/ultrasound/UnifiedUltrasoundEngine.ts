@@ -24,6 +24,7 @@ export interface UnifiedEngineConfig {
   frequency: number; // MHz
   depth: number; // cm
   focus: number; // cm
+  lateralOffset?: number; // -0.3 to +0.3 (limitado para movimento lateral)
   
   // Image processing
   gain: number; // 0-100
@@ -160,6 +161,7 @@ export class UnifiedUltrasoundEngine {
         maxDepthCm: this.config.depth,
         gain: this.config.gain,
         frequency: this.config.frequency,
+        lateralOffset: this.config.lateralOffset || 0,
         layers: this.config.acousticLayers,
         inclusions: this.config.inclusions,
       });
@@ -178,6 +180,7 @@ export class UnifiedUltrasoundEngine {
       numAngleSamples: 512,
       gain: this.config.gain,
       frequency: this.config.frequency,
+      lateralOffset: this.config.lateralOffset || 0,
       canvasWidth: this.canvas.width,
       canvasHeight: this.canvas.height,
       layers: this.config.acousticLayers,

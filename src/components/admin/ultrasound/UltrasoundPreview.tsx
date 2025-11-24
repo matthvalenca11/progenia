@@ -120,6 +120,7 @@ export const UltrasoundPreview = () => {
       depth: depth || 5,
       focus: focus || 2.5,
       gain: gain || 50,
+      lateralOffset: 0,
       dynamicRange: dynamicRange || 60,
       mode: mode || 'b-mode',
       enablePosteriorEnhancement: simulationFeatures?.enablePosteriorEnhancement || true,
