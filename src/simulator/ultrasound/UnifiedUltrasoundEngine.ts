@@ -617,21 +617,43 @@ export class UnifiedUltrasoundEngine {
               const shadowSpreadAngle = 0.005;
               shadowHalfWidth = effectiveWidth + posteriorDepth * Math.tan(shadowSpreadAngle);
             } else {
-              // Convex/Microconvex: shadow follows radial divergence
+              // Convex/Microconvex: shadow follows radial divergence from center of curvature
               const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
+              const maxAngle = this.config.transducerType === 'convex' ? 0.61 : 0.52;
               
-              // Distance from center of curvature at inclusion depth
+              // Calculate the ANGLE of the ray that hit the inclusion
+              // This is the angular position of the inclusion in the fan
               const distAtInclusion = radiusOfCurvature + inclusionBottom;
+              const angleOfInclusion = Math.asin(Math.max(-1, Math.min(1, inclLateral / distAtInclusion)));
               
-              // Distance from center of curvature at current depth
+              // Now, at the CURRENT depth, calculate where this same angular ray is laterally
               const distAtCurrentDepth = radiusOfCurvature + depth;
+              const lateralAtCurrentRay = distAtCurrentDepth * Math.sin(angleOfInclusion);
               
-              // Shadow expands radially - proportional to distance from center
-              const expansionRatio = distAtCurrentDepth / distAtInclusion;
-              shadowHalfWidth = effectiveWidth * expansionRatio;
+              // The shadow width also expands radially
+              // Calculate angular width of inclusion
+              const angularWidth = Math.atan2(effectiveWidth, distAtInclusion);
+              
+              // At current depth, this angular width translates to:
+              shadowHalfWidth = distAtCurrentDepth * Math.tan(angularWidth);
+              
+              // For shadow center calculation, use the ray's lateral position at current depth
+              // (we'll update distFromShadowCenter calculation below)
             }
             
-            const distFromShadowCenter = Math.abs(lateral - inclLateral);
+            // For convex, calculate distance from shadow center along the RAY
+            let distFromShadowCenter;
+            if (this.config.transducerType === 'linear') {
+              distFromShadowCenter = Math.abs(lateral - inclLateral);
+            } else {
+              // For convex: shadow follows the angular ray
+              const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
+              const distAtInclusion = radiusOfCurvature + inclusionBottom;
+              const angleOfInclusion = Math.asin(Math.max(-1, Math.min(1, inclLateral / distAtInclusion)));
+              const distAtCurrentDepth = radiusOfCurvature + depth;
+              const lateralAtCurrentRay = distAtCurrentDepth * Math.sin(angleOfInclusion);
+              distFromShadowCenter = Math.abs(lateral - lateralAtCurrentRay);
+            }
             
             if (distFromShadowCenter < shadowHalfWidth * 2) {
               // Core shadow (umbra) - intensity varies with thickness
