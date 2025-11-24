@@ -193,8 +193,8 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
               />
             </div>
             
-            {/* Movement controls - only show if enabled */}
-            {config?.studentControls?.enableTransducerMovement && (
+            {/* Movement controls - mostrar por padrão se não especificado */}
+            {(config?.studentControls?.enableTransducerMovement !== false) && (
               <div className="mt-4 flex items-center justify-center gap-2">
                 <Button
                   variant="outline"
