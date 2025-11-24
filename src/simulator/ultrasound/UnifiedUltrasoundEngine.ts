@@ -756,24 +756,21 @@ export class UnifiedUltrasoundEngine {
       lateral = ((x / width) - 0.5) * 5.0; // 5cm total width
     } else if (this.config.transducerType === 'convex') {
       // Convex: Fan-shaped beam that DIVERGES (opens up) with depth
-      // Total beam angle ~70 degrees (±35 degrees from center)
-      const maxAngle = 0.61; // ~35 degrees in radians
-      const normalizedX = (x / width) - 0.5; // -0.5 to +0.5
-      const angle = normalizedX * 2 * maxAngle; // -0.61 to +0.61 rad
+      // Each pixel X maps to an angle; lateral position grows with depth
+      const maxAngle = 0.61; // ~35 degrees from center (70 degrees total)
+      const normalizedX = x / width; // 0 to 1
+      const angle = (normalizedX - 0.5) * maxAngle * 2; // -0.61 to +0.61 rad
       
-      // Small aperture at surface (3cm), then pure angle-based divergence
-      const surfaceAperture = 3.0;
-      
-      // At depth=0: narrow aperture
-      // As depth increases: lateral position grows with tan(angle) - DIVERGES
-      lateral = (surfaceAperture * normalizedX) + (depth * Math.tan(angle));
+      // TRUE divergence: lateral = depth * tan(angle)
+      // At surface (depth→0): all rays converge to center (lateral→0)
+      // At depth: lateral displacement INCREASES linearly with depth
+      lateral = depth * Math.tan(angle);
     } else {
-      // Microconvex: Similar but smaller
-      const maxAngle = 0.52; // ~30 degrees
-      const normalizedX = (x / width) - 0.5;
-      const angle = normalizedX * 2 * maxAngle;
-      const surfaceAperture = 2.0;
-      lateral = (surfaceAperture * normalizedX) + (depth * Math.tan(angle));
+      // Microconvex: Similar but smaller angle
+      const maxAngle = 0.52; // ~30 degrees from center (60 degrees total)
+      const normalizedX = x / width;
+      const angle = (normalizedX - 0.5) * maxAngle * 2;
+      lateral = depth * Math.tan(angle);
     }
     
     return { depth, lateral };
