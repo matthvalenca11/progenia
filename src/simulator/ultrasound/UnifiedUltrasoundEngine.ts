@@ -714,41 +714,36 @@ export class UnifiedUltrasoundEngine {
   }
   
   private calculateBeamFalloff(depth: number, lateral: number): number {
-    const beamWidth = this.getBeamWidth(depth);
-    const lateralDist = Math.abs(lateral);
+    const { transducerType } = this.config;
     
-    if (lateralDist > beamWidth / 2) {
-      const excess = lateralDist - beamWidth / 2;
-      return Math.exp(-excess * excess * 8);
-    }
+    // For convex/microconvex: beam DIVERGES (gets wider with depth)
+    // For linear: beam stays relatively parallel
     
-    return 1;
-  }
-  
-  private getBeamWidth(depth: number): number {
-    const { transducerType, frequency } = this.config;
-    
-    let base = 0;
     if (transducerType === 'linear') {
-      // Linear array: nearly parallel beam, very minimal divergence
-      // Start at 2.5cm width, very slight divergence
-      base = 2.5 + depth * 0.015;
-    } else if (transducerType === 'convex') {
-      // Convex: Fan-shaped beam with realistic aperture
-      // Starts narrow at the transducer surface, expands with depth
-      const aperture = 3.5; // cm at transducer surface
-      const beamAngle = 0.52; // ~30 degrees half-angle (60 degrees total)
-      base = aperture + depth * Math.tan(beamAngle);
+      // Linear: nearly parallel beam, very minimal lateral falloff
+      const beamHalfWidth = 2.5; // cm, relatively constant
+      const lateralDist = Math.abs(lateral);
+      if (lateralDist > beamHalfWidth) {
+        const excess = lateralDist - beamHalfWidth;
+        return Math.exp(-excess * excess * 8);
+      }
+      return 1;
     } else {
-      // Microconvex: Similar to convex but smaller aperture
-      const aperture = 2.0;
-      const beamAngle = 0.45; // ~25 degrees half-angle
-      base = aperture + depth * Math.tan(beamAngle);
+      // Convex/Microconvex: fan-shaped beam that DIVERGES
+      // Calculate maximum lateral extent at this depth based on beam angle
+      const beamAngle = transducerType === 'convex' ? 0.61 : 0.52; // radians
+      const surfaceAperture = transducerType === 'convex' ? 3.0 : 2.0;
+      
+      // At this depth, the beam half-width INCREASES with depth (divergence)
+      const beamHalfWidth = (surfaceAperture / 2) + (depth * Math.tan(beamAngle));
+      
+      const lateralDist = Math.abs(lateral);
+      if (lateralDist > beamHalfWidth) {
+        const excess = lateralDist - beamHalfWidth;
+        return Math.exp(-excess * excess * 6);
+      }
+      return 1;
     }
-    
-    // Frequency effect on beam width is subtle - only 10% variation
-    const frequencyFactor = 1 + (7.5 - frequency) * 0.013;
-    return base * frequencyFactor;
   }
   
   private pixelToPhysical(x: number, y: number): { depth: number; lateral: number } {
