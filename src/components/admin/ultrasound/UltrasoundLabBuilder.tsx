@@ -75,7 +75,7 @@ export const UltrasoundLabBuilder = () => {
         
         <Separator className="my-6" />
         
-        <Tabs defaultValue="layers" className="w-full">
+        <Tabs defaultValue="layers" className="w-full relative z-10">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="layers" className="flex items-center gap-2">
               <Layers className="h-4 w-4" />
@@ -118,7 +118,7 @@ export const UltrasoundLabBuilder = () => {
         
       </div>
       
-      <div className="lg:fixed lg:top-20 lg:right-8 lg:w-[600px] space-y-4 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+      <div className="lg:fixed lg:top-20 lg:right-8 lg:w-[600px] space-y-4 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:z-0">
         <UltrasoundPreview />
         
         {/* Schematic visualization */}
