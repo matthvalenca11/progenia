@@ -128,10 +128,10 @@ export const useUltrasoundLabStore = create<UltrasoundLabState>((set, get) => ({
   acousticLayers: [],
   inclusions: [],
   transducerType: 'linear',
-  frequency: 10, // 10 MHz
+  frequency: 7.0, // 7.0 MHz (default para linear)
   depth: 5, // 5 cm
   focus: 2.5, // 2.5 cm
-  gain: 50,
+  gain: 57, // 57 dB (default para linear)
   dynamicRange: 60,
   mode: 'b-mode',
   simulationFeatures: DEFAULT_SIMULATION_FEATURES,
