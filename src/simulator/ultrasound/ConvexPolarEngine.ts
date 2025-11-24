@@ -498,16 +498,17 @@ export class ConvexPolarEngine {
     // Usar a escala que melhor aproveita o espaço + zoom maior
     const pixelsPerCm = Math.min(scaleByWidth, scaleByHeight) * 1.3;
     
-    // AJUSTE DINÂMICO VERTICAL: para profundidades pequenas, subir a imagem
-    // Calcular quanto da altura do canvas será ocupado pela imagem
-    const imageHeightPixels = maxDepthCm * pixelsPerCm;
-    const unusedSpace = canvasHeight - imageHeightPixels;
+    // CENTRALIZAÇÃO VERTICAL DINÂMICA
+    // Calcular a altura total ocupada pela imagem (do arco até a profundidade máxima)
+    const arcRadiusPixels = transducerRadiusCm * pixelsPerCm;
+    const totalImageHeight = maxDepthCm * pixelsPerCm + arcRadiusPixels;
     
-    // Se há muito espaço não usado, ajustar o centro virtual para subir a imagem
-    const verticalAdjustment = Math.max(0, unusedSpace * 0.4); // Usar 40% do espaço não usado
+    // Se a imagem é menor que o canvas, centralizar verticalmente
+    // Caso contrário, manter no topo
+    const verticalOffset = Math.max(0, (canvasHeight - totalImageHeight) / 2);
     
-    // O centro virtual do arco com ajuste dinâmico
-    const virtualCenterY = -transducerRadiusCm * pixelsPerCm * 0.2 + verticalAdjustment;
+    // O centro virtual do arco com centralização
+    const virtualCenterY = -arcRadiusPixels * 0.2 + verticalOffset;
     
     
     let pixelsRendered = 0;
