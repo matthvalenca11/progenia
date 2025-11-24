@@ -134,6 +134,7 @@ export class UnifiedUltrasoundEngine {
     return (n - Math.floor(n)) * 2 - 1;
   }
   
+  
   public updateConfig(updates: Partial<UnifiedEngineConfig>): void {
     const oldType = this.config.transducerType;
     this.config = { ...this.config, ...updates };
@@ -142,7 +143,6 @@ export class UnifiedUltrasoundEngine {
     if (updates.depth || updates.frequency) {
       this.generateCaches();
     }
-    
     // Se mudou tipo de transdutor, reinicializar motor convexo
     if (oldType !== this.config.transducerType) {
       if (this.config.transducerType === 'convex' || this.config.transducerType === 'microconvex') {
@@ -161,6 +161,7 @@ export class UnifiedUltrasoundEngine {
         maxDepthCm: this.config.depth,
         gain: this.config.gain,
         frequency: this.config.frequency,
+        focus: this.config.focus,
         lateralOffset: this.config.lateralOffset || 0,
         layers: this.config.acousticLayers,
         inclusions: this.config.inclusions,
@@ -180,6 +181,7 @@ export class UnifiedUltrasoundEngine {
       numAngleSamples: 512,
       gain: this.config.gain,
       frequency: this.config.frequency,
+      focus: this.config.focus,
       lateralOffset: this.config.lateralOffset || 0,
       canvasWidth: this.canvas.width,
       canvasHeight: this.canvas.height,
@@ -596,18 +598,18 @@ export class UnifiedUltrasoundEngine {
     const reflection = this.calculateInterfaceReflection(adjustedDepth, lateral);
     intensity += reflection;
     
-    // 8. POLAR inclusion effects (ray marching in polar space)
-    const polarEffect = this.calculatePolarInclusionEffects(adjustedAngle, adjustedDepth, tissue);
-    intensity *= polarEffect.attenuationFactor;
-    intensity += polarEffect.reflection;
+    // 8. Inclusion effects (mantido para compatibilidade - sombras específicas de geometria)
+    const inclusionEffect = this.calculateInclusionEffects(depth, lateral, tissue);
+    intensity *= inclusionEffect.attenuationFactor;
+    intensity += inclusionEffect.reflection;
     
-    // 9. Artifacts
+    // 9. Reverberation (motor unificado)
     if (this.config.enableReverberation) {
-      intensity += this.calculateReverberation(adjustedDepth) * 0.15;
+      intensity += this.physicsCore.calculateReverberation(depth) * 0.15;
     }
     
-    // 10. Beam geometry (polar-aware)
-    const beamFalloff = this.calculatePolarBeamFalloff(adjustedAngle, adjustedDepth);
+    // 10. Beam geometry
+    const beamFalloff = this.calculateBeamFalloff(depth, lateral);
     intensity *= beamFalloff;
     
     return intensity;
@@ -618,40 +620,22 @@ export class UnifiedUltrasoundEngine {
     const imageData = this.ctx.createImageData(width, height);
     const data = imageData.data;
     
-    const gainLinear = Math.pow(10, (this.config.gain - 50) / 20);
-    const drFactor = this.config.dynamicRange / 60;
-    
-    // Temporal noise seed for "live" effect
-    const temporalSeed = this.time * 2.5;
-    const framePhase = Math.sin(this.time * 8) * 0.5 + 0.5; // Refresh cycle
-    
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const idx = (y * width + x) * 4;
         const physCoords = this.pixelToPhysical(x, y);
         
-        // For convex/microconvex: mask outside the curved fan sector
+        // Máscara para convexo/microconvexo (mantida)
         if (this.config.transducerType === 'convex' || this.config.transducerType === 'microconvex') {
           const maxAngle = this.config.transducerType === 'convex' ? 0.61 : 0.52;
-          
-          // Radius of curvature (center is BEHIND the transducer)
-          const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0; // cm
-          
-          // Calculate depth for this Y position
+          const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
           const depth = (y / height) * this.config.depth;
-          
-          // Distance from center of curvature to this depth
           const distanceFromCenter = radiusOfCurvature + depth;
-          
-          // At this distance, calculate maximum lateral extent based on angle
           const maxLateralCm = distanceFromCenter * Math.sin(maxAngle);
-          
-          // Convert lateral to pixel coordinates
           const xCenter = width / 2;
-          const fieldOfView = 15; // cm total width for mapping
+          const fieldOfView = 15;
           const maxXOffsetPixels = (maxLateralCm / fieldOfView) * width;
           
-          // If pixel X is outside the curved fan sector at this depth, make it black
           if (Math.abs(x - xCenter) > maxXOffsetPixels) {
             data[idx] = data[idx + 1] = data[idx + 2] = 0;
             data[idx + 3] = 255;
@@ -660,43 +644,28 @@ export class UnifiedUltrasoundEngine {
         }
         
         if (physCoords.depth > this.config.depth) {
-          // Beyond scan depth
           data[idx] = data[idx + 1] = data[idx + 2] = 0;
           data[idx + 3] = 255;
           continue;
         }
         
-        // Calculate intensity with all physics
+        // Calculate intensity with all physics (motor unificado)
         let intensity = this.calculatePixelIntensity(x, y, physCoords);
         
-        // Temporal "live" noise (chuviscos) - increases with depth
-        const depthRatio = physCoords.depth / this.config.depth;
+        // Temporal "live" noise (motor unificado)
+        intensity = this.physicsCore.applyTemporalNoise(
+          x, y, 
+          physCoords.depth, 
+          this.config.depth, 
+          intensity
+        );
         
-        // Multi-frequency temporal noise (like electronic noise in transducer)
-        const highFreqNoise = Math.sin(x * 0.3 + y * 0.2 + temporalSeed * 12) * 0.012;
-        const midFreqNoise = Math.sin(x * 0.08 + y * 0.1 + temporalSeed * 4) * 0.018;
-        const lowFreqNoise = Math.sin(temporalSeed * 1.5) * 0.008;
-        
-        // Random per-frame variation (electronic noise)
-        const frameNoise = (Math.random() - 0.5) * 0.025 * (1 + depthRatio * 0.5);
-        
-        // Combine noises with depth dependency
-        const totalLiveNoise = (highFreqNoise + midFreqNoise + lowFreqNoise + frameNoise) * (1 + depthRatio * 0.8);
-        intensity *= (1 + totalLiveNoise);
-        
-        // Subtle scanline/refresh effect (mimics probe scanning motion)
-        const scanlinePos = (temporalSeed * 50) % height;
-        const scanlineDistance = Math.abs(y - scanlinePos);
-        const scanlineEffect = Math.exp(-scanlineDistance * 0.3) * 0.015 * Math.sin(temporalSeed * 15);
-        intensity *= (1 + scanlineEffect);
-        
-        // Very subtle vertical banding (cable/connector interference)
-        const bandingNoise = Math.sin(x * 0.15 + temporalSeed * 2) * 0.006;
-        intensity *= (1 + bandingNoise);
-        
-        // Apply gain and compression
-        intensity *= gainLinear;
-        intensity = Math.pow(Math.max(0, intensity), drFactor);
+        // Apply gain and compression (motor unificado)
+        intensity = this.physicsCore.applyGainAndCompression(
+          intensity,
+          this.config.gain,
+          this.config.dynamicRange
+        );
         
         // Convert to grayscale
         const gray = Math.max(0, Math.min(255, intensity * 255));
@@ -928,34 +897,6 @@ export class UnifiedUltrasoundEngine {
     return this.getDistanceFromInclusion(depth, lateral, inclusion).isInside;
   }
   
-  private getBaseEchogenicity(echogenicity: string): number {
-    switch (echogenicity) {
-      case 'anechoic': return 0.05;
-      case 'hypoechoic': return 0.35;
-      case 'isoechoic': return 0.55;
-      case 'hyperechoic': return 0.85;
-      default: return 0.5;
-    }
-  }
-  
-  private calculateAttenuation(depth: number, tissue: any): number {
-    const attenuationDb = tissue.attenuation * this.config.frequency * depth;
-    return Math.pow(10, -attenuationDb / 20);
-  }
-  
-  private calculateFocalGain(depth: number): number {
-    const focalDist = Math.abs(depth - this.config.focus);
-    return 1 + 0.4 * Math.exp(-focalDist * focalDist * 2);
-  }
-  
-  private getTGC(depth: number): number {
-    if (!this.config.tgc || this.config.tgc.length === 0) {
-      return 1 + depth / this.config.depth * 0.3; // Default linear TGC
-    }
-    
-    const idx = Math.floor((depth / this.config.depth) * (this.config.tgc.length - 1));
-    return Math.pow(10, this.config.tgc[idx] / 20);
-  }
   
   private calculateInterfaceReflection(depth: number, lateral: number): number {
     let reflection = 0;

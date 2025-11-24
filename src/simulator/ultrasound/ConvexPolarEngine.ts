@@ -11,6 +11,7 @@
  */
 
 import { UltrasoundLayerConfig, UltrasoundInclusionConfig, getAcousticMedium } from '@/types/acousticMedia';
+import { UnifiedPhysicsCore, PhysicsConfig, TissueProperties } from './UnifiedPhysicsCore';
 
 export interface ConvexPolarConfig {
   // Geometria do transdutor
@@ -25,6 +26,7 @@ export interface ConvexPolarConfig {
   // Parâmetros de física
   gain: number;                 // Ganho (0-100)
   frequency: number;            // Frequência em MHz
+  focus?: number;               // Profundidade de foco em cm (opcional)
   lateralOffset: number;        // Offset lateral do transdutor (-1 a +1, limitado)
   
   // Canvas output
@@ -41,11 +43,15 @@ export class ConvexPolarEngine {
   private polarImage: Float32Array;      // Imagem polar (r, θ)
   private shadowMap: Float32Array;       // Mapa de sombras acústicas
   private time: number = 0;
+  private physicsCore: UnifiedPhysicsCore; // Motor de física unificado
 
   constructor(config: ConvexPolarConfig) {
     this.config = config;
     this.polarImage = new Float32Array(config.numDepthSamples * config.numAngleSamples);
     this.shadowMap = new Float32Array(config.numDepthSamples * config.numAngleSamples);
+    
+    // Inicializar motor de física unificado
+    this.physicsCore = new UnifiedPhysicsCore(config.canvasWidth, config.canvasHeight);
   }
 
   /**
@@ -68,6 +74,9 @@ export class ConvexPolarEngine {
   render(ctx: CanvasRenderingContext2D) {
     this.time += 0.016;
     
+    // Atualizar tempo no motor de física
+    this.physicsCore.updateTime(this.time);
+    
     // Etapa 1: Gerar imagem polar interna com física
     this.generatePolarImageWithPhysics();
     
@@ -77,7 +86,7 @@ export class ConvexPolarEngine {
 
   /**
    * ═══════════════════════════════════════════════════════════════════
-   * ETAPA 1: Gera imagem polar com motor B-mode realista
+   * ETAPA 1: Gera imagem polar com FÍSICA UNIFICADA (baseada no Linear)
    * ═══════════════════════════════════════════════════════════════════
    */
   private generatePolarImageWithPhysics() {
@@ -91,12 +100,18 @@ export class ConvexPolarEngine {
     // ═══ PROCESSAR INCLUSÕES PARA CRIAR SHADOW MAP ═══
     this.computeAcousticShadows();
     
-    // Parâmetros de física realista
-    const focalDepthCm = maxDepthCm * 0.5; // Foco no meio por padrão
-    const focalZoneWidth = maxDepthCm * 0.3; // Zona focal ~30% da profundidade
-    
-    // Atenuação base depende da frequência (dB/cm/MHz)
-    const attenuationCoeff = 0.5; // Coeficiente médio para tecidos moles
+    // Configuração de física para motor unificado
+    const physicsConfig: PhysicsConfig = {
+      frequency,
+      depth: maxDepthCm,
+      focus: this.config.focus || maxDepthCm * 0.5,
+      gain,
+      dynamicRange: 60,
+      enableSpeckle: true,
+      enablePosteriorEnhancement: true,
+      enableAcousticShadow: true,
+      enableReverberation: false,
+    };
     
     // ═══ GERAR IMAGEM POLAR ═══
     for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
@@ -109,34 +124,53 @@ export class ConvexPolarEngine {
         // Ângulo em radianos [-halfFOV, +halfFOV]
         const theta = ((thetaIdx / numAngleSamples) * 2 - 1) * halfFOVRad;
         
+        // Converter para coordenadas cartesianas para física
+        const x = r * Math.sin(theta);
+        const y = r * Math.cos(theta);
+        
+        // Índices de pixel fictícios para cache (mapeamento polar → cartesiano)
+        const pixelX = Math.floor((theta / (2 * halfFOVRad) + 0.5) * this.config.canvasWidth);
+        const pixelY = Math.floor((r / maxDepthCm) * this.config.canvasHeight);
+        
         // ═══ 1. OBTER TECIDO EM (r, θ) ═══
         const tissue = this.getTissueAtPolar(r, theta);
         
-        // ═══ 2. SPECKLE TEXTURE REALISTA ═══
-        const speckleNoise = this.generateRealisticSpeckle(r, theta);
+        // ═══ 2. ECHOGENICIDADE BASE (motor unificado) ═══
+        let intensity = this.physicsCore.getBaseEchogenicity(tissue.echogenicity);
         
-        // ═══ 3. ECHOGENICIDADE BASE DO TECIDO ═══
-        let baseIntensity = this.getBaseEchogenicity(tissue.echogenicity);
+        // ═══ 3. SPECKLE REALISTA (motor unificado - polar) ═══
+        const speckleMultiplier = this.physicsCore.multiOctaveNoisePolar(r, theta, 4);
         
-        // Escala de speckle baseada na echogenicidade (igual ao linear)
+        // Escala de speckle baseada na echogenicidade
         const speckleScale = tissue.echogenicity === "anechoic" ? 0.1 : 
                             tissue.echogenicity === "hypoechoic" ? 0.5 :
                             tissue.echogenicity === "isoechoic" ? 0.7 :
-                            0.9; // hyperechoic
+                            0.9;
         
-        const finalSpeckle = speckleNoise * speckleScale;
+        intensity *= (0.4 + speckleMultiplier * speckleScale * 0.6);
         
-        // ═══ 4. ATENUAÇÃO COM PROFUNDIDADE ═══
-        // Frequência maior = mais atenuação
-        // exp(-α * f * r) para atenuação exponencial suave
-        const attenuationFactor = Math.exp(-attenuationCoeff * (frequency / 5) * r);
+        // ═══ 4. ATENUAÇÃO (motor unificado) ═══
+        const tissueProps: TissueProperties = {
+          echogenicity: tissue.echogenicity,
+          attenuation: tissue.attenuation,
+          reflectivity: 0.5,
+          impedance: 1.63,
+          isInclusion: tissue.isInclusion,
+          inclusion: tissue.isInclusion ? this.config.inclusions?.find(inc => 
+            this.isPointInInclusionPolar(r, theta, inc)
+          ) : undefined,
+        };
         
-        // ═══ 5. EFEITO DO FOCO (nitidez aumenta perto do foco) ═══
-        const distFromFocus = Math.abs(r - focalDepthCm);
-        const focusFactor = 1.0 + 0.4 * Math.exp(-(distFromFocus * distFromFocus) / (focalZoneWidth * focalZoneWidth));
+        const attenuation = this.physicsCore.calculateAttenuation(r, tissueProps, frequency);
+        intensity *= attenuation;
         
-        // ═══ 6. COMBINAR TUDO ═══
-        let intensity = baseIntensity * finalSpeckle * attenuationFactor * focusFactor;
+        // ═══ 5. GANHO FOCAL (motor unificado) ═══
+        const focalGain = this.physicsCore.calculateFocalGain(r, physicsConfig.focus);
+        intensity *= focalGain;
+        
+        // ═══ 6. TGC (motor unificado) ═══
+        const tgc = this.physicsCore.calculateTGC(r, maxDepthCm);
+        intensity *= tgc;
         
         // ═══ 7. APLICAR SOMBRA ACÚSTICA ═══
         intensity *= this.shadowMap[idx];
@@ -147,61 +181,55 @@ export class ConvexPolarEngine {
           intensity *= enhancementFactor;
         }
         
-        // ═══ 9. COMPRESSÃO DINÂMICA LOGARÍTMICA ═══
-        // Mapear para escala logarítmica (similar a scanners reais)
-        const gainLinear = Math.pow(10, (gain - 50) / 20); // 50 dB como referência
-        intensity *= gainLinear;
-        
-        // Compressão log para dynamic range realista
-        const compressed = Math.log(1 + intensity * 10) / Math.log(11);
+        // ═══ 9. APLICAR GANHO E COMPRESSÃO (motor unificado) ═══
+        intensity = this.physicsCore.applyGainAndCompression(intensity, gain, 60);
         
         // ═══ 10. CLAMPAR ═══
-        this.polarImage[idx] = Math.max(0, Math.min(1, compressed));
+        this.polarImage[idx] = Math.max(0, Math.min(1, intensity));
       }
     }
   }
   
   /**
-   * Gera speckle texture igual ao modo linear com motion temporal
+   * Verifica se ponto polar está em inclusão
    */
-  private generateRealisticSpeckle(r: number, theta: number): number {
-    // Usar mesma função noise2D do linear
-    const noise2D = (x: number, y: number, seed: number = 0): number => {
-      const n = Math.sin(x * 12.9898 + y * 78.233 + seed) * 43758.5453;
-      return n - Math.floor(n);
-    };
+  private isPointInInclusionPolar(r: number, theta: number, inclusion: UltrasoundInclusionConfig): boolean {
+    const { fovDegrees, transducerRadiusCm, lateralOffset } = this.config;
+    const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
     
-    const multiOctaveNoise = (x: number, y: number, octaves: number, seed: number): number => {
-      let value = 0;
-      let amplitude = 1;
-      let frequency = 1;
-      let maxValue = 0;
-      
-      for (let i = 0; i < octaves; i++) {
-        value += noise2D(x * frequency, y * frequency, seed + i) * amplitude;
-        maxValue += amplitude;
-        amplitude *= 0.5;
-        frequency *= 2;
-      }
-      
-      return value / maxValue;
-    };
+    // Aplicar lateral offset
+    const clampedOffset = Math.max(-0.3, Math.min(0.3, lateralOffset || 0));
+    const offsetCm = clampedOffset * this.config.maxDepthCm * 0.5;
     
-    // Converter (r, theta) para coordenadas pseudo-cartesianas para o noise
-    const x = r * Math.sin(theta) * 10; // escalar para melhor granularidade
-    const y = r * Math.cos(theta) * 10;
+    // Converter (r, θ) para cartesiano COM offset
+    const x = r * Math.sin(theta) + offsetCm;
+    const y = r * Math.cos(theta);
     
-    // Temporal seed IGUAL ao linear (motion temporal)
-    const temporalSeed = this.time * 2.5;
+    const inclDepth = inclusion.centerDepthCm;
+    const inclLateral = inclusion.centerLateralPos;
     
-    // Multi-octave noise igual ao linear COM motion temporal
-    return multiOctaveNoise(
-      x * 0.15 + temporalSeed * 0.01,
-      y * 0.15,
-      4,
-      1000
-    );
+    const maxLateralAtDepth = inclDepth * Math.tan(halfFOVRad);
+    const inclX = inclLateral * maxLateralAtDepth * 2;
+    const inclY = inclDepth;
+    
+    const dx = x - inclX;
+    const dy = y - inclY;
+    
+    const beamWidthFactor = 1.0 + (r / this.config.maxDepthCm) * 0.4;
+    const distortedDx = dx / beamWidthFactor;
+    
+    const halfWidth = inclusion.sizeCm.width / 2;
+    const halfHeight = inclusion.sizeCm.height / 2;
+    
+    if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+      const normX = distortedDx / halfWidth;
+      const normY = dy / halfHeight;
+      return (normX * normX + normY * normY) <= 1.0;
+    } else {
+      return Math.abs(distortedDx) <= halfWidth && Math.abs(dy) <= halfHeight;
+    }
   }
+  
 
   /**
    * Calcula shadow map em coordenadas polares com divergência correta
@@ -348,18 +376,6 @@ export class ConvexPolarEngine {
     };
   }
 
-  /**
-   * Echogenicidade base realista por tipo
-   */
-  private getBaseEchogenicity(type: string): number {
-    switch (type) {
-      case 'hyperechoic': return 0.85;
-      case 'isoechoic': return 0.65;
-      case 'hypoechoic': return 0.35;
-      case 'anechoic': return 0.08;
-      default: return 0.65;
-    }
-  }
 
   /**
    * Gerador pseudo-aleatório determinístico
@@ -436,10 +452,10 @@ export class ConvexPolarEngine {
         // ═══ PROFUNDIDADE FÍSICA ═══
         // Distância do pixel até a superfície do arco (ao longo do raio)
         const depthFromTransducer = radiusFromCenter - arcRadiusPixels;
-        const depthCm = depthFromTransducer / pixelsPerCm;
+        const physDepthCm = depthFromTransducer / pixelsPerCm;
         
         // ═══ MÁSCARA 3: PROFUNDIDADE MÁXIMA ═══
-        if (depthCm > maxDepthCm || depthCm < 0) {
+        if (physDepthCm > maxDepthCm || physDepthCm < 0) {
           data[pixelIdx] = 0;
           data[pixelIdx + 1] = 0;
           data[pixelIdx + 2] = 0;
@@ -449,7 +465,7 @@ export class ConvexPolarEngine {
         }
         
         // ═══ SAMPLE DA IMAGEM POLAR ═══
-        const rNorm = depthCm / maxDepthCm;
+        const rNorm = physDepthCm / maxDepthCm;
         const thetaNorm = (pixelAngle / halfFOVRad + 1) / 2; // [0, 1]
         
         let rIdx = Math.floor(rNorm * (numDepthSamples - 1));
@@ -462,11 +478,8 @@ export class ConvexPolarEngine {
         const polarIdx = rIdx * numAngleSamples + thetaIdx;
         let intensity = this.polarImage[polarIdx];
         
-        // ═══ RUÍDO TEMPORAL (igual ao linear) ═══
-        // Frame phase para "live" effect (igual ao linear)
-        const framePhase = Math.sin(this.time * 8) * 0.5 + 0.5;
-        const frameNoise = (this.pseudoRandom(x * 0.123 + y * 0.456 + this.time * 100) - 0.5) * 0.02 * framePhase;
-        intensity += frameNoise;
+        // ═══ RUÍDO TEMPORAL (motor unificado - igual ao linear) ═══
+        intensity = this.physicsCore.applyTemporalNoise(x, y, physDepthCm, maxDepthCm, intensity);
         
         // ═══ FEATHERING NAS BORDAS ═══
         const angleFromEdge = halfFOVRad - Math.abs(pixelAngle);
@@ -478,8 +491,8 @@ export class ConvexPolarEngine {
         
         // Near-field feathering
         const nearFieldCm = 0.3;
-        if (depthCm < nearFieldCm) {
-          const nearFalloff = depthCm / nearFieldCm;
+        if (physDepthCm < nearFieldCm) {
+          const nearFalloff = physDepthCm / nearFieldCm;
           intensity *= (0.3 + 0.7 * nearFalloff);
         }
         
