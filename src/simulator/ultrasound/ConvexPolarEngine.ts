@@ -417,13 +417,13 @@ export class ConvexPolarEngine {
     
     // Determinar escala baseada em qual dimensão é limitante
     const scaleByWidth = canvasWidth / maxWidthAtDepth;
-    const scaleByHeight = canvasHeight / (maxDepthCm + transducerRadiusCm * 0.3); // Pequeno offset para o arco
+    const scaleByHeight = canvasHeight / (maxDepthCm + transducerRadiusCm * 0.2); // Offset menor
     
-    // Usar a escala que melhor aproveita o espaço
-    const pixelsPerCm = Math.min(scaleByWidth, scaleByHeight);
+    // Usar a escala que melhor aproveita o espaço + pequeno zoom adicional
+    const pixelsPerCm = Math.min(scaleByWidth, scaleByHeight) * 1.15; // Zoom leve de 15%
     
     // O centro virtual do arco está ACIMA do canvas, mas próximo
-    const virtualCenterY = -transducerRadiusCm * pixelsPerCm * 0.3;
+    const virtualCenterY = -transducerRadiusCm * pixelsPerCm * 0.25;
     
     
     let pixelsRendered = 0;
