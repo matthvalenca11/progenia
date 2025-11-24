@@ -739,7 +739,9 @@ export class UnifiedUltrasoundEngine {
       base = 0.6 + depth * 0.15;
     }
     
-    return base * (5 / frequency);
+    // Frequency effect on beam width is subtle - only 10% variation
+    const frequencyFactor = 1 + (7.5 - frequency) * 0.013;
+    return base * frequencyFactor;
   }
   
   private pixelToPhysical(x: number, y: number): { depth: number; lateral: number } {
