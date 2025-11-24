@@ -198,10 +198,20 @@ export class UnifiedUltrasoundEngine {
         // For convex/microconvex: mask outside the fan sector
         if (this.config.transducerType === 'convex' || this.config.transducerType === 'microconvex') {
           const maxAngle = this.config.transducerType === 'convex' ? 0.61 : 0.52;
-          const expectedMaxLateral = physCoords.depth * Math.tan(maxAngle);
           
-          // If this pixel is outside the fan sector, make it black
-          if (Math.abs(physCoords.lateral) > expectedMaxLateral) {
+          // Calculate depth for this Y position
+          const depth = (y / height) * this.config.depth;
+          
+          // At this depth, calculate maximum lateral extent (in cm)
+          const maxLateralCm = depth * Math.tan(maxAngle);
+          
+          // Convert to pixel offset from center
+          const fieldOfView = 10; // cm total width for mapping
+          const xCenter = width / 2;
+          const maxXOffsetPixels = (maxLateralCm / fieldOfView) * width;
+          
+          // If pixel X is outside the fan sector at this depth, make it black
+          if (Math.abs(x - xCenter) > maxXOffsetPixels) {
             data[idx] = data[idx + 1] = data[idx + 2] = 0;
             data[idx + 3] = 255;
             continue;
