@@ -200,6 +200,7 @@ export const UltrasoundPreview = () => {
               min={0}
               max={100}
               step={1}
+              className="w-full"
             />
           </div>
           
@@ -217,6 +218,7 @@ export const UltrasoundPreview = () => {
               min={1}
               max={15}
               step={0.5}
+              className="w-full"
             />
           </div>
           
@@ -234,6 +236,7 @@ export const UltrasoundPreview = () => {
               min={2}
               max={15}
               step={0.5}
+              className="w-full"
             />
           </div>
           
@@ -251,6 +254,7 @@ export const UltrasoundPreview = () => {
               min={0.5}
               max={localDepth}
               step={0.1}
+              className="w-full"
             />
           </div>
         </div>
