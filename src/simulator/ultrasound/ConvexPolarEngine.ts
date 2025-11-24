@@ -404,25 +404,27 @@ export class ConvexPolarEngine {
     const imageData = ctx.createImageData(canvasWidth, canvasHeight);
     const data = imageData.data;
     
-    const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
-    
-    // ═══ GEOMETRIA SIMPLIFICADA COM ZOOM DINÂMICO MODERADO ═══
-    // O arco do transdutor está no topo, raios divergem dele
-    // Vamos usar uma geometria mais simples e direta
+    // ═══ GEOMETRIA REALISTA - COMPORTAMENTO DE ULTRASSOM REAL ═══
+    // Em máquinas reais, a imagem sempre ocupa o display disponível
+    // A profundidade define o quanto você "vê" mas não deixa espaço vazio
     
     const centerX = canvasWidth / 2;
+    const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
     
-    // ZOOM DINÂMICO MODERADO: ajustar escala baseado na profundidade
-    // Para profundidades menores, fazer zoom moderado para aproveitar espaço
-    const baseDepth = 10.0; // Profundidade de referência (cm)
-    const zoomFactor = Math.min(1.4, baseDepth / Math.max(5, maxDepthCm)); // Zoom moderado (máx 1.4x)
+    // Calcular a altura útil da imagem baseada na profundidade e FOV
+    // Em convexo, a largura máxima no fundo depende da profundidade e ângulo
+    const maxWidthAtDepth = 2 * (maxDepthCm + transducerRadiusCm) * Math.tan(halfFOVRad);
     
-    // Escala: pixels por cm (com zoom dinâmico moderado)
-    const basePixelsPerCm = canvasHeight / (maxDepthCm + transducerRadiusCm);
-    const pixelsPerCm = basePixelsPerCm * zoomFactor;
+    // Determinar escala baseada em qual dimensão é limitante
+    const scaleByWidth = canvasWidth / maxWidthAtDepth;
+    const scaleByHeight = canvasHeight / (maxDepthCm + transducerRadiusCm * 0.3); // Pequeno offset para o arco
     
-    // O centro virtual do arco está ACIMA do canvas
-    const virtualCenterY = -transducerRadiusCm * pixelsPerCm;
+    // Usar a escala que melhor aproveita o espaço
+    const pixelsPerCm = Math.min(scaleByWidth, scaleByHeight);
+    
+    // O centro virtual do arco está ACIMA do canvas, mas próximo
+    const virtualCenterY = -transducerRadiusCm * pixelsPerCm * 0.3;
+    
     
     let pixelsRendered = 0;
     let pixelsBlocked = 0;
