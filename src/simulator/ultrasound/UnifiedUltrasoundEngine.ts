@@ -156,7 +156,7 @@ export class UnifiedUltrasoundEngine {
     if (this.convexEngine) {
       const transducerRadiusCm = this.config.transducerType === 'convex' ? 5.0 : 2.5;
       this.convexEngine.updateConfig({
-        fovDegrees: this.config.transducerType === 'convex' ? 70 : 60,
+        fovDegrees: this.config.transducerType === 'convex' ? 60 : 50, // Reduzido para arco mais flat
         transducerRadiusCm,
         maxDepthCm: this.config.depth,
         gain: this.config.gain,
@@ -170,7 +170,7 @@ export class UnifiedUltrasoundEngine {
   }
   
   private initConvexEngine() {
-    const fovDegrees = this.config.transducerType === 'convex' ? 70 : 60;
+    const fovDegrees = this.config.transducerType === 'convex' ? 60 : 50; // Reduzido para arco mais flat
     const transducerRadiusCm = this.config.transducerType === 'convex' ? 5.0 : 2.5;
     
     this.convexEngine = new ConvexPolarEngine({
@@ -1951,7 +1951,7 @@ export class UnifiedUltrasoundEngine {
       this.ctx.lineTo(width * 0.9, focusY);
     } else {
       // Convex/Microconvex: arco curvo
-      const fovDegrees = this.config.transducerType === 'convex' ? 70 : 60;
+      const fovDegrees = this.config.transducerType === 'convex' ? 60 : 50; // Reduzido para arco mais flat
       const transducerRadiusCm = this.config.transducerType === 'convex' ? 5.0 : 2.5;
       
       // Geometria do arco
