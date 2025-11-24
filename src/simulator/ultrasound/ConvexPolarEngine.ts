@@ -480,16 +480,22 @@ export class ConvexPolarEngine {
     const imageData = ctx.createImageData(canvasWidth, canvasHeight);
     const data = imageData.data;
     
-    // ═══ GEOMETRIA SIMPLIFICADA - SEMPRE PREENCHE O CANVAS ═══
-    // Como em máquinas reais: profundidade define "quanto vê", não tamanho da imagem
+    // ═══ GEOMETRIA ADAPTATIVA INTELIGENTE ═══
     const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
     const centerX = canvasWidth / 2;
     
-    // Escala para SEMPRE preencher verticalmente o canvas
-    const pixelsPerCm = canvasHeight / maxDepthCm;
+    // Zoom adaptativo: maior para profundidades pequenas, mas limitado
+    // Profundidade de referência: 8cm (valor médio típico)
+    const referenceDepth = 8.0;
+    const depthRatio = referenceDepth / Math.max(3, maxDepthCm); // Limita zoom mínimo a depth=3cm
+    const zoomFactor = Math.min(1.8, Math.max(1.0, depthRatio * 0.8)); // Zoom entre 1.0x e 1.8x
     
-    // Centro virtual do arco - posicionado para que a imagem comece no topo
-    const virtualCenterY = -transducerRadiusCm * pixelsPerCm * 0.5;
+    // Escala base para preencher canvas + zoom adaptativo
+    const basePixelsPerCm = canvasHeight / (maxDepthCm + transducerRadiusCm * 0.3);
+    const pixelsPerCm = basePixelsPerCm * zoomFactor;
+    
+    // Centro virtual do arco
+    const virtualCenterY = -transducerRadiusCm * pixelsPerCm * 0.4;
     
     
     let pixelsRendered = 0;

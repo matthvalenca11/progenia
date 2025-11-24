@@ -1950,21 +1950,25 @@ export class UnifiedUltrasoundEngine {
       this.ctx.moveTo(width * 0.1, focusY);
       this.ctx.lineTo(width * 0.9, focusY);
     } else {
-      // Convex/Microconvex: arco curvo COM MESMA GEOMETRIA SIMPLIFICADA
+      // Convex/Microconvex: arco curvo COM GEOMETRIA ADAPTATIVA
       const fovDegrees = this.config.transducerType === 'convex' ? 60 : 50;
       const transducerRadiusCm = this.config.transducerType === 'convex' ? 5.0 : 2.5;
       
-      // Usar EXATAMENTE a mesma geometria do ConvexPolarEngine
+      // Usar MESMA geometria adaptativa do ConvexPolarEngine
       const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
       const centerX = width / 2;
       
-      // MESMA escala: sempre preencher verticalmente o canvas
-      const pixelsPerCm = height / this.config.depth;
+      // Zoom adaptativo idêntico ao ConvexPolarEngine
+      const referenceDepth = 8.0;
+      const depthRatio = referenceDepth / Math.max(3, this.config.depth);
+      const zoomFactor = Math.min(1.8, Math.max(1.0, depthRatio * 0.8));
       
-      // MESMO centro virtual
-      const virtualCenterY = -transducerRadiusCm * pixelsPerCm * 0.5;
+      const basePixelsPerCm = height / (this.config.depth + transducerRadiusCm * 0.3);
+      const pixelsPerCm = basePixelsPerCm * zoomFactor;
       
-      // Raio do arco de foco (distância do centro virtual até a profundidade de foco)
+      const virtualCenterY = -transducerRadiusCm * pixelsPerCm * 0.4;
+      
+      // Raio do arco de foco
       const focusRadiusPixels = (transducerRadiusCm + this.config.focus) * pixelsPerCm;
       
       // Desenhar arco
