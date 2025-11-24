@@ -253,7 +253,7 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
                       <div>
                         <Label>Borda</Label>
                         <Select
-                          value={inclusion.borderEchogenicity || "soft"}
+                          value={inclusion.borderEchogenicity ?? "soft"}
                           onValueChange={(value: "sharp" | "soft") => 
                             handleUpdateInclusion(index, { borderEchogenicity: value })
                           }
@@ -262,8 +262,8 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="sharp">Bem definida (nítida)</SelectItem>
                             <SelectItem value="soft">Mal definida (difusa)</SelectItem>
+                            <SelectItem value="sharp">Bem definida (nítida)</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
