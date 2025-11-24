@@ -188,8 +188,8 @@ export class UnifiedUltrasoundEngine {
   }
   
   /**
-   * POLAR-BASED RENDERING for Convex/Microconvex Transducers
-   * Renders in native polar coordinates (angle, depth) then maps to cartesian
+   * CONVEX TRANSDUCER RENDERING - Complete rewrite with radial ray marching
+   * Implements true sector scanning geometry with diverging rays from curved aperture
    */
   private renderPolarBMode(): void {
     const { width, height } = this.canvas;
@@ -199,83 +199,76 @@ export class UnifiedUltrasoundEngine {
     const gainLinear = Math.pow(10, (this.config.gain - 50) / 20);
     const drFactor = this.config.dynamicRange / 60;
     
-    // Convex parameters - REAL sector geometry
-    const radiusOfCurvature = 5.0; // cm
-    const maxAngle = 0.75; // ~43° from center (86° total FOV) - WIDER for pronounced fan
-    const nearFieldStart = 0.3; // cm - tiny near field where probe width matters
+    // === CONVEX SECTOR GEOMETRY (Real Abdominal Probe) ===
+    const radiusOfCurvature = 5.0; // cm - center of curvature BEHIND transducer
+    const sectorAngle = 0.87; // ~50° each side (100° total FOV) - realistic abdominal
+    const probeArcLength = 2.5; // cm - physical arc of probe face
     
-    // Temporal noise seed
+    // Temporal seed
     const temporalSeed = this.time * 2.5;
     
-    // === CRITICAL: Create PRONOUNCED FAN shape ===
-    // The image should look like a SECTOR OF A CIRCLE, not a trapezoid
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
+    // === RAY-BASED SECTOR RENDERING ===
+    // Each column X = one diverging ray at a specific angle
+    // Each row Y = one depth along that ray
+    
+    for (let x = 0; x < width; x++) {
+      // Map X coordinate to RAY ANGLE (not lateral position!)
+      const normalizedX = x / width; // 0 to 1
+      const rayAngle = (normalizedX - 0.5) * sectorAngle * 2; // -sectorAngle to +sectorAngle
+      
+      for (let y = 0; y < height; y++) {
         const idx = (y * width + x) * 4;
         
-        // === STEP 1: Map pixel to SECTOR coordinates ===
+        // Map Y coordinate to RADIAL DEPTH
         const normalizedY = y / height; // 0 to 1
-        const depth = normalizedY * this.config.depth; // 0 to maxDepth (cm)
+        const radialDepth = normalizedY * this.config.depth; // 0 to maxDepth cm
         
-        // === CRITICAL FAN GEOMETRY ===
-        // At depth=0 (top), the width should be TINY (probe face)
-        // At depth=max (bottom), the width should be MAXIMUM (full fan)
-        
-        // Distance from center of curvature
-        const distFromCenter = radiusOfCurvature + depth;
-        
-        // Calculate the actual lateral extent at this depth (fan opens with depth)
-        const maxLateralAtDepth = distFromCenter * Math.sin(maxAngle);
-        
-        // Map X coordinate to angle (NOT to lateral!)
-        // This ensures proper sector shape
-        const normalizedX = (x / width); // 0 to 1
-        const angle = (normalizedX - 0.5) * maxAngle * 2; // -maxAngle to +maxAngle
-        
-        // Now calculate lateral position from angle and depth
-        const lateral = distFromCenter * Math.sin(angle);
-        
-        // === STEP 2: STRICT sector mask (circular sector) ===
-        // Check if angle is outside the fan
-        if (Math.abs(angle) > maxAngle) {
-          data[idx] = data[idx + 1] = data[idx + 2] = 0;
-          data[idx + 3] = 255;
-          continue;
-        }
-        
-        // Near-field masking (very top of image - probe face)
-        if (depth < nearFieldStart) {
-          // At the very top, create a narrow "probe face"
-          const probeWidth = 1.2; // cm - narrow probe face
-          if (Math.abs(lateral) > probeWidth / 2) {
+        // === SECTOR MASK (Circular sector shape) ===
+        // Near field: apply probe face width constraint
+        const nearFieldDepth = 0.5; // cm
+        if (radialDepth < nearFieldDepth) {
+          // At probe face, constrain to physical arc
+          const arcPositionAtProbe = rayAngle * radiusOfCurvature;
+          if (Math.abs(arcPositionAtProbe) > probeArcLength / 2) {
             data[idx] = data[idx + 1] = data[idx + 2] = 0;
             data[idx + 3] = 255;
             continue;
           }
         }
         
-        // Soft edge feathering (realistic edge falloff)
-        let edgeFalloff = 1.0;
-        const angleFromEdge = maxAngle - Math.abs(angle);
-        const edgeFeatherAngle = maxAngle * 0.06; // 6% angular feather
-        if (angleFromEdge < edgeFeatherAngle) {
-          edgeFalloff = Math.pow(angleFromEdge / edgeFeatherAngle, 2.0);
-        }
-        
-        if (depth > this.config.depth) {
+        // Angular bounds check
+        if (Math.abs(rayAngle) > sectorAngle) {
           data[idx] = data[idx + 1] = data[idx + 2] = 0;
           data[idx + 3] = 255;
           continue;
         }
         
-        // === STEP 3: Calculate intensity using POLAR ray marching ===
-        let intensity = this.calculatePolarPixelIntensity(angle, depth, lateral);
+        // Depth bounds check
+        if (radialDepth > this.config.depth) {
+          data[idx] = data[idx + 1] = data[idx + 2] = 0;
+          data[idx + 3] = 255;
+          continue;
+        }
         
-        // Apply edge falloff
-        intensity *= edgeFalloff;
+        // === CALCULATE PHYSICAL POSITION ===
+        // Distance from center of curvature (behind probe)
+        const distFromCenter = radiusOfCurvature + radialDepth;
+        // Lateral position in physical space
+        const lateralPosition = distFromCenter * Math.sin(rayAngle);
         
-        // === STEP 4: Temporal noise ===
-        const depthRatio = depth / this.config.depth;
+        // === RAY MARCHING ALONG THIS SPECIFIC RAY ===
+        let intensity = this.radialRayMarch(rayAngle, radialDepth, lateralPosition);
+        
+        // === EDGE FEATHERING (soft sector boundaries) ===
+        const angleFromEdge = sectorAngle - Math.abs(rayAngle);
+        const edgeFeatherAngle = sectorAngle * 0.04; // 4% soft edge
+        if (angleFromEdge < edgeFeatherAngle) {
+          const edgeFalloff = Math.pow(angleFromEdge / edgeFeatherAngle, 2.5);
+          intensity *= edgeFalloff;
+        }
+        
+        // === TEMPORAL NOISE (electronic noise) ===
+        const depthRatio = radialDepth / this.config.depth;
         const highFreqNoise = Math.sin(x * 0.3 + y * 0.2 + temporalSeed * 12) * 0.012;
         const midFreqNoise = Math.sin(x * 0.08 + y * 0.1 + temporalSeed * 4) * 0.018;
         const lowFreqNoise = Math.sin(temporalSeed * 1.5) * 0.008;
@@ -283,19 +276,21 @@ export class UnifiedUltrasoundEngine {
         const totalLiveNoise = (highFreqNoise + midFreqNoise + lowFreqNoise + frameNoise) * (1 + depthRatio * 0.8);
         intensity *= (1 + totalLiveNoise);
         
+        // Scanline artifact
         const scanlinePos = (temporalSeed * 50) % height;
         const scanlineDistance = Math.abs(y - scanlinePos);
         const scanlineEffect = Math.exp(-scanlineDistance * 0.3) * 0.015 * Math.sin(temporalSeed * 15);
         intensity *= (1 + scanlineEffect);
         
+        // Subtle vertical banding
         const bandingNoise = Math.sin(x * 0.15 + temporalSeed * 2) * 0.006;
         intensity *= (1 + bandingNoise);
         
-        // === STEP 5: Apply gain and compression ===
+        // === LOGARITHMIC GAIN & COMPRESSION ===
         intensity *= gainLinear;
         intensity = Math.pow(Math.max(0, intensity), drFactor);
         
-        // === STEP 6: Convert to grayscale ===
+        // === RENDER ===
         const gray = Math.max(0, Math.min(255, intensity * 255));
         data[idx] = gray;
         data[idx + 1] = gray;
@@ -305,6 +300,151 @@ export class UnifiedUltrasoundEngine {
     }
     
     this.ctx.putImageData(imageData, 0, 0);
+  }
+  
+  /**
+   * RADIAL RAY MARCHING - Core physics engine for convex mode
+   * Marches along a single diverging ray from the curved aperture
+   */
+  private radialRayMarch(rayAngle: number, currentDepth: number, lateralPos: number): number {
+    const radiusOfCurvature = 5.0;
+    
+    // === 1. TISSUE PROPERTIES ===
+    const tissue = this.getRadialTissue(rayAngle, currentDepth);
+    
+    // === 2. BASE ECHOGENICITY ===
+    let intensity = this.getBaseEchogenicity(tissue.echogenicity);
+    
+    // === 3. RAYLEIGH SPECKLE ===
+    if (this.config.enableSpeckle) {
+      const speckle = this.calculateRadialSpeckle(rayAngle, currentDepth, tissue);
+      intensity *= (0.4 + speckle * 0.6);
+    }
+    
+    // === 4. FREQUENCY-DEPENDENT ATTENUATION ===
+    // α = α₀ × f × depth
+    const attenuationCoeff = tissue.attenuation; // dB/cm/MHz
+    const frequencyMHz = this.config.frequency;
+    const attenuationDB = attenuationCoeff * frequencyMHz * currentDepth;
+    const attenuation = Math.pow(10, -attenuationDB / 20); // dB to linear
+    intensity *= attenuation;
+    
+    // === 5. FOCAL ZONE ENHANCEMENT ===
+    const focalGain = this.calculateFocalGain(currentDepth);
+    intensity *= focalGain;
+    
+    // === 6. TIME GAIN COMPENSATION (TGC) ===
+    const tgc = this.getTGC(currentDepth);
+    intensity *= tgc;
+    
+    // === 7. INTERFACE REFLECTIONS ===
+    const reflection = this.calculateRadialReflection(rayAngle, currentDepth);
+    intensity += reflection;
+    
+    // === 8. RADIAL INCLUSION EFFECTS (Shadow + Enhancement) ===
+    const inclusionEffect = this.calculateRadialInclusionEffects(rayAngle, currentDepth, tissue);
+    intensity *= inclusionEffect.attenuationFactor;
+    intensity += inclusionEffect.reflection;
+    
+    // === 9. REVERBERATION ARTIFACTS ===
+    if (this.config.enableReverberation) {
+      intensity += this.calculateReverberation(currentDepth) * 0.15;
+    }
+    
+    // === 10. BEAM PROFILE (Gaussian lateral distribution) ===
+    const beamProfile = this.calculateRadialBeamProfile(rayAngle, currentDepth);
+    intensity *= beamProfile;
+    
+    return intensity;
+  }
+  
+  /**
+   * Get tissue properties at radial coordinates (angle, depth)
+   */
+  private getRadialTissue(rayAngle: number, depth: number): {
+    echogenicity: string;
+    attenuation: number;
+    reflectivity: number;
+    impedance: number;
+    isInclusion: boolean;
+    inclusion?: UltrasoundInclusionConfig;
+  } {
+    const radiusOfCurvature = 5.0;
+    const distFromCenter = radiusOfCurvature + depth;
+    const lateralPos = distFromCenter * Math.sin(rayAngle);
+    
+    // === CHECK RADIALLY-PROJECTED INCLUSIONS ===
+    for (const inclusion of this.config.inclusions) {
+      // Inclusion center in normalized coordinates
+      const inclNormLat = inclusion.centerLateralPos; // -0.5 to +0.5
+      const inclDepth = inclusion.centerDepthCm;
+      const inclLat = inclNormLat * 2.5; // Scale to ±2.5cm
+      
+      // Convert inclusion center to polar
+      const distAtInclusion = radiusOfCurvature + inclDepth;
+      const inclAngle = Math.asin(Math.max(-1, Math.min(1, inclLat / distAtInclusion)));
+      
+      // === RADIAL DISTANCE CHECK ===
+      // Angular distance
+      const angleDiff = rayAngle - inclAngle;
+      const depthDiff = depth - inclDepth;
+      
+      // Inclusion dimensions in RADIAL space
+      const angularHalfWidth = Math.atan2(inclusion.sizeCm.width / 2, distAtInclusion);
+      const radialHalfHeight = inclusion.sizeCm.height / 2;
+      
+      // Test inclusion shape in polar coordinates
+      let isInside = false;
+      let distFromEdge = 1.0;
+      
+      if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+        const normAngle = angleDiff / angularHalfWidth;
+        const normDepth = depthDiff / radialHalfHeight;
+        const polarDist = Math.sqrt(normAngle * normAngle + normDepth * normDepth);
+        isInside = polarDist <= 1.0;
+        distFromEdge = Math.max(0, 1.0 - polarDist);
+      } else {
+        isInside = Math.abs(angleDiff) <= angularHalfWidth && 
+                   Math.abs(depthDiff) <= radialHalfHeight;
+        const edgeAngular = angularHalfWidth - Math.abs(angleDiff);
+        const edgeRadial = radialHalfHeight - Math.abs(depthDiff);
+        distFromEdge = Math.min(edgeAngular / angularHalfWidth, edgeRadial / radialHalfHeight);
+      }
+      
+      if (isInside) {
+        const medium = getAcousticMedium(inclusion.mediumInsideId);
+        
+        // Smooth edge blending
+        let blendFactor = 1;
+        const bottomDepth = inclDepth + radialHalfHeight;
+        const distToBottom = Math.abs(depth - bottomDepth);
+        
+        if (distFromEdge < 0.15 && distToBottom > 0.02) {
+          blendFactor = Math.pow(distFromEdge / 0.15, 0.7);
+        }
+        
+        return {
+          echogenicity: medium.baseEchogenicity,
+          attenuation: medium.attenuation_dB_per_cm_MHz,
+          reflectivity: 0.5 * blendFactor,
+          impedance: medium.acousticImpedance_MRayl,
+          isInclusion: true,
+          inclusion
+        };
+      }
+    }
+    
+    // Anatomical layers
+    const normalizedDepth = depth / this.config.depth;
+    const layer = this.getLayerAtDepth(normalizedDepth);
+    
+    return {
+      echogenicity: layer.echogenicity,
+      attenuation: layer.attenuationCoeff || 0.7,
+      reflectivity: layer.reflectivity,
+      impedance: 1.63,
+      isInclusion: false
+    };
   }
   
   /**
@@ -1229,6 +1369,211 @@ export class UnifiedUltrasoundEngine {
     }
     
     return 1;
+  }
+  
+  /**
+   * Calculate Rayleigh-distributed speckle for radial coordinates
+   */
+  private calculateRadialSpeckle(rayAngle: number, depth: number, tissue: any): number {
+    // Use angle and depth to index speckle cache
+    const angleNorm = (rayAngle + Math.PI) / (2 * Math.PI);
+    const depthNorm = depth / this.config.depth;
+    
+    const x = Math.floor(angleNorm * this.canvas.width);
+    const y = Math.floor(depthNorm * this.canvas.height);
+    const idx = (y * this.canvas.width + x) % this.rayleighCache.length;
+    
+    const rayleigh = Math.abs(this.rayleighCache[idx]);
+    const perlin = this.perlinCache[idx];
+    
+    // Speckle size increases with depth
+    const depthFactor = 1 + depth / this.config.depth * 0.3;
+    
+    // Flow simulation for blood
+    let flowOffset = 0;
+    if (tissue.isInclusion && tissue.inclusion?.mediumInsideId === 'blood') {
+      const radiusOfCurvature = 5.0;
+      const distFromCenter = radiusOfCurvature + depth;
+      const lateral = distFromCenter * Math.sin(rayAngle);
+      
+      const inclLat = tissue.inclusion.centerLateralPos * 2.5;
+      const dx = lateral - inclLat;
+      const dy = depth - tissue.inclusion.centerDepthCm;
+      const radialPos = Math.sqrt(dx * dx + dy * dy) / (tissue.inclusion.sizeCm.width / 2);
+      
+      const flowSpeed = (1 - radialPos * radialPos) * 0.8;
+      const flowPhase = this.time * flowSpeed * 25;
+      flowOffset = Math.sin(flowPhase + depth * 8 + lateral * 6) * 0.3;
+      
+      const pulse = 0.5 + 0.5 * Math.sin(this.time * 1.2 * 2 * Math.PI);
+      flowOffset *= pulse;
+    }
+    
+    const speckle = (rayleigh * 0.35 + (perlin * 0.5 + 0.5) * 0.65) * depthFactor;
+    return speckle + flowOffset;
+  }
+  
+  /**
+   * Calculate interface reflections in radial space
+   */
+  private calculateRadialReflection(rayAngle: number, depth: number): number {
+    // March along this ray and detect impedance changes
+    const marchSteps = 20;
+    let totalReflection = 0;
+    
+    for (let step = 1; step < marchSteps; step++) {
+      const prevDepth = (step - 1) / marchSteps * depth;
+      const currDepth = step / marchSteps * depth;
+      
+      const prevTissue = this.getRadialTissue(rayAngle, prevDepth);
+      const currTissue = this.getRadialTissue(rayAngle, currDepth);
+      
+      if (prevTissue.isInclusion !== currTissue.isInclusion) {
+        // Interface detected - calculate reflection coefficient
+        const Z1 = prevTissue.impedance;
+        const Z2 = currTissue.impedance;
+        const R = Math.abs((Z2 - Z1) / (Z2 + Z1));
+        
+        // Reflection strength depends on angle and depth
+        const reflectionStrength = R * 0.3 * Math.exp(-currDepth * 0.4);
+        totalReflection += reflectionStrength;
+      }
+    }
+    
+    return totalReflection;
+  }
+  
+  /**
+   * Calculate DIVERGING shadows and posterior enhancement in radial space
+   */
+  private calculateRadialInclusionEffects(
+    rayAngle: number,
+    currentDepth: number,
+    tissue: any
+  ): { attenuationFactor: number; reflection: number } {
+    let attenuationFactor = 1;
+    let reflection = 0;
+    
+    if (!tissue.isInclusion) {
+      const radiusOfCurvature = 5.0;
+      
+      // === RAY MARCHING: March along THIS ray from depth 0 to current ===
+      let isRayShadowed = false;
+      let shadowInclusion: UltrasoundInclusionConfig | null = null;
+      let shadowStartDepth = 0;
+      
+      const marchSteps = 50;
+      for (let step = 0; step < marchSteps; step++) {
+        const marchDepth = (step / marchSteps) * currentDepth;
+        if (marchDepth >= currentDepth) break;
+        
+        // Check if THIS ray hits any inclusion at marchDepth
+        for (const inclusion of this.config.inclusions) {
+          if (!this.config.enableAcousticShadow || !inclusion.hasStrongShadow) continue;
+          
+          const inclDepth = inclusion.centerDepthCm;
+          const inclLat = inclusion.centerLateralPos * 2.5;
+          
+          const distAtInclusion = radiusOfCurvature + inclDepth;
+          const inclAngle = Math.asin(Math.max(-1, Math.min(1, inclLat / distAtInclusion)));
+          
+          const angleDiff = rayAngle - inclAngle;
+          const depthDiff = marchDepth - inclDepth;
+          
+          const angularHalfWidth = Math.atan2(inclusion.sizeCm.width / 2, distAtInclusion);
+          const radialHalfHeight = inclusion.sizeCm.height / 2;
+          
+          let hitInclusion = false;
+          if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+            const normAngle = angleDiff / angularHalfWidth;
+            const normDepth = depthDiff / radialHalfHeight;
+            const dist = Math.sqrt(normAngle * normAngle + normDepth * normDepth);
+            hitInclusion = dist <= 1.0;
+          } else {
+            hitInclusion = Math.abs(angleDiff) <= angularHalfWidth && 
+                          Math.abs(depthDiff) <= radialHalfHeight;
+          }
+          
+          if (hitInclusion) {
+            isRayShadowed = true;
+            shadowInclusion = inclusion;
+            shadowStartDepth = marchDepth;
+            break;
+          }
+        }
+        
+        if (isRayShadowed) break;
+      }
+      
+      // === Apply DIVERGING shadow ===
+      if (isRayShadowed && shadowInclusion) {
+        const posteriorDepth = currentDepth - shadowStartDepth;
+        const inclusionThickness = shadowInclusion.sizeCm.height;
+        
+        const thicknessFactor = Math.min(1, inclusionThickness / 2.0);
+        const baseShadowStrength = 0.25 + thicknessFactor * 0.35;
+        
+        const distFromCenter = radiusOfCurvature + currentDepth;
+        const lateral = distFromCenter * Math.sin(rayAngle);
+        const shadowTexture = Math.sin(posteriorDepth * 8 + lateral * 6) * 0.03;
+        const shadowCore = baseShadowStrength + shadowTexture;
+        
+        const depthDecay = Math.exp(-posteriorDepth * 0.35);
+        const finalShadowStrength = shadowCore * depthDecay;
+        
+        attenuationFactor *= (0.15 + 0.85 * (1 - finalShadowStrength));
+      }
+      
+      // === Posterior enhancement ===
+      if (this.config.enablePosteriorEnhancement) {
+        for (const inclusion of this.config.inclusions) {
+          if (inclusion.mediumInsideId === 'cyst_fluid' || 
+              inclusion.mediumInsideId === 'blood' || 
+              inclusion.mediumInsideId === 'water') {
+            
+            const inclDepth = inclusion.centerDepthCm;
+            const inclLat = inclusion.centerLateralPos * 2.5;
+            
+            const distAtInclusion = radiusOfCurvature + inclDepth;
+            const inclAngle = Math.asin(Math.max(-1, Math.min(1, inclLat / distAtInclusion)));
+            
+            const angleDiff = Math.abs(rayAngle - inclAngle);
+            const angularHalfWidth = Math.atan2(inclusion.sizeCm.width / 2, distAtInclusion);
+            
+            const bottomDepth = inclDepth + inclusion.sizeCm.height / 2;
+            const isPosterior = currentDepth >= bottomDepth;
+            
+            if (isPosterior && angleDiff < angularHalfWidth) {
+              const posteriorDepth = currentDepth - bottomDepth;
+              if (posteriorDepth < 1.5) {
+                const enhancementStrength = 0.25 * Math.exp(-posteriorDepth * 0.8);
+                attenuationFactor *= (1 + enhancementStrength);
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    return { attenuationFactor, reflection };
+  }
+  
+  /**
+   * Calculate beam profile (Gaussian lateral intensity distribution)
+   */
+  private calculateRadialBeamProfile(rayAngle: number, depth: number): number {
+    const sectorAngle = 0.87;
+    
+    // Simple angular falloff
+    if (Math.abs(rayAngle) > sectorAngle) {
+      return 0;
+    }
+    
+    // Gaussian profile - stronger in center
+    const angleRatio = Math.abs(rayAngle) / sectorAngle;
+    const gaussianFalloff = Math.exp(-angleRatio * angleRatio * 0.5);
+    
+    return 0.6 + gaussianFalloff * 0.4;
   }
   
   private pixelToPhysical(x: number, y: number): { depth: number; lateral: number } {
