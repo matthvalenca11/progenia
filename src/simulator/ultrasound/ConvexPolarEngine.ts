@@ -128,10 +128,13 @@ export class ConvexPolarEngine {
         let x = r * Math.sin(theta);
         let y = r * Math.cos(theta);
         
-        // ═══ APLICAR MOTION ARTIFACTS (breathing, jitter, tremor) ═══
+        // ═══ APLICAR MOTION ARTIFACTS COM AMPLITUDE AUMENTADA (breathing, jitter, tremor) ═══
         const withMotion = this.physicsCore.applyMotionArtifacts(y, x, physicsConfig);
-        const depthWithMotion = withMotion.depth;
-        const lateralWithMotion = withMotion.lateral;
+        
+        // Aumentar amplitude do motion para convexo (2.5x mais perceptível)
+        const motionAmplitude = 2.5;
+        const depthWithMotion = y + (withMotion.depth - y) * motionAmplitude;
+        const lateralWithMotion = x + (withMotion.lateral - x) * motionAmplitude;
         
         // Reconverter para polar com motion aplicado
         const rWithMotion = Math.sqrt(depthWithMotion * depthWithMotion + lateralWithMotion * lateralWithMotion);
