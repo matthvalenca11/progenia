@@ -193,8 +193,8 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
               />
             </div>
             
-            {/* Movement controls - mostrar por padrão se não especificado */}
-            {(config?.studentControls?.enableTransducerMovement !== false) && (
+            {/* Movement controls - sempre mostrar, exceto se explicitamente desabilitado */}
+            {(!config?.studentControls || config?.studentControls?.enableTransducerMovement !== false) && (
               <div className="mt-6 p-4 bg-muted/30 rounded-lg border-2 border-muted">
                 <h4 className="text-sm font-medium mb-3 text-center">Movimento do Transdutor</h4>
                 <div className="flex items-center justify-center gap-3">
