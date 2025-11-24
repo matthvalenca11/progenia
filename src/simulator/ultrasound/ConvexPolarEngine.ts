@@ -480,35 +480,22 @@ export class ConvexPolarEngine {
     const imageData = ctx.createImageData(canvasWidth, canvasHeight);
     const data = imageData.data;
     
-    // ═══ GEOMETRIA REALISTA - COMPORTAMENTO DE ULTRASSOM REAL ═══
-    // Em máquinas reais, a imagem sempre ocupa o display disponível
-    // A profundidade define o quanto você "vê" mas não deixa espaço vazio
-    
-    const centerX = canvasWidth / 2;
+    // ═══ GEOMETRIA COM CENTRALIZAÇÃO INTELIGENTE ═══
     const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
     
-    // Calcular a altura útil da imagem baseada na profundidade e FOV
-    // Em convexo, a largura máxima no fundo depende da profundidade e ângulo
-    const maxWidthAtDepth = 2 * (maxDepthCm + transducerRadiusCm) * Math.tan(halfFOVRad);
+    // Escala baseada em altura disponível (sempre ocupar o canvas verticalmente)
+    const pixelsPerCm = canvasHeight / (maxDepthCm * 1.1); // Usar quase toda altura disponível
     
-    // Determinar escala baseada em qual dimensão é limitante
-    const scaleByWidth = canvasWidth / maxWidthAtDepth;
-    const scaleByHeight = canvasHeight / (maxDepthCm + transducerRadiusCm * 0.15);
+    // Centro horizontal
+    const centerX = canvasWidth / 2;
     
-    // Usar a escala que melhor aproveita o espaço + zoom maior
-    const pixelsPerCm = Math.min(scaleByWidth, scaleByHeight) * 1.3;
+    // Centro vertical: posicionar para que a imagem fique centralizada
+    // O arco começa em virtualCenterY, e se estende por (transducerRadius + depth) * pixelsPerCm
+    const totalImageHeight = (transducerRadiusCm + maxDepthCm) * pixelsPerCm;
+    const topMargin = (canvasHeight - totalImageHeight) / 2;
     
-    // CENTRALIZAÇÃO VERTICAL DINÂMICA
-    // Calcular a altura total ocupada pela imagem (do arco até a profundidade máxima)
-    const arcRadiusPixels = transducerRadiusCm * pixelsPerCm;
-    const totalImageHeight = maxDepthCm * pixelsPerCm + arcRadiusPixels;
-    
-    // Se a imagem é menor que o canvas, centralizar verticalmente
-    // Caso contrário, manter no topo
-    const verticalOffset = Math.max(0, (canvasHeight - totalImageHeight) / 2);
-    
-    // O centro virtual do arco com centralização
-    const virtualCenterY = -arcRadiusPixels * 0.2 + verticalOffset;
+    // Posição do centro virtual do arco (acima do canvas)
+    const virtualCenterY = topMargin - transducerRadiusCm * pixelsPerCm * 0.8;
     
     
     let pixelsRendered = 0;
