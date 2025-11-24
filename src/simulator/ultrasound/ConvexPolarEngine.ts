@@ -406,18 +406,18 @@ export class ConvexPolarEngine {
     
     const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
     
-    // ═══ GEOMETRIA SIMPLIFICADA COM ZOOM DINÂMICO ═══
+    // ═══ GEOMETRIA SIMPLIFICADA COM ZOOM DINÂMICO MODERADO ═══
     // O arco do transdutor está no topo, raios divergem dele
     // Vamos usar uma geometria mais simples e direta
     
     const centerX = canvasWidth / 2;
     
-    // ZOOM DINÂMICO: ajustar escala baseado na profundidade
-    // Para profundidades menores, fazer zoom maior para aproveitar espaço
-    const baseDepth = 12.0; // Profundidade de referência (cm)
-    const zoomFactor = Math.min(2.5, baseDepth / Math.max(4, maxDepthCm)); // Zoom aumenta quando depth diminui
+    // ZOOM DINÂMICO MODERADO: ajustar escala baseado na profundidade
+    // Para profundidades menores, fazer zoom moderado para aproveitar espaço
+    const baseDepth = 10.0; // Profundidade de referência (cm)
+    const zoomFactor = Math.min(1.4, baseDepth / Math.max(5, maxDepthCm)); // Zoom moderado (máx 1.4x)
     
-    // Escala: pixels por cm (com zoom dinâmico)
+    // Escala: pixels por cm (com zoom dinâmico moderado)
     const basePixelsPerCm = canvasHeight / (maxDepthCm + transducerRadiusCm);
     const pixelsPerCm = basePixelsPerCm * zoomFactor;
     
