@@ -199,17 +199,17 @@ export class UnifiedUltrasoundEngine {
         if (this.config.transducerType === 'convex' || this.config.transducerType === 'microconvex') {
           const maxAngle = this.config.transducerType === 'convex' ? 0.61 : 0.52;
           
-          // Virtual focal point above the transducer (creates curved borders)
-          const virtualRadius = 3.0; // cm - distance from focal point to transducer surface
+          // Radius of curvature (center is BEHIND the transducer)
+          const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0; // cm
           
           // Calculate depth for this Y position
           const depth = (y / height) * this.config.depth;
           
-          // Distance from virtual focal point
-          const distanceFromFocus = virtualRadius + depth;
+          // Distance from center of curvature to this depth
+          const distanceFromCenter = radiusOfCurvature + depth;
           
           // At this distance, calculate maximum lateral extent based on angle
-          const maxLateralCm = distanceFromFocus * Math.tan(maxAngle);
+          const maxLateralCm = distanceFromCenter * Math.sin(maxAngle);
           
           // Convert lateral to pixel coordinates
           const xCenter = width / 2;
@@ -617,18 +617,16 @@ export class UnifiedUltrasoundEngine {
               const shadowSpreadAngle = 0.005;
               shadowHalfWidth = effectiveWidth + posteriorDepth * Math.tan(shadowSpreadAngle);
             } else {
-              // Convex/Microconvex: shadow DIVERGES following beam geometry
-              // Shadow width increases proportionally to beam divergence
-              const virtualRadius = this.config.transducerType === 'convex' ? 3.0 : 2.5;
+              // Convex/Microconvex: shadow follows radial divergence
+              const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
               
-              // Width at inclusion depth
-              const distAtInclusion = virtualRadius + inclusionBottom;
+              // Distance from center of curvature at inclusion depth
+              const distAtInclusion = radiusOfCurvature + inclusionBottom;
               
-              // Width at current depth (posterior to inclusion)
-              const distAtCurrentDepth = virtualRadius + depth;
+              // Distance from center of curvature at current depth
+              const distAtCurrentDepth = radiusOfCurvature + depth;
               
-              // Shadow expands proportionally to beam expansion
-              // Ratio of distances from focal point
+              // Shadow expands radially - proportional to distance from center
               const expansionRatio = distAtCurrentDepth / distAtInclusion;
               shadowHalfWidth = effectiveWidth * expansionRatio;
             }
@@ -775,15 +773,15 @@ export class UnifiedUltrasoundEngine {
       }
       return 1;
     } else {
-      // Convex/Microconvex: fan-shaped beam that DIVERGES from virtual focal point
+      // Convex/Microconvex: radial beam pattern from center of curvature
       const beamAngle = transducerType === 'convex' ? 0.61 : 0.52;
-      const virtualRadius = transducerType === 'convex' ? 3.0 : 2.5;
+      const radiusOfCurvature = transducerType === 'convex' ? 5.0 : 4.0;
       
-      // Distance from virtual focal point
-      const distanceFromFocus = virtualRadius + depth;
+      // Distance from center of curvature
+      const distanceFromCenter = radiusOfCurvature + depth;
       
-      // At this distance, the beam half-width INCREASES with distance from focus
-      const beamHalfWidth = distanceFromFocus * Math.tan(beamAngle);
+      // Beam half-width at this distance (radial divergence)
+      const beamHalfWidth = distanceFromCenter * Math.sin(beamAngle);
       
       const lateralDist = Math.abs(lateral);
       if (lateralDist > beamHalfWidth) {
@@ -803,27 +801,27 @@ export class UnifiedUltrasoundEngine {
       // Linear transducer: ~5cm aperture (realistic field of view)
       lateral = ((x / width) - 0.5) * 5.0; // 5cm total width
     } else if (this.config.transducerType === 'convex') {
-      // Convex: Fan-shaped beam emanating from virtual focal point
+      // Convex: rays emanate radially from center of curvature (behind transducer)
       const maxAngle = 0.61; // ~35 degrees from center (70 degrees total)
-      const virtualRadius = 3.0; // cm - same as mask calculation
+      const radiusOfCurvature = 5.0; // cm
       
-      // Each pixel X maps to an angle from the virtual focal point
+      // Each pixel X maps to an angle from the center of curvature
       const normalizedX = x / width; // 0 to 1
       const angle = (normalizedX - 0.5) * maxAngle * 2; // -0.61 to +0.61 rad
       
-      // Distance from virtual focal point
-      const distanceFromFocus = virtualRadius + depth;
+      // Distance from center of curvature to this depth
+      const distanceFromCenter = radiusOfCurvature + depth;
       
-      // Lateral position based on angle and distance from focus
-      lateral = distanceFromFocus * Math.tan(angle);
+      // Lateral position: rays diverge radially
+      lateral = distanceFromCenter * Math.sin(angle);
     } else {
-      // Microconvex: Similar but smaller angle
+      // Microconvex: same principle, smaller radius
       const maxAngle = 0.52; // ~30 degrees from center (60 degrees total)
-      const virtualRadius = 2.5; // cm - smaller for microconvex
+      const radiusOfCurvature = 4.0; // cm
       const normalizedX = x / width;
       const angle = (normalizedX - 0.5) * maxAngle * 2;
-      const distanceFromFocus = virtualRadius + depth;
-      lateral = distanceFromFocus * Math.tan(angle);
+      const distanceFromCenter = radiusOfCurvature + depth;
+      lateral = distanceFromCenter * Math.sin(angle);
     }
     
     return { depth, lateral };
