@@ -135,9 +135,22 @@ export function getDefaultInclusionsForPreset(presetId: UltrasoundAnatomyPresetI
     liver_standard: [],
     gallbladder_standard: [],
     
-    // CARÓTIDA LONGITUDINAL - A inclusão não é mais necessária pois a estrutura vascular
-    // já está representada nas camadas (mais anatomicamente correto)
-    carotid_long: [],
+    // CARÓTIDA LONGITUDINAL - Vaso alongado com paredes ecogênicas
+    carotid_long: [
+      {
+        id: "carotid_artery_long",
+        type: "vessel",
+        label: "Artéria Carótida Comum",
+        shape: "ellipse",
+        centerDepthCm: 1.85,
+        centerLateralPos: 0,
+        sizeCm: { width: 2.2, height: 0.72 },
+        mediumInsideId: "blood",
+        hasStrongShadow: false,
+        posteriorEnhancement: false,
+        borderEchogenicity: "sharp",
+      },
+    ],
     
     // CARÓTIDA TRANSVERSAL - Artéria e veia jugular interna
     carotid_trans: [
