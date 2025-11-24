@@ -199,49 +199,67 @@ export class UnifiedUltrasoundEngine {
     const gainLinear = Math.pow(10, (this.config.gain - 50) / 20);
     const drFactor = this.config.dynamicRange / 60;
     
-    // Convex ONLY (not microconvex - that stays as before)
+    // Convex parameters - REAL sector geometry
     const radiusOfCurvature = 5.0; // cm
-    const maxAngle = 0.61; // ~35° from center (70° total FOV)
+    const maxAngle = 0.75; // ~43° from center (86° total FOV) - WIDER for pronounced fan
+    const nearFieldStart = 0.3; // cm - tiny near field where probe width matters
     
     // Temporal noise seed
     const temporalSeed = this.time * 2.5;
     
-    // CRITICAL: Render with proper TRAPEZOIDAL mask
+    // === CRITICAL: Create PRONOUNCED FAN shape ===
+    // The image should look like a SECTOR OF A CIRCLE, not a trapezoid
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const idx = (y * width + x) * 4;
         
-        // === STEP 1: Pixel → Polar Coordinates ===
+        // === STEP 1: Map pixel to SECTOR coordinates ===
         const normalizedY = y / height; // 0 to 1
         const depth = normalizedY * this.config.depth; // 0 to maxDepth (cm)
         
-        // Distance from center of curvature (behind transducer)
+        // === CRITICAL FAN GEOMETRY ===
+        // At depth=0 (top), the width should be TINY (probe face)
+        // At depth=max (bottom), the width should be MAXIMUM (full fan)
+        
+        // Distance from center of curvature
         const distFromCenter = radiusOfCurvature + depth;
         
-        // At THIS depth, calculate maximum lateral extent (TRAPEZOID!)
+        // Calculate the actual lateral extent at this depth (fan opens with depth)
         const maxLateralAtDepth = distFromCenter * Math.sin(maxAngle);
         
-        // Map X pixel to lateral position at THIS specific depth
-        const normalizedX = (x / width - 0.5); // -0.5 to +0.5
-        const lateralAtDepth = normalizedX * maxLateralAtDepth * 2; // Scale by depth
+        // Map X coordinate to angle (NOT to lateral!)
+        // This ensures proper sector shape
+        const normalizedX = (x / width); // 0 to 1
+        const angle = (normalizedX - 0.5) * maxAngle * 2; // -maxAngle to +maxAngle
         
-        // Back-calculate the angle of the ray that produces this lateral position
-        const angle = Math.asin(Math.max(-1, Math.min(1, lateralAtDepth / distFromCenter)));
+        // Now calculate lateral position from angle and depth
+        const lateral = distFromCenter * Math.sin(angle);
         
-        // === STEP 2: Apply TRAPEZOIDAL mask (fan shape) ===
-        // Check if this pixel is outside the convex fan at this depth
-        if (Math.abs(lateralAtDepth) > maxLateralAtDepth) {
+        // === STEP 2: STRICT sector mask (circular sector) ===
+        // Check if angle is outside the fan
+        if (Math.abs(angle) > maxAngle) {
           data[idx] = data[idx + 1] = data[idx + 2] = 0;
           data[idx + 3] = 255;
           continue;
         }
         
-        // Soft edge feathering (like real probe)
+        // Near-field masking (very top of image - probe face)
+        if (depth < nearFieldStart) {
+          // At the very top, create a narrow "probe face"
+          const probeWidth = 1.2; // cm - narrow probe face
+          if (Math.abs(lateral) > probeWidth / 2) {
+            data[idx] = data[idx + 1] = data[idx + 2] = 0;
+            data[idx + 3] = 255;
+            continue;
+          }
+        }
+        
+        // Soft edge feathering (realistic edge falloff)
         let edgeFalloff = 1.0;
-        const distFromEdge = maxLateralAtDepth - Math.abs(lateralAtDepth);
-        const edgeFeatherZone = maxLateralAtDepth * 0.08; // 8% feather
-        if (distFromEdge < edgeFeatherZone) {
-          edgeFalloff = Math.pow(distFromEdge / edgeFeatherZone, 1.5);
+        const angleFromEdge = maxAngle - Math.abs(angle);
+        const edgeFeatherAngle = maxAngle * 0.06; // 6% angular feather
+        if (angleFromEdge < edgeFeatherAngle) {
+          edgeFalloff = Math.pow(angleFromEdge / edgeFeatherAngle, 2.0);
         }
         
         if (depth > this.config.depth) {
@@ -251,7 +269,7 @@ export class UnifiedUltrasoundEngine {
         }
         
         // === STEP 3: Calculate intensity using POLAR ray marching ===
-        let intensity = this.calculatePolarPixelIntensity(angle, depth, lateralAtDepth);
+        let intensity = this.calculatePolarPixelIntensity(angle, depth, lateral);
         
         // Apply edge falloff
         intensity *= edgeFalloff;
