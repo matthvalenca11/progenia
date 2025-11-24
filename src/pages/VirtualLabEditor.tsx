@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { useUltrasoundLabStore } from "@/stores/ultrasoundLabStore";
 import { virtualLabService } from "@/services/virtualLabService";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { UltrasoundLabBuilder } from "@/components/admin/ultrasound/UltrasoundLabBuilder";
 
@@ -91,6 +92,19 @@ export default function VirtualLabEditor() {
   }, [labId]);
 
   const handleSave = async () => {
+    // Debug: Check current user and role
+    const { data: { user } } = await supabase.auth.getUser();
+    console.log("Current user:", user?.id, user?.email);
+    
+    if (user) {
+      const { data: roles, error: roleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+      
+      console.log("User roles:", roles, roleError);
+    }
+    
     // Validate configuration
     const validation = validate();
     if (!validation.valid) {
