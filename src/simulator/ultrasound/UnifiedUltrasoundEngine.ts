@@ -603,9 +603,9 @@ export class UnifiedUltrasoundEngine {
     intensity *= inclusionEffect.attenuationFactor;
     intensity += inclusionEffect.reflection;
     
-    // 9. Reverberation (motor unificado)
+    // 9. Reverberation
     if (this.config.enableReverberation) {
-      intensity += this.physicsCore.calculateReverberation(depth) * 0.15;
+      intensity += this.calculateReverberation(depth) * 0.15;
     }
     
     // 10. Beam geometry
@@ -649,23 +649,35 @@ export class UnifiedUltrasoundEngine {
           continue;
         }
         
-        // Calculate intensity with all physics (motor unificado)
+        // Calculate intensity with all physics
         let intensity = this.calculatePixelIntensity(x, y, physCoords);
         
-        // Temporal "live" noise (motor unificado)
-        intensity = this.physicsCore.applyTemporalNoise(
-          x, y, 
-          physCoords.depth, 
-          this.config.depth, 
-          intensity
-        );
+        // Temporal "live" noise (chuvisco) - igual ao Linear
+        const depthRatio = physCoords.depth / this.config.depth;
+        const temporalSeed = this.time * 2.5;
+        const framePhase = Math.sin(this.time * 8) * 0.5 + 0.5;
         
-        // Apply gain and compression (motor unificado)
-        intensity = this.physicsCore.applyGainAndCompression(
-          intensity,
-          this.config.gain,
-          this.config.dynamicRange
-        );
+        const highFreqNoise = Math.sin(x * 0.3 + y * 0.2 + temporalSeed * 12) * 0.012;
+        const midFreqNoise = Math.sin(x * 0.08 + y * 0.1 + temporalSeed * 4) * 0.018;
+        const lowFreqNoise = Math.sin(temporalSeed * 1.5) * 0.008;
+        const frameNoise = (Math.random() - 0.5) * 0.025 * (1 + depthRatio * 0.5);
+        
+        const totalLiveNoise = (highFreqNoise + midFreqNoise + lowFreqNoise + frameNoise) * (1 + depthRatio * 0.8);
+        intensity *= (1 + totalLiveNoise);
+        
+        const scanlinePos = (temporalSeed * 50) % height;
+        const scanlineDistance = Math.abs(y - scanlinePos);
+        const scanlineEffect = Math.exp(-scanlineDistance * 0.3) * 0.015 * Math.sin(temporalSeed * 15);
+        intensity *= (1 + scanlineEffect);
+        
+        const bandingNoise = Math.sin(x * 0.15 + temporalSeed * 2) * 0.006;
+        intensity *= (1 + bandingNoise);
+        
+        // Apply gain and compression
+        const gainLinear = Math.pow(10, (this.config.gain - 50) / 20);
+        const drFactor = this.config.dynamicRange / 60;
+        intensity *= gainLinear;
+        intensity = Math.pow(Math.max(0, intensity), drFactor);
         
         // Convert to grayscale
         const gray = Math.max(0, Math.min(255, intensity * 255));
@@ -847,6 +859,42 @@ export class UnifiedUltrasoundEngine {
       texture: 'homogeneous',
       attenuationCoeff: 0.7
     };
+  }
+  
+  private getBaseEchogenicity(echogenicity: string): number {
+    switch (echogenicity) {
+      case 'anechoic': return 0.05;
+      case 'hypoechoic': return 0.35;
+      case 'isoechoic': return 0.55;
+      case 'hyperechoic': return 0.85;
+      default: return 0.5;
+    }
+  }
+  
+  private calculateAttenuation(depth: number, tissue: any): number {
+    const attenuationDb = tissue.attenuation * this.config.frequency * depth;
+    return Math.pow(10, -attenuationDb / 20);
+  }
+  
+  private calculateFocalGain(depth: number): number {
+    const focalDist = Math.abs(depth - this.config.focus);
+    return 1 + 0.4 * Math.exp(-focalDist * focalDist * 2);
+  }
+  
+  private getTGC(depth: number): number {
+    if (!this.config.tgc || this.config.tgc.length === 0) {
+      return 1 + depth / this.config.depth * 0.3; // Default linear TGC
+    }
+    
+    const idx = Math.floor((depth / this.config.depth) * (this.config.tgc.length - 1));
+    return Math.pow(10, this.config.tgc[idx] / 20);
+  }
+  
+  private calculateReverberation(depth: number): number {
+    // Multiple echoes from strong reflectors
+    const reverb1 = Math.sin(depth * 40) * Math.exp(-depth * 1.5) * 0.08;
+    const reverb2 = Math.sin(depth * 80) * Math.exp(-depth * 2.0) * 0.04;
+    return reverb1 + reverb2;
   }
   
   private getDistanceFromInclusion(
@@ -1069,19 +1117,6 @@ export class UnifiedUltrasoundEngine {
     return { attenuationFactor, reflection };
   }
   
-  private calculateReverberation(depth: number): number {
-    let reverb = 0;
-    const intervals = [0.8, 1.6, 2.4, 3.2];
-    
-    for (const interval of intervals) {
-      const mod = depth % interval;
-      if (mod < 0.08) {
-        reverb += (0.08 - mod) * Math.exp(-depth * 0.4);
-      }
-    }
-    
-    return reverb;
-  }
   
   private calculateBeamFalloff(depth: number, lateral: number): number {
     const { transducerType } = this.config;
