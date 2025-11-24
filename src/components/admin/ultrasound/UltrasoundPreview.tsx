@@ -170,8 +170,8 @@ export const UltrasoundPreview = () => {
             </CardDescription>
           </div>
           <div className="flex gap-2">
-            <Badge variant="outline">{getTransducerLabel()}</Badge>
-            <Badge variant="outline">{getModeLabel()}</Badge>
+            <Badge variant="outline" className="whitespace-nowrap">{getTransducerLabel()}</Badge>
+            <Badge variant="outline" className="whitespace-nowrap">{getModeLabel()}</Badge>
           </div>
         </div>
       </CardHeader>
