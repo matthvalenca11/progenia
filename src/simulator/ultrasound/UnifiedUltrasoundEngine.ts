@@ -200,8 +200,8 @@ export class UnifiedUltrasoundEngine {
           const maxAngle = this.config.transducerType === 'convex' ? 0.61 : 0.52;
           const expectedMaxLateral = physCoords.depth * Math.tan(maxAngle);
           
-          // If this pixel is INSIDE the fan sector bounds, make it black (inverted)
-          if (Math.abs(physCoords.lateral) <= expectedMaxLateral) {
+          // If this pixel is outside the fan sector, make it black
+          if (Math.abs(physCoords.lateral) > expectedMaxLateral) {
             data[idx] = data[idx + 1] = data[idx + 2] = 0;
             data[idx + 3] = 255;
             continue;
