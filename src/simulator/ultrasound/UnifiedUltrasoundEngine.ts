@@ -189,10 +189,10 @@ export class UnifiedUltrasoundEngine {
   
   /**
    * ═══════════════════════════════════════════════════════════════════════
-   * CONVEX TRANSDUCER RENDERING - TRUE SECTOR FAN GEOMETRY (FIXED SHAPE)
+   * CONVEX TRANSDUCER RENDERING - FIXED FAN SECTOR WITH DEPTH ZOOM
    * ═══════════════════════════════════════════════════════════════════════
-   * The fan sector shape is FIXED on screen. Only the content inside zooms
-   * when depth changes. This mimics real ultrasound machines.
+   * The fan sector shape is FIXED. Depth control only changes the physical
+   * depth range being displayed (zoom), NOT the sector geometry.
    */
   private renderPolarBMode(): void {
     const { width, height } = this.canvas;
@@ -202,13 +202,17 @@ export class UnifiedUltrasoundEngine {
     const gainLinear = Math.pow(10, (this.config.gain - 50) / 20);
     const drFactor = this.config.dynamicRange / 60;
     
-    // ═══ FIXED SECTOR GEOMETRY (ALWAYS THE SAME VISUAL SHAPE) ═══
-    const sectorFOVDegrees = 80; // Total field of view in degrees
+    // ═══ FIXED SECTOR GEOMETRY (NEVER CHANGES) ═══
+    const sectorFOVDegrees = 80; // Total field of view
     const sectorAngleRad = (sectorFOVDegrees * Math.PI) / 180;
     const halfSectorAngle = sectorAngleRad / 2;
     
-    // Virtual apex position (negative = above transducer face)
-    const virtualApexCm = -2.5; // cm above the transducer
+    // Virtual apex: fixed distance above transducer face
+    // This creates the fan shape and NEVER changes with depth setting
+    const virtualApexDistanceCm = 5.0; // cm above the transducer face
+    
+    // FIXED: The maximum distance from apex to bottom of sector (visual geometry)
+    const maxDistanceFromApex = 20.0; // cm - fixed visual sector size
     
     // Temporal seed for live effect
     const temporalSeed = this.time * 2.5;
@@ -218,33 +222,25 @@ export class UnifiedUltrasoundEngine {
       for (let x = 0; x < width; x++) {
         const idx = (y * width + x) * 4;
         
-        // ═══ 1. PIXEL → SECTOR COORDINATES ═══
-        // Center X
+        // ═══ 1. PIXEL → FIXED SECTOR GEOMETRY ═══
         const centerX = width / 2;
         const pixelOffsetX = x - centerX;
         
-        // Normalized Y (0 at top, 1 at bottom)
+        // Y position in sector (0 = top/near, 1 = bottom/far)
+        // This is FIXED geometry mapping
         const normalizedY = y / height;
         
-        // ═══ 2. CALCULATE ANGLE FROM CENTER ═══
-        // At the top of screen: transducer face (narrow)
-        // At the bottom of screen: deep field (wide)
+        // Distance from virtual apex (FIXED GEOMETRY)
+        const distanceFromApex = virtualApexDistanceCm + (normalizedY * maxDistanceFromApex);
         
-        // Distance from virtual apex (above screen) to current Y pixel
-        // The virtual apex is "above" the screen, creating the fan shape
-        const screenHeightCm = this.config.depth - virtualApexCm;
-        const distanceFromApex = virtualApexCm + (normalizedY * screenHeightCm);
-        
-        // Physical lateral position at this depth (in cm)
-        // The fan opens up as we go deeper
-        const cmPerPixelAtThisDepth = (2 * distanceFromApex * Math.tan(halfSectorAngle)) / width;
-        const lateralCm = pixelOffsetX * cmPerPixelAtThisDepth;
+        // Lateral position at this distance (FIXED FAN WIDTH)
+        const maxLateralAtThisDistance = distanceFromApex * Math.tan(halfSectorAngle);
+        const lateralCm = (pixelOffsetX / (width / 2)) * maxLateralAtThisDistance;
         
         // Calculate angle θ from center ray
         const theta = Math.atan2(lateralCm, distanceFromApex);
         
-        // ═══ 3. SECTOR MASK (FAN BOUNDARY) ═══
-        // Outside the sector angle → BLACK
+        // ═══ 2. SECTOR MASK (FIXED FAN BOUNDARY) ═══
         if (Math.abs(theta) > halfSectorAngle) {
           data[idx] = 0;
           data[idx + 1] = 0;
@@ -253,9 +249,14 @@ export class UnifiedUltrasoundEngine {
           continue;
         }
         
-        // Above transducer face (in the virtual apex region) → BLACK
-        const physicalDepthCm = distanceFromApex - virtualApexCm;
-        if (physicalDepthCm < 0) {
+        // ═══ 3. MAP TO PHYSICAL DEPTH (THIS IS WHAT CHANGES WITH DEPTH CONTROL) ═══
+        // The physical depth in cm that this pixel represents
+        // When depth = 5cm → bottom of sector shows 5cm deep
+        // When depth = 15cm → bottom of sector shows 15cm deep (zoomed out)
+        const physicalDepthCm = (distanceFromApex - virtualApexDistanceCm) * (this.config.depth / maxDistanceFromApex);
+        
+        // Clip to valid depth range
+        if (physicalDepthCm < 0 || physicalDepthCm > this.config.depth) {
           data[idx] = 0;
           data[idx + 1] = 0;
           data[idx + 2] = 0;
@@ -263,38 +264,26 @@ export class UnifiedUltrasoundEngine {
           continue;
         }
         
-        // Beyond configured depth → BLACK
-        if (physicalDepthCm > this.config.depth) {
-          data[idx] = 0;
-          data[idx + 1] = 0;
-          data[idx + 2] = 0;
-          data[idx + 3] = 255;
-          continue;
-        }
+        // ═══ 4. RAY MARCH AT (θ, physical depth) ═══
+        let intensity = this.convexRayMarch(theta, physicalDepthCm);
         
-        // ═══ 4. RADIAL DISTANCE r (PHYSICAL DEPTH) ═══
-        const r = physicalDepthCm;
-        
-        // ═══ 5. RAY MARCH ALONG (θ, r) ═══
-        let intensity = this.convexRayMarch(theta, r);
-        
-        // ═══ 6. SECTOR EDGE FEATHERING (soft edges) ═══
+        // ═══ 5. SECTOR EDGE FEATHERING ═══
         const angleFromEdge = halfSectorAngle - Math.abs(theta);
-        const edgeFeatherAngle = halfSectorAngle * 0.05; // 5% soft edge
+        const edgeFeatherAngle = halfSectorAngle * 0.05;
         if (angleFromEdge < edgeFeatherAngle) {
           const edgeFalloff = Math.pow(angleFromEdge / edgeFeatherAngle, 2.0);
           intensity *= edgeFalloff;
         }
         
-        // Near field feathering (top of sector)
+        // Near field feathering
         const nearFieldDepthCm = 0.3;
         if (physicalDepthCm < nearFieldDepthCm) {
           const nearFalloff = physicalDepthCm / nearFieldDepthCm;
           intensity *= (0.3 + 0.7 * nearFalloff);
         }
         
-        // ═══ 7. TEMPORAL NOISE (electronic noise) ═══
-        const depthRatio = r / this.config.depth;
+        // ═══ 6. TEMPORAL NOISE ═══
+        const depthRatio = physicalDepthCm / this.config.depth;
         const highFreqNoise = Math.sin(x * 0.3 + y * 0.2 + temporalSeed * 12) * 0.012;
         const midFreqNoise = Math.sin(x * 0.08 + y * 0.1 + temporalSeed * 4) * 0.018;
         const lowFreqNoise = Math.sin(temporalSeed * 1.5) * 0.008;
@@ -308,11 +297,11 @@ export class UnifiedUltrasoundEngine {
         const scanlineEffect = Math.exp(-scanlineDistance * 0.3) * 0.015 * Math.sin(temporalSeed * 15);
         intensity *= (1 + scanlineEffect);
         
-        // ═══ 8. LOGARITHMIC GAIN & COMPRESSION ═══
+        // ═══ 7. GAIN & COMPRESSION ═══
         intensity *= gainLinear;
         intensity = Math.pow(Math.max(0, intensity), drFactor);
         
-        // ═══ 9. RENDER GRAYSCALE ═══
+        // ═══ 8. RENDER ═══
         const gray = Math.max(0, Math.min(255, intensity * 255));
         data[idx] = gray;
         data[idx + 1] = gray;
