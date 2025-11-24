@@ -132,6 +132,7 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
       frequency,
       focus,
       transducerType,
+      lateralOffset: transducerPosition,
       dynamicRange: config?.dynamicRange || 60,
       mode: config?.mode || 'b-mode',
       enablePosteriorEnhancement: config?.simulationFeatures?.enablePosteriorEnhancement ?? true,
@@ -165,8 +166,8 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
   };
   
   const handleMoveTransducer = (direction: 'left' | 'right') => {
-    const step = 0.1;
-    const maxMovement = 0.5;
+    const step = 0.05; // Passo menor para movimento mais fino
+    const maxMovement = 0.3; // Limitar a ±0.3 para movimento realista
     
     setTransducerPosition(prev => {
       if (direction === 'left') {
@@ -199,7 +200,7 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
                   variant="outline"
                   size="sm"
                   onClick={() => handleMoveTransducer('left')}
-                  disabled={transducerPosition <= -0.5}
+                  disabled={transducerPosition <= -0.3}
                 >
                   <ChevronLeft className="h-4 w-4 mr-1" />
                   Mover Esquerda
@@ -207,14 +208,14 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
                 <div className="px-4 py-2 bg-muted rounded-md min-w-[100px] text-center">
                   <span className="text-xs text-muted-foreground">Posição</span>
                   <div className="font-mono text-sm font-medium">
-                    {transducerPosition.toFixed(1)}
+                    {transducerPosition.toFixed(2)}
                   </div>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => handleMoveTransducer('right')}
-                  disabled={transducerPosition >= 0.5}
+                  disabled={transducerPosition >= 0.3}
                 >
                   Mover Direita
                   <ChevronRight className="h-4 w-4 ml-1" />

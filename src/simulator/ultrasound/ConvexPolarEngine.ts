@@ -25,6 +25,7 @@ export interface ConvexPolarConfig {
   // Parâmetros de física
   gain: number;                 // Ganho (0-100)
   frequency: number;            // Frequência em MHz
+  lateralOffset: number;        // Offset lateral do transdutor (-1 a +1, limitado)
   
   // Canvas output
   canvasWidth: number;
@@ -111,11 +112,19 @@ export class ConvexPolarEngine {
         // ═══ 1. OBTER TECIDO EM (r, θ) ═══
         const tissue = this.getTissueAtPolar(r, theta);
         
-        // ═══ 2. SPECKLE TEXTURE REALISTA (Rayleigh) ═══
-        const speckleBase = this.generateRealisticSpeckle(r, theta);
+        // ═══ 2. SPECKLE TEXTURE REALISTA ═══
+        const speckleNoise = this.generateRealisticSpeckle(r, theta);
         
         // ═══ 3. ECHOGENICIDADE BASE DO TECIDO ═══
         let baseIntensity = this.getBaseEchogenicity(tissue.echogenicity);
+        
+        // Escala de speckle baseada na echogenicidade (igual ao linear)
+        const speckleScale = tissue.echogenicity === "anechoic" ? 0.1 : 
+                            tissue.echogenicity === "hypoechoic" ? 0.5 :
+                            tissue.echogenicity === "isoechoic" ? 0.7 :
+                            0.9; // hyperechoic
+        
+        const finalSpeckle = speckleNoise * speckleScale;
         
         // ═══ 4. ATENUAÇÃO COM PROFUNDIDADE ═══
         // Frequência maior = mais atenuação
@@ -127,7 +136,7 @@ export class ConvexPolarEngine {
         const focusFactor = 1.0 + 0.4 * Math.exp(-(distFromFocus * distFromFocus) / (focalZoneWidth * focalZoneWidth));
         
         // ═══ 6. COMBINAR TUDO ═══
-        let intensity = baseIntensity * speckleBase * attenuationFactor * focusFactor;
+        let intensity = baseIntensity * finalSpeckle * attenuationFactor * focusFactor;
         
         // ═══ 7. APLICAR SOMBRA ACÚSTICA ═══
         intensity *= this.shadowMap[idx];
@@ -153,34 +162,42 @@ export class ConvexPolarEngine {
   }
   
   /**
-   * Gera speckle texture realista usando distribuição Rayleigh
+   * Gera speckle texture igual ao modo linear
    */
   private generateRealisticSpeckle(r: number, theta: number): number {
-    // Múltiplas octaves de noise para textura mais realista
-    let speckle = 0;
+    // Usar mesma função noise2D do linear
+    const noise2D = (x: number, y: number, seed: number = 0): number => {
+      const n = Math.sin(x * 12.9898 + y * 78.233 + seed) * 43758.5453;
+      return n - Math.floor(n);
+    };
     
-    // Octave 1: textura grossa
-    const seed1 = r * 47.3 + theta * 89.7 + this.time * 0.3;
-    const u1 = this.pseudoRandom(seed1);
-    const u2 = this.pseudoRandom(seed1 * 1.414);
+    const multiOctaveNoise = (x: number, y: number, octaves: number, seed: number): number => {
+      let value = 0;
+      let amplitude = 1;
+      let frequency = 1;
+      let maxValue = 0;
+      
+      for (let i = 0; i < octaves; i++) {
+        value += noise2D(x * frequency, y * frequency, seed + i) * amplitude;
+        maxValue += amplitude;
+        amplitude *= 0.5;
+        frequency *= 2;
+      }
+      
+      return value / maxValue;
+    };
     
-    // Box-Muller para Gaussiano
-    const g1 = Math.sqrt(-2 * Math.log(u1 + 0.0001)) * Math.cos(2 * Math.PI * u2);
+    // Converter (r, theta) para coordenadas pseudo-cartesianas para o noise
+    const x = r * Math.sin(theta) * 10; // escalar para melhor granularidade
+    const y = r * Math.cos(theta) * 10;
     
-    // Rayleigh base
-    const rayleigh1 = Math.abs(g1);
-    speckle += rayleigh1 * 0.6;
-    
-    // Octave 2: textura fina
-    const seed2 = r * 127.1 + theta * 311.7 + this.time * 0.5;
-    const u3 = this.pseudoRandom(seed2);
-    const u4 = this.pseudoRandom(seed2 * 2.718);
-    const g2 = Math.sqrt(-2 * Math.log(u3 + 0.0001)) * Math.cos(2 * Math.PI * u4);
-    const rayleigh2 = Math.abs(g2);
-    speckle += rayleigh2 * 0.4;
-    
-    // Normalizar para média ~1.0
-    return Math.min(2.0, speckle * 0.8);
+    // Multi-octave noise igual ao linear
+    return multiOctaveNoise(
+      x * 0.15 + this.time * 0.01,
+      y * 0.15,
+      4,
+      1000
+    );
   }
 
   /**
@@ -239,6 +256,7 @@ export class ConvexPolarEngine {
 
   /**
    * Obtém propriedades do tecido em coordenadas polares
+   * Aplica lateral offset para simular movimento do transdutor
    */
   private getTissueAtPolar(r: number, theta: number): {
     echogenicity: string;
@@ -246,11 +264,15 @@ export class ConvexPolarEngine {
     isInclusion: boolean;
     posteriorEnhancement: boolean;
   } {
-    const { fovDegrees, maxDepthCm, transducerRadiusCm } = this.config;
+    const { fovDegrees, maxDepthCm, transducerRadiusCm, lateralOffset } = this.config;
     const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
     
-    // Converter (r, θ) para cartesiano físico
-    const x = r * Math.sin(theta);
+    // Aplicar lateral offset (limitado a ±0.3 para movimento realista)
+    const clampedOffset = Math.max(-0.3, Math.min(0.3, lateralOffset || 0));
+    const offsetCm = clampedOffset * maxDepthCm * 0.5; // Escalar offset
+    
+    // Converter (r, θ) para cartesiano físico COM offset
+    const x = r * Math.sin(theta) + offsetCm;
     const y = r * Math.cos(theta);
     
     // ═══ VERIFICAR INCLUSÕES ═══
