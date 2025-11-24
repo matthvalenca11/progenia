@@ -189,14 +189,10 @@ export class UnifiedUltrasoundEngine {
   
   /**
    * ═══════════════════════════════════════════════════════════════════════
-   * CONVEX TRANSDUCER RENDERING - TRUE POLAR → CARTESIAN TRANSFORMATION
+   * CONVEX TRANSDUCER RENDERING - TRUE SECTOR FAN GEOMETRY (FIXED SHAPE)
    * ═══════════════════════════════════════════════════════════════════════
-   * Implements REAL sector scanning geometry with:
-   * - Polar coordinate generation (r, θ)
-   * - Cartesian display mapping (x, y) = (r·sin(θ), r·cos(θ))
-   * - Radial inclusion distortion
-   * - Diverging acoustic shadows
-   * - Fan-shaped sector mask (black outside beam)
+   * The fan sector shape is FIXED on screen. Only the content inside zooms
+   * when depth changes. This mimics real ultrasound machines.
    */
   private renderPolarBMode(): void {
     const { width, height } = this.canvas;
@@ -206,65 +202,50 @@ export class UnifiedUltrasoundEngine {
     const gainLinear = Math.pow(10, (this.config.gain - 50) / 20);
     const drFactor = this.config.dynamicRange / 60;
     
-    // ═══ CONVEX SECTOR GEOMETRY (Real Abdominal Probe) ═══
-    const virtualApexDepth = -2.5; // cm - virtual apex ABOVE transducer face
-    const sectorFOV = 80; // degrees total field of view (realistic for abdominal)
-    const sectorAngleRad = (sectorFOV * Math.PI) / 180;
-    const maxDepth = this.config.depth;
+    // ═══ FIXED SECTOR GEOMETRY (ALWAYS THE SAME VISUAL SHAPE) ═══
+    const sectorFOVDegrees = 80; // Total field of view in degrees
+    const sectorAngleRad = (sectorFOVDegrees * Math.PI) / 180;
+    const halfSectorAngle = sectorAngleRad / 2;
+    
+    // Virtual apex position (negative = above transducer face)
+    const virtualApexCm = -2.5; // cm above the transducer
     
     // Temporal seed for live effect
     const temporalSeed = this.time * 2.5;
     
-    // ═══ POLAR IMAGE GENERATION ═══
-    // We generate the image in POLAR space first, then map to cartesian display
-    const numRays = width; // Each column = one ray
-    const numDepthSamples = height; // Each row = one depth sample
-    
-    // Pre-calculate polar grid
-    const polarData: number[][] = [];
-    
-    // Generate in POLAR (θ, r)
-    for (let rayIdx = 0; rayIdx < numRays; rayIdx++) {
-      const normalizedRay = rayIdx / (numRays - 1); // 0 to 1
-      const theta = (normalizedRay - 0.5) * sectorAngleRad; // -FOV/2 to +FOV/2
-      
-      const rayIntensities: number[] = [];
-      
-      for (let depthIdx = 0; depthIdx < numDepthSamples; depthIdx++) {
-        const normalizedDepth = depthIdx / (numDepthSamples - 1);
-        const r = normalizedDepth * maxDepth; // Radial depth in cm
-        
-        // ═══ PHYSICS CALCULATION IN POLAR ═══
-        let intensity = this.convexRayMarch(theta, r);
-        
-        rayIntensities.push(intensity);
-      }
-      
-      polarData.push(rayIntensities);
-    }
-    
-    // ═══ POLAR → CARTESIAN MAPPING ═══
-    // Now we map the polar image to cartesian display coordinates
+    // ═══ RENDER EACH PIXEL ═══
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const idx = (y * width + x) * 4;
         
-        // Convert pixel (x, y) to physical cartesian
+        // ═══ 1. PIXEL → SECTOR COORDINATES ═══
+        // Center X
         const centerX = width / 2;
         const pixelOffsetX = x - centerX;
         
-        // Physical coordinates (cm)
-        const physicalLateral = (pixelOffsetX / width) * (maxDepth * 2 * Math.tan(sectorAngleRad / 2));
-        const physicalDepth = (y / height) * maxDepth;
+        // Normalized Y (0 at top, 1 at bottom)
+        const normalizedY = y / height;
         
-        // Convert cartesian to polar
-        const r = Math.sqrt(physicalLateral * physicalLateral + 
-                           (physicalDepth + virtualApexDepth) * (physicalDepth + virtualApexDepth));
-        const theta = Math.atan2(physicalLateral, physicalDepth + virtualApexDepth);
+        // ═══ 2. CALCULATE ANGLE FROM CENTER ═══
+        // At the top of screen: transducer face (narrow)
+        // At the bottom of screen: deep field (wide)
         
-        // Check if within sector bounds
-        if (Math.abs(theta) > sectorAngleRad / 2 || physicalDepth < 0 || physicalDepth > maxDepth) {
-          // OUTSIDE SECTOR → ABSOLUTE BLACK (FAN MASK)
+        // Distance from virtual apex (above screen) to current Y pixel
+        // The virtual apex is "above" the screen, creating the fan shape
+        const screenHeightCm = this.config.depth - virtualApexCm;
+        const distanceFromApex = virtualApexCm + (normalizedY * screenHeightCm);
+        
+        // Physical lateral position at this depth (in cm)
+        // The fan opens up as we go deeper
+        const cmPerPixelAtThisDepth = (2 * distanceFromApex * Math.tan(halfSectorAngle)) / width;
+        const lateralCm = pixelOffsetX * cmPerPixelAtThisDepth;
+        
+        // Calculate angle θ from center ray
+        const theta = Math.atan2(lateralCm, distanceFromApex);
+        
+        // ═══ 3. SECTOR MASK (FAN BOUNDARY) ═══
+        // Outside the sector angle → BLACK
+        if (Math.abs(theta) > halfSectorAngle) {
           data[idx] = 0;
           data[idx + 1] = 0;
           data[idx + 2] = 0;
@@ -272,12 +253,9 @@ export class UnifiedUltrasoundEngine {
           continue;
         }
         
-        // Map to polar grid indices
-        const rayIdx = Math.floor(((theta / sectorAngleRad) + 0.5) * (numRays - 1));
-        const depthIdx = Math.floor((physicalDepth / maxDepth) * (numDepthSamples - 1));
-        
-        // Bounds check
-        if (rayIdx < 0 || rayIdx >= numRays || depthIdx < 0 || depthIdx >= numDepthSamples) {
+        // Above transducer face (in the virtual apex region) → BLACK
+        const physicalDepthCm = distanceFromApex - virtualApexCm;
+        if (physicalDepthCm < 0) {
           data[idx] = 0;
           data[idx + 1] = 0;
           data[idx + 2] = 0;
@@ -285,19 +263,38 @@ export class UnifiedUltrasoundEngine {
           continue;
         }
         
-        // Get intensity from polar data
-        let intensity = polarData[rayIdx][depthIdx];
+        // Beyond configured depth → BLACK
+        if (physicalDepthCm > this.config.depth) {
+          data[idx] = 0;
+          data[idx + 1] = 0;
+          data[idx + 2] = 0;
+          data[idx + 3] = 255;
+          continue;
+        }
         
-        // ═══ SECTOR EDGE FEATHERING ═══
-        const angleFromEdge = (sectorAngleRad / 2) - Math.abs(theta);
-        const edgeFeatherAngle = sectorAngleRad * 0.05; // 5% soft edge
+        // ═══ 4. RADIAL DISTANCE r (PHYSICAL DEPTH) ═══
+        const r = physicalDepthCm;
+        
+        // ═══ 5. RAY MARCH ALONG (θ, r) ═══
+        let intensity = this.convexRayMarch(theta, r);
+        
+        // ═══ 6. SECTOR EDGE FEATHERING (soft edges) ═══
+        const angleFromEdge = halfSectorAngle - Math.abs(theta);
+        const edgeFeatherAngle = halfSectorAngle * 0.05; // 5% soft edge
         if (angleFromEdge < edgeFeatherAngle) {
           const edgeFalloff = Math.pow(angleFromEdge / edgeFeatherAngle, 2.0);
           intensity *= edgeFalloff;
         }
         
-        // ═══ TEMPORAL NOISE (electronic noise) ═══
-        const depthRatio = physicalDepth / maxDepth;
+        // Near field feathering (top of sector)
+        const nearFieldDepthCm = 0.3;
+        if (physicalDepthCm < nearFieldDepthCm) {
+          const nearFalloff = physicalDepthCm / nearFieldDepthCm;
+          intensity *= (0.3 + 0.7 * nearFalloff);
+        }
+        
+        // ═══ 7. TEMPORAL NOISE (electronic noise) ═══
+        const depthRatio = r / this.config.depth;
         const highFreqNoise = Math.sin(x * 0.3 + y * 0.2 + temporalSeed * 12) * 0.012;
         const midFreqNoise = Math.sin(x * 0.08 + y * 0.1 + temporalSeed * 4) * 0.018;
         const lowFreqNoise = Math.sin(temporalSeed * 1.5) * 0.008;
@@ -311,11 +308,11 @@ export class UnifiedUltrasoundEngine {
         const scanlineEffect = Math.exp(-scanlineDistance * 0.3) * 0.015 * Math.sin(temporalSeed * 15);
         intensity *= (1 + scanlineEffect);
         
-        // ═══ LOGARITHMIC GAIN & COMPRESSION ═══
+        // ═══ 8. LOGARITHMIC GAIN & COMPRESSION ═══
         intensity *= gainLinear;
         intensity = Math.pow(Math.max(0, intensity), drFactor);
         
-        // ═══ RENDER ═══
+        // ═══ 9. RENDER GRAYSCALE ═══
         const gray = Math.max(0, Math.min(255, intensity * 255));
         data[idx] = gray;
         data[idx + 1] = gray;
