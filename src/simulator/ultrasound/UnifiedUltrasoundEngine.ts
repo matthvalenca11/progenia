@@ -760,28 +760,25 @@ export class UnifiedUltrasoundEngine {
       // Linear transducer: ~5cm aperture (realistic field of view)
       lateral = ((x / width) - 0.5) * 5.0; // 5cm total width
     } else if (this.config.transducerType === 'convex') {
-      // Convex: Fan-shaped geometry
-      // Total beam angle ~60 degrees (±30 degrees from center)
-      const maxAngle = 0.52; // 30 degrees in radians
-      const angle = ((x / width) - 0.5) * 2 * maxAngle;
+      // Convex: Fan-shaped beam that DIVERGES (opens up) with depth
+      // Total beam angle ~70 degrees (±35 degrees from center)
+      const maxAngle = 0.61; // ~35 degrees in radians
+      const normalizedX = (x / width) - 0.5; // -0.5 to +0.5
+      const angle = normalizedX * 2 * maxAngle; // -0.61 to +0.61 rad
       
-      // For convex, lateral position increases with depth (fan shape)
-      // At surface (depth=0): narrower aperture
-      // At max depth: wider field of view
-      const aperture = 3.5; // cm aperture at transducer surface
-      const lateralAtSurface = ((x / width) - 0.5) * aperture;
-      const lateralFromAngle = depth * Math.tan(angle);
+      // Small aperture at surface (3cm), then pure angle-based divergence
+      const surfaceAperture = 3.0;
       
-      // Combine: smooth transition from aperture to angle-based
-      lateral = lateralAtSurface + lateralFromAngle;
+      // At depth=0: narrow aperture
+      // As depth increases: lateral position grows with tan(angle) - DIVERGES
+      lateral = (surfaceAperture * normalizedX) + (depth * Math.tan(angle));
     } else {
       // Microconvex: Similar but smaller
-      const maxAngle = 0.45; // ~25 degrees
-      const angle = ((x / width) - 0.5) * 2 * maxAngle;
-      const aperture = 2.0;
-      const lateralAtSurface = ((x / width) - 0.5) * aperture;
-      const lateralFromAngle = depth * Math.tan(angle);
-      lateral = lateralAtSurface + lateralFromAngle;
+      const maxAngle = 0.52; // ~30 degrees
+      const normalizedX = (x / width) - 0.5;
+      const angle = normalizedX * 2 * maxAngle;
+      const surfaceAperture = 2.0;
+      lateral = (surfaceAperture * normalizedX) + (depth * Math.tan(angle));
     }
     
     return { depth, lateral };
