@@ -617,17 +617,20 @@ export class UnifiedUltrasoundEngine {
               const shadowSpreadAngle = 0.005;
               shadowHalfWidth = effectiveWidth + posteriorDepth * Math.tan(shadowSpreadAngle);
             } else {
-              // Convex/Microconvex: shadow follows divergent beam geometry
-              // Shadow spreads based on the angle of the ray that hit the inclusion
+              // Convex/Microconvex: shadow DIVERGES following beam geometry
+              // Shadow width increases proportionally to beam divergence
               const virtualRadius = this.config.transducerType === 'convex' ? 3.0 : 2.5;
               
-              // Calculate angle of ray that passes through inclusion center
-              const rayAngle = Math.atan2(inclLateral, virtualRadius + inclusionBottom);
+              // Width at inclusion depth
+              const distAtInclusion = virtualRadius + inclusionBottom;
               
-              // At posterior depth, calculate shadow width based on beam divergence
-              const distanceFromFocus = virtualRadius + depth;
-              const shadowEdgeAngle = Math.abs(rayAngle) + Math.atan(effectiveWidth / (virtualRadius + inclusionBottom));
-              shadowHalfWidth = distanceFromFocus * Math.tan(shadowEdgeAngle) - Math.abs(inclLateral);
+              // Width at current depth (posterior to inclusion)
+              const distAtCurrentDepth = virtualRadius + depth;
+              
+              // Shadow expands proportionally to beam expansion
+              // Ratio of distances from focal point
+              const expansionRatio = distAtCurrentDepth / distAtInclusion;
+              shadowHalfWidth = effectiveWidth * expansionRatio;
             }
             
             const distFromShadowCenter = Math.abs(lateral - inclLateral);
