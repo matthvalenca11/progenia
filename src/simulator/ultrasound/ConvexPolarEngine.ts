@@ -94,12 +94,6 @@ export class ConvexPolarEngine {
     
     const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
     
-    // Limpar shadow map
-    this.shadowMap.fill(1.0);
-    
-    // ═══ PROCESSAR INCLUSÕES PARA CRIAR SHADOW MAP ═══
-    this.computeAcousticShadows();
-    
     // Configuração de física para motor unificado
     const physicsConfig: PhysicsConfig = {
       frequency,
@@ -112,6 +106,12 @@ export class ConvexPolarEngine {
       enableAcousticShadow: true,
       enableReverberation: false,
     };
+    
+    // Limpar shadow map - será recalculado COM motion a cada frame
+    this.shadowMap.fill(1.0);
+    
+    // ═══ RECALCULAR SHADOW MAP COM MOTION ═══
+    this.computeAcousticShadowsWithMotion(physicsConfig);
     
     // ═══ GERAR IMAGEM POLAR ═══
     for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
@@ -245,7 +245,71 @@ export class ConvexPolarEngine {
 
 
   /**
-   * Calcula shadow map em coordenadas polares com RAY MARCHING correto
+   * Calcula shadow map em coordenadas polares COM MOTION ARTIFACTS
+   * A sombra acompanha o movimento das inclusões
+   */
+  private computeAcousticShadowsWithMotion(physicsConfig: PhysicsConfig) {
+    if (!this.config.inclusions || this.config.inclusions.length === 0) return;
+    
+    const { numDepthSamples, numAngleSamples, maxDepthCm, fovDegrees } = this.config;
+    const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
+    
+    // Para cada raio angular, fazer marching e detectar oclusões
+    for (let thetaIdx = 0; thetaIdx < numAngleSamples; thetaIdx++) {
+      const theta = ((thetaIdx / numAngleSamples) * 2 - 1) * halfFOVRad;
+      
+      // Marchar ao longo deste raio específico
+      let shadowStartDepth = -1;
+      let shadowingInclusion: UltrasoundInclusionConfig | null = null;
+      
+      for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
+        let r = (rIdx / numDepthSamples) * maxDepthCm;
+        
+        // Aplicar motion artifacts ao ponto atual
+        let x = r * Math.sin(theta);
+        let y = r * Math.cos(theta);
+        const withMotion = this.physicsCore.applyMotionArtifacts(y, x, physicsConfig);
+        
+        const motionAmplitude = 2.5;
+        const depthWithMotion = y + (withMotion.depth - y) * motionAmplitude;
+        const lateralWithMotion = x + (withMotion.lateral - x) * motionAmplitude;
+        
+        const rWithMotion = Math.sqrt(depthWithMotion * depthWithMotion + lateralWithMotion * lateralWithMotion);
+        const thetaWithMotion = Math.atan2(lateralWithMotion, depthWithMotion);
+        
+        // Verificar se este ponto COM MOTION está dentro de alguma inclusão
+        for (const inclusion of this.config.inclusions) {
+          if (!inclusion.hasStrongShadow) continue;
+          
+          const isInside = this.isPointInInclusionPolar(rWithMotion, thetaWithMotion, inclusion);
+          
+          if (isInside && shadowStartDepth < 0) {
+            shadowStartDepth = r;
+            shadowingInclusion = inclusion;
+            break;
+          }
+        }
+        
+        // Se já encontrou uma inclusão bloqueando este raio, aplicar sombra
+        if (shadowStartDepth >= 0 && r > shadowStartDepth) {
+          const idx = rIdx * numAngleSamples + thetaIdx;
+          const posteriorDepth = r - shadowStartDepth;
+          
+          const inclusionThickness = shadowingInclusion?.sizeCm.height || 1.0;
+          const thicknessFactor = Math.min(1, inclusionThickness / 1.5);
+          const baseShadowStrength = 0.15 + thicknessFactor * 0.45;
+          
+          const depthDecay = Math.exp(-posteriorDepth * 0.8);
+          const shadowIntensity = baseShadowStrength + (1 - baseShadowStrength) * (1 - depthDecay);
+          
+          this.shadowMap[idx] = Math.min(this.shadowMap[idx], shadowIntensity);
+        }
+      }
+    }
+  }
+
+  /**
+   * Calcula shadow map em coordenadas polares com RAY MARCHING correto (DEPRECATED - usar WithMotion)
    * A sombra deve seguir os raios que divergem do arco do transdutor
    */
   private computeAcousticShadows() {
