@@ -29,7 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Edit, Trash2, Search, Beaker, Play, Eye, EyeOff } from "lucide-react";
+import { Plus, Edit, Trash2, Search, Beaker, Play, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
 import { format } from "date-fns";
@@ -146,6 +146,14 @@ export default function VirtualLabsAdmin() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/admin")}
+            className="mb-4"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Voltar ao Dashboard
+          </Button>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Beaker className="h-8 w-8" />
             Laboratórios Virtuais
