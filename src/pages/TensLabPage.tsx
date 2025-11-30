@@ -5,7 +5,7 @@ import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TensSemi3DView } from "@/components/labs/TensSemi3DView";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from "recharts";
+import { TensInsightsPanel } from "@/components/labs/TensInsightsPanel";
 import { Activity, ArrowLeft, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { simulateTens, type TensMode } from "@/lib/tensSimulation";
@@ -93,49 +93,6 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
     [frequency, pulseWidth, intensity, mode, tissueConfig]
   );
 
-  // Gerar dados da forma de onda
-  const waveformData = useMemo(() => {
-    const points = [];
-    const period = 1000 / frequency; // período em ms
-    const totalTime = Math.min(1000, period * 5); // mostrar até 1s ou 5 ciclos
-    const samples = 200;
-    
-    for (let i = 0; i < samples; i++) {
-      const t = (i / samples) * totalTime;
-      const cycleTime = t % period;
-      const pulseWidthMs = pulseWidth / 1000;
-      
-      let amplitude = 0;
-      
-      // Forma de onda baseada no modo
-      if (mode === "burst") {
-        // Burst: grupos de pulsos
-        const burstPeriod = period / 5;
-        const inBurst = (cycleTime % (period / 2)) < burstPeriod * 2;
-        if (inBurst && cycleTime < pulseWidthMs) {
-          amplitude = intensity;
-        }
-      } else if (mode === "modulado") {
-        // Modulado: amplitude varia
-        const modulation = Math.sin((t / totalTime) * Math.PI * 4) * 0.3 + 0.7;
-        if (cycleTime < pulseWidthMs) {
-          amplitude = intensity * modulation;
-        }
-      } else {
-        // Convencional e Acupuntura: pulso retangular simples
-        if (cycleTime < pulseWidthMs) {
-          amplitude = intensity;
-        }
-      }
-      
-      points.push({
-        time: parseFloat(t.toFixed(2)),
-        amplitude: parseFloat(amplitude.toFixed(2))
-      });
-    }
-    
-    return points;
-  }, [frequency, pulseWidth, intensity, mode]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-4 md:p-8">
@@ -279,60 +236,6 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
               </Card>
             )}
 
-            {/* Feedback de Simulação */}
-            {config.showComfortCard && (
-              <Card className="p-6 border-2 shadow-lg">
-                <h3 className="text-lg font-semibold mb-4">Feedback da Estimulação</h3>
-                
-                <div className="space-y-4">
-                  {/* Barra de Conforto */}
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="text-muted-foreground font-medium">Nível de Conforto</span>
-                      <span className="font-bold">{sim.comfortLevel}/100</span>
-                    </div>
-                    <div className="h-3 bg-muted rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full transition-all duration-300 ${
-                          sim.comfortLevel >= 70 ? "bg-green-500" :
-                          sim.comfortLevel >= 40 ? "bg-amber-500" : "bg-red-500"
-                        }`}
-                        style={{ width: `${sim.comfortLevel}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Barra de Ativação */}
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="text-muted-foreground font-medium">Nível de Ativação Sensorial</span>
-                      <span className="font-bold">{sim.activationLevel}/100</span>
-                    </div>
-                    <div className="h-3 bg-muted rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-primary transition-all duration-300"
-                        style={{ width: `${sim.activationLevel}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Mensagem de Feedback */}
-                  <div className={`p-4 rounded-lg border-l-4 ${
-                    sim.comfortLevel >= 70 ? "bg-green-50 dark:bg-green-950/20 border-green-500" :
-                    sim.comfortLevel >= 40 ? "bg-amber-50 dark:bg-amber-950/20 border-amber-500" : 
-                    "bg-red-50 dark:bg-red-950/20 border-red-500"
-                  }`}>
-                    <p className={`text-sm font-semibold ${
-                      sim.comfortLevel >= 70 ? "text-green-700 dark:text-green-400" :
-                      sim.comfortLevel >= 40 ? "text-amber-700 dark:text-amber-400" : 
-                      "text-red-700 dark:text-red-400"
-                    }`}>
-                      {sim.comfortMessage}
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            )}
           </div>
 
           {/* Coluna Direita - Visualização */}
@@ -385,137 +288,26 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
               </div>
             </Card>
 
-            {/* Card de Análise de Riscos */}
-            {tissueConfig.enableRiskSimulation && (
-              <Card className={`shadow-lg border-2 ${
-                riskResult.riskLevel === "baixo" ? "border-green-500/30" :
-                riskResult.riskLevel === "moderado" ? "border-amber-500/30" :
-                "border-red-500/30"
-              }`}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <AlertTriangle className={`h-5 w-5 ${
-                        riskResult.riskLevel === "baixo" ? "text-green-500" :
-                        riskResult.riskLevel === "moderado" ? "text-amber-500" :
-                        "text-red-500"
-                      }`} />
-                      Análise de Riscos
-                    </CardTitle>
-                    <Badge 
-                      variant="outline"
-                      className={
-                        riskResult.riskLevel === "baixo" ? "bg-green-500/20 text-green-400 border-green-500/50" :
-                        riskResult.riskLevel === "moderado" ? "bg-amber-500/20 text-amber-400 border-amber-500/50" :
-                        "bg-red-500/20 text-red-400 border-red-500/50"
-                      }
-                    >
-                      {riskResult.riskLevel.toUpperCase()}
-                    </Badge>
-                  </div>
-                  <CardDescription>
-                    Avaliação de segurança baseada nos parâmetros e anatomia
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Barra de score de risco */}
-                  <div>
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="text-muted-foreground font-medium">Score de Risco</span>
-                      <span className="font-bold">{riskResult.riskScore}/100</span>
-                    </div>
-                    <div className="h-3 bg-muted rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full transition-all duration-300 ${
-                          riskResult.riskLevel === "baixo" ? "bg-green-500" :
-                          riskResult.riskLevel === "moderado" ? "bg-amber-500" :
-                          "bg-red-500"
-                        }`}
-                        style={{ width: `${riskResult.riskScore}%` }}
-                      />
-                    </div>
-                  </div>
 
-                  {/* Mensagens de feedback */}
-                  <div className="space-y-2">
-                    {riskResult.messages.map((message, index) => (
-                      <div 
-                        key={index}
-                        className="p-3 rounded-lg bg-muted/30 border-l-2 border-l-primary/50 text-sm"
-                      >
-                        {message}
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Gráfico de Forma de Onda */}
-            {config.showWaveform && (
-              <Card className="p-6 shadow-lg">
-                <h3 className="text-lg font-semibold mb-4">Forma de Onda TENS</h3>
-                
-                <div className="h-64 mb-4">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={waveformData}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis 
-                        dataKey="time" 
-                        label={{ value: 'Tempo (ms)', position: 'insideBottom', offset: -5 }}
-                        className="text-xs"
-                        type="number"
-                        domain={[0, 'dataMax']}
-                      />
-                      <YAxis 
-                        label={{ value: 'Amplitude (mA)', angle: -90, position: 'insideLeft' }}
-                        className="text-xs"
-                        type="number"
-                        domain={[0, 100]}
-                        ticks={[0, 20, 40, 60, 80, 100]}
-                        allowDataOverflow={true}
-                      />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'hsl(var(--background))', 
-                          border: '1px solid hsl(var(--border))' 
-                        }}
-                      />
-                      <Line 
-                        type="stepAfter" 
-                        dataKey="amplitude" 
-                        stroke="hsl(var(--primary))" 
-                        strokeWidth={2}
-                        dot={false}
-                        isAnimationActive={false}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-
-                {/* Métricas calculadas */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="p-3 bg-muted/50 rounded-lg text-center">
-                    <div className="text-xs text-muted-foreground mb-1">Período</div>
-                    <div className="text-sm font-bold">
-                      {(1000 / frequency).toFixed(1)} ms
-                    </div>
-                  </div>
-                  <div className="p-3 bg-muted/50 rounded-lg text-center">
-                    <div className="text-xs text-muted-foreground mb-1">Duty Cycle</div>
-                    <div className="text-sm font-bold">
-                      {((pulseWidth / 1000) / (1000 / frequency) * 100).toFixed(1)}%
-                    </div>
-                  </div>
-                  <div className="p-3 bg-muted/50 rounded-lg text-center">
-                    <div className="text-xs text-muted-foreground mb-1">Carga/Pulso</div>
-                    <div className="text-sm font-bold">
-                      {(intensity * pulseWidth / 1000).toFixed(1)} µC
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            )}
+            {/* Painel Unificado de Insights */}
+            <TensInsightsPanel
+              showFeedback={config.showFeedbackSection ?? config.showComfortCard}
+              showRisk={config.showRiskSection ?? true}
+              showWaveform={config.showWaveformSection ?? config.showWaveform}
+              feedbackData={{
+                comfortLevel: sim.comfortLevel,
+                activationLevel: sim.activationLevel,
+                comfortMessage: sim.comfortMessage,
+              }}
+              riskData={riskResult}
+              waveformData={{
+                frequency,
+                pulseWidth,
+                intensity,
+                mode,
+              }}
+              enableRiskSimulation={tissueConfig.enableRiskSimulation}
+            />
           </div>
         </div>
       </div>
