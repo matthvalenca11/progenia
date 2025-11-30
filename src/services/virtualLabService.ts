@@ -105,14 +105,38 @@ export const virtualLabService = {
   },
 
   getPublishedLabs: async (): Promise<VirtualLab[]> => {
-    const { data, error } = await supabase
-      .from("virtual_labs")
-      .select("*")
-      .eq("is_published", true)
-      .order("created_at", { ascending: false });
+    // Buscar labs que estão vinculados a cápsulas publicadas
+    try {
+      const { data: linkedLabs, error } = await supabase
+        .from("capsula_virtual_labs")
+        .select(`
+          lab_id,
+          capsulas!inner(is_published),
+          virtual_labs!inner(*)
+        `)
+        .eq("capsulas.is_published", true)
+        .eq("virtual_labs.is_published", true);
 
-    if (error) throw error;
-    return (data || []) as VirtualLab[];
+      if (error) throw error;
+
+      // Extrair labs únicos (pode haver duplicatas se o mesmo lab está em várias cápsulas)
+      const uniqueLabs = new Map<string, VirtualLab>();
+      
+      if (linkedLabs) {
+        for (const link of linkedLabs) {
+          const lab = (link as any).virtual_labs;
+          if (lab && !uniqueLabs.has(lab.id)) {
+            uniqueLabs.set(lab.id, lab as VirtualLab);
+          }
+        }
+      }
+
+      return Array.from(uniqueLabs.values());
+    } catch (error) {
+      console.error("Error getting labs from capsules:", error);
+      // Fallback para não quebrar a home
+      return [];
+    }
   },
 
   getLabUsageCount: async (labId: string): Promise<number> => {
