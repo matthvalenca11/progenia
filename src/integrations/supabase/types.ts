@@ -804,6 +804,7 @@ export type Database = {
           pulse_width_range: Json
           show_comfort_card: boolean
           show_waveform: boolean
+          tissue_config_id: string | null
           updated_at: string
         }
         Insert: {
@@ -818,6 +819,7 @@ export type Database = {
           pulse_width_range?: Json
           show_comfort_card?: boolean
           show_waveform?: boolean
+          tissue_config_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -832,6 +834,7 @@ export type Database = {
           pulse_width_range?: Json
           show_comfort_card?: boolean
           show_waveform?: boolean
+          tissue_config_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -842,7 +845,65 @@ export type Database = {
             referencedRelation: "capsulas"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "tens_lab_configs_tissue_config_id_fkey"
+            columns: ["tissue_config_id"]
+            isOneToOne: false
+            referencedRelation: "tissue_configs"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      tissue_configs: {
+        Row: {
+          bone_depth: number
+          created_at: string | null
+          description: string | null
+          enable_risk_simulation: boolean
+          fat_thickness: number
+          has_metal_implant: boolean
+          id: string
+          metal_implant_depth: number | null
+          metal_implant_span: number | null
+          muscle_thickness: number
+          name: string
+          skin_thickness: number
+          tissue_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          bone_depth: number
+          created_at?: string | null
+          description?: string | null
+          enable_risk_simulation?: boolean
+          fat_thickness: number
+          has_metal_implant?: boolean
+          id?: string
+          metal_implant_depth?: number | null
+          metal_implant_span?: number | null
+          muscle_thickness: number
+          name: string
+          skin_thickness: number
+          tissue_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          bone_depth?: number
+          created_at?: string | null
+          description?: string | null
+          enable_risk_simulation?: boolean
+          fat_thickness?: number
+          has_metal_implant?: boolean
+          id?: string
+          metal_implant_depth?: number | null
+          metal_implant_span?: number | null
+          muscle_thickness?: number
+          name?: string
+          skin_thickness?: number
+          tissue_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       user_badges: {
         Row: {

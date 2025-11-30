@@ -12,7 +12,8 @@ import {
   Beaker,
   Award,
   FlaskConical,
-  Mail
+  Mail,
+  Dna
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
@@ -24,6 +25,7 @@ import { MediaLibrary } from "@/components/admin/MediaLibrary";
 import VirtualLabsAdmin from "./VirtualLabsAdmin";
 import { EmailSettingsManager } from "@/components/admin/EmailSettingsManager";
 import { AboutManager } from "@/components/admin/AboutManager";
+import { TissueConfigManager } from "@/components/admin/TissueConfigManager";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -97,7 +99,7 @@ const Admin = () => {
       {/* Conteúdo Principal */}
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="modules" className="w-full">
-          <TabsList className="grid w-full grid-cols-8 gap-1">
+          <TabsList className="grid w-full grid-cols-9 gap-1">
             <TabsTrigger value="modules">
               <BookOpen className="h-4 w-4 mr-2" />
               Módulos
@@ -113,6 +115,10 @@ const Admin = () => {
             <TabsTrigger value="labs">
               <FlaskConical className="h-4 w-4 mr-2" />
               Labs Virtuais
+            </TabsTrigger>
+            <TabsTrigger value="tissue">
+              <Dna className="h-4 w-4 mr-2" />
+              Anatomias TENS
             </TabsTrigger>
             <TabsTrigger value="media">
               <Beaker className="h-4 w-4 mr-2" />
@@ -150,6 +156,11 @@ const Admin = () => {
           {/* Tab: Labs Virtuais */}
           <TabsContent value="labs" className="mt-6">
             <VirtualLabsAdmin />
+          </TabsContent>
+
+          {/* Tab: Anatomias TENS */}
+          <TabsContent value="tissue" className="mt-6">
+            <TissueConfigManager />
           </TabsContent>
 
           {/* Tab: Biblioteca de Mídia */}

@@ -1,9 +1,13 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TensLabConfig } from "@/types/tensLabConfig";
+import { TissueConfig } from "@/types/tissueConfig";
+import { tissueConfigService } from "@/services/tissueConfigService";
 
 interface TensLabConfigEditorProps {
   config: TensLabConfig;
@@ -11,6 +15,21 @@ interface TensLabConfigEditorProps {
 }
 
 export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorProps) {
+  const [tissueConfigs, setTissueConfigs] = useState<TissueConfig[]>([]);
+  
+  useEffect(() => {
+    const loadTissueConfigs = async () => {
+      try {
+        const configs = await tissueConfigService.getAll();
+        setTissueConfigs(configs);
+      } catch (error) {
+        console.error("Error loading tissue configs:", error);
+      }
+    };
+    
+    loadTissueConfigs();
+  }, []);
+  
   const updateConfig = (updates: Partial<TensLabConfig>) => {
     onChange({ ...config, ...updates });
   };
@@ -266,6 +285,41 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
               checked={config.showComfortCard}
               onCheckedChange={(checked) => updateConfig({ showComfortCard: checked })}
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Configuração Anatômica */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Cenário Anatômico</CardTitle>
+          <CardDescription>
+            Selecione a configuração de tecido para simulação
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <Label htmlFor="tissueConfig">Anatomia TENS</Label>
+            <Select 
+              value={config.tissueConfigId || "none"} 
+              onValueChange={(value) => updateConfig({ tissueConfigId: value === "none" ? undefined : value })}
+            >
+              <SelectTrigger id="tissueConfig">
+                <SelectValue placeholder="Selecione uma anatomia" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Padrão (Antebraço)</SelectItem>
+                {tissueConfigs.map((tc) => (
+                  <SelectItem key={tc.id} value={tc.id}>
+                    {tc.name}
+                    {tc.hasMetalImplant && " ⚡"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              A anatomia selecionada afetará a visualização 3D e a análise de riscos
+            </p>
           </div>
         </CardContent>
       </Card>
