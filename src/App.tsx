@@ -21,6 +21,7 @@ import LessonViewer from "@/pages/LessonViewer";
 import CapsuleViewer from "@/pages/CapsuleViewer";
 import VirtualLabEditor from "@/pages/VirtualLabEditor";
 import VirtualLabsAdmin from "@/pages/VirtualLabsAdmin";
+import TensLabPage from "@/pages/TensLabPage";
 import DeleteUserTest from "@/pages/DeleteUserTest";
 import NotFound from "@/pages/NotFound";
 
@@ -63,6 +64,7 @@ const AppContent = () => {
           <Route path="/admin/labs" element={<VirtualLabsAdmin />} />
           <Route path="/admin/labs/novo" element={<VirtualLabEditor />} />
           <Route path="/admin/labs/editar/:labId" element={<VirtualLabEditor />} />
+          <Route path="/labs/tens" element={<TensLabPage />} />
           <Route path="/delete-user-test" element={<DeleteUserTest />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
