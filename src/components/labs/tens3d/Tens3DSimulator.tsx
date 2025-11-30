@@ -49,9 +49,9 @@ export function Tens3DSimulator({
   const canvasHeight = compact ? '500px' : '600px';
 
   return (
-    <div className={`relative w-full bg-slate-950 rounded-xl overflow-hidden border border-slate-800 touch-none`} style={{ height: canvasHeight }}>
+    <div className={`relative w-full bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 rounded-xl overflow-hidden border border-slate-800 touch-none`} style={{ height: canvasHeight }}>
       {/* Mode Selector */}
-      <div className="absolute top-4 left-4 z-10 flex gap-2">
+      <div className="absolute top-4 left-4 z-10 flex gap-2 flex-wrap">
         <Button
           variant={visualMode === 'anatomical' ? 'default' : 'outline'}
           size="sm"
@@ -110,7 +110,16 @@ export function Tens3DSimulator({
       </div>
 
       {/* 3D Canvas */}
-      <Canvas gl={{ preserveDrawingBuffer: true, antialias: true }}>
+      <Canvas 
+        gl={{ 
+          preserveDrawingBuffer: true, 
+          antialias: true,
+          alpha: true,
+          powerPreference: 'high-performance'
+        }}
+        shadows
+        dpr={[1, 2]}
+      >
         <PerspectiveCamera makeDefault position={[0, 3, 12]} fov={50} />
         <OrbitControls
           enableZoom={true}
@@ -123,11 +132,15 @@ export function Tens3DSimulator({
           dampingFactor={0.05}
         />
 
-        {/* Lighting */}
-        <ambientLight intensity={0.3} />
-        <directionalLight position={[10, 10, 5]} intensity={0.5} />
-        <directionalLight position={[-10, -10, -5]} intensity={0.2} />
-        <pointLight position={[0, 5, 0]} intensity={0.3} color="#60a5fa" />
+        {/* Enhanced Lighting */}
+        <ambientLight intensity={0.5} />
+        <directionalLight position={[10, 10, 5]} intensity={0.8} castShadow />
+        <directionalLight position={[-10, -10, -5]} intensity={0.4} />
+        <pointLight position={[0, 5, 0]} intensity={0.5} color="#60a5fa" />
+        <hemisphereLight args={['#ffffff', '#444444', 0.3]} />
+        
+        {/* Subtle fog for depth */}
+        <fog attach="fog" args={['#0f172a', 10, 25]} />
 
         {/* Tissue Layers */}
         <TissueLayersModel
@@ -136,25 +149,25 @@ export function Tens3DSimulator({
           intensityNorm={intensityNorm}
         />
 
-        {/* Electrodes */}
+        {/* Electrodes - sempre visíveis */}
         <ElectrodeModel
           position={electrodePositions.proximal}
           label="+"
           isActive={intensitymA > 0}
-          intensity={intensityNorm}
+          intensity={Math.max(0.2, intensityNorm)}
         />
         <ElectrodeModel
           position={electrodePositions.distal}
           label="-"
           isActive={intensitymA > 0}
-          intensity={intensityNorm}
+          intensity={Math.max(0.2, intensityNorm)}
         />
 
-        {/* Electric Field Visualization */}
+        {/* Electric Field Visualization - sempre mostrar algo mesmo com intensidade baixa */}
         {(visualMode === 'electric' || visualMode === 'lesion') && (
           <ElectricFieldVisualization
             electrodePositions={electrodePositions}
-            intensityNorm={intensityNorm}
+            intensityNorm={Math.max(0.15, intensityNorm)}
             frequencyHz={frequencyHz}
             mode={mode}
             tissueConfig={tissueConfig}

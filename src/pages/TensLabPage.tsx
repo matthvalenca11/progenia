@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tens3DSimulator } from "@/components/labs/tens3d/Tens3DSimulator";
 import { TensInsightsPanel } from "@/components/labs/TensInsightsPanel";
+import { TissuePresetSelector } from "@/components/admin/TissuePresetSelector";
 import { Activity, ArrowLeft, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { simulateTens, type TensMode } from "@/lib/tensSimulation";
 import { simulateTissueRisk } from "@/lib/tissueRiskSimulation";
 import { TensLabConfig, defaultTensLabConfig } from "@/types/tensLabConfig";
-import { TissueConfig, defaultTissueConfig, tissuePresets } from "@/types/tissueConfig";
+import { TissueConfig, defaultTissueConfig, tissuePresets, TissuePresetId } from "@/types/tissueConfig";
 import { tissueConfigService } from "@/services/tissueConfigService";
 
 interface TensLabPageProps {
@@ -22,10 +23,16 @@ interface TensLabPageProps {
 export default function TensLabPage({ config = defaultTensLabConfig, previewMode = false }: TensLabPageProps) {
   const navigate = useNavigate();
   
-  // Estado do tissue config
+  // Estado do tissue config e preset selecionado
+  const [selectedPresetId, setSelectedPresetId] = useState<TissuePresetId>(() => {
+    const presetId = config.tissueConfigId;
+    const preset = tissuePresets.find(p => p.id === presetId);
+    return preset ? preset.id : "forearm_slim";
+  });
   const [tissueConfig, setTissueConfig] = useState<TissueConfig>(defaultTissueConfig);
+  const [customConfig, setCustomConfig] = useState<TissueConfig>(defaultTissueConfig);
   
-  // Carregar tissue config do banco ou usar preset
+  // Carregar tissue config inicial
   useEffect(() => {
     const loadTissueConfig = async () => {
       if (config.tissueConfigId) {
@@ -34,6 +41,7 @@ export default function TensLabPage({ config = defaultTensLabConfig, previewMode
         
         if (preset && !preset.isCustom) {
           // É um preset predefinido, usar config do preset
+          setSelectedPresetId(preset.id);
           setTissueConfig({
             ...preset.config,
             id: preset.id,
@@ -44,6 +52,8 @@ export default function TensLabPage({ config = defaultTensLabConfig, previewMode
             const loaded = await tissueConfigService.getById(config.tissueConfigId);
             if (loaded) {
               setTissueConfig(loaded);
+              setSelectedPresetId("custom");
+              setCustomConfig(loaded);
             }
           } catch (error) {
             console.error("Error loading tissue config:", error);
@@ -54,6 +64,31 @@ export default function TensLabPage({ config = defaultTensLabConfig, previewMode
     
     loadTissueConfig();
   }, [config.tissueConfigId]);
+  
+  // Atualizar tissueConfig quando preset mudar
+  const handlePresetChange = (presetId: TissuePresetId) => {
+    setSelectedPresetId(presetId);
+    
+    if (presetId === "custom") {
+      setTissueConfig(customConfig);
+    } else {
+      const preset = tissuePresets.find(p => p.id === presetId);
+      if (preset) {
+        setTissueConfig({
+          ...preset.config,
+          id: preset.id,
+        });
+      }
+    }
+  };
+  
+  // Atualizar customConfig
+  const handleCustomConfigChange = (config: TissueConfig) => {
+    setCustomConfig(config);
+    if (selectedPresetId === "custom") {
+      setTissueConfig(config);
+    }
+  };
   
   // Estados dos parâmetros com valores iniciais baseados na config
   const [frequency, setFrequency] = useState(
@@ -128,6 +163,13 @@ export default function TensLabPage({ config = defaultTensLabConfig, previewMode
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Coluna Esquerda - Controles */}
           <div className="space-y-6">
+            {/* Seletor de Cenário Anatômico */}
+            <TissuePresetSelector
+              selectedPresetId={selectedPresetId}
+              customConfig={customConfig}
+              onPresetChange={handlePresetChange}
+              onCustomConfigChange={handleCustomConfigChange}
+            />
             {/* Card de Controles Principais */}
             {(config.enabledControls.frequency || config.enabledControls.pulseWidth || config.enabledControls.intensity) && (
               <Card className="p-6 shadow-lg">

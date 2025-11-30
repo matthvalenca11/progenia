@@ -34,15 +34,15 @@ export function ElectrodeModel({
 
   return (
     <group position={position}>
-      {/* Electrode pad */}
+      {/* Electrode pad - sempre visível */}
       <mesh ref={meshRef} position={[0, 0.5, 0]}>
         <cylinderGeometry args={[0.8, 0.8, 0.1, 32]} />
         <meshStandardMaterial
           color={label === '+' ? '#ff4444' : '#4444ff'}
           roughness={0.3}
           metalness={0.7}
-          emissive={isActive ? (label === '+' ? '#ff0000' : '#0000ff') : '#000000'}
-          emissiveIntensity={isActive ? intensity * 0.8 : 0}
+          emissive={label === '+' ? '#ff0000' : '#0000ff'}
+          emissiveIntensity={isActive ? intensity * 0.8 : 0.2}
         />
       </mesh>
 
@@ -78,7 +78,6 @@ export function ElectrodeModel({
         color="white"
         anchorX="center"
         anchorY="middle"
-        font="/fonts/inter-bold.woff"
       >
         {label}
       </Text>
