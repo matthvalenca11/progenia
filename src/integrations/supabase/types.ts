@@ -229,6 +229,48 @@ export type Database = {
           },
         ]
       }
+      capsula_virtual_labs: {
+        Row: {
+          capsula_id: string
+          created_at: string | null
+          id: string
+          lab_id: string
+          position: number
+          updated_at: string | null
+        }
+        Insert: {
+          capsula_id: string
+          created_at?: string | null
+          id?: string
+          lab_id: string
+          position?: number
+          updated_at?: string | null
+        }
+        Update: {
+          capsula_id?: string
+          created_at?: string | null
+          id?: string
+          lab_id?: string
+          position?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capsula_virtual_labs_capsula_id_fkey"
+            columns: ["capsula_id"]
+            isOneToOne: false
+            referencedRelation: "capsulas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capsula_virtual_labs_lab_id_fkey"
+            columns: ["lab_id"]
+            isOneToOne: false
+            referencedRelation: "virtual_labs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       capsulas: {
         Row: {
           content_data: Json | null
