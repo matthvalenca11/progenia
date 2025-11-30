@@ -8,15 +8,28 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tool
 import { Activity, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { simulateTens, type TensMode } from "@/lib/tensSimulation";
+import { TensLabConfig, defaultTensLabConfig } from "@/types/tensLabConfig";
 
-export default function TensLabPage() {
+interface TensLabPageProps {
+  config?: TensLabConfig;
+}
+
+export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPageProps) {
   const navigate = useNavigate();
   
-  // Estados dos parâmetros
-  const [frequency, setFrequency] = useState(80); // Hz
-  const [pulseWidth, setPulseWidth] = useState(200); // µs
-  const [intensity, setIntensity] = useState(20); // mA
-  const [mode, setMode] = useState<TensMode>("convencional");
+  // Estados dos parâmetros com valores iniciais baseados na config
+  const [frequency, setFrequency] = useState(
+    Math.min(80, config.frequencyRange.max)
+  );
+  const [pulseWidth, setPulseWidth] = useState(
+    Math.min(200, config.pulseWidthRange.max)
+  );
+  const [intensity, setIntensity] = useState(
+    Math.min(20, config.intensityRange.max)
+  );
+  const [mode, setMode] = useState<TensMode>(
+    config.allowedModes[0] || "convencional"
+  );
 
   // Simulação em tempo real
   const sim = useMemo(() => 
@@ -132,150 +145,160 @@ export default function TensLabPage() {
               
               <div className="space-y-8">
                 {/* Frequência */}
-                <div>
-                  <div className="flex justify-between items-center mb-3">
-                    <Label className="text-base font-medium">Frequência</Label>
-                    <span className="text-lg font-bold text-primary">
-                      {frequency} <span className="text-sm font-normal text-muted-foreground">Hz</span>
-                    </span>
+                {config.enabledControls.frequency && (
+                  <div>
+                    <div className="flex justify-between items-center mb-3">
+                      <Label className="text-base font-medium">Frequência</Label>
+                      <span className="text-lg font-bold text-primary">
+                        {frequency} <span className="text-sm font-normal text-muted-foreground">Hz</span>
+                      </span>
+                    </div>
+                    <Slider
+                      value={[frequency]}
+                      onValueChange={(v) => setFrequency(v[0])}
+                      min={config.frequencyRange.min}
+                      max={config.frequencyRange.max}
+                      step={1}
+                      className="py-4"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                      <span>{config.frequencyRange.min} Hz</span>
+                      <span>{config.frequencyRange.max} Hz</span>
+                    </div>
                   </div>
-                  <Slider
-                    value={[frequency]}
-                    onValueChange={(v) => setFrequency(v[0])}
-                    min={1}
-                    max={200}
-                    step={1}
-                    className="py-4"
-                  />
-                  <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                    <span>1 Hz</span>
-                    <span>200 Hz</span>
-                  </div>
-                </div>
+                )}
 
                 {/* Largura de Pulso */}
-                <div>
-                  <div className="flex justify-between items-center mb-3">
-                    <Label className="text-base font-medium">Largura de Pulso</Label>
-                    <span className="text-lg font-bold text-primary">
-                      {pulseWidth} <span className="text-sm font-normal text-muted-foreground">µs</span>
-                    </span>
+                {config.enabledControls.pulseWidth && (
+                  <div>
+                    <div className="flex justify-between items-center mb-3">
+                      <Label className="text-base font-medium">Largura de Pulso</Label>
+                      <span className="text-lg font-bold text-primary">
+                        {pulseWidth} <span className="text-sm font-normal text-muted-foreground">µs</span>
+                      </span>
+                    </div>
+                    <Slider
+                      value={[pulseWidth]}
+                      onValueChange={(v) => setPulseWidth(v[0])}
+                      min={config.pulseWidthRange.min}
+                      max={config.pulseWidthRange.max}
+                      step={10}
+                      className="py-4"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                      <span>{config.pulseWidthRange.min} µs</span>
+                      <span>{config.pulseWidthRange.max} µs</span>
+                    </div>
                   </div>
-                  <Slider
-                    value={[pulseWidth]}
-                    onValueChange={(v) => setPulseWidth(v[0])}
-                    min={50}
-                    max={400}
-                    step={10}
-                    className="py-4"
-                  />
-                  <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                    <span>50 µs</span>
-                    <span>400 µs</span>
-                  </div>
-                </div>
+                )}
 
                 {/* Intensidade */}
-                <div>
-                  <div className="flex justify-between items-center mb-3">
-                    <Label className="text-base font-medium">Intensidade</Label>
-                    <span className="text-lg font-bold text-primary">
-                      {intensity} <span className="text-sm font-normal text-muted-foreground">mA</span>
-                    </span>
+                {config.enabledControls.intensity && (
+                  <div>
+                    <div className="flex justify-between items-center mb-3">
+                      <Label className="text-base font-medium">Intensidade</Label>
+                      <span className="text-lg font-bold text-primary">
+                        {intensity} <span className="text-sm font-normal text-muted-foreground">mA</span>
+                      </span>
+                    </div>
+                    <Slider
+                      value={[intensity]}
+                      onValueChange={(v) => setIntensity(v[0])}
+                      min={config.intensityRange.min}
+                      max={config.intensityRange.max}
+                      step={1}
+                      className="py-4"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                      <span>{config.intensityRange.min} mA</span>
+                      <span>{config.intensityRange.max} mA</span>
+                    </div>
                   </div>
-                  <Slider
-                    value={[intensity]}
-                    onValueChange={(v) => setIntensity(v[0])}
-                    min={0}
-                    max={80}
-                    step={1}
-                    className="py-4"
-                  />
-                  <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                    <span>0 mA</span>
-                    <span>80 mA</span>
-                  </div>
-                </div>
+                )}
               </div>
             </Card>
 
             {/* Modo TENS */}
-            <Card className="p-6 shadow-lg">
-              <h3 className="text-lg font-semibold mb-4">Modo de Estimulação</h3>
-              <div className="grid grid-cols-2 gap-3">
-                {(["convencional", "acupuntura", "burst", "modulado"] as TensMode[]).map((m) => (
-                  <Button
-                    key={m}
-                    variant={mode === m ? "default" : "outline"}
-                    onClick={() => setMode(m)}
-                    className="capitalize h-auto py-3"
-                  >
-                    {m}
-                  </Button>
-                ))}
-              </div>
-              <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-                <p className="text-sm text-muted-foreground">
-                  {mode === "convencional" && "Estimulação contínua de alta frequência (50-100 Hz) para alívio de dor aguda através da teoria das comportas."}
-                  {mode === "acupuntura" && "Baixa frequência (2-10 Hz) com pulsos longos para liberação de endorfinas e alívio de dor crônica."}
-                  {mode === "burst" && "Grupos de pulsos de alta frequência entregues em baixa frequência de repetição, combinando efeitos sensoriais e motores."}
-                  {mode === "modulado" && "Amplitude modulada para prevenir acomodação sensorial e manter eficácia ao longo do tempo."}
-                </p>
-              </div>
-            </Card>
-
-            {/* Feedback de Simulação */}
-            <Card className="p-6 border-2 shadow-lg">
-              <h3 className="text-lg font-semibold mb-4">Feedback da Estimulação</h3>
-              
-              <div className="space-y-4">
-                {/* Barra de Conforto */}
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-muted-foreground font-medium">Nível de Conforto</span>
-                    <span className="font-bold">{sim.comfortLevel}/100</span>
-                  </div>
-                  <div className="h-3 bg-muted rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full transition-all duration-300 ${
-                        sim.comfortLevel >= 70 ? "bg-green-500" :
-                        sim.comfortLevel >= 40 ? "bg-amber-500" : "bg-red-500"
-                      }`}
-                      style={{ width: `${sim.comfortLevel}%` }}
-                    />
-                  </div>
+            {config.enabledControls.mode && config.allowedModes.length > 0 && (
+              <Card className="p-6 shadow-lg">
+                <h3 className="text-lg font-semibold mb-4">Modo de Estimulação</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {config.allowedModes.map((m) => (
+                    <Button
+                      key={m}
+                      variant={mode === m ? "default" : "outline"}
+                      onClick={() => setMode(m)}
+                      className="capitalize h-auto py-3"
+                    >
+                      {m}
+                    </Button>
+                  ))}
                 </div>
-
-                {/* Barra de Ativação */}
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-muted-foreground font-medium">Nível de Ativação Sensorial</span>
-                    <span className="font-bold">{sim.activationLevel}/100</span>
-                  </div>
-                  <div className="h-3 bg-muted rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-primary transition-all duration-300"
-                      style={{ width: `${sim.activationLevel}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Mensagem de Feedback */}
-                <div className={`p-4 rounded-lg border-l-4 ${
-                  sim.comfortLevel >= 70 ? "bg-green-50 dark:bg-green-950/20 border-green-500" :
-                  sim.comfortLevel >= 40 ? "bg-amber-50 dark:bg-amber-950/20 border-amber-500" : 
-                  "bg-red-50 dark:bg-red-950/20 border-red-500"
-                }`}>
-                  <p className={`text-sm font-semibold ${
-                    sim.comfortLevel >= 70 ? "text-green-700 dark:text-green-400" :
-                    sim.comfortLevel >= 40 ? "text-amber-700 dark:text-amber-400" : 
-                    "text-red-700 dark:text-red-400"
-                  }`}>
-                    {sim.comfortMessage}
+                <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+                  <p className="text-sm text-muted-foreground">
+                    {mode === "convencional" && "Estimulação contínua de alta frequência (50-100 Hz) para alívio de dor aguda através da teoria das comportas."}
+                    {mode === "acupuntura" && "Baixa frequência (2-10 Hz) com pulsos longos para liberação de endorfinas e alívio de dor crônica."}
+                    {mode === "burst" && "Grupos de pulsos de alta frequência entregues em baixa frequência de repetição, combinando efeitos sensoriais e motores."}
+                    {mode === "modulado" && "Amplitude modulada para prevenir acomodação sensorial e manter eficácia ao longo do tempo."}
                   </p>
                 </div>
-              </div>
-            </Card>
+              </Card>
+            )}
+
+            {/* Feedback de Simulação */}
+            {config.showComfortCard && (
+              <Card className="p-6 border-2 shadow-lg">
+                <h3 className="text-lg font-semibold mb-4">Feedback da Estimulação</h3>
+                
+                <div className="space-y-4">
+                  {/* Barra de Conforto */}
+                  <div>
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-muted-foreground font-medium">Nível de Conforto</span>
+                      <span className="font-bold">{sim.comfortLevel}/100</span>
+                    </div>
+                    <div className="h-3 bg-muted rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full transition-all duration-300 ${
+                          sim.comfortLevel >= 70 ? "bg-green-500" :
+                          sim.comfortLevel >= 40 ? "bg-amber-500" : "bg-red-500"
+                        }`}
+                        style={{ width: `${sim.comfortLevel}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Barra de Ativação */}
+                  <div>
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-muted-foreground font-medium">Nível de Ativação Sensorial</span>
+                      <span className="font-bold">{sim.activationLevel}/100</span>
+                    </div>
+                    <div className="h-3 bg-muted rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-primary transition-all duration-300"
+                        style={{ width: `${sim.activationLevel}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Mensagem de Feedback */}
+                  <div className={`p-4 rounded-lg border-l-4 ${
+                    sim.comfortLevel >= 70 ? "bg-green-50 dark:bg-green-950/20 border-green-500" :
+                    sim.comfortLevel >= 40 ? "bg-amber-50 dark:bg-amber-950/20 border-amber-500" : 
+                    "bg-red-50 dark:bg-red-950/20 border-red-500"
+                  }`}>
+                    <p className={`text-sm font-semibold ${
+                      sim.comfortLevel >= 70 ? "text-green-700 dark:text-green-400" :
+                      sim.comfortLevel >= 40 ? "text-amber-700 dark:text-amber-400" : 
+                      "text-red-700 dark:text-red-400"
+                    }`}>
+                      {sim.comfortMessage}
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            )}
           </div>
 
           {/* Coluna Direita - Visualização */}
