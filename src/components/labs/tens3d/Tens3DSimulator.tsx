@@ -159,8 +159,9 @@ export function Tens3DSimulator({
         {/* Subtle fog for depth */}
         <fog attach="fog" args={['#0f172a', 10, 25]} />
 
-        {/* Tissue Layers */}
+        {/* Tissue Layers - key forces re-render when config changes */}
         <TissueLayersModel
+          key={`${tissueConfig.skinThickness}-${tissueConfig.fatThickness}-${tissueConfig.muscleThickness}-${tissueConfig.hasMetalImplant}`}
           tissueConfig={tissueConfig}
           visualMode={visualMode}
           intensityNorm={intensityNorm}
