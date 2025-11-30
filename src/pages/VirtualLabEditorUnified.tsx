@@ -244,23 +244,15 @@ export default function VirtualLabEditorUnified() {
                     Visualize como o laboratório aparecerá para os alunos
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="p-0">
+                <CardContent className="p-2">
                   <div 
-                    className="w-full overflow-auto bg-gradient-to-br from-background via-background to-primary/5"
+                    className="w-full bg-gradient-to-br from-background via-background to-primary/5 rounded-lg"
                     style={{
                       maxHeight: 'calc(100vh - 200px)',
+                      overflow: 'auto',
                     }}
                   >
-                    <div 
-                      className="origin-top-left"
-                      style={{
-                        transform: 'scale(0.75)',
-                        transformOrigin: 'top left',
-                        width: '133.33%', // 100% / 0.75 to compensate for scale
-                      }}
-                    >
-                      <TensLabPage config={lab.config_data} />
-                    </div>
+                    <TensLabPage config={lab.config_data} previewMode={true} />
                   </div>
                 </CardContent>
               </Card>

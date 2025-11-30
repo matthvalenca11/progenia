@@ -16,9 +16,10 @@ import { tissueConfigService } from "@/services/tissueConfigService";
 
 interface TensLabPageProps {
   config?: TensLabConfig;
+  previewMode?: boolean;
 }
 
-export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPageProps) {
+export default function TensLabPage({ config = defaultTensLabConfig, previewMode = false }: TensLabPageProps) {
   const navigate = useNavigate();
   
   // Estado do tissue config
@@ -95,31 +96,33 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className={previewMode ? "bg-background p-4" : "min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-4 md:p-8"}>
+      <div className={previewMode ? "w-full" : "max-w-7xl mx-auto"}>
         {/* Header com botão de voltar */}
-        <div className="mb-8">
-          <Button
-            variant="ghost"
-            onClick={() => navigate("/dashboard")}
-            className="mb-4"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar ao Dashboard
-          </Button>
-          
-          <div className="flex items-center gap-3 mb-2">
-            <Activity className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl md:text-4xl font-bold">
-              Laboratório Virtual de Eletroterapia – TENS
-            </h1>
+        {!previewMode && (
+          <div className="mb-8">
+            <Button
+              variant="ghost"
+              onClick={() => navigate("/dashboard")}
+              className="mb-4"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Voltar ao Dashboard
+            </Button>
+            
+            <div className="flex items-center gap-3 mb-2">
+              <Activity className="h-8 w-8 text-primary" />
+              <h1 className="text-3xl md:text-4xl font-bold">
+                Laboratório Virtual de Eletroterapia – TENS
+              </h1>
+            </div>
+            <p className="text-muted-foreground text-lg">
+              Ajuste os parâmetros do equipamento TENS (estimulação elétrica transcutânea) e visualize, 
+              em tempo real, os efeitos simulados da estimulação entre os eletrodos. 
+              Experimente diferentes configurações para compreender como cada parâmetro influencia a terapia.
+            </p>
           </div>
-          <p className="text-muted-foreground text-lg">
-            Ajuste os parâmetros do equipamento TENS (estimulação elétrica transcutânea) e visualize, 
-            em tempo real, os efeitos simulados da estimulação entre os eletrodos. 
-            Experimente diferentes configurações para compreender como cada parâmetro influencia a terapia.
-          </p>
-        </div>
+        )}
 
         {/* Layout principal */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -261,6 +264,7 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
                   comfortLevel={sim.comfortLevel}
                   tissueConfig={tissueConfig}
                   riskResult={riskResult}
+                  compact={previewMode}
                 />
               </CardContent>
             </Card>

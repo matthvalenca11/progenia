@@ -21,6 +21,7 @@ interface Tens3DSimulatorProps {
   comfortLevel: number;
   tissueConfig: TissueConfig;
   riskResult: RiskResult;
+  compact?: boolean;
 }
 
 export function Tens3DSimulator({
@@ -32,6 +33,7 @@ export function Tens3DSimulator({
   comfortLevel,
   tissueConfig,
   riskResult,
+  compact = false,
 }: Tens3DSimulatorProps) {
   const [visualMode, setVisualMode] = useState<VisualizationMode>('electric');
   const [electrodePositions, setElectrodePositions] = useState({
@@ -44,8 +46,10 @@ export function Tens3DSimulator({
   const pulseNorm = (pulseWidthUs - 50) / (400 - 50);
   const freqNorm = (frequencyHz - 1) / (200 - 1);
 
+  const canvasHeight = compact ? '500px' : '600px';
+
   return (
-    <div className="relative w-full h-[600px] bg-slate-950 rounded-xl overflow-hidden border border-slate-800">
+    <div className={`relative w-full bg-slate-950 rounded-xl overflow-hidden border border-slate-800 touch-none`} style={{ height: canvasHeight }}>
       {/* Mode Selector */}
       <div className="absolute top-4 left-4 z-10 flex gap-2">
         <Button
@@ -106,7 +110,7 @@ export function Tens3DSimulator({
       </div>
 
       {/* 3D Canvas */}
-      <Canvas>
+      <Canvas gl={{ preserveDrawingBuffer: true, antialias: true }}>
         <PerspectiveCamera makeDefault position={[0, 3, 12]} fov={50} />
         <OrbitControls
           enableZoom={true}
@@ -115,6 +119,8 @@ export function Tens3DSimulator({
           minPolarAngle={Math.PI / 4}
           maxDistance={20}
           minDistance={8}
+          enableDamping={true}
+          dampingFactor={0.05}
         />
 
         {/* Lighting */}
