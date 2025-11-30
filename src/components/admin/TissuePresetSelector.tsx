@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TissueConfig, TissuePreset, tissuePresets, TissuePresetId } from "@/types/tissueConfig";
-import { TensLateral3DView } from "@/components/labs/TensLateral3DView";
+import { TensSemi3DView } from "@/components/labs/TensSemi3DView";
 
 interface TissuePresetSelectorProps {
   selectedPresetId: TissuePresetId;
@@ -83,13 +83,13 @@ export function TissuePresetSelector({
         </CardHeader>
         <CardContent>
           <div className="h-[300px] rounded-lg overflow-hidden">
-            <TensLateral3DView
+            <TensSemi3DView
+              frequencyHz={80}
+              pulseWidthUs={200}
+              intensitymA={15}
+              mode="convencional"
               activationLevel={50}
               comfortLevel={70}
-              frequency={80}
-              intensity={15}
-              pulseWidth={200}
-              mode="convencional"
               tissueConfig={previewConfig}
             />
           </div>

@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { TensLateral3DView } from "@/components/labs/TensLateral3DView";
+import { TensSemi3DView } from "@/components/labs/TensSemi3DView";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from "recharts";
 import { Activity, ArrowLeft, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -347,14 +347,15 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
                 Visão anatômica das camadas e profundidade da estimulação
               </p>
               
-              <TensLateral3DView 
+              <TensSemi3DView
+                frequencyHz={frequency}
+                pulseWidthUs={pulseWidth}
+                intensitymA={intensity}
+                mode={mode}
                 activationLevel={sim.activationLevel}
                 comfortLevel={sim.comfortLevel}
-                frequency={frequency}
-                intensity={intensity}
-                pulseWidth={pulseWidth}
-                mode={mode}
                 tissueConfig={tissueConfig}
+                riskResult={riskResult}
               />
               
               {/* Legenda */}
