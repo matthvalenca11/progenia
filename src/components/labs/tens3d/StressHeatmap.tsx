@@ -23,6 +23,38 @@ export function StressHeatmap({
 }: StressHeatmapProps) {
   const heatmapRef = useRef<THREE.Mesh>(null);
 
+  // Calculate lesion index
+  const lesionIndex = useMemo(() => {
+    let index = 0;
+    
+    // Base risk from riskResult
+    if (riskResult.riskLevel === "alto") index += 0.7;
+    else if (riskResult.riskLevel === "moderado") index += 0.4;
+    
+    // Intensity contribution
+    index += intensityNorm * 0.3;
+    
+    // Pulse width contribution
+    index += pulseNorm * 0.3;
+    
+    // Metal implant increases lesion risk dramatically
+    if (tissueConfig.hasMetalImplant && intensityNorm > 0.5) {
+      index += 0.4;
+    }
+    
+    // Superficial bone with high intensity
+    if (tissueConfig.boneDepth < 0.4 && intensityNorm > 0.6) {
+      index += 0.3;
+    }
+    
+    // Thin skin increases surface lesion risk
+    if (tissueConfig.skinThickness < 0.2 && intensityNorm > 0.5) {
+      index += 0.25;
+    }
+    
+    return Math.min(1, Math.max(0, index));
+  }, [intensityNorm, pulseNorm, tissueConfig, riskResult]);
+
   // Generate procedural heatmap texture
   const heatmapTexture = useMemo(() => {
     const canvas = document.createElement('canvas');
@@ -38,31 +70,48 @@ export function StressHeatmap({
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 512, 512);
 
-    // Calculate hotspot intensity
-    const thermalLoad = intensityNorm * 0.5 + pulseNorm * 0.3;
+    // Calculate hotspot intensity using lesion index
     const riskScore = riskResult.riskScore / 100;
 
-    // Add hotspots based on risk factors
+    // Add hotspots based on risk factors and lesion index
     const hotspots: { x: number; y: number; intensity: number; size: number }[] = [];
 
-    // High intensity hotspots
-    if (intensityNorm > 0.6) {
+    // LESION: Eritema superficial (skin damage) - aparece a partir de lesionIndex > 0.3
+    if (lesionIndex > 0.3) {
+      const erythemaIntensity = Math.min(1, (lesionIndex - 0.3) / 0.4); // 0.3-0.7 -> 0-1
       hotspots.push(
-        { x: 256, y: 100, intensity: intensityNorm, size: 60 + intensityNorm * 40 },
-        { x: 150, y: 200, intensity: intensityNorm * 0.7, size: 50 },
-        { x: 362, y: 200, intensity: intensityNorm * 0.7, size: 50 }
+        { x: 256, y: 80, intensity: erythemaIntensity, size: 120 + erythemaIntensity * 60 },
+        { x: 180, y: 120, intensity: erythemaIntensity * 0.8, size: 80 },
+        { x: 332, y: 120, intensity: erythemaIntensity * 0.8, size: 80 }
       );
     }
 
-    // Metal implant hotspot
-    if (tissueConfig.hasMetalImplant) {
-      const implantDepth = (tissueConfig.metalImplantDepth || 20) / 100;
+    // LESION: Dano muscular profundo - aparece com lesionIndex > 0.5
+    if (lesionIndex > 0.5) {
+      const muscleIntensity = Math.min(1, (lesionIndex - 0.5) / 0.3); // 0.5-0.8 -> 0-1
+      hotspots.push(
+        { x: 256, y: 250, intensity: muscleIntensity, size: 90 + muscleIntensity * 50 },
+        { x: 200, y: 300, intensity: muscleIntensity * 0.9, size: 70 },
+        { x: 312, y: 300, intensity: muscleIntensity * 0.9, size: 70 }
+      );
+    }
+
+    // LESION: Metal implant hotspot - intenso quando há risco
+    if (tissueConfig.hasMetalImplant && lesionIndex > 0.4) {
+      const implantDepth = (tissueConfig.metalImplantDepth || 0.5);
+      const implantIntensity = Math.min(1.2, lesionIndex * 1.5); // Pode exceder 1.0 para brilho extra
       hotspots.push({
         x: 256,
         y: 100 + implantDepth * 300,
-        intensity: 1.0,
-        size: 80,
+        intensity: implantIntensity,
+        size: 100 + implantIntensity * 40,
       });
+      
+      // Adicionar halos ao redor do implante
+      hotspots.push(
+        { x: 220, y: 100 + implantDepth * 300, intensity: implantIntensity * 0.7, size: 60 },
+        { x: 292, y: 100 + implantDepth * 300, intensity: implantIntensity * 0.7, size: 60 }
+      );
     }
 
     // Superficial bone hotspots
@@ -94,15 +143,25 @@ export function StressHeatmap({
         hotspot.size
       );
       
-      if (hotspot.intensity > 0.7) {
-        gradient.addColorStop(0, 'rgba(255, 0, 0, 0.9)');
-        gradient.addColorStop(0.4, 'rgba(255, 100, 0, 0.6)');
-        gradient.addColorStop(1, 'rgba(255, 200, 0, 0)');
+      // LESION COLORS: mais intenso e realista
+      if (hotspot.intensity > 0.8) {
+        // Lesão severa - quase branco no centro (necrose)
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
+        gradient.addColorStop(0.2, 'rgba(255, 100, 100, 0.95)');
+        gradient.addColorStop(0.5, 'rgba(255, 0, 0, 0.8)');
+        gradient.addColorStop(1, 'rgba(150, 0, 0, 0)');
+      } else if (hotspot.intensity > 0.6) {
+        // Lesão moderada-alta - vermelho intenso
+        gradient.addColorStop(0, 'rgba(255, 50, 50, 0.95)');
+        gradient.addColorStop(0.4, 'rgba(255, 80, 0, 0.7)');
+        gradient.addColorStop(1, 'rgba(255, 150, 0, 0)');
       } else if (hotspot.intensity > 0.4) {
+        // Lesão moderada - laranja/amarelo
         gradient.addColorStop(0, 'rgba(255, 150, 0, 0.7)');
         gradient.addColorStop(0.5, 'rgba(255, 200, 0, 0.4)');
         gradient.addColorStop(1, 'rgba(255, 255, 0, 0)');
       } else {
+        // Lesão leve - amarelo esverdeado
         gradient.addColorStop(0, 'rgba(255, 255, 0, 0.5)');
         gradient.addColorStop(0.7, 'rgba(200, 255, 0, 0.2)');
         gradient.addColorStop(1, 'rgba(100, 255, 0, 0)');
@@ -159,14 +218,21 @@ export function StressHeatmap({
     const texture = new THREE.CanvasTexture(canvas);
     texture.needsUpdate = true;
     return texture;
-  }, [intensityNorm, pulseNorm, tissueConfig, riskResult]);
+  }, [intensityNorm, pulseNorm, tissueConfig, riskResult, lesionIndex]);
 
-  // Pulsing animation for high-risk areas
+  // Pulsing animation for high-risk areas - mais intenso com lesionIndex
   useFrame((state) => {
     if (!heatmapRef.current) return;
     
-    if (riskResult.riskScore > 50) {
-      const pulse = Math.sin(state.clock.elapsedTime * 3) * 0.1 + 0.9;
+    if (lesionIndex > 0.5) {
+      // Pulso mais rápido e intenso para lesões
+      const pulseSpeed = 3 + lesionIndex * 3;
+      const pulse = Math.sin(state.clock.elapsedTime * pulseSpeed) * 0.15 + 0.85;
+      const material = heatmapRef.current.material as THREE.MeshBasicMaterial;
+      const baseOpacity = 0.6 + lesionIndex * 0.2; // Aumenta opacidade base com lesão
+      material.opacity = baseOpacity * pulse;
+    } else if (riskResult.riskScore > 30) {
+      const pulse = Math.sin(state.clock.elapsedTime * 2) * 0.1 + 0.9;
       const material = heatmapRef.current.material as THREE.MeshBasicMaterial;
       material.opacity = 0.6 * pulse;
     }
