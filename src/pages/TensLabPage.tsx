@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
-import { Tens3DView } from "@/components/labs/Tens3DView";
+import { TensLateral3DView } from "@/components/labs/TensLateral3DView";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from "recharts";
 import { Activity, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -286,14 +286,17 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
 
           {/* Coluna Direita - Visualização */}
           <div className="space-y-6">
-            {/* Visualização 3D Avançada */}
+            {/* Visualização Lateral Semi-3D */}
             <Card className="p-6 shadow-2xl border-primary/10 bg-gradient-to-br from-slate-950 to-slate-900">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-cyan-400">
                 <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_10px_rgba(34,211,238,0.8)]"></span>
-                Visualização Neural 3D
+                Visualização Lateral Semi-3D
               </h3>
+              <p className="text-xs text-slate-400 mb-4">
+                Visão anatômica das camadas e profundidade da estimulação
+              </p>
               
-              <Tens3DView 
+              <TensLateral3DView 
                 activationLevel={sim.activationLevel}
                 comfortLevel={sim.comfortLevel}
                 frequency={frequency}
