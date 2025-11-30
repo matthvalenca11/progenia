@@ -49,11 +49,24 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
     return "animate-pulse-fast";
   }, [frequency]);
 
-  // Determinar cor do halo baseada no conforto
-  const haloColor = useMemo(() => {
-    if (sim.comfortLevel >= 70) return "bg-green-400";
-    if (sim.comfortLevel >= 40) return "bg-amber-400";
-    return "bg-red-400";
+  // Determinar cor do halo baseada no conforto (gradientes multicamada)
+  const haloColors = useMemo(() => {
+    if (sim.comfortLevel >= 70) {
+      return {
+        outer: "from-emerald-300/40 via-teal-300/30 to-transparent",
+        inner: "from-emerald-400/60 via-teal-400/50 to-emerald-300/30"
+      };
+    }
+    if (sim.comfortLevel >= 40) {
+      return {
+        outer: "from-amber-300/40 via-orange-300/30 to-transparent",
+        inner: "from-amber-400/60 via-orange-400/50 to-amber-300/30"
+      };
+    }
+    return {
+      outer: "from-rose-300/40 via-red-300/30 to-transparent",
+      inner: "from-rose-400/60 via-red-400/50 to-rose-300/30"
+    };
   }, [sim.comfortLevel]);
 
   // Calcular opacidade do halo baseada na ativação
@@ -306,22 +319,35 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
           {/* Coluna Direita - Visualização */}
           <div className="space-y-6">
             {/* Figura Base com Halo Animado */}
-            <Card className="p-6 shadow-lg">
+            <Card className="p-6 shadow-lg border-primary/10">
               <h3 className="text-lg font-semibold mb-4">Visualização da Estimulação</h3>
               
               <div className="relative">
                 {/* Figura base */}
                 <TensBaseFigure />
                 
-                {/* Halo animado entre os eletrodos */}
+                {/* Campo elétrico multicamadas - Layer 1: difuso externo */}
                 <div 
                   className={`absolute inset-0 pointer-events-none flex items-center justify-center ${haloAnimationClass}`}
+                  style={{ 
+                    opacity: haloOpacity * 0.6,
+                  }}
                 >
                   <div 
-                    className={`w-1/2 h-1/3 ${haloColor} rounded-full blur-3xl transition-all duration-300`}
-                    style={{ 
-                      opacity: haloOpacity,
-                    }}
+                    className={`w-3/5 h-2/5 bg-gradient-radial ${haloColors.outer} rounded-full blur-[60px] transition-all duration-500`}
+                  />
+                </div>
+                
+                {/* Campo elétrico multicamadas - Layer 2: pulsação central */}
+                <div 
+                  className={`absolute inset-0 pointer-events-none flex items-center justify-center ${haloAnimationClass}`}
+                  style={{ 
+                    opacity: haloOpacity * 0.9,
+                    animationDelay: "0.15s"
+                  }}
+                >
+                  <div 
+                    className={`w-2/5 h-1/4 bg-gradient-radial ${haloColors.inner} rounded-full blur-[40px] transition-all duration-500`}
                   />
                 </div>
                 
