@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 interface Tens3DViewProps {
   activationLevel: number;
@@ -17,6 +17,7 @@ export function Tens3DView({
   pulseWidth,
   mode,
 }: Tens3DViewProps) {
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   
   // Determinar velocidade de animação baseada na frequência
   const animationSpeed = useMemo(() => {
@@ -25,34 +26,43 @@ export function Tens3DView({
     return { duration: "0.8s", class: "animate-pulse-fast" };
   }, [frequency]);
 
-  // Determinar cores baseadas no conforto
-  const layerColors = useMemo(() => {
+  // Determinar cores holográficas baseadas no conforto
+  const hologramColors = useMemo(() => {
     if (comfortLevel >= 70) {
       return {
-        superficial: "from-cyan-400/60 via-teal-400/40 to-transparent",
-        intermediario: "from-emerald-400/50 via-green-400/30 to-transparent",
-        profundo: "from-lime-500/40 via-green-600/25 to-transparent",
+        primary: "rgba(0, 235, 255, 0.8)", // cyan
+        secondary: "rgba(11, 185, 255, 0.6)", // electric blue
+        glow: "rgba(0, 235, 255, 0.3)",
       };
     }
     if (comfortLevel >= 40) {
       return {
-        superficial: "from-amber-400/60 via-yellow-400/40 to-transparent",
-        intermediario: "from-orange-400/50 via-amber-500/30 to-transparent",
-        profundo: "from-yellow-600/40 via-orange-600/25 to-transparent",
+        primary: "rgba(255, 217, 102, 0.8)", // neon amber
+        secondary: "rgba(255, 165, 0, 0.6)",
+        glow: "rgba(255, 217, 102, 0.3)",
       };
     }
     return {
-      superficial: "from-rose-400/60 via-pink-400/40 to-transparent",
-      intermediario: "from-red-400/50 via-rose-500/30 to-transparent",
-      profundo: "from-red-600/40 via-rose-700/25 to-transparent",
+      primary: "rgba(255, 107, 107, 0.8)", // neural red
+      secondary: "rgba(255, 82, 82, 0.6)",
+      glow: "rgba(255, 107, 107, 0.3)",
     };
   }, [comfortLevel]);
 
-  // Calcular opacidade geral baseada na intensidade
-  const baseOpacity = intensity > 0 ? 0.4 + (intensity / 100) * 0.6 : 0;
+  // Calcular opacidade e brilho baseado na intensidade
+  const baseOpacity = intensity > 0 ? 0.3 + (intensity / 100) * 0.7 : 0;
+  const glowIntensity = intensity > 0 ? 0.5 + (intensity / 100) * 0.5 : 0;
   
   // Calcular espessura dos filamentos baseada na largura de pulso
-  const filamentThickness = 2 + (pulseWidth / 400) * 6; // 2-8px
+  const filamentThickness = 1.5 + (pulseWidth / 400) * 4; // 1.5-5.5px
+  
+  // Microparallax effect
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left - rect.width / 2) / rect.width;
+    const y = (e.clientY - rect.top - rect.height / 2) / rect.height;
+    setMousePos({ x: x * 20, y: y * 20 });
+  };
 
   // Determinar padrão de ativação baseado no modo
   const modePattern = useMemo(() => {
@@ -69,388 +79,637 @@ export function Tens3DView({
   }, [mode]);
 
   return (
-    <div className="relative w-full h-[500px] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl overflow-hidden shadow-2xl">
-      {/* Microgrid de fundo */}
-      <div className="absolute inset-0 opacity-10">
+    <div 
+      className="relative w-full h-[500px] bg-gradient-to-br from-[#0a1628] via-[#1a2332] to-[#0f1b2d] rounded-3xl overflow-hidden shadow-[0_0_80px_rgba(0,235,255,0.15)] backdrop-blur-xl border border-cyan-500/20"
+      onMouseMove={handleMouseMove}
+      style={{
+        background: `
+          radial-gradient(circle at 30% 50%, rgba(135, 91, 255, 0.08) 0%, transparent 50%),
+          radial-gradient(circle at 70% 50%, rgba(0, 235, 255, 0.06) 0%, transparent 50%),
+          linear-gradient(135deg, #0a1628 0%, #1a2332 50%, #0f1b2d 100%)
+        `
+      }}
+    >
+      {/* Holographic Grid Background */}
+      <div className="absolute inset-0 opacity-[0.03]">
         <div className="absolute inset-0" 
           style={{
             backgroundImage: `
-              linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)
+              linear-gradient(rgba(0,235,255,0.4) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(0,235,255,0.4) 1px, transparent 1px)
             `,
-            backgroundSize: '30px 30px'
+            backgroundSize: '40px 40px'
           }}
         />
       </div>
+      
+      {/* Glow Orbs */}
+      <div className="absolute top-10 left-10 w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl" />
+      <div className="absolute bottom-10 right-10 w-40 h-40 bg-violet-500/10 rounded-full blur-3xl" />
 
-      {/* Container 3D principal */}
+      {/* Holographic 3D Container */}
       <div 
         className="absolute inset-0 flex items-center justify-center"
         style={{
-          perspective: '1200px',
+          perspective: '1500px',
           perspectiveOrigin: 'center center',
         }}
       >
         <div 
-          className="relative w-[90%] h-[85%]"
+          className="relative w-[85%] h-[80%] transition-transform duration-300 ease-out"
           style={{
             transformStyle: 'preserve-3d',
-            transform: 'rotateX(8deg) rotateY(-5deg)',
+            transform: `rotateX(${5 + mousePos.y * 0.3}deg) rotateY(${-3 + mousePos.x * 0.3}deg)`,
           }}
         >
-          {/* Camada 3: Músculo (mais profunda) */}
+          {/* Camada 3: Músculo (profunda) - Holográfica */}
           <div
-            className="absolute inset-0 rounded-3xl"
+            className="absolute inset-0 rounded-3xl transition-all duration-500"
             style={{
-              transform: 'translateZ(-40px)',
+              transform: 'translateZ(-50px)',
               transformStyle: 'preserve-3d',
             }}
           >
-            {/* Base muscular */}
-            <div className="absolute inset-0 bg-gradient-to-br from-red-950/60 via-red-900/50 to-red-950/60 rounded-3xl border border-red-800/30 shadow-[0_0_40px_rgba(220,38,38,0.3)]">
-              {/* Textura muscular */}
-              <div className="absolute inset-0 opacity-20 mix-blend-overlay"
+            {/* Base muscular holográfica */}
+            <div 
+              className="absolute inset-0 rounded-3xl backdrop-blur-sm border shadow-[0_0_60px_rgba(255,107,107,0.2)]"
+              style={{
+                background: `
+                  linear-gradient(135deg, 
+                    rgba(139, 0, 0, 0.3) 0%, 
+                    rgba(178, 34, 34, 0.25) 50%, 
+                    rgba(139, 0, 0, 0.3) 100%)
+                `,
+                borderColor: 'rgba(255, 107, 107, 0.3)',
+              }}
+            >
+              {/* Textura neural muscular */}
+              <div className="absolute inset-0 opacity-15"
                 style={{
                   backgroundImage: `repeating-linear-gradient(
                     45deg,
                     transparent,
-                    transparent 10px,
-                    rgba(220,38,38,0.1) 10px,
-                    rgba(220,38,38,0.1) 20px
+                    transparent 12px,
+                    rgba(255,107,107,0.15) 12px,
+                    rgba(255,107,107,0.15) 24px
                   )`
                 }}
               />
+              {/* Glow interno */}
+              <div className="absolute inset-0 bg-gradient-radial from-red-500/10 via-transparent to-transparent blur-xl" />
             </div>
 
-            {/* Propagação profunda */}
+            {/* Filamentos neurais profundos */}
             {intensity > 40 && (
               <div 
                 className={`absolute inset-0 ${animationSpeed.class}`}
-                style={{ opacity: baseOpacity * 0.7 }}
+                style={{ opacity: baseOpacity * 0.8 }}
               >
-                {/* Filamentos elétricos profundos */}
                 <svg className="absolute inset-0 w-full h-full" viewBox="0 0 600 400">
                   <defs>
-                    <filter id="glow-deep">
-                      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+                    <filter id="neural-glow-deep">
+                      <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
                       <feMerge>
                         <feMergeNode in="coloredBlur"/>
                         <feMergeNode in="SourceGraphic"/>
                       </feMerge>
                     </filter>
+                    <linearGradient id="neural-grad-deep" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor={hologramColors.primary} stopOpacity="0.6" />
+                      <stop offset="50%" stopColor={hologramColors.secondary} stopOpacity="0.8" />
+                      <stop offset="100%" stopColor={hologramColors.primary} stopOpacity="0.6" />
+                    </linearGradient>
                   </defs>
                   
-                  {/* Linhas de corrente profunda */}
-                  <path
-                    d="M 150 200 Q 300 180, 450 200"
-                    stroke="rgba(239, 68, 68, 0.6)"
-                    strokeWidth={filamentThickness * 1.2}
-                    fill="none"
-                    filter="url(#glow-deep)"
-                    className={modePattern === "spike" ? "animate-pulse" : ""}
-                  />
-                  <path
-                    d="M 170 220 Q 300 200, 430 220"
-                    stroke="rgba(220, 38, 38, 0.5)"
-                    strokeWidth={filamentThickness}
-                    fill="none"
-                    filter="url(#glow-deep)"
-                    style={{ animationDelay: "0.2s" }}
-                  />
+                  {/* Filamentos volumétricos */}
+                  {[...Array(5)].map((_, i) => (
+                    <path
+                      key={i}
+                      d={`M ${150 + i * 10} ${200 - i * 8} Q 300 ${180 - i * 5}, ${450 - i * 10} ${200 - i * 8}`}
+                      stroke="url(#neural-grad-deep)"
+                      strokeWidth={filamentThickness * (1.5 - i * 0.1)}
+                      fill="none"
+                      filter="url(#neural-glow-deep)"
+                      className={modePattern === "spike" ? "animate-pulse" : ""}
+                      style={{ 
+                        animationDelay: `${i * 0.1}s`,
+                        opacity: 0.7 - i * 0.1
+                      }}
+                    />
+                  ))}
                 </svg>
 
-                {/* Campo elétrico profundo */}
-                <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] h-[40%] bg-gradient-radial ${layerColors.profundo} rounded-full blur-[50px]`} />
+                {/* Campo volumétrico holográfico */}
+                <div 
+                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[65%] h-[45%] rounded-full blur-[60px]"
+                  style={{
+                    background: `radial-gradient(circle, ${hologramColors.glow} 0%, transparent 70%)`,
+                  }}
+                />
               </div>
             )}
           </div>
 
-          {/* Camada 2: Tecido Subcutâneo (intermediária) */}
+          {/* Camada 2: Tecido Subcutâneo (intermediária) - Holográfica */}
           <div
-            className="absolute inset-0 rounded-3xl"
+            className="absolute inset-0 rounded-3xl transition-all duration-500"
             style={{
-              transform: 'translateZ(-20px)',
+              transform: 'translateZ(-25px)',
               transformStyle: 'preserve-3d',
             }}
           >
-            {/* Base subcutânea */}
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-100/40 via-yellow-100/35 to-amber-100/40 rounded-3xl border border-amber-200/40 backdrop-blur-sm">
-              {/* Textura adiposa */}
-              <div className="absolute inset-0 opacity-15"
+            {/* Base subcutânea translúcida */}
+            <div 
+              className="absolute inset-0 rounded-3xl backdrop-blur-md border shadow-[0_0_50px_rgba(255,217,102,0.15)]"
+              style={{
+                background: `
+                  linear-gradient(135deg, 
+                    rgba(255, 193, 7, 0.15) 0%, 
+                    rgba(255, 214, 10, 0.12) 50%, 
+                    rgba(255, 193, 7, 0.15) 100%)
+                `,
+                borderColor: 'rgba(255, 217, 102, 0.25)',
+              }}
+            >
+              {/* Textura celular holográfica */}
+              <div className="absolute inset-0 opacity-10"
                 style={{
-                  backgroundImage: `radial-gradient(circle at 20% 30%, rgba(251,191,36,0.2) 2px, transparent 2px),
-                    radial-gradient(circle at 60% 70%, rgba(251,191,36,0.2) 2px, transparent 2px),
-                    radial-gradient(circle at 40% 50%, rgba(251,191,36,0.2) 2px, transparent 2px)`,
-                  backgroundSize: '40px 40px, 50px 50px, 35px 35px'
+                  backgroundImage: `radial-gradient(circle at 25% 35%, rgba(255,217,102,0.3) 3px, transparent 3px),
+                    radial-gradient(circle at 65% 65%, rgba(255,217,102,0.3) 3px, transparent 3px),
+                    radial-gradient(circle at 45% 50%, rgba(255,217,102,0.3) 3px, transparent 3px)`,
+                  backgroundSize: '50px 50px, 60px 60px, 45px 45px'
                 }}
               />
             </div>
 
-            {/* Propagação intermediária */}
+            {/* Filamentos neurais intermediários */}
             {intensity > 20 && (
               <div 
                 className={`absolute inset-0 ${animationSpeed.class}`}
-                style={{ opacity: baseOpacity * 0.85 }}
+                style={{ opacity: baseOpacity * 0.9 }}
               >
-                {/* Ondas intermediárias */}
                 <svg className="absolute inset-0 w-full h-full" viewBox="0 0 600 400">
                   <defs>
-                    <filter id="glow-mid">
+                    <filter id="neural-glow-mid">
                       <feGaussianBlur stdDeviation="6" result="coloredBlur"/>
                       <feMerge>
                         <feMergeNode in="coloredBlur"/>
                         <feMergeNode in="SourceGraphic"/>
                       </feMerge>
                     </filter>
+                    <linearGradient id="neural-grad-mid" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="rgba(255,217,102,0.7)" stopOpacity="0.7" />
+                      <stop offset="50%" stopColor="rgba(255,179,0,0.9)" stopOpacity="0.9" />
+                      <stop offset="100%" stopColor="rgba(255,217,102,0.7)" stopOpacity="0.7" />
+                    </linearGradient>
                   </defs>
                   
                   {modePattern === "burst" ? (
-                    // Burst: grupos de pulsos
+                    // Burst: pacotes de pulsos holográficos
                     <>
-                      <path d="M 160 190 L 200 190" stroke="rgba(251, 146, 60, 0.7)" strokeWidth={filamentThickness * 0.9} fill="none" filter="url(#glow-mid)" className="animate-pulse" />
-                      <path d="M 210 190 L 250 190" stroke="rgba(251, 146, 60, 0.7)" strokeWidth={filamentThickness * 0.9} fill="none" filter="url(#glow-mid)" className="animate-pulse" style={{ animationDelay: "0.1s" }} />
-                      <path d="M 350 190 L 390 190" stroke="rgba(251, 146, 60, 0.7)" strokeWidth={filamentThickness * 0.9} fill="none" filter="url(#glow-mid)" className="animate-pulse" style={{ animationDelay: "0.2s" }} />
-                      <path d="M 400 190 L 440 190" stroke="rgba(251, 146, 60, 0.7)" strokeWidth={filamentThickness * 0.9} fill="none" filter="url(#glow-mid)" className="animate-pulse" style={{ animationDelay: "0.3s" }} />
+                      {[0, 1, 2, 3].map((i) => (
+                        <path 
+                          key={i}
+                          d={`M ${160 + i * 90} 195 L ${200 + i * 90} 195`}
+                          stroke="url(#neural-grad-mid)"
+                          strokeWidth={filamentThickness * 1.1}
+                          fill="none"
+                          filter="url(#neural-glow-mid)"
+                          className="animate-pulse"
+                          style={{ animationDelay: `${i * 0.15}s` }}
+                        />
+                      ))}
                     </>
                   ) : (
-                    // Contínuo ou ondulado
+                    // Ondas volumétricas
                     <>
-                      <path
-                        d="M 160 200 Q 300 190, 440 200"
-                        stroke="rgba(251, 146, 60, 0.8)"
-                        strokeWidth={filamentThickness * 0.9}
-                        fill="none"
-                        filter="url(#glow-mid)"
-                      />
-                      <path
-                        d="M 180 210 Q 300 200, 420 210"
-                        stroke="rgba(245, 158, 11, 0.7)"
-                        strokeWidth={filamentThickness * 0.8}
-                        fill="none"
-                        filter="url(#glow-mid)"
-                        style={{ animationDelay: "0.15s" }}
-                      />
+                      {[...Array(3)].map((_, i) => (
+                        <path
+                          key={i}
+                          d={`M ${165 + i * 15} ${200 + i * 8} Q 300 ${190 + i * 5}, ${435 - i * 15} ${200 + i * 8}`}
+                          stroke="url(#neural-grad-mid)"
+                          strokeWidth={filamentThickness * (1 - i * 0.15)}
+                          fill="none"
+                          filter="url(#neural-glow-mid)"
+                          style={{ 
+                            animationDelay: `${i * 0.1}s`,
+                            opacity: 0.9 - i * 0.15
+                          }}
+                        />
+                      ))}
                     </>
                   )}
                 </svg>
 
-                {/* Campo elétrico intermediário */}
-                <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[55%] h-[35%] bg-gradient-radial ${layerColors.intermediario} rounded-full blur-[40px]`} />
+                {/* Campo holográfico intermediário */}
+                <div 
+                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[58%] h-[38%] rounded-full blur-[45px]"
+                  style={{
+                    background: `radial-gradient(circle, rgba(255,217,102,0.25) 0%, transparent 70%)`,
+                  }}
+                />
               </div>
             )}
           </div>
 
-          {/* Camada 1: Pele (superficial) */}
+          {/* Camada 1: Pele (superficial) - Holográfica */}
           <div
-            className="absolute inset-0 rounded-3xl"
+            className="absolute inset-0 rounded-3xl transition-all duration-500"
             style={{
               transform: 'translateZ(0px)',
               transformStyle: 'preserve-3d',
             }}
           >
-            {/* Base da pele */}
-            <div className="absolute inset-0 bg-gradient-to-br from-[#F5E6D3]/90 via-[#EBDCC8]/85 to-[#E0D0BC]/90 rounded-3xl border border-[#D4C4B0]/50 backdrop-blur-sm shadow-[0_10px_60px_rgba(0,0,0,0.2)]">
-              {/* Textura da pele */}
-              <div className="absolute inset-0 opacity-10 mix-blend-overlay"
+            {/* Base da pele translúcida */}
+            <div 
+              className="absolute inset-0 rounded-3xl backdrop-blur-lg border shadow-[0_0_40px_rgba(0,235,255,0.1)]"
+              style={{
+                background: `
+                  linear-gradient(135deg, 
+                    rgba(245, 230, 211, 0.08) 0%, 
+                    rgba(235, 220, 200, 0.06) 50%, 
+                    rgba(224, 208, 188, 0.08) 100%)
+                `,
+                borderColor: 'rgba(0, 235, 255, 0.2)',
+              }}
+            >
+              {/* Microtextura holográfica */}
+              <div className="absolute inset-0 opacity-[0.05]"
                 style={{
                   backgroundImage: `
-                    linear-gradient(rgba(139,92,46,0.03) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(139,92,46,0.03) 1px, transparent 1px)
+                    linear-gradient(rgba(0,235,255,0.1) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(0,235,255,0.1) 1px, transparent 1px)
                   `,
-                  backgroundSize: '4px 4px'
+                  backgroundSize: '5px 5px'
                 }}
               />
             </div>
 
-            {/* Propagação superficial */}
+            {/* Filamentos neurais superficiais */}
             {intensity > 0 && (
               <div 
                 className={`absolute inset-0 ${animationSpeed.class}`}
                 style={{ opacity: baseOpacity }}
               >
-                {/* Filamentos superficiais */}
                 <svg className="absolute inset-0 w-full h-full" viewBox="0 0 600 400">
                   <defs>
-                    <filter id="glow-surface">
-                      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                    <filter id="neural-glow-surface">
+                      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
                       <feMerge>
                         <feMergeNode in="coloredBlur"/>
                         <feMergeNode in="SourceGraphic"/>
                       </feMerge>
                     </filter>
+                    <linearGradient id="neural-grad-surface" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor={hologramColors.primary} stopOpacity="0.9" />
+                      <stop offset="50%" stopColor={hologramColors.secondary} stopOpacity="1" />
+                      <stop offset="100%" stopColor={hologramColors.primary} stopOpacity="0.9" />
+                    </linearGradient>
                   </defs>
                   
                   {modePattern === "spike" ? (
-                    // Acupuntura: spikes
+                    // Acupuntura: spikes holográficos
                     <>
-                      <path d="M 180 200 L 220 200" stroke="rgba(34, 211, 238, 0.9)" strokeWidth={filamentThickness} fill="none" filter="url(#glow-surface)" className="animate-pulse" />
-                      <path d="M 380 200 L 420 200" stroke="rgba(34, 211, 238, 0.9)" strokeWidth={filamentThickness} fill="none" filter="url(#glow-surface)" className="animate-pulse" style={{ animationDelay: "0.5s" }} />
+                      {[0, 1].map((i) => (
+                        <path 
+                          key={i}
+                          d={`M ${180 + i * 200} 200 L ${220 + i * 200} 200`}
+                          stroke="url(#neural-grad-surface)"
+                          strokeWidth={filamentThickness * 1.2}
+                          fill="none"
+                          filter="url(#neural-glow-surface)"
+                          className="animate-pulse"
+                          style={{ animationDelay: `${i * 0.5}s` }}
+                        />
+                      ))}
                     </>
                   ) : modePattern === "wave" ? (
-                    // Modulado: ondas crescentes
+                    // Modulado: ondas respiratórias
                     <>
-                      <path
-                        d="M 170 200 Q 230 195, 290 200 Q 350 205, 430 200"
-                        stroke="rgba(34, 211, 238, 0.9)"
-                        strokeWidth={filamentThickness}
-                        fill="none"
-                        filter="url(#glow-surface)"
-                        className="animate-pulse-slow"
-                      />
-                      <path
-                        d="M 180 210 Q 240 207, 300 210 Q 360 213, 420 210"
-                        stroke="rgba(6, 182, 212, 0.8)"
-                        strokeWidth={filamentThickness * 0.8}
-                        fill="none"
-                        filter="url(#glow-surface)"
-                        className="animate-pulse-medium"
-                      />
+                      {[...Array(2)].map((_, i) => (
+                        <path
+                          key={i}
+                          d={`M ${175 + i * 10} ${200 + i * 10} Q ${240 + i * 10} ${195 + i * 5}, ${300 + i * 5} ${200 + i * 10} Q ${360 - i * 10} ${205 - i * 5}, ${425 - i * 10} ${200 + i * 10}`}
+                          stroke="url(#neural-grad-surface)"
+                          strokeWidth={filamentThickness * (1.2 - i * 0.2)}
+                          fill="none"
+                          filter="url(#neural-glow-surface)"
+                          className={i === 0 ? "animate-pulse-slow" : "animate-pulse-medium"}
+                        />
+                      ))}
                     </>
                   ) : (
-                    // Contínuo
+                    // Contínuo: filamentos múltiplos
                     <>
-                      <path
-                        d="M 170 200 Q 300 195, 430 200"
-                        stroke="rgba(34, 211, 238, 0.9)"
-                        strokeWidth={filamentThickness}
-                        fill="none"
-                        filter="url(#glow-surface)"
-                      />
-                      <path
-                        d="M 180 210 Q 300 205, 420 210"
-                        stroke="rgba(6, 182, 212, 0.8)"
-                        strokeWidth={filamentThickness * 0.8}
-                        fill="none"
-                        filter="url(#glow-surface)"
-                      />
-                      <path
-                        d="M 190 190 Q 300 185, 410 190"
-                        stroke="rgba(103, 232, 249, 0.7)"
-                        strokeWidth={filamentThickness * 0.7}
-                        fill="none"
-                        filter="url(#glow-surface)"
-                        style={{ animationDelay: "0.1s" }}
-                      />
+                      {[...Array(4)].map((_, i) => (
+                        <path
+                          key={i}
+                          d={`M ${172 + i * 8} ${200 - i * 8 + (i % 2 === 0 ? 0 : 16)} Q 300 ${195 - i * 5}, ${428 - i * 8} ${200 - i * 8 + (i % 2 === 0 ? 0 : 16)}`}
+                          stroke="url(#neural-grad-surface)"
+                          strokeWidth={filamentThickness * (1 - i * 0.15)}
+                          fill="none"
+                          filter="url(#neural-glow-surface)"
+                          style={{ 
+                            animationDelay: `${i * 0.08}s`,
+                            opacity: 1 - i * 0.15
+                          }}
+                        />
+                      ))}
                     </>
                   )}
                 </svg>
 
-                {/* Campo elétrico superficial */}
-                <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[50%] h-[30%] bg-gradient-radial ${layerColors.superficial} rounded-full blur-[30px]`} />
+                {/* Campo holográfico superficial com heat bloom */}
+                <div 
+                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[52%] h-[32%] rounded-full blur-[35px] transition-all duration-300"
+                  style={{
+                    background: `radial-gradient(circle, ${hologramColors.glow} 0%, transparent 70%)`,
+                    filter: `brightness(${1 + glowIntensity * 0.3})`,
+                  }}
+                />
               </div>
             )}
 
-            {/* Eletrodos 3D */}
+            {/* Eletrodos 3D Holográficos */}
             <div className="absolute inset-0">
               {/* Eletrodo proximal */}
               <div
-                className="absolute top-1/2 left-[25%] -translate-y-1/2"
+                className="absolute top-1/2 left-[25%] -translate-y-1/2 transition-all duration-300"
                 style={{
-                  transform: 'translateY(-50%) translateZ(20px) rotateX(-3deg)',
+                  transform: `translateY(-50%) translateZ(25px) rotateX(-4deg)`,
                   transformStyle: 'preserve-3d',
                 }}
               >
-                {/* Sombra do eletrodo */}
-                <div className="absolute inset-0 w-20 h-20 bg-black/20 rounded-2xl blur-md translate-y-1" />
+                {/* Sombra holográfica */}
+                <div 
+                  className="absolute inset-0 w-20 h-20 rounded-2xl blur-xl translate-y-2"
+                  style={{
+                    background: `radial-gradient(circle, ${hologramColors.glow} 0%, transparent 70%)`,
+                  }}
+                />
                 
-                {/* Gel pad */}
-                <div className="absolute inset-0 w-20 h-20 bg-gradient-radial from-cyan-400/30 via-teal-400/20 to-transparent rounded-2xl -translate-y-0.5 blur-sm" />
+                {/* Gel pad holográfico */}
+                <div 
+                  className="absolute inset-0 w-20 h-20 rounded-2xl -translate-y-1 blur-md"
+                  style={{
+                    background: `radial-gradient(circle, ${hologramColors.primary}40 0%, ${hologramColors.secondary}20 50%, transparent 100%)`,
+                  }}
+                />
                 
-                {/* Corpo do eletrodo */}
-                <div className="relative w-20 h-20 bg-gradient-to-br from-slate-300 via-slate-200 to-slate-300 rounded-2xl border border-slate-400/50 shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
-                  {/* Highlight */}
-                  <div className="absolute inset-x-2 top-2 h-6 bg-gradient-to-b from-white/40 to-transparent rounded-t-xl" />
-                  
-                  {/* Textura */}
-                  <div className="absolute inset-0 opacity-[0.03]"
+                {/* Corpo do eletrodo holográfico */}
+                <div 
+                  className="relative w-20 h-20 rounded-2xl border backdrop-blur-sm transition-all duration-300"
+                  style={{
+                    background: `linear-gradient(135deg, 
+                      rgba(226, 232, 240, 0.3) 0%, 
+                      rgba(203, 213, 225, 0.25) 50%, 
+                      rgba(226, 232, 240, 0.3) 100%)`,
+                    borderColor: hologramColors.primary,
+                    boxShadow: `0 0 30px ${hologramColors.glow}, inset 0 0 20px rgba(255,255,255,0.1)`,
+                  }}
+                >
+                  {/* Highlight holográfico */}
+                  <div 
+                    className="absolute inset-x-2 top-2 h-8 rounded-t-xl opacity-40"
                     style={{
-                      backgroundImage: `radial-gradient(circle, black 1px, transparent 1px)`,
-                      backgroundSize: '4px 4px'
+                      background: `linear-gradient(180deg, ${hologramColors.primary}60 0%, transparent 100%)`
                     }}
                   />
                   
-                  {/* Ponto de conexão */}
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 bg-slate-600 rounded-full shadow-inner" />
+                  {/* Conexão central */}
+                  <div 
+                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full"
+                    style={{
+                      background: `radial-gradient(circle, ${hologramColors.secondary} 0%, ${hologramColors.primary} 100%)`,
+                      boxShadow: `0 0 15px ${hologramColors.glow}`,
+                    }}
+                  />
                   
-                  {/* Glow quando ativo */}
+                  {/* Pulsação quando ativo */}
                   {intensity > 0 && (
-                    <div className={`absolute inset-0 rounded-2xl bg-cyan-400/20 ${animationSpeed.class}`} />
+                    <div 
+                      className={`absolute inset-0 rounded-2xl ${animationSpeed.class}`}
+                      style={{
+                        background: `linear-gradient(135deg, ${hologramColors.glow} 0%, transparent 100%)`,
+                      }}
+                    />
                   )}
                 </div>
               </div>
 
               {/* Eletrodo distal */}
               <div
-                className="absolute top-1/2 right-[25%] -translate-y-1/2"
+                className="absolute top-1/2 right-[25%] -translate-y-1/2 transition-all duration-300"
                 style={{
-                  transform: 'translateY(-50%) translateZ(20px) rotateX(-3deg)',
+                  transform: `translateY(-50%) translateZ(25px) rotateX(-4deg)`,
                   transformStyle: 'preserve-3d',
                 }}
               >
-                {/* Sombra do eletrodo */}
-                <div className="absolute inset-0 w-20 h-20 bg-black/20 rounded-2xl blur-md translate-y-1" />
+                {/* Sombra holográfica */}
+                <div 
+                  className="absolute inset-0 w-20 h-20 rounded-2xl blur-xl translate-y-2"
+                  style={{
+                    background: `radial-gradient(circle, ${hologramColors.glow} 0%, transparent 70%)`,
+                  }}
+                />
                 
-                {/* Gel pad */}
-                <div className="absolute inset-0 w-20 h-20 bg-gradient-radial from-cyan-400/30 via-teal-400/20 to-transparent rounded-2xl -translate-y-0.5 blur-sm" />
+                {/* Gel pad holográfico */}
+                <div 
+                  className="absolute inset-0 w-20 h-20 rounded-2xl -translate-y-1 blur-md"
+                  style={{
+                    background: `radial-gradient(circle, ${hologramColors.primary}40 0%, ${hologramColors.secondary}20 50%, transparent 100%)`,
+                  }}
+                />
                 
-                {/* Corpo do eletrodo */}
-                <div className="relative w-20 h-20 bg-gradient-to-br from-slate-300 via-slate-200 to-slate-300 rounded-2xl border border-slate-400/50 shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
-                  {/* Highlight */}
-                  <div className="absolute inset-x-2 top-2 h-6 bg-gradient-to-b from-white/40 to-transparent rounded-t-xl" />
-                  
-                  {/* Textura */}
-                  <div className="absolute inset-0 opacity-[0.03]"
+                {/* Corpo do eletrodo holográfico */}
+                <div 
+                  className="relative w-20 h-20 rounded-2xl border backdrop-blur-sm transition-all duration-300"
+                  style={{
+                    background: `linear-gradient(135deg, 
+                      rgba(226, 232, 240, 0.3) 0%, 
+                      rgba(203, 213, 225, 0.25) 50%, 
+                      rgba(226, 232, 240, 0.3) 100%)`,
+                    borderColor: hologramColors.primary,
+                    boxShadow: `0 0 30px ${hologramColors.glow}, inset 0 0 20px rgba(255,255,255,0.1)`,
+                  }}
+                >
+                  {/* Highlight holográfico */}
+                  <div 
+                    className="absolute inset-x-2 top-2 h-8 rounded-t-xl opacity-40"
                     style={{
-                      backgroundImage: `radial-gradient(circle, black 1px, transparent 1px)`,
-                      backgroundSize: '4px 4px'
+                      background: `linear-gradient(180deg, ${hologramColors.primary}60 0%, transparent 100%)`
                     }}
                   />
                   
-                  {/* Ponto de conexão */}
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 bg-slate-600 rounded-full shadow-inner" />
+                  {/* Conexão central */}
+                  <div 
+                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full"
+                    style={{
+                      background: `radial-gradient(circle, ${hologramColors.secondary} 0%, ${hologramColors.primary} 100%)`,
+                      boxShadow: `0 0 15px ${hologramColors.glow}`,
+                    }}
+                  />
                   
-                  {/* Glow quando ativo */}
+                  {/* Pulsação quando ativo */}
                   {intensity > 0 && (
-                    <div className={`absolute inset-0 rounded-2xl bg-cyan-400/20 ${animationSpeed.class}`} />
+                    <div 
+                      className={`absolute inset-0 rounded-2xl ${animationSpeed.class}`}
+                      style={{
+                        background: `linear-gradient(135deg, ${hologramColors.glow} 0%, transparent 100%)`,
+                      }}
+                    />
                   )}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Linhas indicadoras de camadas (holográfico) */}
+          {/* Labels holográficos das camadas */}
           <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute left-4 top-1/4 text-xs text-cyan-400/60 font-mono tracking-wider">SUPERFICIAL</div>
-            <div className="absolute left-4 top-1/2 text-xs text-amber-400/60 font-mono tracking-wider">SUBCUTÂNEO</div>
-            <div className="absolute left-4 bottom-1/4 text-xs text-red-400/60 font-mono tracking-wider">MUSCULAR</div>
+            <div 
+              className="absolute left-3 top-[22%] px-3 py-1.5 rounded-lg backdrop-blur-md border text-xs font-mono tracking-wider"
+              style={{
+                background: 'rgba(0, 235, 255, 0.08)',
+                borderColor: 'rgba(0, 235, 255, 0.3)',
+                color: 'rgba(0, 235, 255, 0.9)',
+                boxShadow: '0 0 15px rgba(0, 235, 255, 0.2)',
+              }}
+            >
+              SUPERFICIAL
+            </div>
+            <div 
+              className="absolute left-3 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg backdrop-blur-md border text-xs font-mono tracking-wider"
+              style={{
+                background: 'rgba(255, 217, 102, 0.08)',
+                borderColor: 'rgba(255, 217, 102, 0.3)',
+                color: 'rgba(255, 217, 102, 0.9)',
+                boxShadow: '0 0 15px rgba(255, 217, 102, 0.2)',
+              }}
+            >
+              SUBCUTÂNEO
+            </div>
+            <div 
+              className="absolute left-3 bottom-[22%] px-3 py-1.5 rounded-lg backdrop-blur-md border text-xs font-mono tracking-wider"
+              style={{
+                background: 'rgba(255, 107, 107, 0.08)',
+                borderColor: 'rgba(255, 107, 107, 0.3)',
+                color: 'rgba(255, 107, 107, 0.9)',
+                boxShadow: '0 0 15px rgba(255, 107, 107, 0.2)',
+              }}
+            >
+              MUSCULAR
+            </div>
             
-            {/* Linhas conectoras */}
-            <svg className="absolute inset-0 w-full h-full opacity-30">
-              <line x1="120" y1="25%" x2="160" y2="25%" stroke="rgba(34, 211, 238, 0.4)" strokeWidth="1" strokeDasharray="2,2" />
-              <line x1="120" y1="50%" x2="160" y2="50%" stroke="rgba(251, 146, 60, 0.4)" strokeWidth="1" strokeDasharray="2,2" />
-              <line x1="120" y1="75%" x2="160" y2="75%" stroke="rgba(239, 68, 68, 0.4)" strokeWidth="1" strokeDasharray="2,2" />
+            {/* Linhas conectoras holográficas */}
+            <svg className="absolute inset-0 w-full h-full opacity-40">
+              <defs>
+                <linearGradient id="line-grad-1" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="rgba(0, 235, 255, 0.6)" />
+                  <stop offset="100%" stopColor="rgba(0, 235, 255, 0)" />
+                </linearGradient>
+                <linearGradient id="line-grad-2" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="rgba(255, 217, 102, 0.6)" />
+                  <stop offset="100%" stopColor="rgba(255, 217, 102, 0)" />
+                </linearGradient>
+                <linearGradient id="line-grad-3" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="rgba(255, 107, 107, 0.6)" />
+                  <stop offset="100%" stopColor="rgba(255, 107, 107, 0)" />
+                </linearGradient>
+              </defs>
+              <line x1="140" y1="22%" x2="180" y2="22%" stroke="url(#line-grad-1)" strokeWidth="1.5" strokeDasharray="3,3" />
+              <line x1="140" y1="50%" x2="180" y2="50%" stroke="url(#line-grad-2)" strokeWidth="1.5" strokeDasharray="3,3" />
+              <line x1="140" y1="78%" x2="180" y2="78%" stroke="url(#line-grad-3)" strokeWidth="1.5" strokeDasharray="3,3" />
             </svg>
           </div>
         </div>
       </div>
 
-      {/* HUD Info */}
-      <div className="absolute bottom-4 right-4 bg-slate-900/80 backdrop-blur-md rounded-lg px-4 py-3 border border-cyan-400/30 shadow-[0_0_20px_rgba(34,211,238,0.2)]">
-        <div className="flex items-center gap-3">
+      {/* HUD Holográfico Futurista */}
+      <div 
+        className="absolute bottom-4 right-4 px-5 py-4 rounded-2xl backdrop-blur-xl border transition-all duration-300"
+        style={{
+          background: 'rgba(10, 22, 40, 0.6)',
+          borderColor: hologramColors.primary,
+          boxShadow: `0 0 40px ${hologramColors.glow}, inset 0 0 20px rgba(0,235,255,0.05)`,
+        }}
+      >
+        <div className="flex items-center gap-4">
+          {/* Indicador de profundidade */}
           <div className="flex flex-col items-center">
-            <div className="text-[10px] text-cyan-400/70 font-mono mb-1">PROFUNDIDADE</div>
-            <div className="flex gap-1">
-              <div className={`w-2 h-6 rounded-sm ${intensity > 0 ? 'bg-cyan-400' : 'bg-slate-700'} transition-colors`} />
-              <div className={`w-2 h-6 rounded-sm ${intensity > 20 ? 'bg-amber-400' : 'bg-slate-700'} transition-colors`} />
-              <div className={`w-2 h-6 rounded-sm ${intensity > 40 ? 'bg-red-400' : 'bg-slate-700'} transition-colors`} />
+            <div 
+              className="text-[10px] font-mono mb-2 tracking-widest"
+              style={{ color: hologramColors.primary }}
+            >
+              PROFUNDIDADE
+            </div>
+            <div className="flex gap-1.5">
+              <div 
+                className="w-2.5 h-8 rounded-full transition-all duration-300"
+                style={{
+                  background: intensity > 0 
+                    ? `linear-gradient(180deg, ${hologramColors.primary} 0%, ${hologramColors.secondary} 100%)`
+                    : 'rgba(71, 85, 105, 0.3)',
+                  boxShadow: intensity > 0 ? `0 0 15px ${hologramColors.glow}` : 'none',
+                  transform: intensity > 0 ? 'scaleY(1.1)' : 'scaleY(1)',
+                }}
+              />
+              <div 
+                className="w-2.5 h-8 rounded-full transition-all duration-300"
+                style={{
+                  background: intensity > 20 
+                    ? 'linear-gradient(180deg, rgba(255,217,102,0.9) 0%, rgba(255,179,0,0.8) 100%)'
+                    : 'rgba(71, 85, 105, 0.3)',
+                  boxShadow: intensity > 20 ? '0 0 15px rgba(255,217,102,0.4)' : 'none',
+                  transform: intensity > 20 ? 'scaleY(1.1)' : 'scaleY(1)',
+                }}
+              />
+              <div 
+                className="w-2.5 h-8 rounded-full transition-all duration-300"
+                style={{
+                  background: intensity > 40 
+                    ? 'linear-gradient(180deg, rgba(255,107,107,0.9) 0%, rgba(220,38,38,0.8) 100%)'
+                    : 'rgba(71, 85, 105, 0.3)',
+                  boxShadow: intensity > 40 ? '0 0 15px rgba(255,107,107,0.4)' : 'none',
+                  transform: intensity > 40 ? 'scaleY(1.1)' : 'scaleY(1)',
+                }}
+              />
             </div>
           </div>
           
-          <div className="h-8 w-px bg-cyan-400/30" />
+          {/* Separador holográfico */}
+          <div 
+            className="h-10 w-[1.5px]"
+            style={{
+              background: `linear-gradient(180deg, transparent 0%, ${hologramColors.primary} 50%, transparent 100%)`,
+            }}
+          />
           
-          <div>
-            <div className="text-[10px] text-cyan-400/70 font-mono">STATUS</div>
-            <div className="text-sm font-bold text-cyan-400">
+          {/* Status badge */}
+          <div className="flex flex-col items-start">
+            <div 
+              className="text-[10px] font-mono mb-1.5 tracking-widest"
+              style={{ color: hologramColors.primary }}
+            >
+              STATUS
+            </div>
+            <div 
+              className={`text-sm font-bold tracking-wide px-3 py-1 rounded-lg backdrop-blur-sm border transition-all duration-300 ${animationSpeed.class}`}
+              style={{
+                color: intensity === 0 ? 'rgba(148, 163, 184, 0.7)' :
+                       intensity > 50 ? 'rgba(255, 107, 107, 1)' :
+                       intensity > 25 ? 'rgba(255, 217, 102, 1)' : hologramColors.primary,
+                borderColor: intensity === 0 ? 'rgba(148, 163, 184, 0.2)' :
+                            intensity > 50 ? 'rgba(255, 107, 107, 0.5)' :
+                            intensity > 25 ? 'rgba(255, 217, 102, 0.5)' : hologramColors.primary,
+                background: intensity === 0 ? 'rgba(30, 41, 59, 0.3)' :
+                           intensity > 50 ? 'rgba(255, 107, 107, 0.1)' :
+                           intensity > 25 ? 'rgba(255, 217, 102, 0.1)' : 'rgba(0, 235, 255, 0.1)',
+                boxShadow: intensity > 0 ? (
+                  intensity > 50 ? '0 0 20px rgba(255, 107, 107, 0.3)' :
+                  intensity > 25 ? '0 0 20px rgba(255, 217, 102, 0.3)' : `0 0 20px ${hologramColors.glow}`
+                ) : 'none',
+              }}
+            >
               {intensity === 0 ? "INATIVO" : 
                intensity > 50 ? "PROFUNDO" :
                intensity > 25 ? "MODERADO" : "SUPERFICIAL"}
