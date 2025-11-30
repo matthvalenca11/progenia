@@ -1,10 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export type VirtualLabType = "ultrasound" | "mri" | "thermal" | "electrotherapy" | "other";
+export type VirtualLabType = "ultrasound" | "tens" | "mri" | "thermal" | "electrotherapy" | "other";
 
 export interface VirtualLab {
   id?: string;
   name: string;
+  slug: string;
   title: string;
   description?: string;
   lab_type: VirtualLabType;
@@ -89,6 +90,31 @@ export const virtualLabService = {
     return virtualLabService.delete(id);
   },
 
+  getBySlug: async (slug: string): Promise<VirtualLab | null> => {
+    const { data, error } = await supabase
+      .from("virtual_labs")
+      .select("*")
+      .eq("slug", slug)
+      .single();
+
+    if (error) {
+      console.error("Error getting lab by slug:", error);
+      return null;
+    }
+    return data as VirtualLab;
+  },
+
+  getPublishedLabs: async (): Promise<VirtualLab[]> => {
+    const { data, error } = await supabase
+      .from("virtual_labs")
+      .select("*")
+      .eq("is_published", true)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return (data || []) as VirtualLab[];
+  },
+
   getLabUsageCount: async (labId: string): Promise<number> => {
     // Count how many lessons reference this lab
     const { count, error } = await supabase
@@ -101,5 +127,14 @@ export const virtualLabService = {
       return 0;
     }
     return count || 0;
-  }
+  },
+
+  generateSlug: (title: string): string => {
+    return title
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+  },
 };

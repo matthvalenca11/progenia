@@ -118,6 +118,7 @@ export default function VirtualLabEditor() {
       setSaving(true);
       const labData = {
         name: labName,
+        slug: virtualLabService.generateSlug(labName),
         title: labName,
         description: labDescription,
         lab_type: "ultrasound" as const,

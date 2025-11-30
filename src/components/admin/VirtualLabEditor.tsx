@@ -28,6 +28,7 @@ export default function VirtualLabEditor() {
   const [loading, setLoading] = useState(false);
   const [lab, setLab] = useState<VirtualLab>({
     name: "",
+    slug: "",
     title: "",
     description: "",
     lab_type: "ultrasound",
@@ -132,11 +133,18 @@ export default function VirtualLabEditor() {
 
     try {
       setLoading(true);
+      
+      // Generate slug if empty
+      const labWithSlug = {
+        ...lab,
+        slug: lab.slug || virtualLabService.generateSlug(lab.name),
+      };
+      
       if (isEdit && labId) {
-        await virtualLabService.updateLab(labId, lab);
+        await virtualLabService.updateLab(labId, labWithSlug);
         toast.success("Sucesso!", { description: "Laboratório atualizado com sucesso" });
       } else {
-        await virtualLabService.createLab(lab);
+        await virtualLabService.createLab(labWithSlug);
         toast.success("Sucesso!", { description: "Laboratório criado com sucesso" });
       }
       navigate("/admin/labs");
