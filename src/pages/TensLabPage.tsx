@@ -320,7 +320,10 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
                       <YAxis 
                         label={{ value: 'Amplitude (mA)', angle: -90, position: 'insideLeft' }}
                         className="text-xs"
-                        domain={[0, 'dataMax']}
+                        type="number"
+                        domain={[0, 100]}
+                        ticks={[0, 20, 40, 60, 80, 100]}
+                        allowDataOverflow={true}
                       />
                       <Tooltip 
                         contentStyle={{ 
