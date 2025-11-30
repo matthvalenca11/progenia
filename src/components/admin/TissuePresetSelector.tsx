@@ -173,6 +173,7 @@ export function TissuePresetSelector({
         <CardContent>
           <div className="h-[300px] rounded-lg overflow-hidden">
             <TensSemi3DView
+              key={`preview-${previewConfig.skinThickness}-${previewConfig.fatThickness}-${previewConfig.muscleThickness}-${previewConfig.hasMetalImplant}`}
               frequencyHz={80}
               pulseWidthUs={200}
               intensitymA={15}

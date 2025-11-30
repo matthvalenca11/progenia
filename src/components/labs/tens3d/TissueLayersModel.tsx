@@ -18,26 +18,34 @@ export function TissueLayersModel({
   intensityNorm,
   lesionIndex = 0,
 }: TissueLayersModelProps) {
-  // Calculate layer dimensions
-  const totalThickness = 
-    tissueConfig.skinThickness + 
-    tissueConfig.fatThickness + 
-    tissueConfig.muscleThickness;
-  
-  const skinHeight = tissueConfig.skinThickness / 10;
-  const fatHeight = tissueConfig.fatThickness / 10;
-  const muscleHeight = tissueConfig.muscleThickness / 10;
-  const boneHeight = 0.5;
+  // Calculate layer dimensions - wrapped in useMemo to trigger re-render
+  const { skinHeight, fatHeight, muscleHeight, boneHeight, skinY, fatY, muscleY, boneY } = useMemo(() => {
+    const skinH = tissueConfig.skinThickness / 10;
+    const fatH = tissueConfig.fatThickness / 10;
+    const muscleH = tissueConfig.muscleThickness / 10;
+    const boneH = 0.5;
 
-  // Calculate Y positions (stacking from top)
-  let currentY = 0;
-  const skinY = currentY - skinHeight / 2;
-  currentY -= skinHeight;
-  const fatY = currentY - fatHeight / 2;
-  currentY -= fatHeight;
-  const muscleY = currentY - muscleHeight / 2;
-  currentY -= muscleHeight;
-  const boneY = currentY - boneHeight / 2;
+    // Calculate Y positions (stacking from top)
+    let currentY = 0;
+    const sY = currentY - skinH / 2;
+    currentY -= skinH;
+    const fY = currentY - fatH / 2;
+    currentY -= fatH;
+    const mY = currentY - muscleH / 2;
+    currentY -= muscleH;
+    const bY = currentY - boneH / 2;
+    
+    return {
+      skinHeight: skinH,
+      fatHeight: fatH,
+      muscleHeight: muscleH,
+      boneHeight: boneH,
+      skinY: sY,
+      fatY: fY,
+      muscleY: mY,
+      boneY: bY
+    };
+  }, [tissueConfig.skinThickness, tissueConfig.fatThickness, tissueConfig.muscleThickness]);
 
   // Create procedural textures
   const skinTexture = useMemo(() => {
