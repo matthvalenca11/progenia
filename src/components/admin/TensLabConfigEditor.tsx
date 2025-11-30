@@ -395,40 +395,60 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
           </CardContent>
         </Card>
 
-        {/* Elementos da Interface */}
+        {/* Seções de Análise */}
         <Card>
           <CardHeader>
-            <CardTitle>Elementos da Interface</CardTitle>
+            <CardTitle>Seções de Análise</CardTitle>
             <CardDescription>
-              Controle quais visualizações e informações serão exibidas
+              Selecione quais análises serão exibidas no painel de insights do aluno
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
-              <Label htmlFor="show-waveform" className="flex flex-col gap-1">
-                <span className="font-medium">Mostrar Forma de Onda</span>
+              <Label htmlFor="show-feedback-section" className="flex flex-col gap-1">
+                <span className="font-medium">Feedback da Estimulação</span>
                 <span className="text-sm text-muted-foreground">
-                  Exibe o gráfico da forma de onda de estimulação
+                  Exibe barras de conforto e ativação sensorial
                 </span>
               </Label>
               <Switch
-                id="show-waveform"
-                checked={config.showWaveform}
-                onCheckedChange={(checked) => updateConfig({ showWaveform: checked })}
+                id="show-feedback-section"
+                checked={config.showFeedbackSection ?? config.showComfortCard}
+                onCheckedChange={(checked) => updateConfig({ 
+                  showFeedbackSection: checked,
+                  showComfortCard: checked, // manter compatibilidade
+                })}
               />
             </div>
 
             <div className="flex items-center justify-between pt-4 border-t">
-              <Label htmlFor="show-comfort" className="flex flex-col gap-1">
-                <span className="font-medium">Mostrar Card de Conforto</span>
+              <Label htmlFor="show-risk-section" className="flex flex-col gap-1">
+                <span className="font-medium">Análise de Riscos</span>
                 <span className="text-sm text-muted-foreground">
-                  Exibe feedback sobre conforto e ativação sensorial
+                  Exibe score de risco e mensagens de segurança
                 </span>
               </Label>
               <Switch
-                id="show-comfort"
-                checked={config.showComfortCard}
-                onCheckedChange={(checked) => updateConfig({ showComfortCard: checked })}
+                id="show-risk-section"
+                checked={config.showRiskSection ?? true}
+                onCheckedChange={(checked) => updateConfig({ showRiskSection: checked })}
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-4 border-t">
+              <Label htmlFor="show-waveform-section" className="flex flex-col gap-1">
+                <span className="font-medium">Forma de Onda TENS</span>
+                <span className="text-sm text-muted-foreground">
+                  Exibe gráfico da forma de onda e métricas
+                </span>
+              </Label>
+              <Switch
+                id="show-waveform-section"
+                checked={config.showWaveformSection ?? config.showWaveform}
+                onCheckedChange={(checked) => updateConfig({ 
+                  showWaveformSection: checked,
+                  showWaveform: checked, // manter compatibilidade
+                })}
               />
             </div>
           </CardContent>

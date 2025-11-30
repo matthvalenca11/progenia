@@ -62,27 +62,43 @@ export function TissuePresetSelector({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {tissuePresets.map((preset) => (
-              <Button
+              <button
                 key={preset.id}
-                variant={selectedPresetId === preset.id ? "default" : "outline"}
-                className="h-auto p-4 flex flex-col items-start gap-2 hover:scale-[1.02] transition-transform"
                 onClick={() => onPresetChange(preset.id)}
+                className={`
+                  w-full h-28 p-4 rounded-xl border shadow-sm overflow-hidden
+                  transition-all duration-200
+                  ${selectedPresetId === preset.id 
+                    ? 'bg-primary text-primary-foreground border-primary shadow-md' 
+                    : 'bg-card hover:bg-accent hover:border-accent-foreground/20'
+                  }
+                `}
               >
-                <div className="flex items-center gap-2 w-full">
-                  <span className="font-semibold text-sm">{preset.label}</span>
-                  {preset.config.hasMetalImplant && (
-                    <Badge variant="secondary" className="text-xs">⚡</Badge>
-                  )}
-                  {preset.isCustom && (
-                    <Badge variant="secondary" className="text-xs">✏️</Badge>
-                  )}
+                <div className="flex flex-col h-full justify-between">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-base font-semibold text-left truncate flex-1">
+                      {preset.label}
+                    </h3>
+                    <div className="flex gap-1 flex-shrink-0">
+                      {preset.config.hasMetalImplant && (
+                        <span className="text-xs">⚡</span>
+                      )}
+                      {preset.isCustom && (
+                        <span className="text-xs">✏️</span>
+                      )}
+                    </div>
+                  </div>
+                  <p className={`text-sm text-left line-clamp-1 ${
+                    selectedPresetId === preset.id 
+                      ? 'text-primary-foreground/80' 
+                      : 'text-muted-foreground'
+                  }`}>
+                    {preset.description}
+                  </p>
                 </div>
-                <p className="text-xs text-left text-muted-foreground line-clamp-2">
-                  {preset.description}
-                </p>
-              </Button>
+              </button>
             ))}
           </div>
         </CardContent>
