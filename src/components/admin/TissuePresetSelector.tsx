@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TissueConfig, TissuePreset, tissuePresets, TissuePresetId } from "@/types/tissueConfig";
 import { TensSemi3DView } from "@/components/labs/TensSemi3DView";
+import { simulateTissueRisk } from "@/lib/tissueRiskSimulation";
 
 interface TissuePresetSelectorProps {
   selectedPresetId: TissuePresetId;
@@ -35,6 +36,20 @@ export function TissuePresetSelector({
   const updateCustomConfig = (updates: Partial<TissueConfig>) => {
     onCustomConfigChange({ ...customConfig, ...updates });
   };
+  
+  // Calculate risk for preview
+  const previewRisk = useMemo(() => 
+    simulateTissueRisk(
+      {
+        frequencyHz: 80,
+        pulseWidthUs: 200,
+        intensitymA: 15,
+        mode: "convencional",
+      },
+      previewConfig
+    ),
+    [previewConfig]
+  );
 
   return (
     <div className="space-y-6">
@@ -91,6 +106,7 @@ export function TissuePresetSelector({
               activationLevel={50}
               comfortLevel={70}
               tissueConfig={previewConfig}
+              riskResult={previewRisk}
             />
           </div>
         </CardContent>

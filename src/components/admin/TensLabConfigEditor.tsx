@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TensLabConfig } from "@/types/tensLabConfig";
 import { TissueConfig, TissuePresetId, tissuePresets } from "@/types/tissueConfig";
 import { TissuePresetSelector } from "./TissuePresetSelector";
-import { Settings, Dna, AlertTriangle } from "lucide-react";
+import { TensLabPreview } from "./TensLabPreview";
+import { Dna, Settings2, Eye } from "lucide-react";
 
 interface TensLabConfigEditorProps {
   config: TensLabConfig;
@@ -61,26 +62,45 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
   const handleCustomConfigChange = (newCustomConfig: TissueConfig) => {
     setCustomConfig(newCustomConfig);
   };
+  
+  // Get the actual tissue config for preview
+  const previewTissueConfig = useMemo(() => {
+    if (selectedPresetId === "custom") {
+      return customConfig;
+    }
+    const preset = tissuePresets.find(p => p.id === selectedPresetId);
+    return preset ? { ...preset.config, id: preset.id } : customConfig;
+  }, [selectedPresetId, customConfig]);
 
   return (
-    <Tabs defaultValue="general" className="w-full">
+    <Tabs defaultValue="anatomy" className="w-full">
       <TabsList className="grid w-full grid-cols-3 mb-6">
-        <TabsTrigger value="general" className="flex items-center gap-2">
-          <Settings className="h-4 w-4" />
-          Configuração Geral
-        </TabsTrigger>
         <TabsTrigger value="anatomy" className="flex items-center gap-2">
           <Dna className="h-4 w-4" />
-          Anatomia e Tecidos
+          Anatomia
         </TabsTrigger>
-        <TabsTrigger value="advanced" className="flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4" />
-          Parâmetros Avançados
+        <TabsTrigger value="controls" className="flex items-center gap-2">
+          <Settings2 className="h-4 w-4" />
+          Controles Disponíveis
+        </TabsTrigger>
+        <TabsTrigger value="preview" className="flex items-center gap-2">
+          <Eye className="h-4 w-4" />
+          Preview Final
         </TabsTrigger>
       </TabsList>
 
-      {/* Tab 1: Configuração Geral */}
-      <TabsContent value="general" className="space-y-6 mt-6">
+      {/* Tab 1: Anatomia */}
+      <TabsContent value="anatomy" className="mt-6">
+        <TissuePresetSelector
+          selectedPresetId={selectedPresetId}
+          customConfig={customConfig}
+          onPresetChange={handlePresetChange}
+          onCustomConfigChange={handleCustomConfigChange}
+        />
+      </TabsContent>
+
+      {/* Tab 2: Controles Disponíveis */}
+      <TabsContent value="controls" className="space-y-6 mt-6">
         {/* Controles Disponíveis */}
         <Card>
           <CardHeader>
@@ -415,35 +435,21 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
         </Card>
       </TabsContent>
 
-      {/* Tab 2: Anatomia e Tecidos */}
-      <TabsContent value="anatomy" className="mt-6">
-        <TissuePresetSelector
-          selectedPresetId={selectedPresetId}
-          customConfig={customConfig}
-          onPresetChange={handlePresetChange}
-          onCustomConfigChange={handleCustomConfigChange}
-        />
-      </TabsContent>
-
-      {/* Tab 3: Parâmetros Avançados */}
-      <TabsContent value="advanced" className="space-y-6 mt-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Simulação de Riscos</CardTitle>
-            <CardDescription>
-              Configure thresholds e mensagens de alerta para o sistema de análise de riscos
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="p-6 border border-dashed rounded-lg text-center text-muted-foreground">
-              <AlertTriangle className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>Funcionalidades avançadas serão adicionadas aqui</p>
-              <p className="text-sm mt-1">
-                Thresholds de risco, mensagens customizadas e testes de cenários
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Tab 3: Preview Final */}
+      <TabsContent value="preview" className="mt-6">
+        <div className="space-y-4">
+          <Card className="p-4 bg-muted/50 border-dashed">
+            <p className="text-sm text-muted-foreground">
+              <strong>Preview Final:</strong> Esta é a visualização exata que o aluno verá. 
+              Teste os controles para verificar se tudo está funcionando conforme esperado.
+            </p>
+          </Card>
+          
+          <TensLabPreview 
+            config={config} 
+            tissueConfig={previewTissueConfig}
+          />
+        </div>
       </TabsContent>
     </Tabs>
   );
