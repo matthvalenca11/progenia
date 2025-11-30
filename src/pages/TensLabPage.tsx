@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
-import { TensBaseFigure } from "@/components/labs/TensBaseFigure";
+import { TensAnatomicalView } from "@/components/labs/TensAnatomicalView";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from "recharts";
 import { Activity, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -41,38 +41,6 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
     }), 
     [frequency, pulseWidth, intensity, mode]
   );
-
-  // Determinar classe de animação do halo baseada na frequência
-  const haloAnimationClass = useMemo(() => {
-    if (frequency <= 20) return "animate-pulse-slow";
-    if (frequency <= 80) return "animate-pulse-medium";
-    return "animate-pulse-fast";
-  }, [frequency]);
-
-  // Determinar cor do halo baseada no conforto (gradientes multicamada)
-  const haloColors = useMemo(() => {
-    if (sim.comfortLevel >= 70) {
-      return {
-        outer: "from-emerald-300/40 via-teal-300/30 to-transparent",
-        inner: "from-emerald-400/60 via-teal-400/50 to-emerald-300/30"
-      };
-    }
-    if (sim.comfortLevel >= 40) {
-      return {
-        outer: "from-amber-300/40 via-orange-300/30 to-transparent",
-        inner: "from-amber-400/60 via-orange-400/50 to-amber-300/30"
-      };
-    }
-    return {
-      outer: "from-rose-300/40 via-red-300/30 to-transparent",
-      inner: "from-rose-400/60 via-red-400/50 to-rose-300/30"
-    };
-  }, [sim.comfortLevel]);
-
-  // Calcular opacidade do halo baseada na ativação
-  const haloOpacity = useMemo(() => {
-    return 0.1 + 0.5 * (sim.activationLevel / 100);
-  }, [sim.activationLevel]);
 
   // Gerar dados da forma de onda
   const waveformData = useMemo(() => {
@@ -318,56 +286,19 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
 
           {/* Coluna Direita - Visualização */}
           <div className="space-y-6">
-            {/* Figura Base com Halo Animado */}
-            <Card className="p-6 shadow-lg border-primary/10">
-              <h3 className="text-lg font-semibold mb-4">Visualização da Estimulação</h3>
+            {/* Visualização Anatômica */}
+            <Card className="p-6 shadow-xl border-primary/10 bg-gradient-to-br from-card to-card/95">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                Visualização da Estimulação
+              </h3>
               
-              <div className="relative">
-                {/* Figura base */}
-                <TensBaseFigure />
-                
-                {/* Campo elétrico multicamadas - Layer 1: difuso externo */}
-                <div 
-                  className={`absolute inset-0 pointer-events-none flex items-center justify-center ${haloAnimationClass}`}
-                  style={{ 
-                    opacity: haloOpacity * 0.6,
-                  }}
-                >
-                  <div 
-                    className={`w-3/5 h-2/5 bg-gradient-radial ${haloColors.outer} rounded-full blur-[60px] transition-all duration-500`}
-                  />
-                </div>
-                
-                {/* Campo elétrico multicamadas - Layer 2: pulsação central */}
-                <div 
-                  className={`absolute inset-0 pointer-events-none flex items-center justify-center ${haloAnimationClass}`}
-                  style={{ 
-                    opacity: haloOpacity * 0.9,
-                    animationDelay: "0.15s"
-                  }}
-                >
-                  <div 
-                    className={`w-2/5 h-1/4 bg-gradient-radial ${haloColors.inner} rounded-full blur-[40px] transition-all duration-500`}
-                  />
-                </div>
-                
-                {/* Indicador de intensidade */}
-                <div className="absolute bottom-4 right-4 bg-background/95 backdrop-blur-sm rounded-lg px-3 py-2 border shadow-md">
-                  <div className="text-xs text-muted-foreground mb-1">Campo Elétrico</div>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${
-                      intensity > 50 ? "bg-red-500 animate-pulse" :
-                      intensity > 25 ? "bg-amber-500" : 
-                      intensity > 0 ? "bg-green-500" : "bg-muted"
-                    }`} />
-                    <span className="text-sm font-medium">
-                      {intensity === 0 ? "Inativo" : 
-                       intensity > 50 ? "Alto" :
-                       intensity > 25 ? "Médio" : "Baixo"}
-                    </span>
-                  </div>
-                </div>
-              </div>
+              <TensAnatomicalView 
+                activationLevel={sim.activationLevel}
+                comfortLevel={sim.comfortLevel}
+                frequency={frequency}
+                intensity={intensity}
+              />
             </Card>
 
             {/* Gráfico de Forma de Onda */}
