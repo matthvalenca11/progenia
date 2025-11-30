@@ -125,6 +125,7 @@ export default function VirtualLabsAdmin() {
   const getLabTypeBadge = (type: string) => {
     const badges = {
       ultrasound: { label: "Ultrassom", variant: "default" as const },
+      tens: { label: "TENS", variant: "secondary" as const },
       electrotherapy: { label: "Eletroterapia", variant: "secondary" as const },
       thermal: { label: "Térmico", variant: "outline" as const },
       other: { label: "Outro", variant: "outline" as const },
@@ -326,6 +327,13 @@ export default function VirtualLabsAdmin() {
           <div className="flex-1 overflow-y-auto">
             {labToTest?.lab_type === "ultrasound" && labToTest.config_data && (
               <UltrasoundUnifiedLab config={labToTest.config_data as any} />
+            )}
+            {labToTest?.lab_type === "tens" && (
+              <div className="p-8 text-center text-muted-foreground">
+                <Beaker className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-medium">Preview do simulador TENS em desenvolvimento</p>
+                <p className="text-sm mt-2">Use a rota /labs/{labToTest.slug} para testar</p>
+              </div>
             )}
             {labToTest?.lab_type === "electrotherapy" && (
               <div className="p-8 text-center text-muted-foreground">

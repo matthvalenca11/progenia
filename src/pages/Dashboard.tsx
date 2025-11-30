@@ -10,6 +10,7 @@ import logo from "@/assets/logo.png";
 import { toast } from "sonner";
 import { enrollmentService } from "@/services/enrollmentService";
 import { useCapsulasRecomendadas, useCapsulaInacabada } from "@/hooks/useCapsulas";
+import VirtualLabsSection from "@/components/dashboard/VirtualLabsSection";
 
 interface UserProfile {
   full_name: string;
@@ -319,45 +320,7 @@ const Dashboard = () => {
         </Card>
 
         {/* Laboratórios Virtuais Destaque */}
-        <div className="mb-8">
-          <div className="flex items-center gap-2 mb-6">
-            <FlaskConical className="h-6 w-6 text-primary" />
-            <h2 className="text-3xl font-bold">Laboratórios Virtuais</h2>
-          </div>
-          <Card 
-            className="cursor-pointer hover:shadow-xl transition-all duration-300 border-primary/20 bg-gradient-to-br from-card via-card to-primary/5 overflow-hidden group"
-            onClick={() => navigate("/labs/tens")}
-          >
-            <div className="flex flex-col md:flex-row">
-              <div className="aspect-video md:w-64 bg-gradient-to-br from-primary/10 to-primary/30 flex items-center justify-center overflow-hidden flex-shrink-0 relative">
-                <Activity className="h-24 w-24 text-primary/40 absolute" />
-                <div className="absolute inset-0 bg-gradient-to-t from-background/20 to-transparent" />
-              </div>
-              <div className="p-6 flex-1">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary text-sm font-medium rounded-full mb-3">
-                  <Activity className="h-4 w-4" />
-                  Eletroterapia TENS
-                </div>
-                <h3 className="font-bold text-2xl mb-2 group-hover:text-primary transition-colors">
-                  Simulador de TENS Interativo
-                </h3>
-                <p className="text-muted-foreground mb-4 leading-relaxed">
-                  Explore os parâmetros da estimulação elétrica transcutânea (TENS) em tempo real. 
-                  Ajuste frequência, largura de pulso e intensidade enquanto visualiza os efeitos da estimulação 
-                  e analisa as formas de onda geradas.
-                </p>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <span className="text-xs px-2 py-1 rounded-md bg-muted text-muted-foreground">Interativo</span>
-                  <span className="text-xs px-2 py-1 rounded-md bg-muted text-muted-foreground">Visualização 3D</span>
-                  <span className="text-xs px-2 py-1 rounded-md bg-muted text-muted-foreground">Análise em Tempo Real</span>
-                </div>
-                <Button className="group-hover:shadow-lg transition-all">
-                  Acessar Laboratório <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </div>
-            </div>
-          </Card>
-        </div>
+        <VirtualLabsSection />
 
         {/* Cápsulas Recomendadas */}
         {!loadingRecomendadas && capsulaRecomendadas.length > 0 && (

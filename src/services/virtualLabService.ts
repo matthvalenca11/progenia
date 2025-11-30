@@ -116,17 +116,31 @@ export const virtualLabService = {
   },
 
   getLabUsageCount: async (labId: string): Promise<number> => {
-    // Count how many lessons reference this lab
-    const { count, error } = await supabase
-      .from("lessons")
-      .select("*", { count: "exact", head: true })
-      .contains("content_data", { blocks: [{ type: "lab", data: { labId } }] });
+    // Simplified count - check if lab is referenced in capsulas content_data
+    try {
+      const { data, error } = await supabase
+        .from("capsulas")
+        .select("content_data")
+        .eq("is_published", true);
 
-    if (error) {
+      if (error) {
+        console.error("Error counting lab usage:", error);
+        return 0;
+      }
+
+      let count = 0;
+      (data || []).forEach((capsula: any) => {
+        const contentData = capsula.content_data;
+        if (contentData?.virtualLabId === labId) {
+          count++;
+        }
+      });
+
+      return count;
+    } catch (error) {
       console.error("Error counting lab usage:", error);
       return 0;
     }
-    return count || 0;
   },
 
   generateSlug: (title: string): string => {
