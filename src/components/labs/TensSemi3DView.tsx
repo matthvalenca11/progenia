@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { TensMode } from "@/lib/tensSimulation";
 import { TissueConfig, RiskResult } from "@/types/tissueConfig";
+import { Badge } from "@/components/ui/badge";
 
 export interface TensSemi3DViewProps {
   frequencyHz: number;
@@ -25,240 +26,312 @@ export function TensSemi3DView(props: TensSemi3DViewProps) {
     riskResult,
   } = props;
 
-  // Cálculos derivados para animações e efeitos
+  // Cálculos derivados
   const effects = useMemo(() => {
     const intensityNorm = intensitymA / 80; // 0-1
     const activationNorm = activationLevel / 100; // 0-1
     const freqNorm = frequencyHz / 200; // 0-1
-    const pulseNorm = pulseWidthUs / 400; // 0-1
 
-    // Velocidade de pulsação baseada na frequência
-    const pulseSpeed = 0.3 + freqNorm * 1.7; // 0.3s-2s
+    // Velocidade de animação baseada na frequência
+    const pulseSpeed = Math.max(0.4, 2 - freqNorm * 1.5); // 0.4s-2s
 
     // Brilho dos eletrodos
-    const electrodeGlow = 0.3 + intensityNorm * 0.7; // 0.3-1.0
+    const electrodeGlow = 0.2 + intensityNorm * 0.5; // 0.2-0.7
 
     // Profundidade de penetração
-    let penetrationDepth = "superficial";
-    if (intensityNorm > 0.7) penetrationDepth = "deep";
-    else if (intensityNorm > 0.4) penetrationDepth = "subcutaneous";
+    const penetrationDepth = intensityNorm * 0.8 + activationNorm * 0.2; // 0-1
 
     // Padrão de ativação baseado no modo
-    let activationPattern = "continuous";
-    if (mode === "acupuntura") activationPattern = "spike";
-    else if (mode === "burst") activationPattern = "burst";
-    else if (mode === "modulado") activationPattern = "wave";
+    let wavePattern = "continuous";
+    if (mode === "acupuntura") wavePattern = "flash";
+    else if (mode === "burst") wavePattern = "burst";
+    else if (mode === "modulado") wavePattern = "modulated";
 
-    // Cor de risco
-    let riskColor = "transparent";
-    let riskOpacity = 0;
-    if (riskResult) {
-      if (riskResult.riskLevel === "alto") {
-        riskColor = "rgb(239, 68, 68)"; // red-500
-        riskOpacity = 0.4 + intensityNorm * 0.3;
-      } else if (riskResult.riskLevel === "moderado") {
-        riskColor = "rgb(251, 146, 60)"; // orange-400
-        riskOpacity = 0.2 + intensityNorm * 0.2;
-      }
-    }
+    // Risco visual
+    const hasRisk = riskResult && riskResult.riskLevel !== "baixo";
+    const riskIntensity = hasRisk
+      ? riskResult.riskLevel === "alto"
+        ? 0.6
+        : 0.3
+      : 0;
 
-    // Intensidade de ativação muscular (número de fibras)
-    const muscleActivation = Math.round(activationNorm * 20);
+    // Número de filamentos musculares ativos
+    const muscleFilaments = Math.round(activationNorm * 12);
 
     return {
       intensityNorm,
       activationNorm,
       freqNorm,
-      pulseNorm,
       pulseSpeed,
       electrodeGlow,
       penetrationDepth,
-      activationPattern,
-      riskColor,
-      riskOpacity,
-      muscleActivation,
+      wavePattern,
+      hasRisk,
+      riskIntensity,
+      muscleFilaments,
     };
-  }, [frequencyHz, pulseWidthUs, intensitymA, mode, activationLevel, riskResult]);
+  }, [frequencyHz, intensitymA, mode, activationLevel, riskResult]);
 
-  // Altura das camadas em pixels (total ~300px)
-  const totalHeight = 300;
-  const layerHeights = useMemo(() => {
-    const skin = tissueConfig.skinThickness * 40; // 0-40px
-    const fat = tissueConfig.fatThickness * 100; // 0-100px
-    const muscle = tissueConfig.muscleThickness * 120; // 0-120px
-    const remaining = totalHeight - skin - fat - muscle;
-    const bone = Math.max(20, remaining * 0.3); // min 20px
+  // Dimensões das camadas (total ~280px altura)
+  const totalHeight = 280;
+  const layers = useMemo(() => {
+    const skinH = tissueConfig.skinThickness * 50; // 0-50px
+    const fatH = tissueConfig.fatThickness * 110; // 0-110px
+    const muscleH = tissueConfig.muscleThickness * 100; // 0-100px
+    const remaining = totalHeight - skinH - fatH - muscleH;
+    const boneH = Math.max(20, remaining);
 
-    return { skin, fat, muscle, bone };
+    return {
+      skin: skinH,
+      fat: fatH,
+      muscle: muscleH,
+      bone: boneH,
+    };
   }, [tissueConfig]);
 
-  const implantPosition = useMemo(() => {
+  // Posição do implante
+  const implant = useMemo(() => {
     if (!tissueConfig.hasMetalImplant || !tissueConfig.metalImplantDepth) return null;
-    
+
     const depth = tissueConfig.metalImplantDepth * totalHeight;
-    const span = (tissueConfig.metalImplantSpan || 0.5) * 100; // % width
-    
+    const span = (tissueConfig.metalImplantSpan || 0.6) * 80; // % largura
+
     return { depth, span };
   }, [tissueConfig]);
 
   return (
-    <div className="relative w-full h-[400px] bg-gradient-to-b from-slate-900 to-slate-800 rounded-xl overflow-hidden">
-      {/* Debug overlay - temporário */}
-      <div className="absolute top-2 left-2 z-50 bg-black/70 text-white text-xs px-2 py-1 rounded font-mono">
-        Freq: {frequencyHz}Hz | Int: {intensitymA}mA | Pulse: {pulseWidthUs}µs | {mode}
+    <div className="relative w-full h-[420px] bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 rounded-xl overflow-hidden">
+      {/* HUD discreto no canto superior esquerdo */}
+      <div className="absolute top-3 left-3 z-20 bg-black/40 backdrop-blur-sm text-white text-[10px] px-2.5 py-1.5 rounded-md font-mono space-y-0.5">
+        <div className="flex gap-3">
+          <span>{frequencyHz}Hz</span>
+          <span>{intensitymA}mA</span>
+          <span>{pulseWidthUs}µs</span>
+        </div>
+        <div className="text-[9px] opacity-70 capitalize">{mode}</div>
       </div>
 
-      {/* Perspectiva 3D container */}
-      <div 
+      {/* Badge de risco (se houver) */}
+      {effects.hasRisk && riskResult && (
+        <Badge
+          variant="outline"
+          className={`absolute top-3 right-3 z-20 ${
+            riskResult.riskLevel === "alto"
+              ? "bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/50"
+              : "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/50"
+          }`}
+        >
+          Risco {riskResult.riskLevel}
+        </Badge>
+      )}
+
+      {/* Container 3D principal */}
+      <div
         className="absolute inset-0 flex items-center justify-center"
         style={{
-          perspective: "1200px",
+          perspective: "1400px",
         }}
       >
-        {/* Bloco de tecido com perspectiva oblíqua */}
+        {/* Bloco de tecido com perspectiva */}
         <div
-          className="relative"
+          className="relative shadow-2xl"
           style={{
-            width: "320px",
-            height: `${totalHeight + 60}px`,
+            width: "340px",
+            height: `${totalHeight + 40}px`,
             transformStyle: "preserve-3d",
-            transform: "rotateX(20deg) rotateY(-15deg)",
+            transform: "rotateX(28deg) rotateY(-12deg)",
           }}
         >
-          {/* Tampa superior (pele com eletrodos) */}
+          {/* Camada 1: PELE (topo com eletrodos) */}
           <div
-            className="absolute top-0 left-0 right-0 bg-gradient-to-br from-pink-200 to-pink-300 border border-pink-400 rounded-t-lg"
+            className="absolute top-0 left-0 right-0 rounded-t-lg overflow-hidden"
             style={{
-              height: `${layerHeights.skin}px`,
+              height: `${layers.skin}px`,
+              backgroundColor: "#F7D2C2",
               transformStyle: "preserve-3d",
-              transform: "translateZ(20px)",
-              boxShadow: "0 -2px 10px rgba(0,0,0,0.3)",
+              transform: "translateZ(25px)",
+              boxShadow: "0 -3px 15px rgba(0,0,0,0.15)",
             }}
           >
-            {/* Textura da pele */}
-            <div 
-              className="absolute inset-0 opacity-20"
+            {/* Textura sutil da pele */}
+            <div
+              className="absolute inset-0 opacity-10"
               style={{
-                backgroundImage: "radial-gradient(circle at 20% 30%, transparent 1px, rgba(255,255,255,0.3) 1px)",
-                backgroundSize: "4px 4px",
+                backgroundImage:
+                  "radial-gradient(circle at 25% 35%, rgba(255,255,255,0.4) 1px, transparent 1px)",
+                backgroundSize: "6px 6px",
               }}
             />
 
-            {/* Eletrodos */}
-            <div className="absolute top-1/2 left-1/4 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-slate-700 border-2 border-slate-500 shadow-lg">
-              <div 
-                className="absolute inset-0 rounded-full animate-pulse"
+            {/* Eletrodo esquerdo */}
+            <div
+              className="absolute top-1/2 left-[22%] -translate-x-1/2 -translate-y-1/2"
+              style={{ width: "48px", height: "48px" }}
+            >
+              <div
+                className="w-full h-full rounded-lg bg-gradient-to-br from-slate-300 to-slate-400 shadow-lg"
                 style={{
-                  background: `radial-gradient(circle, rgba(59, 130, 246, ${effects.electrodeGlow}) 0%, transparent 70%)`,
-                  animationDuration: `${effects.pulseSpeed}s`,
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.3), inset 0 1px 2px rgba(255,255,255,0.3)",
                 }}
-              />
-            </div>
-            <div className="absolute top-1/2 right-1/4 translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-slate-700 border-2 border-slate-500 shadow-lg">
-              <div 
-                className="absolute inset-0 rounded-full animate-pulse"
-                style={{
-                  background: `radial-gradient(circle, rgba(239, 68, 68, ${effects.electrodeGlow}) 0%, transparent 70%)`,
-                  animationDuration: `${effects.pulseSpeed}s`,
-                  animationDelay: "0.1s",
-                }}
-              />
+              >
+                {/* Glow dinâmico */}
+                {effects.intensityNorm > 0.15 && (
+                  <div
+                    className="absolute inset-0 rounded-lg animate-pulse"
+                    style={{
+                      background: `radial-gradient(circle, rgba(59, 130, 246, ${effects.electrodeGlow}) 0%, transparent 70%)`,
+                      filter: "blur(8px)",
+                      animationDuration: `${effects.pulseSpeed}s`,
+                    }}
+                  />
+                )}
+              </div>
             </div>
 
-            {/* Ondulações superficiais */}
-            {effects.intensityNorm > 0.2 && (
+            {/* Eletrodo direito */}
+            <div
+              className="absolute top-1/2 right-[22%] translate-x-1/2 -translate-y-1/2"
+              style={{ width: "48px", height: "48px" }}
+            >
+              <div
+                className="w-full h-full rounded-lg bg-gradient-to-br from-slate-300 to-slate-400 shadow-lg"
+                style={{
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.3), inset 0 1px 2px rgba(255,255,255,0.3)",
+                }}
+              >
+                {/* Glow dinâmico */}
+                {effects.intensityNorm > 0.15 && (
+                  <div
+                    className="absolute inset-0 rounded-lg animate-pulse"
+                    style={{
+                      background: `radial-gradient(circle, rgba(239, 68, 68, ${effects.electrodeGlow}) 0%, transparent 70%)`,
+                      filter: "blur(8px)",
+                      animationDuration: `${effects.pulseSpeed}s`,
+                      animationDelay: "0.15s",
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Halo na pele (baixa intensidade) */}
+            {effects.intensityNorm > 0.1 && effects.intensityNorm < 0.4 && (
               <>
-                <div 
-                  className="absolute top-1/2 left-1/4 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full animate-ping"
+                <div
+                  className="absolute top-1/2 left-[22%] -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full opacity-40"
                   style={{
-                    background: `radial-gradient(circle, rgba(59, 130, 246, ${effects.intensityNorm * 0.3}) 0%, transparent 70%)`,
-                    animationDuration: `${effects.pulseSpeed}s`,
+                    background: "radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, transparent 70%)",
+                    filter: "blur(12px)",
                   }}
                 />
-                <div 
-                  className="absolute top-1/2 right-1/4 translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full animate-ping"
+                <div
+                  className="absolute top-1/2 right-[22%] translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full opacity-40"
                   style={{
-                    background: `radial-gradient(circle, rgba(239, 68, 68, ${effects.intensityNorm * 0.3}) 0%, transparent 70%)`,
-                    animationDuration: `${effects.pulseSpeed}s`,
-                    animationDelay: "0.1s",
+                    background: "radial-gradient(circle, rgba(239, 68, 68, 0.3) 0%, transparent 70%)",
+                    filter: "blur(12px)",
                   }}
                 />
               </>
             )}
           </div>
 
-          {/* Camada de gordura */}
+          {/* Camada 2: GORDURA */}
           <div
-            className="absolute left-0 right-0 bg-gradient-to-br from-yellow-200 to-yellow-300 border-x border-yellow-400"
+            className="absolute left-0 right-0 overflow-hidden"
             style={{
-              top: `${layerHeights.skin}px`,
-              height: `${layerHeights.fat}px`,
+              top: `${layers.skin}px`,
+              height: `${layers.fat}px`,
+              backgroundColor: "#F6E3B5",
               transformStyle: "preserve-3d",
-              transform: "translateZ(20px)",
+              transform: "translateZ(25px)",
+              borderLeft: "1px solid rgba(0,0,0,0.05)",
+              borderRight: "1px solid rgba(0,0,0,0.05)",
             }}
           >
             {/* Textura adiposa */}
-            <div 
-              className="absolute inset-0 opacity-30"
+            <div
+              className="absolute inset-0 opacity-20"
               style={{
-                backgroundImage: "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.5) 2px, transparent 2px)",
-                backgroundSize: "12px 12px",
+                backgroundImage:
+                  "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.6) 3px, transparent 3px)",
+                backgroundSize: "14px 14px",
               }}
             />
 
             {/* Ondas difusas na gordura */}
-            {effects.intensityNorm > 0.3 && effects.penetrationDepth !== "superficial" && (
-              <div 
-                className="absolute inset-0 animate-pulse"
-                style={{
-                  background: `linear-gradient(90deg, transparent 0%, rgba(59, 130, 246, ${effects.intensityNorm * 0.2}) 50%, transparent 100%)`,
-                  animationDuration: `${effects.pulseSpeed * 1.5}s`,
-                }}
-              />
+            {effects.penetrationDepth > 0.2 && (
+              <>
+                <div
+                  className="absolute inset-0 animate-pulse"
+                  style={{
+                    background: `linear-gradient(90deg, transparent 0%, rgba(59, 130, 246, ${
+                      effects.intensityNorm * 0.15
+                    }) 50%, transparent 100%)`,
+                    filter: "blur(20px)",
+                    animationDuration: `${effects.pulseSpeed * 1.8}s`,
+                  }}
+                />
+                {effects.wavePattern === "burst" && (
+                  <div
+                    className="absolute inset-0 animate-pulse"
+                    style={{
+                      background: `radial-gradient(ellipse at center, rgba(251, 191, 36, ${
+                        effects.intensityNorm * 0.2
+                      }) 0%, transparent 60%)`,
+                      filter: "blur(15px)",
+                      animationDuration: `${effects.pulseSpeed * 0.6}s`,
+                    }}
+                  />
+                )}
+              </>
             )}
           </div>
 
-          {/* Camada muscular */}
+          {/* Camada 3: MÚSCULO */}
           <div
-            className="absolute left-0 right-0 bg-gradient-to-br from-red-400 to-red-500 border-x border-red-600 overflow-hidden"
+            className="absolute left-0 right-0 overflow-hidden"
             style={{
-              top: `${layerHeights.skin + layerHeights.fat}px`,
-              height: `${layerHeights.muscle}px`,
+              top: `${layers.skin + layers.fat}px`,
+              height: `${layers.muscle}px`,
+              backgroundColor: "#D87A76",
               transformStyle: "preserve-3d",
-              transform: "translateZ(20px)",
+              transform: "translateZ(25px)",
+              borderLeft: "1px solid rgba(0,0,0,0.05)",
+              borderRight: "1px solid rgba(0,0,0,0.05)",
             }}
           >
-            {/* Fibras musculares */}
-            <svg className="absolute inset-0 w-full h-full opacity-40">
-              {Array.from({ length: 40 }).map((_, i) => (
+            {/* Fibras musculares (textura base) */}
+            <svg className="absolute inset-0 w-full h-full opacity-25">
+              {Array.from({ length: 60 }).map((_, i) => (
                 <line
-                  key={i}
-                  x1={`${(i * 100) / 40}%`}
+                  key={`fiber-base-${i}`}
+                  x1={`${(i * 100) / 60}%`}
                   y1="0"
-                  x2={`${(i * 100) / 40 + 2}%`}
+                  x2={`${(i * 100) / 60}%`}
                   y2="100%"
-                  stroke="rgba(127, 29, 29, 0.6)"
-                  strokeWidth="1"
+                  stroke="rgba(100, 40, 40, 0.4)"
+                  strokeWidth="0.5"
                 />
               ))}
             </svg>
 
-            {/* Ativação muscular - fibras acendem */}
-            {effects.muscleActivation > 0 && (
+            {/* Fibras musculares ativadas (dinâmicas) */}
+            {effects.muscleFilaments > 0 && (
               <svg className="absolute inset-0 w-full h-full">
-                {Array.from({ length: effects.muscleActivation }).map((_, i) => {
-                  const x = (i * 100) / 20;
-                  const delay = (i * 0.05) % effects.pulseSpeed;
-                  
+                {Array.from({ length: effects.muscleFilaments }).map((_, i) => {
+                  const x = 15 + (i * 70) / effects.muscleFilaments;
+                  const delay = (i * 0.08) % effects.pulseSpeed;
+                  const isFlash = effects.wavePattern === "flash";
+
                   return (
                     <line
-                      key={i}
+                      key={`fiber-active-${i}`}
                       x1={`${x}%`}
                       y1="0"
-                      x2={`${x + 2}%`}
+                      x2={`${x}%`}
                       y2="100%"
-                      stroke={effects.activationPattern === "spike" ? "rgba(255, 255, 0, 0.8)" : "rgba(59, 130, 246, 0.6)"}
-                      strokeWidth="2"
+                      stroke={isFlash ? "rgba(251, 191, 36, 0.7)" : "rgba(239, 68, 68, 0.5)"}
+                      strokeWidth="1.5"
                       className="animate-pulse"
                       style={{
                         animationDuration: `${effects.pulseSpeed}s`,
@@ -270,52 +343,53 @@ export function TensSemi3DView(props: TensSemi3DViewProps) {
               </svg>
             )}
 
-            {/* Padrão burst */}
-            {effects.activationPattern === "burst" && effects.intensityNorm > 0.5 && (
-              <div 
-                className="absolute inset-0 animate-pulse"
+            {/* Efeito de recrutamento profundo */}
+            {effects.penetrationDepth > 0.5 && (
+              <div
+                className="absolute inset-0"
                 style={{
-                  background: `radial-gradient(ellipse at center, rgba(251, 191, 36, ${effects.intensityNorm * 0.4}) 0%, transparent 60%)`,
-                  animationDuration: `${effects.pulseSpeed * 0.5}s`,
+                  background: `radial-gradient(ellipse at center, rgba(239, 68, 68, ${
+                    effects.activationNorm * 0.2
+                  }) 0%, transparent 70%)`,
+                  filter: "blur(25px)",
                 }}
               />
             )}
           </div>
 
           {/* Implante metálico (se existir) */}
-          {implantPosition && (
+          {implant && (
             <div
-              className="absolute left-1/4 right-1/4 bg-gradient-to-br from-slate-400 to-slate-600 border border-slate-500 rounded-sm shadow-2xl"
+              className="absolute left-1/2 -translate-x-1/2 rounded-md shadow-2xl"
               style={{
-                top: `${implantPosition.depth}px`,
-                height: "8px",
-                width: `${implantPosition.span}%`,
-                left: `${(100 - implantPosition.span) / 2}%`,
+                top: `${implant.depth}px`,
+                width: `${implant.span}%`,
+                height: "10px",
+                background: "linear-gradient(135deg, #9EA7B3 0%, #7C8A99 100%)",
                 transformStyle: "preserve-3d",
-                transform: "translateZ(22px)",
-                boxShadow: effects.riskOpacity > 0.2 
-                  ? `0 0 20px ${effects.riskColor}` 
-                  : "0 4px 10px rgba(0,0,0,0.5)",
+                transform: "translateZ(27px)",
+                border: "1px solid rgba(0,0,0,0.2)",
+                boxShadow: effects.hasRisk
+                  ? `0 0 20px rgba(251, 146, 60, ${effects.riskIntensity}), 0 4px 12px rgba(0,0,0,0.4)`
+                  : "0 4px 12px rgba(0,0,0,0.4)",
               }}
             >
               {/* Hotspots de risco no metal */}
-              {effects.riskOpacity > 0.2 && (
+              {effects.hasRisk && (
                 <>
-                  <div 
-                    className="absolute top-0 left-1/4 w-2 h-2 rounded-full animate-pulse"
+                  <div
+                    className="absolute top-1/2 left-1/4 w-2 h-2 rounded-full -translate-y-1/2 animate-pulse"
                     style={{
-                      background: effects.riskColor,
-                      boxShadow: `0 0 10px ${effects.riskColor}`,
-                      opacity: effects.riskOpacity,
+                      background: "rgba(251, 146, 60, 0.8)",
+                      boxShadow: "0 0 8px rgba(251, 146, 60, 0.8)",
                     }}
                   />
-                  <div 
-                    className="absolute top-0 right-1/4 w-2 h-2 rounded-full animate-pulse"
+                  <div
+                    className="absolute top-1/2 right-1/4 w-2 h-2 rounded-full -translate-y-1/2 animate-pulse"
                     style={{
-                      background: effects.riskColor,
-                      boxShadow: `0 0 10px ${effects.riskColor}`,
-                      opacity: effects.riskOpacity,
-                      animationDelay: "0.2s",
+                      background: "rgba(251, 146, 60, 0.8)",
+                      boxShadow: "0 0 8px rgba(251, 146, 60, 0.8)",
+                      animationDelay: "0.3s",
                     }}
                   />
                 </>
@@ -323,34 +397,37 @@ export function TensSemi3DView(props: TensSemi3DViewProps) {
             </div>
           )}
 
-          {/* Camada óssea */}
+          {/* Camada 4: OSSO */}
           <div
-            className="absolute left-0 right-0 bg-gradient-to-br from-slate-200 to-slate-300 border-x border-slate-400 rounded-b-lg"
+            className="absolute left-0 right-0 rounded-b-lg overflow-hidden"
             style={{
-              top: `${layerHeights.skin + layerHeights.fat + layerHeights.muscle}px`,
-              height: `${layerHeights.bone}px`,
+              top: `${layers.skin + layers.fat + layers.muscle}px`,
+              height: `${layers.bone}px`,
+              backgroundColor: "#E5E5E5",
               transformStyle: "preserve-3d",
-              transform: "translateZ(20px)",
-              boxShadow: "0 4px 10px rgba(0,0,0,0.3)",
+              transform: "translateZ(25px)",
+              borderLeft: "1px solid rgba(0,0,0,0.05)",
+              borderRight: "1px solid rgba(0,0,0,0.05)",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
             }}
           >
             {/* Textura óssea */}
-            <div 
-              className="absolute inset-0 opacity-40"
+            <div
+              className="absolute inset-0 opacity-30"
               style={{
-                backgroundImage: "linear-gradient(45deg, rgba(0,0,0,0.1) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.1) 75%), linear-gradient(45deg, rgba(0,0,0,0.1) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.1) 75%)",
-                backgroundSize: "8px 8px",
-                backgroundPosition: "0 0, 4px 4px",
+                backgroundImage:
+                  "linear-gradient(45deg, rgba(0,0,0,0.08) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.08) 75%), linear-gradient(45deg, rgba(0,0,0,0.08) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.08) 75%)",
+                backgroundSize: "10px 10px",
+                backgroundPosition: "0 0, 5px 5px",
               }}
             />
 
-            {/* Destaque de risco em osso superficial */}
-            {tissueConfig.boneDepth < 0.4 && effects.intensityNorm > 0.7 && (
-              <div 
+            {/* Highlight de risco em osso superficial */}
+            {tissueConfig.boneDepth < 0.4 && effects.intensityNorm > 0.7 && effects.hasRisk && (
+              <div
                 className="absolute inset-0 animate-pulse"
                 style={{
-                  background: `linear-gradient(180deg, ${effects.riskColor} 0%, transparent 100%)`,
-                  opacity: effects.riskOpacity,
+                  background: `linear-gradient(180deg, rgba(251, 146, 60, ${effects.riskIntensity}) 0%, transparent 100%)`,
                   animationDuration: `${effects.pulseSpeed * 2}s`,
                 }}
               />
@@ -359,8 +436,9 @@ export function TensSemi3DView(props: TensSemi3DViewProps) {
 
           {/* Face lateral esquerda (sombra/profundidade) */}
           <div
-            className="absolute left-0 top-0 w-4 bg-black/40"
+            className="absolute left-0 top-0 bg-black/20"
             style={{
+              width: "6px",
               height: `${totalHeight + 20}px`,
               transformOrigin: "top left",
               transform: "rotateY(-90deg) translateZ(-20px)",
@@ -369,59 +447,52 @@ export function TensSemi3DView(props: TensSemi3DViewProps) {
 
           {/* Face lateral direita */}
           <div
-            className="absolute right-0 top-0 w-4 bg-black/30"
+            className="absolute right-0 top-0 bg-black/15"
             style={{
+              width: "6px",
               height: `${totalHeight + 20}px`,
               transformOrigin: "top right",
-              transform: "rotateY(90deg) translateZ(300px)",
+              transform: "rotateY(90deg) translateZ(320px)",
             }}
           />
         </div>
       </div>
 
-      {/* Legenda de camadas */}
-      <div className="absolute bottom-4 left-4 bg-black/60 text-white text-xs px-3 py-2 rounded-lg space-y-1">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-sm bg-gradient-to-br from-pink-200 to-pink-300 border border-pink-400" />
-          <span>Pele ({Math.round(tissueConfig.skinThickness * 100)}%)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-sm bg-gradient-to-br from-yellow-200 to-yellow-300 border border-yellow-400" />
-          <span>Gordura ({Math.round(tissueConfig.fatThickness * 100)}%)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-sm bg-gradient-to-br from-red-400 to-red-500 border border-red-600" />
-          <span>Músculo ({Math.round(tissueConfig.muscleThickness * 100)}%)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-sm bg-gradient-to-br from-slate-200 to-slate-300 border border-slate-400" />
-          <span>Osso (prof: {Math.round(tissueConfig.boneDepth * 100)}%)</span>
-        </div>
-        {tissueConfig.hasMetalImplant && (
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-sm bg-gradient-to-br from-slate-400 to-slate-600 border border-slate-500" />
-            <span>Implante metálico</span>
-          </div>
-        )}
-      </div>
-
-      {/* Indicador de risco */}
-      {riskResult && riskResult.riskLevel !== "baixo" && (
-        <div className="absolute top-4 right-4 bg-black/70 px-3 py-2 rounded-lg">
-          <div className="flex items-center gap-2">
-            <div 
-              className="w-3 h-3 rounded-full animate-pulse"
-              style={{
-                backgroundColor: effects.riskColor,
-                boxShadow: `0 0 10px ${effects.riskColor}`,
-              }}
-            />
-            <span className="text-xs font-semibold" style={{ color: effects.riskColor }}>
-              RISCO {riskResult.riskLevel.toUpperCase()}
+      {/* Legenda limpa abaixo da visualização */}
+      <div className="absolute bottom-3 left-3 right-3 bg-white/80 dark:bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-xs">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "#F7D2C2" }} />
+            <span className="text-foreground/80">
+              Pele ({Math.round(tissueConfig.skinThickness * 100)}%)
             </span>
           </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "#F6E3B5" }} />
+            <span className="text-foreground/80">
+              Gordura ({Math.round(tissueConfig.fatThickness * 100)}%)
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "#D87A76" }} />
+            <span className="text-foreground/80">
+              Músculo ({Math.round(tissueConfig.muscleThickness * 100)}%)
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "#E5E5E5" }} />
+            <span className="text-foreground/80">
+              Osso (prof: {Math.round(tissueConfig.boneDepth * 100)}%)
+            </span>
+          </div>
+          {tissueConfig.hasMetalImplant && (
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "#9EA7B3" }} />
+              <span className="text-foreground/80">Implante</span>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
