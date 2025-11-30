@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import { TensMode } from "@/lib/tensSimulation";
-import { TissueConfig, RiskResult } from "@/types/tissueConfig";
-import { Badge } from "@/components/ui/badge";
+import { TissueConfig } from "@/types/tissueConfig";
+import { RiskResult } from "@/types/tissueConfig";
 
-export interface TensSemi3DViewProps {
+interface TensSemi3DViewProps {
   frequencyHz: number;
   pulseWidthUs: number;
   intensitymA: number;
@@ -11,934 +11,360 @@ export interface TensSemi3DViewProps {
   activationLevel: number;
   comfortLevel: number;
   tissueConfig: TissueConfig;
-  riskResult?: RiskResult;
+  riskResult: RiskResult;
 }
 
-export function TensSemi3DView(props: TensSemi3DViewProps) {
-  const {
-    frequencyHz,
-    pulseWidthUs,
-    intensitymA,
-    mode,
-    activationLevel,
-    tissueConfig,
-    riskResult,
-  } = props;
-
-  // Cálculos físicos e fisiológicos
-  const physics = useMemo(() => {
-    const intensityNorm = intensitymA / 80;
-    const activationNorm = activationLevel / 100;
-    const freqNorm = frequencyHz / 200;
-    const pulseNorm = pulseWidthUs / 400;
-
-    // Profundidade de penetração baseada em intensidade e anatomia
-    const basePenetration = intensityNorm * 0.85 + pulseNorm * 0.15;
-    const fatAttenuation = 1 - tissueConfig.fatThickness * 0.5;
-    const penetrationDepth = Math.min(0.95, basePenetration * fatAttenuation);
-
-    // Densidade de linhas de campo
-    const fieldLines = Math.round(4 + intensityNorm * 10);
-
-    // Padrão de campo baseado no modo
-    let fieldPattern = "continuous";
-    let fieldSpread = 0.6; // largura lateral do campo
-    if (mode === "convencional") {
-      fieldPattern = "continuous";
-      fieldSpread = 0.7; // mais disperso
-    } else if (mode === "acupuntura") {
-      fieldPattern = "narrow";
-      fieldSpread = 0.4; // mais focado
-    } else if (mode === "burst") {
-      fieldPattern = "pulsed";
-      fieldSpread = 0.5;
-    } else if (mode === "modulado") {
-      fieldPattern = "modulated";
-      fieldSpread = 0.6;
+export function TensSemi3DView({
+  frequencyHz,
+  pulseWidthUs,
+  intensitymA,
+  mode,
+  activationLevel,
+  comfortLevel,
+  tissueConfig,
+  riskResult,
+}: TensSemi3DViewProps) {
+  // Normalize parameters
+  const intensityNorm = Math.min(1, intensitymA / 80);
+  const pulseNorm = (pulseWidthUs - 50) / (400 - 50);
+  const freqNorm = (frequencyHz - 1) / (200 - 1);
+  
+  // Calculate penetration depth based on parameters and tissue
+  const basePenetration = intensityNorm * 0.6 + pulseNorm * 0.3;
+  const fatResistance = tissueConfig.fatThickness / 100;
+  const penetrationDepth = Math.max(0.2, Math.min(0.9, basePenetration * (1 - fatResistance * 0.4)));
+  
+  // Calculate damage/thermal load
+  const thermalLoad = intensityNorm * 0.5 + pulseNorm * 0.3 + freqNorm * 0.2;
+  const damageScore = Math.max(0, Math.min(100, thermalLoad * 100 * (tissueConfig.hasMetalImplant ? 1.5 : 1)));
+  
+  // Calculate layer percentages
+  const totalDepth = tissueConfig.skinThickness + tissueConfig.fatThickness + tissueConfig.muscleThickness;
+  const skinPercent = (tissueConfig.skinThickness / totalDepth) * 100;
+  const fatPercent = (tissueConfig.fatThickness / totalDepth) * 100;
+  const musclePercent = (tissueConfig.muscleThickness / totalDepth) * 100;
+  
+  // Field line animation speed
+  const animSpeed = Math.max(0.5, Math.min(3, frequencyHz / 80));
+  
+  // Calculate hotspots
+  const hotspots = useMemo(() => {
+    const spots = [];
+    
+    // Surface hotspot
+    if (intensityNorm > 0.6) {
+      spots.push({ x: 50, y: 10, intensity: intensityNorm * 0.8, size: 25 });
     }
+    
+    // Fat-muscle interface
+    if (tissueConfig.fatThickness < 15 && intensityNorm > 0.5) {
+      spots.push({ x: 50, y: skinPercent + fatPercent * 0.7, intensity: 0.6, size: 30 });
+    }
+    
+    // Muscle-bone interface
+    if (tissueConfig.boneDepth < 50 && intensityNorm > 0.6) {
+      spots.push({ x: 50, y: skinPercent + fatPercent + musclePercent * 0.8, intensity: 0.8, size: 35 });
+    }
+    
+    // Metal implant
+    if (tissueConfig.hasMetalImplant && tissueConfig.metalImplantDepth && intensityNorm > 0.4) {
+      const implantY = (tissueConfig.metalImplantDepth / totalDepth) * 100;
+      spots.push({ x: 50, y: implantY, intensity: 1, size: 40 });
+    }
+    
+    return spots;
+  }, [intensityNorm, tissueConfig, skinPercent, fatPercent, musclePercent, totalDepth]);
 
-    // Velocidade de animação
-    const animSpeed = Math.max(0.6, 2.2 - freqNorm * 1.6);
-
-    // Risco e dano
-    const riskLevel = riskResult?.riskLevel || "baixo";
-    const damageScore =
-      riskLevel === "alto" ? 0.85 : riskLevel === "moderado" ? 0.45 : 0.15;
-
-    // Carga térmica
-    const thermalLoad = intensityNorm * 0.5 + pulseNorm * 0.3 + freqNorm * 0.2;
-
-    // Hotspots em interfaces críticas
-    const interfaceHotspots = {
-      skinFat: intensityNorm > 0.3 && thermalLoad > 0.4,
-      fatMuscle: intensityNorm > 0.5 && penetrationDepth > 0.4,
-      muscleBone:
-        intensityNorm > 0.7 &&
-        penetrationDepth > 0.7 &&
-        tissueConfig.boneDepth < 0.5,
-      implant:
-        tissueConfig.hasMetalImplant &&
-        intensityNorm > 0.5 &&
-        (riskLevel === "moderado" || riskLevel === "alto"),
-    };
-
-    return {
-      intensityNorm,
-      activationNorm,
-      freqNorm,
-      pulseNorm,
-      penetrationDepth,
-      fieldLines,
-      fieldPattern,
-      fieldSpread,
-      animSpeed,
-      riskLevel,
-      damageScore,
-      thermalLoad,
-      interfaceHotspots,
-    };
-  }, [frequencyHz, pulseWidthUs, intensitymA, mode, activationLevel, riskResult, tissueConfig]);
-
-  // Geometria das camadas
-  const layers = useMemo(() => {
-    const total = 220;
-    const skinH = Math.max(10, tissueConfig.skinThickness * 35);
-    const fatH = tissueConfig.fatThickness * 90;
-    const muscleH = tissueConfig.muscleThickness * 80;
-    const remaining = total - skinH - fatH - muscleH;
-    const boneH = Math.max(15, remaining);
-
-    return {
-      skin: skinH,
-      fat: fatH,
-      muscle: muscleH,
-      bone: boneH,
-      skinTop: 0,
-      fatTop: skinH,
-      muscleTop: skinH + fatH,
-      boneTop: skinH + fatH + muscleH,
-    };
-  }, [tissueConfig]);
-
-  // Posição do implante
-  const implant = useMemo(() => {
-    if (!tissueConfig.hasMetalImplant || !tissueConfig.metalImplantDepth) return null;
-    const depth = tissueConfig.metalImplantDepth * 220;
-    const span = (tissueConfig.metalImplantSpan || 0.65) * 100;
-    return { depth, span };
-  }, [tissueConfig]);
+  // Field lines
+  const fieldLines = useMemo(() => {
+    const lines = [];
+    const numLines = Math.floor(3 + intensityNorm * 5);
+    
+    for (let i = 0; i < numLines; i++) {
+      const offset = (i / numLines) * 60 - 30;
+      const depth = penetrationDepth * (1 - Math.abs(offset) / 50);
+      lines.push({ offset, depth, index: i });
+    }
+    
+    return lines;
+  }, [intensityNorm, penetrationDepth]);
 
   return (
-    <div className="relative w-full space-y-4">
-      {/* HUD */}
-      <div className="absolute top-2 left-2 z-30 bg-black/60 backdrop-blur-sm text-white text-[10px] px-2.5 py-1.5 rounded font-mono shadow-lg">
-        <div className="flex gap-3">
-          <span>{frequencyHz}Hz</span>
-          <span>{intensitymA}mA</span>
-          <span>{pulseWidthUs}µs</span>
+    <div className="space-y-4">
+      {/* TOP PANEL - Superior View */}
+      <div className="relative w-full h-48 bg-gradient-to-br from-rose-100 to-rose-50 dark:from-rose-950/40 dark:to-rose-900/20 rounded-lg overflow-hidden border border-rose-200/50 dark:border-rose-800/30">
+        <div className="absolute inset-0 opacity-30" style={{
+          backgroundImage: `repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px)`
+        }} />
+        
+        {/* Electrodes */}
+        <div className="absolute left-[20%] top-1/2 -translate-y-1/2 w-20 h-20 bg-gradient-to-br from-slate-300 to-slate-400 dark:from-slate-600 dark:to-slate-700 rounded-xl shadow-2xl border-2 border-slate-500/50"
+          style={{
+            boxShadow: `0 8px 16px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.3), ${intensityNorm > 0 ? `0 0 ${20 + intensityNorm * 30}px rgba(59, 130, 246, ${0.3 + intensityNorm * 0.4})` : ''}`
+          }}>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-3xl font-bold text-slate-700 dark:text-slate-300">+</span>
+          </div>
+          <div className="absolute inset-2 bg-gradient-to-br from-blue-100/40 to-cyan-100/40 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-lg" />
         </div>
-        <div className="text-[9px] opacity-70 capitalize mt-0.5">{mode}</div>
+        
+        <div className="absolute right-[20%] top-1/2 -translate-y-1/2 w-20 h-20 bg-gradient-to-br from-slate-300 to-slate-400 dark:from-slate-600 dark:to-slate-700 rounded-xl shadow-2xl border-2 border-slate-500/50"
+          style={{
+            boxShadow: `0 8px 16px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.3), ${intensityNorm > 0 ? `0 0 ${20 + intensityNorm * 30}px rgba(59, 130, 246, ${0.3 + intensityNorm * 0.4})` : ''}`
+          }}>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-3xl font-bold text-slate-700 dark:text-slate-300">−</span>
+          </div>
+          <div className="absolute inset-2 bg-gradient-to-br from-blue-100/40 to-cyan-100/40 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-lg" />
+        </div>
+        
+        {/* Field lines */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none">
+          {fieldLines.map((line, idx) => {
+            const startX = `${20 + 10}%`;
+            const endX = `${80 - 10}%`;
+            const midY = `${50 + line.offset}%`;
+            const curveDepth = line.depth * 30;
+            
+            const pathData = `M ${startX} ${midY} Q 50% ${50 + line.offset + curveDepth}%, ${endX} ${midY}`;
+            
+            return (
+              <g key={idx}>
+                <path
+                  d={pathData}
+                  fill="none"
+                  stroke={`rgba(59, 130, 246, ${0.15 + intensityNorm * 0.3})`}
+                  strokeWidth={2 + intensityNorm * 2}
+                  className="transition-all duration-300"
+                  style={{
+                    filter: `drop-shadow(0 0 ${4 + intensityNorm * 6}px rgba(59, 130, 246, 0.4))`
+                  }}
+                />
+                {intensityNorm > 0 && (
+                  <circle r="3" fill="rgba(59, 130, 246, 0.8)" className="animate-pulse"
+                    style={{
+                      animationDuration: `${2 / animSpeed}s`,
+                      animationDelay: `${idx * 0.1}s`
+                    }}>
+                    <animateMotion
+                      dur={`${1.5 / animSpeed}s`}
+                      repeatCount="indefinite"
+                      path={pathData}
+                    />
+                  </circle>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+        
+        {/* Mode patterns */}
+        <div className="absolute inset-0 pointer-events-none">
+          {mode === "burst" && intensityNorm > 0 && (
+            <div className="absolute inset-0 bg-blue-400/5 animate-pulse" style={{ animationDuration: "0.5s" }} />
+          )}
+          {mode === "modulado" && intensityNorm > 0 && (
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-400/5 via-blue-400/10 to-blue-400/5"
+              style={{ animation: "pulse 2s ease-in-out infinite" }} />
+          )}
+        </div>
       </div>
 
-      {/* Badge de risco */}
-      {physics.riskLevel !== "baixo" && (
-        <Badge
-          variant="outline"
-          className={`absolute top-2 right-2 z-30 ${
-            physics.riskLevel === "alto"
-              ? "bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/60 shadow-lg shadow-red-500/20"
-              : "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/60 shadow-lg shadow-amber-500/20"
-          }`}
-        >
-          Risco {physics.riskLevel}
-        </Badge>
-      )}
-
-      {/* PAINEL 1: Vista Superior com Eletrodos */}
-      <div className="bg-gradient-to-br from-background via-muted/20 to-muted/40 rounded-xl p-5 border shadow-lg">
-        <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-          Vista Superior – Superfície da Pele
-        </h4>
-        <div
-          className="relative mx-auto rounded-xl overflow-hidden shadow-inner"
-          style={{
-            width: "100%",
-            maxWidth: "450px",
-            height: "160px",
-            background: "linear-gradient(135deg, #F7D2C2 0%, #F0C0B0 100%)",
+      {/* MIDDLE PANEL - Lateral Cut */}
+      <div className="relative w-full h-80 rounded-lg overflow-hidden border border-slate-300 dark:border-slate-700">
+        {/* Skin */}
+        <div 
+          className="absolute top-0 left-0 right-0 bg-gradient-to-b from-rose-200 to-rose-300 dark:from-rose-900/60 dark:to-rose-800/60"
+          style={{ 
+            height: `${skinPercent}%`,
+            clipPath: 'polygon(0 0, 100% 0, 100% 90%, 0 95%)'
           }}
         >
-          {/* Textura da pele */}
-          <div
-            className="absolute inset-0 opacity-[0.08]"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 35% 45%, rgba(255,255,255,0.6) 1px, transparent 1px), radial-gradient(circle at 65% 55%, rgba(200,150,140,0.3) 1px, transparent 1px)",
-              backgroundSize: "8px 8px, 12px 12px",
-            }}
-          />
-
-          {/* Eletrodo esquerdo */}
-          <div
-            className="absolute top-1/2 -translate-y-1/2 rounded-xl shadow-2xl"
-            style={{
-              left: "16%",
-              width: "85px",
-              height: "85px",
-            }}
-          >
-            {/* Base do eletrodo com gel */}
-            <div
-              className="absolute inset-0 rounded-xl"
-              style={{
-                background: "radial-gradient(circle at 40% 40%, #B8C5D0 0%, #9CA8B3 100%)",
-                boxShadow:
-                  "0 6px 20px rgba(0,0,0,0.35), inset 0 2px 6px rgba(255,255,255,0.4), inset 0 -2px 4px rgba(0,0,0,0.2)",
-              }}
-            >
-              {/* Textura de gel condutor */}
-              <div
-                className="absolute inset-1 rounded-lg opacity-20"
-                style={{
-                  background:
-                    "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8) 0%, transparent 50%)",
-                }}
-              />
-              {/* Marca + */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-2xl font-bold text-white/70 drop-shadow-md">+</span>
-              </div>
-            </div>
-
-            {/* Glow azul dinâmico */}
-            {physics.intensityNorm > 0.12 && (
-              <div
-                className="absolute inset-0 rounded-xl animate-pulse"
-                style={{
-                  background: `radial-gradient(circle, rgba(59, 130, 246, ${
-                    0.4 + physics.intensityNorm * 0.5
-                  }) 0%, transparent 65%)`,
-                  filter: "blur(14px)",
-                  animationDuration: `${physics.animSpeed}s`,
-                }}
-              />
-            )}
-
-            {/* Sombra sobre pele */}
-            <div
-              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-full h-3 rounded-[50%] bg-black/15 blur-sm"
-              style={{ transform: "translateX(-50%) translateY(4px)" }}
-            />
-          </div>
-
-          {/* Eletrodo direito */}
-          <div
-            className="absolute top-1/2 -translate-y-1/2 rounded-xl shadow-2xl"
-            style={{
-              right: "16%",
-              width: "85px",
-              height: "85px",
-            }}
-          >
-            {/* Base do eletrodo com gel */}
-            <div
-              className="absolute inset-0 rounded-xl"
-              style={{
-                background: "radial-gradient(circle at 40% 40%, #B8C5D0 0%, #9CA8B3 100%)",
-                boxShadow:
-                  "0 6px 20px rgba(0,0,0,0.35), inset 0 2px 6px rgba(255,255,255,0.4), inset 0 -2px 4px rgba(0,0,0,0.2)",
-              }}
-            >
-              {/* Textura de gel condutor */}
-              <div
-                className="absolute inset-1 rounded-lg opacity-20"
-                style={{
-                  background:
-                    "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8) 0%, transparent 50%)",
-                }}
-              />
-              {/* Marca - */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-3xl font-bold text-white/70 drop-shadow-md pb-1">−</span>
-              </div>
-            </div>
-
-            {/* Glow vermelho dinâmico */}
-            {physics.intensityNorm > 0.12 && (
-              <div
-                className="absolute inset-0 rounded-xl animate-pulse"
-                style={{
-                  background: `radial-gradient(circle, rgba(239, 68, 68, ${
-                    0.4 + physics.intensityNorm * 0.5
-                  }) 0%, transparent 65%)`,
-                  filter: "blur(14px)",
-                  animationDuration: `${physics.animSpeed}s`,
-                  animationDelay: "0.15s",
-                }}
-              />
-            )}
-
-            {/* Sombra sobre pele */}
-            <div
-              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-full h-3 rounded-[50%] bg-black/15 blur-sm"
-              style={{ transform: "translateX(-50%) translateY(4px)" }}
-            />
-          </div>
-
-          {/* Linhas de campo elétrico CURVAS entre eletrodos */}
-          {physics.fieldLines > 0 && (
-            <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 5 }}>
-              {Array.from({ length: physics.fieldLines }).map((_, i) => {
-                const t = i / (physics.fieldLines - 1); // 0 a 1
-                const yCenter = 50;
-                const yOffset = (t - 0.5) * physics.fieldSpread * 60; // dispersão vertical
-                const y = yCenter + yOffset;
-
-                // Curvatura da elipse (mais rasa nas pontas)
-                const curveFactor = Math.abs(yOffset) / 30;
-                const controlY = y + curveFactor * 25;
-
-                const opacity =
-                  physics.fieldPattern === "pulsed"
-                    ? 0.25 + (1 - Math.abs(t - 0.5) * 2) * 0.4
-                    : 0.3 + (1 - Math.abs(t - 0.5) * 2) * 0.5;
-
-                const strokeWidth =
-                  physics.fieldPattern === "narrow"
-                    ? 1.5 + (1 - Math.abs(t - 0.5) * 2) * 1.5
-                    : 1 + (1 - Math.abs(t - 0.5) * 2) * 2;
-
-                // Cor baseada em profundidade e dano
-                let strokeColor = `rgba(59, 130, 246, ${opacity})`;
-                if (physics.damageScore > 0.6) {
-                  strokeColor = `rgba(239, 68, 68, ${opacity})`;
-                } else if (physics.damageScore > 0.4) {
-                  strokeColor = `rgba(251, 146, 60, ${opacity})`;
-                }
-
-                return (
-                  <path
-                    key={i}
-                    d={`M 25,${y} Q 50,${controlY} 75,${y}`}
-                    stroke={strokeColor}
-                    strokeWidth={strokeWidth}
-                    fill="none"
-                    className={
-                      physics.fieldPattern === "pulsed" || physics.fieldPattern === "modulated"
-                        ? "animate-pulse"
-                        : ""
-                    }
-                    style={{
-                      animationDuration: `${physics.animSpeed * (0.8 + t * 0.4)}s`,
-                      animationDelay: `${i * 0.05}s`,
-                      filter: "drop-shadow(0 0 2px currentColor)",
-                    }}
-                    transform="translate(0, 0) scale(4, 1.6)"
-                  />
-                );
-              })}
-            </svg>
-          )}
+          <div className="absolute inset-0 opacity-20" style={{
+            backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.05) 1px, rgba(0,0,0,0.05) 2px)'
+          }} />
         </div>
-      </div>
-
-      {/* PAINEL 2: Corte Lateral Anatômico */}
-      <div className="bg-gradient-to-br from-background via-muted/20 to-muted/40 rounded-xl p-5 border shadow-lg">
-        <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-          Corte Lateral – Camadas Anatômicas
-        </h4>
-        <div
-          className="relative mx-auto rounded-lg overflow-hidden shadow-lg"
-          style={{ width: "100%", maxWidth: "450px", height: "220px" }}
+        
+        {/* Fat */}
+        <div 
+          className="absolute left-0 right-0 bg-gradient-to-b from-amber-200 to-amber-300 dark:from-amber-900/60 dark:to-amber-800/60"
+          style={{ 
+            top: `${skinPercent}%`,
+            height: `${fatPercent}%`,
+            clipPath: 'polygon(0 5%, 100% 10%, 100% 95%, 0 90%)',
+            filter: thermalLoad > 0.5 ? `hue-rotate(${(thermalLoad - 0.5) * 40}deg) brightness(${1 + thermalLoad * 0.2})` : 'none'
+          }}
         >
-          {/* Camada: PELE */}
-          <div
-            className="absolute left-0 right-0"
-            style={{
-              top: `${layers.skinTop}px`,
-              height: `${layers.skin}px`,
-              background: "linear-gradient(to right, #F7D2C2 0%, #F5CFC0 50%, #F3C8B8 100%)",
-              clipPath: "polygon(0 0, 100% 0, 100% 100%, 0 calc(100% - 2px))",
-            }}
-          >
-            {/* Textura de pele */}
-            <div
-              className="absolute inset-0 opacity-10"
-              style={{
-                backgroundImage:
-                  "radial-gradient(circle at 30% 40%, rgba(255,255,255,0.5) 1px, transparent 1px)",
-                backgroundSize: "7px 7px",
-              }}
-            />
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-foreground/60">
-              Pele
-            </span>
-
-            {/* Eritema superficial (intensidade alta) */}
-            {physics.interfaceHotspots.skinFat && (
-              <div
-                className="absolute inset-x-0 bottom-0 h-1/2 animate-pulse"
-                style={{
-                  background: `linear-gradient(to top, rgba(239, 68, 68, ${
-                    physics.damageScore * 0.4
-                  }) 0%, transparent 100%)`,
-                  animationDuration: `${physics.animSpeed * 1.5}s`,
-                }}
-              />
-            )}
-          </div>
-
-          {/* Camada: GORDURA */}
-          <div
-            className="absolute left-0 right-0"
-            style={{
-              top: `${layers.fatTop}px`,
-              height: `${layers.fat}px`,
-              background:
-                physics.thermalLoad > 0.55
-                  ? "linear-gradient(to right, #F6E3B5 0%, #F5D89D 50%, #F4D395 100%)"
-                  : "linear-gradient(to right, #F6E3B5 0%, #F5DFB0 50%, #F4DBAA 100%)",
-              clipPath:
-                "polygon(0 2px, 100% 0, 100% calc(100% - 3px), 0 calc(100% - 1px))",
-            }}
-          >
-            {/* Textura granulada */}
-            <div
-              className="absolute inset-0 opacity-15"
-              style={{
-                backgroundImage:
-                  "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.7) 2.5px, transparent 2.5px)",
-                backgroundSize: "13px 13px",
-              }}
-            />
-            <span className="absolute left-2 top-2 text-[10px] font-semibold text-foreground/60">
-              Gordura
-            </span>
-
-            {/* Ondas de campo na gordura */}
-            {physics.penetrationDepth > 0.35 && (
-              <div
-                className="absolute inset-0 animate-pulse"
-                style={{
-                  background: `radial-gradient(ellipse at 50% 30%, rgba(59, 130, 246, ${
-                    physics.intensityNorm * 0.18
-                  }) 0%, transparent 70%)`,
-                  filter: "blur(20px)",
-                  animationDuration: `${physics.animSpeed * 1.8}s`,
-                }}
-              />
-            )}
-
-            {/* Hotspot interface gordura-músculo */}
-            {physics.interfaceHotspots.fatMuscle && (
-              <>
+          <div className="absolute inset-0 opacity-30" style={{
+            backgroundImage: 'radial-gradient(circle at 20% 30%, rgba(0,0,0,0.1) 1px, transparent 1px)',
+            backgroundSize: '8px 8px'
+          }} />
+          {thermalLoad > 0.4 && (
+            <div className="absolute inset-0">
+              {[...Array(3)].map((_, i) => (
                 <div
-                  className="absolute rounded-full animate-pulse"
+                  key={i}
+                  className="absolute h-1 bg-orange-400/30 blur-sm rounded-full animate-pulse"
                   style={{
-                    left: "35%",
-                    bottom: "15%",
-                    width: "50px",
-                    height: "25px",
-                    background: `radial-gradient(ellipse, rgba(251, 146, 60, ${
-                      physics.damageScore * 0.6
-                    }) 0%, transparent 70%)`,
-                    filter: "blur(10px)",
+                    top: `${20 + i * 30}%`,
+                    left: `${30 - penetrationDepth * 10}%`,
+                    right: `${30 - penetrationDepth * 10}%`,
+                    animationDelay: `${i * 0.3}s`,
+                    animationDuration: "2s"
                   }}
-                />
-                <div
-                  className="absolute rounded-full animate-pulse"
-                  style={{
-                    right: "32%",
-                    bottom: "20%",
-                    width: "45px",
-                    height: "22px",
-                    background: `radial-gradient(ellipse, rgba(251, 146, 60, ${
-                      physics.damageScore * 0.5
-                    }) 0%, transparent 70%)`,
-                    filter: "blur(10px)",
-                    animationDelay: "0.3s",
-                  }}
-                />
-              </>
-            )}
-          </div>
-
-          {/* Camada: MÚSCULO */}
-          <div
-            className="absolute left-0 right-0 overflow-hidden"
-            style={{
-              top: `${layers.muscleTop}px`,
-              height: `${layers.muscle}px`,
-              background: "linear-gradient(to right, #D87A76 0%, #D27068 50%, #CC6860 100%)",
-              clipPath:
-                "polygon(0 1px, 100% 3px, 100% calc(100% - 2px), 0 calc(100% - 1px))",
-            }}
-          >
-            {/* Fibras musculares diagonais */}
-            <svg className="absolute inset-0 w-full h-full opacity-25">
-              {Array.from({ length: 50 }).map((_, i) => (
-                <line
-                  key={`fiber-${i}`}
-                  x1={`${(i * 100) / 50}%`}
-                  y1="0"
-                  x2={`${(i * 100) / 50 + 5}%`}
-                  y2="100%"
-                  stroke="rgba(90, 35, 32, 0.6)"
-                  strokeWidth="0.8"
                 />
               ))}
-            </svg>
-
-            <span className="absolute left-2 top-2 text-[10px] font-semibold text-white/80 drop-shadow">
-              Músculo
-            </span>
-
-            {/* Fibras ativas */}
-            {physics.penetrationDepth > 0.55 && (
-              <svg className="absolute inset-0 w-full h-full">
-                {Array.from({ length: Math.round(physics.activationNorm * 18) }).map(
-                  (_, i) => {
-                    const x = 12 + (i * 76) / 18;
-                    return (
-                      <line
-                        key={`active-${i}`}
-                        x1={`${x}%`}
-                        y1="0"
-                        x2={`${x + 4}%`}
-                        y2="100%"
-                        stroke={
-                          mode === "acupuntura"
-                            ? "rgba(251, 191, 36, 0.75)"
-                            : "rgba(239, 68, 68, 0.65)"
-                        }
-                        strokeWidth="2.5"
-                        className="animate-pulse"
-                        style={{
-                          animationDuration: `${physics.animSpeed}s`,
-                          animationDelay: `${i * 0.04}s`,
-                          filter: "drop-shadow(0 0 2px currentColor)",
-                        }}
-                      />
-                    );
-                  }
-                )}
-              </svg>
-            )}
-
-            {/* Hotspots localizados no músculo */}
-            {physics.interfaceHotspots.fatMuscle && physics.damageScore > 0.35 && (
-              <>
-                <div
-                  className="absolute rounded-full animate-pulse"
-                  style={{
-                    left: "28%",
-                    top: "35%",
-                    width: "45px",
-                    height: "25px",
-                    background: `radial-gradient(ellipse, rgba(239, 68, 68, ${
-                      physics.damageScore * 0.7
-                    }) 0%, transparent 70%)`,
-                    filter: "blur(9px)",
-                  }}
-                />
-                <div
-                  className="absolute rounded-full animate-pulse"
-                  style={{
-                    right: "30%",
-                    top: "55%",
-                    width: "40px",
-                    height: "22px",
-                    background: `radial-gradient(ellipse, rgba(239, 68, 68, ${
-                      physics.damageScore * 0.65
-                    }) 0%, transparent 70%)`,
-                    filter: "blur(9px)",
-                    animationDelay: "0.25s",
-                  }}
-                />
-              </>
-            )}
-
-            {/* Hotspot interface músculo-osso */}
-            {physics.interfaceHotspots.muscleBone && (
-              <div
-                className="absolute inset-x-0 bottom-0 h-1/3 animate-pulse"
-                style={{
-                  background: `linear-gradient(to top, rgba(239, 68, 68, ${
-                    physics.damageScore * 0.55
-                  }) 0%, transparent 100%)`,
-                  animationDuration: `${physics.animSpeed * 1.8}s`,
-                }}
-              />
-            )}
-          </div>
-
-          {/* Implante metálico (se existir) */}
-          {implant && (
-            <div
-              className="absolute left-1/2 -translate-x-1/2 rounded-md overflow-hidden"
-              style={{
-                top: `${implant.depth}px`,
-                width: `${implant.span}%`,
-                height: "11px",
-                background:
-                  "linear-gradient(135deg, #A8B5C0 0%, #8A99A8 40%, #7A8896 60%, #6A7684 100%)",
-                border: "1px solid rgba(0,0,0,0.35)",
-                boxShadow: "0 3px 10px rgba(0,0,0,0.4), inset 0 1px 3px rgba(255,255,255,0.3)",
-              }}
-            >
-              {/* Textura metálica */}
-              <div
-                className="absolute inset-0 opacity-30"
-                style={{
-                  backgroundImage:
-                    "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%)",
-                  backgroundSize: "20px 100%",
-                }}
-              />
-
-              {/* Hotspot de aquecimento no implante */}
-              {physics.interfaceHotspots.implant && (
-                <>
-                  <div
-                    className="absolute inset-0 animate-pulse"
-                    style={{
-                      background: `radial-gradient(ellipse at center, rgba(239, 68, 68, ${
-                        physics.damageScore * 0.8
-                      }) 0%, transparent 70%)`,
-                      filter: "blur(8px)",
-                    }}
-                  />
-                  {/* Hotspots pontuais */}
-                  <div
-                    className="absolute top-1/2 left-1/4 w-2.5 h-2.5 rounded-full -translate-y-1/2 animate-pulse"
-                    style={{
-                      background: "rgba(239, 68, 68, 0.9)",
-                      boxShadow: "0 0 10px rgba(239, 68, 68, 0.8)",
-                    }}
-                  />
-                  <div
-                    className="absolute top-1/2 right-1/4 w-2.5 h-2.5 rounded-full -translate-y-1/2 animate-pulse"
-                    style={{
-                      background: "rgba(239, 68, 68, 0.9)",
-                      boxShadow: "0 0 10px rgba(239, 68, 68, 0.8)",
-                      animationDelay: "0.35s",
-                    }}
-                  />
-                </>
-              )}
             </div>
           )}
-
-          {/* Camada: OSSO */}
-          <div
-            className="absolute left-0 right-0"
-            style={{
-              top: `${layers.boneTop}px`,
-              height: `${layers.bone}px`,
-              background: "linear-gradient(to right, #E5E5E5 0%, #DBDBDB 50%, #D2D2D2 100%)",
-              clipPath: "polygon(0 2px, 100% 1px, 100% 100%, 0 100%)",
-            }}
-          >
-            {/* Textura cortical */}
-            <div
-              className="absolute inset-0 opacity-30"
-              style={{
-                backgroundImage:
-                  "radial-gradient(circle at 30% 40%, rgba(255,255,255,0.6) 0.8px, transparent 0.8px), radial-gradient(circle at 70% 60%, rgba(100,100,100,0.3) 0.6px, transparent 0.6px)",
-                backgroundSize: "8px 8px, 11px 11px",
-              }}
-            />
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-foreground/60">
-              Osso
-            </span>
-
-            {/* Halo de risco periosteal */}
-            {physics.interfaceHotspots.muscleBone && (
-              <div
-                className="absolute inset-x-0 top-0 h-2/3 animate-pulse"
-                style={{
-                  background: `linear-gradient(to bottom, rgba(239, 68, 68, ${
-                    physics.damageScore * 0.6
-                  }) 0%, transparent 100%)`,
-                  animationDuration: `${physics.animSpeed * 2.2}s`,
-                }}
-              />
-            )}
-          </div>
-
-          {/* Linhas de campo descendo das camadas (elipses verticais) */}
-          {physics.penetrationDepth > 0.25 && (
-            <svg
-              className="absolute top-0 left-0 w-full h-full pointer-events-none"
-              style={{ zIndex: 15 }}
-            >
-              {/* Campo central */}
-              <ellipse
-                cx="50%"
-                cy={`${physics.penetrationDepth * 45}%`}
-                rx={`${12 * physics.fieldSpread}%`}
-                ry={`${physics.penetrationDepth * 50}%`}
-                fill="none"
-                stroke={
-                  physics.damageScore > 0.6
-                    ? "rgba(239, 68, 68, 0.5)"
-                    : physics.damageScore > 0.4
-                    ? "rgba(251, 146, 60, 0.45)"
-                    : "rgba(59, 130, 246, 0.4)"
-                }
-                strokeWidth="2.5"
-                className="animate-pulse"
-                style={{
-                  animationDuration: `${physics.animSpeed}s`,
-                  filter: "drop-shadow(0 0 4px currentColor)",
-                }}
-              />
-
-              {/* Campos laterais */}
-              {physics.intensityNorm > 0.45 && (
-                <>
-                  <ellipse
-                    cx="35%"
-                    cy={`${physics.penetrationDepth * 42}%`}
-                    rx={`${8 * physics.fieldSpread}%`}
-                    ry={`${physics.penetrationDepth * 45}%`}
-                    fill="none"
-                    stroke={
-                      physics.damageScore > 0.5
-                        ? "rgba(251, 146, 60, 0.35)"
-                        : "rgba(59, 130, 246, 0.35)"
-                    }
-                    strokeWidth="2"
-                    className="animate-pulse"
-                    style={{
-                      animationDuration: `${physics.animSpeed * 1.3}s`,
-                      animationDelay: "0.15s",
-                    }}
-                  />
-                  <ellipse
-                    cx="65%"
-                    cy={`${physics.penetrationDepth * 42}%`}
-                    rx={`${8 * physics.fieldSpread}%`}
-                    ry={`${physics.penetrationDepth * 45}%`}
-                    fill="none"
-                    stroke={
-                      physics.damageScore > 0.5
-                        ? "rgba(251, 146, 60, 0.35)"
-                        : "rgba(239, 68, 68, 0.35)"
-                    }
-                    strokeWidth="2"
-                    className="animate-pulse"
-                    style={{
-                      animationDuration: `${physics.animSpeed * 1.3}s`,
-                      animationDelay: "0.25s",
-                    }}
-                  />
-                </>
-              )}
-            </svg>
-          )}
         </div>
-      </div>
-
-      {/* PAINEL 3: Heatmap de Segurança */}
-      <div className="bg-gradient-to-br from-background via-muted/20 to-muted/40 rounded-xl p-5 border shadow-lg">
-        <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-          Mapa de Segurança Tecidual
-        </h4>
-        <div
-          className="relative mx-auto rounded-lg overflow-hidden shadow-inner"
-          style={{ width: "100%", maxWidth: "450px", height: "70px" }}
+        
+        {/* Muscle */}
+        <div 
+          className="absolute left-0 right-0 bg-gradient-to-b from-red-400 to-red-500 dark:from-red-900/70 dark:to-red-800/70"
+          style={{ 
+            top: `${skinPercent + fatPercent}%`,
+            height: `${musclePercent}%`,
+            clipPath: 'polygon(0 10%, 100% 5%, 100% 100%, 0 100%)'
+          }}
         >
-          {/* Gradiente base */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                physics.damageScore > 0.65
-                  ? "linear-gradient(to bottom, rgba(34, 197, 94, 0.25) 0%, rgba(251, 146, 60, 0.5) 35%, rgba(239, 68, 68, 0.75) 100%)"
-                  : physics.damageScore > 0.4
-                  ? "linear-gradient(to bottom, rgba(34, 197, 94, 0.4) 0%, rgba(251, 191, 36, 0.5) 50%, rgba(251, 146, 60, 0.5) 100%)"
-                  : "linear-gradient(to bottom, rgba(34, 197, 94, 0.5) 0%, rgba(59, 130, 246, 0.35) 100%)",
-            }}
-          />
-
-          {/* Grid sutil */}
-          <svg className="absolute inset-0 w-full h-full opacity-15">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <line
-                key={`h-${i}`}
-                x1="0"
-                y1={`${(i * 100) / 6}%`}
-                x2="100%"
-                y2={`${(i * 100) / 6}%`}
-                stroke="currentColor"
-                strokeWidth="0.5"
-              />
-            ))}
-            {Array.from({ length: 12 }).map((_, i) => (
-              <line
-                key={`v-${i}`}
-                x1={`${(i * 100) / 12}%`}
-                y1="0"
-                x2={`${(i * 100) / 12}%`}
-                y2="100%"
-                stroke="currentColor"
-                strokeWidth="0.5"
-              />
-            ))}
-          </svg>
-
-          {/* Manchas irregulares de risco (orgânicas) */}
-          {physics.damageScore > 0.3 && (
+          <div className="absolute inset-0 opacity-40" style={{
+            backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(0,0,0,0.15) 3px, rgba(0,0,0,0.15) 4px)'
+          }} />
+          {activationLevel > 50 && (
             <>
-              {/* Região central profunda */}
-              <div
-                className="absolute rounded-full animate-pulse"
-                style={{
-                  left: "38%",
-                  top: `${55 + physics.penetrationDepth * 25}%`,
-                  width: "80px",
-                  height: "35px",
-                  background: `radial-gradient(ellipse, rgba(239, 68, 68, ${
-                    physics.damageScore * 0.75
-                  }) 0%, rgba(251, 146, 60, ${physics.damageScore * 0.4}) 50%, transparent 80%)`,
-                  filter: "blur(12px)",
-                  transform: "rotate(-8deg)",
-                }}
-              />
-              <div
-                className="absolute rounded-full animate-pulse"
-                style={{
-                  right: "35%",
-                  top: `${58 + physics.penetrationDepth * 22}%`,
-                  width: "70px",
-                  height: "32px",
-                  background: `radial-gradient(ellipse, rgba(239, 68, 68, ${
-                    physics.damageScore * 0.7
-                  }) 0%, rgba(251, 146, 60, ${physics.damageScore * 0.35}) 50%, transparent 80%)`,
-                  filter: "blur(12px)",
-                  transform: "rotate(12deg)",
-                  animationDelay: "0.3s",
-                }}
-              />
-
-              {/* Hotspots nas interfaces */}
-              {physics.interfaceHotspots.fatMuscle && (
-                <>
-                  <div
-                    className="absolute rounded-full animate-pulse"
-                    style={{
-                      left: "30%",
-                      top: "35%",
-                      width: "45px",
-                      height: "20px",
-                      background: `radial-gradient(ellipse, rgba(251, 146, 60, ${
-                        physics.damageScore * 0.65
-                      }) 0%, transparent 70%)`,
-                      filter: "blur(8px)",
-                      transform: "rotate(-15deg)",
-                    }}
-                  />
-                  <div
-                    className="absolute rounded-full animate-pulse"
-                    style={{
-                      right: "28%",
-                      top: "40%",
-                      width: "42px",
-                      height: "18px",
-                      background: `radial-gradient(ellipse, rgba(251, 146, 60, ${
-                        physics.damageScore * 0.6
-                      }) 0%, transparent 70%)`,
-                      filter: "blur(8px)",
-                      transform: "rotate(18deg)",
-                      animationDelay: "0.4s",
-                    }}
-                  />
-                </>
-              )}
-
-              {/* Hotspot do implante */}
-              {physics.interfaceHotspots.implant && implant && (
+              {[...Array(Math.floor(activationLevel / 20))].map((_, i) => (
                 <div
-                  className="absolute rounded-full animate-pulse"
+                  key={i}
+                  className="absolute w-1 bg-gradient-to-b from-orange-400/60 to-red-600/60 rounded-full animate-pulse blur-[1px]"
                   style={{
-                    left: "50%",
-                    top: `${(implant.depth / 220) * 100}%`,
-                    transform: "translateX(-50%)",
-                    width: `${implant.span * 0.7}%`,
-                    height: "25px",
-                    background: `radial-gradient(ellipse, rgba(239, 68, 68, ${
-                      physics.damageScore * 0.85
-                    }) 0%, transparent 75%)`,
-                    filter: "blur(10px)",
+                    left: `${15 + i * 20}%`,
+                    top: `${20 + i * 15}%`,
+                    height: `${30 + activationLevel / 3}%`,
+                    animationDelay: `${i * 0.2}s`,
+                    animationDuration: "1.5s"
                   }}
                 />
-              )}
+              ))}
             </>
           )}
-
-          {/* Labels */}
-          <div className="absolute left-2 top-1.5 text-[9px] font-medium text-foreground/60">
-            Superficial
-          </div>
-          <div className="absolute left-2 bottom-1.5 text-[9px] font-medium text-foreground/60">
-            Profundo
-          </div>
-
-          {/* Legenda de cores */}
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] space-y-1">
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-green-500 shadow-sm" />
-              <span className="text-foreground/70 font-medium">Seguro</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-amber-500 shadow-sm" />
-              <span className="text-foreground/70 font-medium">Moderado</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-red-500 shadow-sm" />
-              <span className="text-foreground/70 font-medium">Risco</span>
-            </div>
-          </div>
         </div>
+        
+        {/* Bone */}
+        <div 
+          className="absolute left-0 right-0 bottom-0 bg-gradient-to-b from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600"
+          style={{ 
+            height: `${Math.min(20, 100 - skinPercent - fatPercent - musclePercent)}%`
+          }}
+        >
+          <div className="absolute inset-0 opacity-50" style={{
+            backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.3) 1px, transparent 1px)',
+            backgroundSize: '6px 6px'
+          }} />
+          {tissueConfig.boneDepth < 50 && intensityNorm > 0.6 && (
+            <div className="absolute inset-0 bg-gradient-to-t from-red-500/30 to-transparent blur-md" />
+          )}
+        </div>
+        
+        {/* Metal implant */}
+        {tissueConfig.hasMetalImplant && tissueConfig.metalImplantDepth && (
+          <div
+            className="absolute left-1/2 -translate-x-1/2 bg-gradient-to-br from-slate-400 to-slate-600 dark:from-slate-500 dark:to-slate-700 rounded-full shadow-2xl border-2 border-slate-500"
+            style={{
+              top: `${(tissueConfig.metalImplantDepth / totalDepth) * 100}%`,
+              width: `${tissueConfig.metalImplantSpan || 40}px`,
+              height: `${(tissueConfig.metalImplantSpan || 40) * 0.3}px`,
+              boxShadow: intensityNorm > 0.4 ? `0 0 20px 5px rgba(239, 68, 68, ${intensityNorm * 0.6})` : '0 4px 8px rgba(0,0,0,0.3)'
+            }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent rounded-full" />
+            {intensityNorm > 0.4 && (
+              <div className="absolute -inset-4 bg-red-500/20 rounded-full blur-xl animate-pulse" />
+            )}
+          </div>
+        )}
+        
+        {/* Field penetration */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none">
+          <defs>
+            <linearGradient id="fieldGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style={{ stopColor: 'rgb(34, 211, 238)', stopOpacity: 0.6 }} />
+              <stop offset={`${penetrationDepth * 100}%`} style={{ stopColor: 'rgb(251, 191, 36)', stopOpacity: 0.4 }} />
+              <stop offset="100%" style={{ stopColor: 'rgb(239, 68, 68)', stopOpacity: 0.1 }} />
+            </linearGradient>
+          </defs>
+          
+          {[...Array(5)].map((_, i) => {
+            const xPos = 20 + i * 15;
+            const depth = penetrationDepth * 100;
+            
+            return (
+              <ellipse
+                key={i}
+                cx={`${xPos}%`}
+                cy={depth / 2}
+                rx="3"
+                ry={depth / 2}
+                fill="url(#fieldGradient)"
+                opacity={0.3 + intensityNorm * 0.4}
+                className="transition-all duration-300"
+                style={{ filter: 'blur(2px)' }}
+              />
+            );
+          })}
+        </svg>
+        
+        {/* Hotspots */}
+        {hotspots.map((spot, idx) => (
+          <div
+            key={idx}
+            className="absolute rounded-full animate-pulse"
+            style={{
+              left: `${spot.x}%`,
+              top: `${spot.y}%`,
+              width: `${spot.size}px`,
+              height: `${spot.size}px`,
+              transform: 'translate(-50%, -50%)',
+              background: `radial-gradient(circle, rgba(239, 68, 68, ${spot.intensity * 0.4}) 0%, transparent 70%)`,
+              filter: 'blur(8px)',
+              animationDuration: `${1.5 + idx * 0.5}s`
+            }}
+          />
+        ))}
       </div>
 
-      {/* Legenda final de camadas */}
-      <div className="bg-muted/40 rounded-lg px-4 py-2.5 border">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-[10px]">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-sm shadow-sm" style={{ backgroundColor: "#F7D2C2" }} />
-            <span className="text-foreground/80 font-medium">
-              Pele {Math.round(tissueConfig.skinThickness * 100)}%
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-sm shadow-sm" style={{ backgroundColor: "#F6E3B5" }} />
-            <span className="text-foreground/80 font-medium">
-              Gordura {Math.round(tissueConfig.fatThickness * 100)}%
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-sm shadow-sm" style={{ backgroundColor: "#D87A76" }} />
-            <span className="text-foreground/80 font-medium">
-              Músculo {Math.round(tissueConfig.muscleThickness * 100)}%
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-sm shadow-sm" style={{ backgroundColor: "#E5E5E5" }} />
-            <span className="text-foreground/80 font-medium">
-              Osso prof. {Math.round(tissueConfig.boneDepth * 100)}%
-            </span>
-          </div>
-          {tissueConfig.hasMetalImplant && (
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-sm shadow-sm" style={{ backgroundColor: "#9EA7B3" }} />
-              <span className="text-foreground/80 font-medium">Implante</span>
-            </div>
-          )}
+      {/* BOTTOM PANEL - Heatmap */}
+      <div className="relative w-full h-24 rounded-lg overflow-hidden border border-slate-300 dark:border-slate-700">
+        <div className="absolute inset-0 bg-gradient-to-r from-green-500/20 via-amber-500/20 to-red-500/20" />
+        
+        <svg className="absolute inset-0 w-full h-full">
+          <defs>
+            <linearGradient id="riskGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style={{ stopColor: 'rgb(34, 197, 94)', stopOpacity: 0.3 }} />
+              <stop offset="50%" style={{ stopColor: 'rgb(251, 191, 36)', stopOpacity: riskResult.riskLevel === 'moderado' || riskResult.riskLevel === 'alto' ? 0.5 : 0.2 }} />
+              <stop offset="100%" style={{ stopColor: 'rgb(239, 68, 68)', stopOpacity: riskResult.riskLevel === 'alto' ? 0.6 : 0.1 }} />
+            </linearGradient>
+          </defs>
+          
+          <rect x="0" y="0" width="100%" height="100%" fill="url(#riskGradient)" />
+          
+          {hotspots.map((spot, idx) => (
+            <ellipse
+              key={idx}
+              cx={`${spot.x}%`}
+              cy="50%"
+              rx={`${spot.size / 2}%`}
+              ry="30%"
+              fill={`rgba(239, 68, 68, ${spot.intensity * 0.5})`}
+              filter="blur(8px)"
+            />
+          ))}
+        </svg>
+        
+        <div className="absolute inset-0 flex items-center justify-between px-4 text-xs font-medium text-slate-700 dark:text-slate-300">
+          <span>Superficial</span>
+          <span>Subcutâneo</span>
+          <span>Muscular</span>
+          <span>Profundo</span>
         </div>
       </div>
     </div>
