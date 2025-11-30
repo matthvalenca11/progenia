@@ -11,7 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { simulateTens, type TensMode } from "@/lib/tensSimulation";
 import { simulateTissueRisk } from "@/lib/tissueRiskSimulation";
 import { TensLabConfig, defaultTensLabConfig } from "@/types/tensLabConfig";
-import { TissueConfig, defaultTissueConfig } from "@/types/tissueConfig";
+import { TissueConfig, defaultTissueConfig, tissuePresets } from "@/types/tissueConfig";
 import { tissueConfigService } from "@/services/tissueConfigService";
 
 interface TensLabPageProps {
@@ -24,17 +24,29 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
   // Estado do tissue config
   const [tissueConfig, setTissueConfig] = useState<TissueConfig>(defaultTissueConfig);
   
-  // Carregar tissue config do banco se especificado
+  // Carregar tissue config do banco ou usar preset
   useEffect(() => {
     const loadTissueConfig = async () => {
       if (config.tissueConfigId) {
-        try {
-          const loaded = await tissueConfigService.getById(config.tissueConfigId);
-          if (loaded) {
-            setTissueConfig(loaded);
+        // Primeiro verifica se é um preset ID
+        const preset = tissuePresets.find(p => p.id === config.tissueConfigId);
+        
+        if (preset && !preset.isCustom) {
+          // É um preset predefinido, usar config do preset
+          setTissueConfig({
+            ...preset.config,
+            id: preset.id,
+          });
+        } else {
+          // Tentar carregar do banco (pode ser custom ou uma config salva)
+          try {
+            const loaded = await tissueConfigService.getById(config.tissueConfigId);
+            if (loaded) {
+              setTissueConfig(loaded);
+            }
+          } catch (error) {
+            console.error("Error loading tissue config:", error);
           }
-        } catch (error) {
-          console.error("Error loading tissue config:", error);
         }
       }
     };

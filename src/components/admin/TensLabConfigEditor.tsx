@@ -1,13 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TensLabConfig } from "@/types/tensLabConfig";
-import { TissueConfig } from "@/types/tissueConfig";
-import { tissueConfigService } from "@/services/tissueConfigService";
+import { TissueConfig, TissuePresetId, tissuePresets } from "@/types/tissueConfig";
+import { TissuePresetSelector } from "./TissuePresetSelector";
 
 interface TensLabConfigEditorProps {
   config: TensLabConfig;
@@ -15,20 +14,17 @@ interface TensLabConfigEditorProps {
 }
 
 export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorProps) {
-  const [tissueConfigs, setTissueConfigs] = useState<TissueConfig[]>([]);
-  
-  useEffect(() => {
-    const loadTissueConfigs = async () => {
-      try {
-        const configs = await tissueConfigService.getAll();
-        setTissueConfigs(configs);
-      } catch (error) {
-        console.error("Error loading tissue configs:", error);
-      }
+  // Estado local para gerenciar presets
+  const [selectedPresetId, setSelectedPresetId] = useState<TissuePresetId>(
+    config.tissueConfigId ? "custom" : "forearm_slim"
+  );
+  const [customConfig, setCustomConfig] = useState<TissueConfig>(() => {
+    const customPreset = tissuePresets.find(p => p.id === "custom");
+    return {
+      ...customPreset!.config,
+      id: "custom",
     };
-    
-    loadTissueConfigs();
-  }, []);
+  });
   
   const updateConfig = (updates: Partial<TensLabConfig>) => {
     onChange({ ...config, ...updates });
@@ -48,6 +44,25 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
       ? config.allowedModes.filter(m => m !== mode)
       : [...config.allowedModes, mode];
     updateConfig({ allowedModes });
+  };
+  
+  const handlePresetChange = (presetId: TissuePresetId) => {
+    setSelectedPresetId(presetId);
+    
+    if (presetId === "custom") {
+      // Quando mudar para custom, manter config atual ou usar padrão
+      updateConfig({ tissueConfigId: undefined });
+    } else {
+      // Para presets predefinidos, vamos usar o tissueConfigId como o preset id
+      // Nota: isso requer que os presets também estejam salvos no banco
+      updateConfig({ tissueConfigId: presetId });
+    }
+  };
+  
+  const handleCustomConfigChange = (newCustomConfig: TissueConfig) => {
+    setCustomConfig(newCustomConfig);
+    // Quando custom config muda, salvamos temporariamente no config
+    // Na prática, você pode querer salvar isso no banco também
   };
 
   return (
@@ -289,40 +304,13 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
         </CardContent>
       </Card>
 
-      {/* Configuração Anatômica */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Cenário Anatômico</CardTitle>
-          <CardDescription>
-            Selecione a configuração de tecido para simulação
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <Label htmlFor="tissueConfig">Anatomia TENS</Label>
-            <Select 
-              value={config.tissueConfigId || "none"} 
-              onValueChange={(value) => updateConfig({ tissueConfigId: value === "none" ? undefined : value })}
-            >
-              <SelectTrigger id="tissueConfig">
-                <SelectValue placeholder="Selecione uma anatomia" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Padrão (Antebraço)</SelectItem>
-                {tissueConfigs.map((tc) => (
-                  <SelectItem key={tc.id} value={tc.id}>
-                    {tc.name}
-                    {tc.hasMetalImplant && " ⚡"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              A anatomia selecionada afetará a visualização 3D e a análise de riscos
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Seletor de Presets Anatômicos */}
+      <TissuePresetSelector
+        selectedPresetId={selectedPresetId}
+        customConfig={customConfig}
+        onPresetChange={handlePresetChange}
+        onCustomConfigChange={handleCustomConfigChange}
+      />
     </div>
   );
 }
