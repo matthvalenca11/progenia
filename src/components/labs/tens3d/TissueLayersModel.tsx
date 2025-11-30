@@ -9,12 +9,14 @@ interface TissueLayersModelProps {
   tissueConfig: TissueConfig;
   visualMode: VisualizationMode;
   intensityNorm: number;
+  lesionIndex?: number;
 }
 
 export function TissueLayersModel({
   tissueConfig,
   visualMode,
   intensityNorm,
+  lesionIndex = 0,
 }: TissueLayersModelProps) {
   // Calculate layer dimensions
   const totalThickness = 
@@ -44,8 +46,11 @@ export function TissueLayersModel({
     canvas.height = 512;
     const ctx = canvas.getContext('2d')!;
     
-    // Skin base color
-    ctx.fillStyle = '#fad4c0';
+    // Skin base color - com eritema se houver lesão
+    const baseR = 250;
+    const baseG = 212 - Math.floor(lesionIndex * 100); // Mais vermelho com lesão
+    const baseB = 192 - Math.floor(lesionIndex * 120);
+    ctx.fillStyle = `rgb(${baseR}, ${baseG}, ${baseB})`;
     ctx.fillRect(0, 0, 512, 512);
     
     // Add subtle noise for skin texture
@@ -53,8 +58,28 @@ export function TissueLayersModel({
       const x = Math.random() * 512;
       const y = Math.random() * 512;
       const size = Math.random() * 2;
-      ctx.fillStyle = `rgba(255, 220, 200, ${Math.random() * 0.3})`;
+      const opacity = Math.random() * 0.3;
+      ctx.fillStyle = `rgba(255, ${220 - lesionIndex * 100}, 200, ${opacity})`;
       ctx.fillRect(x, y, size, size);
+    }
+    
+    // LESION: Adicionar manchas de eritema se lesionIndex > 0.3
+    if (lesionIndex > 0.3) {
+      const numSpots = Math.floor(lesionIndex * 20);
+      for (let i = 0; i < numSpots; i++) {
+        const x = Math.random() * 512;
+        const y = Math.random() * 512;
+        const radius = 10 + Math.random() * 30;
+        const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+        const intensity = lesionIndex * 0.8;
+        gradient.addColorStop(0, `rgba(255, 50, 50, ${intensity})`);
+        gradient.addColorStop(0.5, `rgba(255, 100, 100, ${intensity * 0.5})`);
+        gradient.addColorStop(1, 'rgba(255, 150, 150, 0)');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     
     const texture = new THREE.CanvasTexture(canvas);
@@ -62,7 +87,7 @@ export function TissueLayersModel({
     texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(2, 2);
     return texture;
-  }, []);
+  }, [lesionIndex]);
 
   const fatTexture = useMemo(() => {
     const canvas = document.createElement('canvas');
@@ -101,18 +126,22 @@ export function TissueLayersModel({
     canvas.height = 512;
     const ctx = canvas.getContext('2d')!;
     
-    // Muscle base color
-    ctx.fillStyle = '#c54545';
+    // Muscle base color - mais escuro com lesão profunda
+    const baseR = 197 + Math.floor(lesionIndex * 40);
+    const baseG = 69 - Math.floor(lesionIndex * 30);
+    const baseB = 69 - Math.floor(lesionIndex * 30);
+    ctx.fillStyle = `rgb(${baseR}, ${baseG}, ${baseB})`;
     ctx.fillRect(0, 0, 512, 512);
     
-    // Add fiber pattern
-    ctx.strokeStyle = 'rgba(139, 0, 0, 0.3)';
+    // Add fiber pattern - mais desorganizado com lesão
+    const disorganization = lesionIndex * 30;
+    ctx.strokeStyle = `rgba(139, 0, 0, ${0.3 + lesionIndex * 0.3})`;
     ctx.lineWidth = 2;
     for (let i = 0; i < 50; i++) {
       const y = (i * 512) / 50;
       ctx.beginPath();
       ctx.moveTo(0, y);
-      ctx.lineTo(512, y + Math.random() * 20 - 10);
+      ctx.lineTo(512, y + Math.random() * (20 + disorganization) - (10 + disorganization / 2));
       ctx.stroke();
     }
     
@@ -124,12 +153,44 @@ export function TissueLayersModel({
       ctx.fillRect(x, y, 2, 10 + Math.random() * 20);
     }
     
+    // LESION: Adicionar áreas de dano muscular se lesionIndex > 0.5
+    if (lesionIndex > 0.5) {
+      const numDamageAreas = Math.floor((lesionIndex - 0.5) * 15);
+      for (let i = 0; i < numDamageAreas; i++) {
+        const x = Math.random() * 512;
+        const y = Math.random() * 512;
+        const radius = 15 + Math.random() * 40;
+        const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+        const intensity = (lesionIndex - 0.5) * 1.5;
+        gradient.addColorStop(0, `rgba(100, 0, 0, ${intensity})`);
+        gradient.addColorStop(0.5, `rgba(150, 20, 20, ${intensity * 0.6})`);
+        gradient.addColorStop(1, 'rgba(197, 69, 69, 0)');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      // Adicionar "rasgos" nas fibras para simular ruptura
+      const tearIntensity = (lesionIndex - 0.5) * 1.5;
+      ctx.strokeStyle = `rgba(80, 0, 0, ${tearIntensity})`;
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 20; i++) {
+        const startX = Math.random() * 512;
+        const startY = Math.random() * 512;
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(startX + (Math.random() - 0.5) * 60, startY + Math.random() * 40);
+        ctx.stroke();
+      }
+    }
+    
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(3, 3);
     return texture;
-  }, []);
+  }, [lesionIndex]);
 
   const boneTexture = useMemo(() => {
     const canvas = document.createElement('canvas');
@@ -181,6 +242,17 @@ export function TissueLayersModel({
       // Add slight glow when field is active
       if (layer === 'muscle') return new THREE.Color('#441111').multiplyScalar(intensityNorm * 0.3);
     }
+    
+    // LESION: Adicionar emissão quando há lesão
+    if (visualMode === 'lesion' && lesionIndex > 0.4) {
+      if (layer === 'skin' && lesionIndex > 0.3) {
+        return new THREE.Color('#ff3333').multiplyScalar((lesionIndex - 0.3) * 0.5);
+      }
+      if (layer === 'muscle' && lesionIndex > 0.5) {
+        return new THREE.Color('#990000').multiplyScalar((lesionIndex - 0.5) * 0.8);
+      }
+    }
+    
     return new THREE.Color('#000000');
   };
 

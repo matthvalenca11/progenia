@@ -1,6 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { TensMode } from '@/lib/tensSimulation';
 import { TissueConfig, RiskResult } from '@/types/tissueConfig';
 import { TissueLayersModel } from './TissueLayersModel';
@@ -45,6 +45,23 @@ export function Tens3DSimulator({
   const intensityNorm = Math.min(1, intensitymA / 80);
   const pulseNorm = (pulseWidthUs - 50) / (400 - 50);
   const freqNorm = (frequencyHz - 1) / (200 - 1);
+  
+  // Calculate lesion index
+  const lesionIndex = useMemo(() => {
+    let index = 0;
+    
+    if (riskResult.riskLevel === "alto") index += 0.7;
+    else if (riskResult.riskLevel === "moderado") index += 0.4;
+    
+    index += intensityNorm * 0.3;
+    index += pulseNorm * 0.3;
+    
+    if (tissueConfig.hasMetalImplant && intensityNorm > 0.5) index += 0.4;
+    if (tissueConfig.boneDepth < 0.4 && intensityNorm > 0.6) index += 0.3;
+    if (tissueConfig.skinThickness < 0.2 && intensityNorm > 0.5) index += 0.25;
+    
+    return Math.min(1, Math.max(0, index));
+  }, [intensityNorm, pulseNorm, tissueConfig, riskResult]);
 
   const canvasHeight = compact ? '500px' : '600px';
 
@@ -147,6 +164,7 @@ export function Tens3DSimulator({
           tissueConfig={tissueConfig}
           visualMode={visualMode}
           intensityNorm={intensityNorm}
+          lesionIndex={lesionIndex}
         />
 
         {/* Electrodes - sempre visíveis */}
