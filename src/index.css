@@ -244,3 +244,9 @@ All colors MUST be HSL.
 .animate-pulse-fast {
   animation: pulseFast 0.5s ease-in-out infinite;
 }
+
+/* Radial gradient utilities for TENS field visualization */
+.bg-gradient-radial {
+  background-image: radial-gradient(circle, var(--tw-gradient-stops));
+}
+
