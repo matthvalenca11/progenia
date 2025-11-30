@@ -1,14 +1,18 @@
-import { useState, useMemo } from "react";
-import { Card } from "@/components/ui/card";
+import { useState, useMemo, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { TensLateral3DView } from "@/components/labs/TensLateral3DView";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from "recharts";
-import { Activity, ArrowLeft } from "lucide-react";
+import { Activity, ArrowLeft, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { simulateTens, type TensMode } from "@/lib/tensSimulation";
+import { simulateTissueRisk } from "@/lib/tissueRiskSimulation";
 import { TensLabConfig, defaultTensLabConfig } from "@/types/tensLabConfig";
+import { TissueConfig, defaultTissueConfig } from "@/types/tissueConfig";
+import { tissueConfigService } from "@/services/tissueConfigService";
 
 interface TensLabPageProps {
   config?: TensLabConfig;
@@ -16,6 +20,27 @@ interface TensLabPageProps {
 
 export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPageProps) {
   const navigate = useNavigate();
+  
+  // Estado do tissue config
+  const [tissueConfig, setTissueConfig] = useState<TissueConfig>(defaultTissueConfig);
+  
+  // Carregar tissue config do banco se especificado
+  useEffect(() => {
+    const loadTissueConfig = async () => {
+      if (config.tissueConfigId) {
+        try {
+          const loaded = await tissueConfigService.getById(config.tissueConfigId);
+          if (loaded) {
+            setTissueConfig(loaded);
+          }
+        } catch (error) {
+          console.error("Error loading tissue config:", error);
+        }
+      }
+    };
+    
+    loadTissueConfig();
+  }, [config.tissueConfigId]);
   
   // Estados dos parâmetros com valores iniciais baseados na config
   const [frequency, setFrequency] = useState(
@@ -40,6 +65,20 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
       mode,
     }), 
     [frequency, pulseWidth, intensity, mode]
+  );
+  
+  // Simulação de risco em tempo real
+  const riskResult = useMemo(() => 
+    simulateTissueRisk(
+      {
+        frequencyHz: frequency,
+        pulseWidthUs: pulseWidth,
+        intensitymA: intensity,
+        mode,
+      },
+      tissueConfig
+    ),
+    [frequency, pulseWidth, intensity, mode, tissueConfig]
   );
 
   // Gerar dados da forma de onda
@@ -303,10 +342,19 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
                 intensity={intensity}
                 pulseWidth={pulseWidth}
                 mode={mode}
+                tissueConfig={tissueConfig}
               />
               
               {/* Legenda */}
               <div className="mt-4 p-3 bg-slate-900/50 rounded-lg border border-slate-700/50">
+                <div className="flex justify-between items-center mb-2">
+                  <div className="text-xs font-medium text-slate-300">Anatomia: {tissueConfig.name}</div>
+                  {tissueConfig.hasMetalImplant && (
+                    <Badge variant="outline" className="text-amber-400 border-amber-400/50">
+                      ⚡ Implante Metálico
+                    </Badge>
+                  )}
+                </div>
                 <div className="grid grid-cols-3 gap-4 text-xs">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-cyan-400/80" />
@@ -323,6 +371,72 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
                 </div>
               </div>
             </Card>
+
+            {/* Card de Análise de Riscos */}
+            {tissueConfig.enableRiskSimulation && (
+              <Card className={`shadow-lg border-2 ${
+                riskResult.riskLevel === "baixo" ? "border-green-500/30" :
+                riskResult.riskLevel === "moderado" ? "border-amber-500/30" :
+                "border-red-500/30"
+              }`}>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <AlertTriangle className={`h-5 w-5 ${
+                        riskResult.riskLevel === "baixo" ? "text-green-500" :
+                        riskResult.riskLevel === "moderado" ? "text-amber-500" :
+                        "text-red-500"
+                      }`} />
+                      Análise de Riscos
+                    </CardTitle>
+                    <Badge 
+                      variant="outline"
+                      className={
+                        riskResult.riskLevel === "baixo" ? "bg-green-500/20 text-green-400 border-green-500/50" :
+                        riskResult.riskLevel === "moderado" ? "bg-amber-500/20 text-amber-400 border-amber-500/50" :
+                        "bg-red-500/20 text-red-400 border-red-500/50"
+                      }
+                    >
+                      {riskResult.riskLevel.toUpperCase()}
+                    </Badge>
+                  </div>
+                  <CardDescription>
+                    Avaliação de segurança baseada nos parâmetros e anatomia
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Barra de score de risco */}
+                  <div>
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-muted-foreground font-medium">Score de Risco</span>
+                      <span className="font-bold">{riskResult.riskScore}/100</span>
+                    </div>
+                    <div className="h-3 bg-muted rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full transition-all duration-300 ${
+                          riskResult.riskLevel === "baixo" ? "bg-green-500" :
+                          riskResult.riskLevel === "moderado" ? "bg-amber-500" :
+                          "bg-red-500"
+                        }`}
+                        style={{ width: `${riskResult.riskScore}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Mensagens de feedback */}
+                  <div className="space-y-2">
+                    {riskResult.messages.map((message, index) => (
+                      <div 
+                        key={index}
+                        className="p-3 rounded-lg bg-muted/30 border-l-2 border-l-primary/50 text-sm"
+                      >
+                        {message}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Gráfico de Forma de Onda */}
             {config.showWaveform && (

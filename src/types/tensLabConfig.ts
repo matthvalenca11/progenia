@@ -14,6 +14,8 @@ export interface TensLabConfig {
 
   showWaveform: boolean;
   showComfortCard: boolean;
+  
+  tissueConfigId?: string; // ID da configuração de tecido anatômico
 }
 
 export const defaultTensLabConfig: TensLabConfig = {
