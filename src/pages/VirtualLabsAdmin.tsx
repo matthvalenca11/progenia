@@ -115,7 +115,11 @@ export default function VirtualLabsAdmin() {
       await virtualLabService.updateLab(lab.id, {
         is_published: !lab.is_published
       });
-      toast.success(lab.is_published ? "Laboratório despublicado!" : "Laboratório publicado!");
+      toast.success(
+        lab.is_published 
+          ? "Laboratório indisponível para cápsulas" 
+          : "Laboratório disponível para uso em cápsulas!"
+      );
       loadLabs();
     } catch (error: any) {
       toast.error("Erro ao alterar status", { description: error.message });
@@ -237,7 +241,7 @@ export default function VirtualLabsAdmin() {
                     </TableCell>
                     <TableCell>
                       <Badge variant={lab.is_published ? "default" : "secondary"}>
-                        {lab.is_published ? "Publicado" : "Rascunho"}
+                        {lab.is_published ? "Disponível" : "Indisponível"}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -251,7 +255,7 @@ export default function VirtualLabsAdmin() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleTogglePublish(lab)}
-                          title={lab.is_published ? "Despublicar" : "Publicar"}
+                          title={lab.is_published ? "Tornar indisponível para cápsulas" : "Disponibilizar para cápsulas"}
                         >
                           {lab.is_published ? (
                             <EyeOff className="h-4 w-4" />
