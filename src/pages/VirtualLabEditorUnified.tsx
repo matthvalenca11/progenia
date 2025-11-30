@@ -12,6 +12,7 @@ import { virtualLabService, VirtualLab, VirtualLabType } from "@/services/virtua
 import { UltrasoundLabBuilder } from "@/components/admin/ultrasound/UltrasoundLabBuilder";
 import { TensLabConfigEditor } from "@/components/admin/TensLabConfigEditor";
 import { defaultTensLabConfig } from "@/types/tensLabConfig";
+import TensLabPage from "@/pages/TensLabPage";
 
 export default function VirtualLabEditorUnified() {
   const navigate = useNavigate();
@@ -226,10 +227,31 @@ export default function VirtualLabEditorUnified() {
         {lab.lab_type === "ultrasound" && <UltrasoundLabBuilder />}
         
         {lab.lab_type === "tens" && lab.config_data && (
-          <TensLabConfigEditor
-            config={lab.config_data}
-            onChange={(config) => setLab({ ...lab, config_data: config })}
-          />
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr,600px] gap-6">
+            <div className="space-y-6">
+              <TensLabConfigEditor
+                config={lab.config_data}
+                onChange={(config) => setLab({ ...lab, config_data: config })}
+              />
+            </div>
+            
+            {/* Preview do TENS */}
+            <div className="lg:sticky lg:top-6 space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Preview do Simulador</CardTitle>
+                  <CardDescription>
+                    Visualize como o laboratório aparecerá para os alunos
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="border rounded-lg overflow-hidden bg-background">
+                    <TensLabPage config={lab.config_data} />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         )}
 
         {!["ultrasound", "tens"].includes(lab.lab_type || "") && (
