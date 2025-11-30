@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { TissueConfig, defaultTissueConfig } from '@/types/tissueConfig';
 
 interface TensLateral3DViewProps {
   activationLevel: number;
@@ -7,6 +8,7 @@ interface TensLateral3DViewProps {
   intensity: number;
   pulseWidth: number;
   mode: string;
+  tissueConfig?: TissueConfig;
 }
 
 export const TensLateral3DView = ({
@@ -16,7 +18,20 @@ export const TensLateral3DView = ({
   intensity,
   pulseWidth,
   mode,
+  tissueConfig = defaultTissueConfig,
 }: TensLateral3DViewProps) => {
+  // Calcular dimensões das camadas baseado no tissueConfig
+  const layerDimensions = useMemo(() => {
+    const totalThickness = tissueConfig.skinThickness + tissueConfig.fatThickness + tissueConfig.muscleThickness;
+    const baseHeight = 280; // altura total disponível
+    
+    return {
+      skinHeight: (tissueConfig.skinThickness / totalThickness) * baseHeight,
+      fatHeight: (tissueConfig.fatThickness / totalThickness) * baseHeight,
+      muscleHeight: (tissueConfig.muscleThickness / totalThickness) * baseHeight,
+      bonePosition: tissueConfig.boneDepth * baseHeight + 50,
+    };
+  }, [tissueConfig]);
   // Animation speed based on frequency
   const animationSpeed = useMemo(() => {
     if (frequency < 10) return { duration: '4s', class: 'slow' };
@@ -72,11 +87,12 @@ export const TensLateral3DView = ({
             transform: 'rotateX(5deg)',
           }}
         >
-          {/* CAMADA 1: PELE (Skin Layer) */}
+          {/* CAMADA 1: PELE (Skin Layer) - Dinâmica baseada em tissueConfig */}
           <div 
-            className="absolute left-0 right-0 h-12 rounded-lg"
+            className="absolute left-0 right-0 rounded-lg transition-all duration-500"
             style={{
               top: '50px',
+              height: `${layerDimensions.skinHeight}px`,
               background: 'linear-gradient(180deg, #F2D5C4 0%, #E8C4B0 100%)',
               boxShadow: '0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.3)',
               transform: 'translateZ(30px)',
@@ -95,11 +111,12 @@ export const TensLateral3DView = ({
             <div className="absolute -left-2 top-1/2 w-12 h-px bg-slate-400/50" style={{ transform: 'translateY(-50%)' }} />
           </div>
 
-          {/* CAMADA 2: TECIDO SUBCUTÂNEO (Subcutaneous Fat) */}
+          {/* CAMADA 2: TECIDO SUBCUTÂNEO (Subcutaneous Fat) - Dinâmica */}
           <div 
-            className="absolute left-0 right-0 h-24 rounded-lg"
+            className="absolute left-0 right-0 rounded-lg transition-all duration-500"
             style={{
-              top: '62px',
+              top: `${50 + layerDimensions.skinHeight}px`,
+              height: `${layerDimensions.fatHeight}px`,
               background: 'linear-gradient(180deg, #F6E8B5 0%, #E8D89F 100%)',
               boxShadow: '0 6px 16px rgba(0,0,0,0.25), inset 0 2px 4px rgba(255,255,255,0.2)',
               transform: 'translateZ(10px)',
@@ -119,11 +136,12 @@ export const TensLateral3DView = ({
             <div className="absolute -left-2 top-1/2 w-12 h-px bg-slate-400/50" style={{ transform: 'translateY(-50%)' }} />
           </div>
 
-          {/* CAMADA 3: MÚSCULO (Muscle Layer) */}
+          {/* CAMADA 3: MÚSCULO (Muscle Layer) - Dinâmica */}
           <div 
-            className="absolute left-0 right-0 h-32 rounded-lg"
+            className="absolute left-0 right-0 rounded-lg transition-all duration-500"
             style={{
-              top: '86px',
+              top: `${50 + layerDimensions.skinHeight + layerDimensions.fatHeight}px`,
+              height: `${layerDimensions.muscleHeight}px`,
               background: 'linear-gradient(180deg, #E17A7A 0%, #C96767 100%)',
               boxShadow: '0 8px 20px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.15)',
               transform: 'translateZ(-10px)',
@@ -141,6 +159,63 @@ export const TensLateral3DView = ({
             </div>
             <div className="absolute -left-2 top-1/2 w-12 h-px bg-slate-400/50" style={{ transform: 'translateY(-50%)' }} />
           </div>
+
+          {/* CAMADA ÓSSEA (Bone Layer) - Se profundidade adequada */}
+          {tissueConfig.boneDepth > 0 && (
+            <div 
+              className="absolute left-0 right-0 h-4 rounded-sm transition-all duration-500"
+              style={{
+                top: `${layerDimensions.bonePosition}px`,
+                background: 'linear-gradient(180deg, #D4D4D8 0%, #A1A1AA 100%)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255,255,255,0.4)',
+                transform: 'translateZ(-20px)',
+                transformStyle: 'preserve-3d',
+                border: '1px solid rgba(255,255,255,0.2)',
+              }}
+            >
+              {/* Bone texture */}
+              <div className="absolute inset-0 opacity-30" style={{
+                backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(0,0,0,0.1) 1px, rgba(0,0,0,0.1) 2px)',
+              }} />
+              
+              {/* Label */}
+              <div className="absolute -left-24 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-300">
+                Osso
+              </div>
+              <div className="absolute -left-2 top-1/2 w-12 h-px bg-slate-400/50" style={{ transform: 'translateY(-50%)' }} />
+            </div>
+          )}
+
+          {/* IMPLANTE METÁLICO - Se presente */}
+          {tissueConfig.hasMetalImplant && tissueConfig.metalImplantDepth !== undefined && (
+            <div 
+              className="absolute rounded-md transition-all duration-500"
+              style={{
+                left: `${200 + (1 - (tissueConfig.metalImplantSpan || 0.5)) * 100}px`,
+                right: `${200 + (1 - (tissueConfig.metalImplantSpan || 0.5)) * 100}px`,
+                top: `${50 + tissueConfig.metalImplantDepth * 280}px`,
+                height: '12px',
+                background: 'linear-gradient(135deg, #94A3B8 0%, #64748B 100%)',
+                boxShadow: '0 4px 12px rgba(100, 116, 139, 0.6), inset 0 2px 4px rgba(255,255,255,0.3)',
+                transform: 'translateZ(0px)',
+                transformStyle: 'preserve-3d',
+                border: '2px solid rgba(148, 163, 184, 0.8)',
+              }}
+            >
+              {/* Metal shine effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent" 
+                style={{
+                  animation: 'shine 2s ease-in-out infinite',
+                }}
+              />
+              
+              {/* Label */}
+              <div className="absolute -left-32 top-1/2 -translate-y-1/2 text-xs font-medium text-amber-400">
+                ⚡ Implante
+              </div>
+              <div className="absolute -left-2 top-1/2 w-12 h-px bg-amber-400/60" style={{ transform: 'translateY(-50%)' }} />
+            </div>
+          )}
 
           {/* ELETRODO PROXIMAL (Left/Top Electrode) */}
           <div 
@@ -495,6 +570,11 @@ export const TensLateral3DView = ({
         @keyframes deep-penetration {
           0%, 100% { opacity: 0.3; }
           50% { opacity: 0.8; }
+        }
+        
+        @keyframes shine {
+          0%, 100% { transform: translateX(-100%); }
+          50% { transform: translateX(100%); }
         }
       `}</style>
     </div>
