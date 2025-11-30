@@ -749,6 +749,59 @@ export type Database = {
         }
         Relationships: []
       }
+      tens_lab_configs: {
+        Row: {
+          allowed_modes: Json
+          capsula_id: string
+          created_at: string
+          enabled_controls: Json
+          frequency_range: Json
+          id: string
+          intensity_range: Json
+          lab_key: string
+          pulse_width_range: Json
+          show_comfort_card: boolean
+          show_waveform: boolean
+          updated_at: string
+        }
+        Insert: {
+          allowed_modes?: Json
+          capsula_id: string
+          created_at?: string
+          enabled_controls?: Json
+          frequency_range?: Json
+          id?: string
+          intensity_range?: Json
+          lab_key?: string
+          pulse_width_range?: Json
+          show_comfort_card?: boolean
+          show_waveform?: boolean
+          updated_at?: string
+        }
+        Update: {
+          allowed_modes?: Json
+          capsula_id?: string
+          created_at?: string
+          enabled_controls?: Json
+          frequency_range?: Json
+          id?: string
+          intensity_range?: Json
+          lab_key?: string
+          pulse_width_range?: Json
+          show_comfort_card?: boolean
+          show_waveform?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tens_lab_configs_capsula_id_fkey"
+            columns: ["capsula_id"]
+            isOneToOne: false
+            referencedRelation: "capsulas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_badges: {
         Row: {
           badge_id: string
