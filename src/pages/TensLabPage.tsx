@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
-import { TensAnatomicalView } from "@/components/labs/TensAnatomicalView";
+import { Tens3DView } from "@/components/labs/Tens3DView";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from "recharts";
 import { Activity, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -286,19 +286,39 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
 
           {/* Coluna Direita - Visualização */}
           <div className="space-y-6">
-            {/* Visualização Anatômica */}
-            <Card className="p-6 shadow-xl border-primary/10 bg-gradient-to-br from-card to-card/95">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                Visualização da Estimulação
+            {/* Visualização 3D Avançada */}
+            <Card className="p-6 shadow-2xl border-primary/10 bg-gradient-to-br from-slate-950 to-slate-900">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-cyan-400">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_10px_rgba(34,211,238,0.8)]"></span>
+                Visualização Neural 3D
               </h3>
               
-              <TensAnatomicalView 
+              <Tens3DView 
                 activationLevel={sim.activationLevel}
                 comfortLevel={sim.comfortLevel}
                 frequency={frequency}
                 intensity={intensity}
+                pulseWidth={pulseWidth}
+                mode={mode}
               />
+              
+              {/* Legenda */}
+              <div className="mt-4 p-3 bg-slate-900/50 rounded-lg border border-slate-700/50">
+                <div className="grid grid-cols-3 gap-4 text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-cyan-400/80" />
+                    <span className="text-slate-300">Superficial</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-amber-400/80" />
+                    <span className="text-slate-300">Subcutâneo</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-red-400/80" />
+                    <span className="text-slate-300">Muscular</span>
+                  </div>
+                </div>
+              </div>
             </Card>
 
             {/* Gráfico de Forma de Onda */}
