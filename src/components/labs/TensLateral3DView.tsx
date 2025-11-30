@@ -231,7 +231,8 @@ export const TensLateral3DView = ({
           {/* PROPAGAÇÃO ELÉTRICA - SUPERFICIAL (Skin Level) */}
           {intensity > 0 && (
             <svg 
-              className="absolute left-0 top-0 w-full h-full pointer-events-none"
+              key={`superficial-${frequency}-${intensity}-${pulseWidth}-${mode}`}
+              className="absolute left-0 top-0 w-full h-full pointer-events-none transition-opacity duration-300"
               style={{ 
                 transform: 'translateZ(25px)',
                 opacity: baseOpacity * 0.9,
@@ -254,22 +255,24 @@ export const TensLateral3DView = ({
               
               {/* Superficial current paths */}
               <path
-                d={`M 180,56 Q 300,${56 + Math.sin(Date.now() / 500) * 3} 420,56`}
+                d="M 180,56 Q 300,58 420,56"
                 fill="none"
                 stroke="url(#superficial-gradient)"
                 strokeWidth={filamentThickness * 1.5}
                 filter="url(#glow-superficial)"
+                className="transition-all duration-300"
                 style={{
                   animation: `${modePattern === 'spike' ? 'spike-flow' : 'current-flow'} ${animationSpeed.duration} ease-in-out infinite`,
                 }}
               />
               <path
-                d={`M 180,58 Q 300,${58 + Math.sin(Date.now() / 600) * 2} 420,58`}
+                d="M 180,58 Q 300,60 420,58"
                 fill="none"
                 stroke="url(#superficial-gradient)"
                 strokeWidth={filamentThickness}
                 filter="url(#glow-superficial)"
                 opacity="0.7"
+                className="transition-all duration-300"
                 style={{
                   animation: `${modePattern === 'spike' ? 'spike-flow' : 'current-flow'} ${animationSpeed.duration} ease-in-out infinite`,
                   animationDelay: '0.2s',
@@ -281,7 +284,8 @@ export const TensLateral3DView = ({
           {/* PROPAGAÇÃO ELÉTRICA - SUBCUTÂNEA (Fat Level) */}
           {(depthPenetration === 'subcutaneous' || depthPenetration === 'deep') && intensity > 3 && (
             <svg 
-              className="absolute left-0 top-0 w-full h-full pointer-events-none"
+              key={`subcutaneous-${frequency}-${intensity}-${pulseWidth}-${mode}`}
+              className="absolute left-0 top-0 w-full h-full pointer-events-none transition-opacity duration-300"
               style={{ 
                 transform: 'translateZ(5px)',
                 opacity: baseOpacity * 0.75,
@@ -309,6 +313,7 @@ export const TensLateral3DView = ({
                 ry="30"
                 fill="url(#subcutaneous-gradient)"
                 filter="url(#glow-subcutaneous)"
+                className="transition-all duration-300"
                 style={{
                   animation: `pulse-wave ${animationSpeed.duration} ease-in-out infinite`,
                 }}
@@ -320,6 +325,7 @@ export const TensLateral3DView = ({
                 ry="30"
                 fill="url(#subcutaneous-gradient)"
                 filter="url(#glow-subcutaneous)"
+                className="transition-all duration-300"
                 style={{
                   animation: `pulse-wave ${animationSpeed.duration} ease-in-out infinite`,
                   animationDelay: '0.15s',
@@ -332,6 +338,7 @@ export const TensLateral3DView = ({
                 strokeWidth={filamentThickness * 2}
                 filter="url(#glow-subcutaneous)"
                 opacity="0.6"
+                className="transition-all duration-300"
                 style={{
                   animation: `${modePattern === 'burst' ? 'burst-flow' : 'wave-flow'} ${animationSpeed.duration} ease-in-out infinite`,
                 }}
@@ -342,7 +349,8 @@ export const TensLateral3DView = ({
           {/* PROPAGAÇÃO ELÉTRICA - PROFUNDA (Muscle Level) */}
           {depthPenetration === 'deep' && intensity > 10 && (
             <svg 
-              className="absolute left-0 top-0 w-full h-full pointer-events-none"
+              key={`deep-${frequency}-${intensity}-${pulseWidth}-${mode}`}
+              className="absolute left-0 top-0 w-full h-full pointer-events-none transition-opacity duration-300"
               style={{ 
                 transform: 'translateZ(-15px)',
                 opacity: baseOpacity * 0.6,
@@ -369,6 +377,7 @@ export const TensLateral3DView = ({
                 stroke="url(#deep-gradient)"
                 strokeWidth={filamentThickness * 2.5}
                 filter="url(#glow-deep)"
+                className="transition-all duration-300"
                 style={{
                   animation: `deep-penetration ${animationSpeed.duration} ease-in-out infinite`,
                 }}
@@ -379,6 +388,7 @@ export const TensLateral3DView = ({
                 stroke="url(#deep-gradient)"
                 strokeWidth={filamentThickness * 2.5}
                 filter="url(#glow-deep)"
+                className="transition-all duration-300"
                 style={{
                   animation: `deep-penetration ${animationSpeed.duration} ease-in-out infinite`,
                   animationDelay: '0.1s',
@@ -391,6 +401,7 @@ export const TensLateral3DView = ({
                 strokeWidth={filamentThickness * 1.5}
                 filter="url(#glow-deep)"
                 opacity="0.7"
+                className="transition-all duration-300"
                 style={{
                   animation: `deep-penetration ${animationSpeed.duration} ease-in-out infinite`,
                   animationDelay: '0.3s',
@@ -403,6 +414,7 @@ export const TensLateral3DView = ({
                 strokeWidth={filamentThickness * 1.5}
                 filter="url(#glow-deep)"
                 opacity="0.7"
+                className="transition-all duration-300"
                 style={{
                   animation: `deep-penetration ${animationSpeed.duration} ease-in-out infinite`,
                   animationDelay: '0.25s',
@@ -417,13 +429,16 @@ export const TensLateral3DView = ({
       <div className="absolute bottom-4 right-4 bg-slate-800/90 backdrop-blur-sm rounded-lg p-3 border border-slate-700/50">
         <div className="text-xs font-medium text-slate-300 mb-2">Profundidade</div>
         <div className="flex gap-2">
-          <div className={`w-2 h-8 rounded-full ${intensity > 0 ? 'bg-cyan-400' : 'bg-slate-700'}`} 
+          <div 
+            className={`w-2 h-8 rounded-full transition-all duration-300 ${intensity > 0 ? 'bg-cyan-400' : 'bg-slate-700'}`} 
             style={{ opacity: intensity > 0 ? 0.8 : 0.3 }} 
           />
-          <div className={`w-2 h-8 rounded-full ${depthPenetration === 'subcutaneous' || depthPenetration === 'deep' ? 'bg-amber-400' : 'bg-slate-700'}`}
+          <div 
+            className={`w-2 h-8 rounded-full transition-all duration-300 ${depthPenetration === 'subcutaneous' || depthPenetration === 'deep' ? 'bg-amber-400' : 'bg-slate-700'}`}
             style={{ opacity: (depthPenetration === 'subcutaneous' || depthPenetration === 'deep') ? 0.8 : 0.3 }}
           />
-          <div className={`w-2 h-8 rounded-full ${depthPenetration === 'deep' ? 'bg-red-400' : 'bg-slate-700'}`}
+          <div 
+            className={`w-2 h-8 rounded-full transition-all duration-300 ${depthPenetration === 'deep' ? 'bg-red-400' : 'bg-slate-700'}`}
             style={{ opacity: depthPenetration === 'deep' ? 0.8 : 0.3 }}
           />
         </div>
