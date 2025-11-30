@@ -35,6 +35,7 @@ import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { UltrasoundUnifiedLab } from "@/components/labs/UltrasoundUnifiedLab";
+import TensLabPage from "@/pages/TensLabPage";
 
 export default function VirtualLabsAdmin() {
   const navigate = useNavigate();
@@ -321,7 +322,7 @@ export default function VirtualLabsAdmin() {
 
       {/* Test Lab Dialog */}
       <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
-        <DialogContent className="max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-7xl max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Testar Laboratório: {labToTest?.name}</DialogTitle>
             <DialogDescription>
@@ -332,11 +333,9 @@ export default function VirtualLabsAdmin() {
             {labToTest?.lab_type === "ultrasound" && labToTest.config_data && (
               <UltrasoundUnifiedLab config={labToTest.config_data as any} />
             )}
-            {labToTest?.lab_type === "tens" && (
-              <div className="p-8 text-center text-muted-foreground">
-                <Beaker className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-medium">Preview do simulador TENS em desenvolvimento</p>
-                <p className="text-sm mt-2">Use a rota /labs/{labToTest.slug} para testar</p>
+            {labToTest?.lab_type === "tens" && labToTest.config_data && (
+              <div className="rounded-xl border bg-slate-50 p-4">
+                <TensLabPage config={labToTest.config_data as any} />
               </div>
             )}
             {labToTest?.lab_type === "electrotherapy" && (
