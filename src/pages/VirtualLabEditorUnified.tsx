@@ -227,7 +227,7 @@ export default function VirtualLabEditorUnified() {
         {lab.lab_type === "ultrasound" && <UltrasoundLabBuilder />}
         
         {lab.lab_type === "tens" && lab.config_data && (
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr,600px] gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-[1fr,900px] gap-6">
             <div className="space-y-6">
               <TensLabConfigEditor
                 config={lab.config_data}
@@ -236,7 +236,7 @@ export default function VirtualLabEditorUnified() {
             </div>
             
             {/* Preview do TENS */}
-            <div className="lg:sticky lg:top-6 space-y-4">
+            <div className="xl:sticky xl:top-6 space-y-4">
               <Card>
                 <CardHeader>
                   <CardTitle>Preview do Simulador</CardTitle>
@@ -244,9 +244,23 @@ export default function VirtualLabEditorUnified() {
                     Visualize como o laboratório aparecerá para os alunos
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="border rounded-lg overflow-hidden bg-background">
-                    <TensLabPage config={lab.config_data} />
+                <CardContent className="p-0">
+                  <div 
+                    className="w-full overflow-auto bg-gradient-to-br from-background via-background to-primary/5"
+                    style={{
+                      maxHeight: 'calc(100vh - 200px)',
+                    }}
+                  >
+                    <div 
+                      className="origin-top-left"
+                      style={{
+                        transform: 'scale(0.75)',
+                        transformOrigin: 'top left',
+                        width: '133.33%', // 100% / 0.75 to compensate for scale
+                      }}
+                    >
+                      <TensLabPage config={lab.config_data} />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
