@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { TensSemi3DView } from "@/components/labs/TensSemi3DView";
+import { Tens3DSimulator } from "@/components/labs/tens3d/Tens3DSimulator";
 import { TensInsightsPanel } from "@/components/labs/TensInsightsPanel";
 import { Activity, ArrowLeft, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -241,51 +241,28 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
           {/* Coluna Direita - Visualização */}
           <div className="space-y-6">
             {/* Visualização Lateral Semi-3D */}
-            <Card className="p-6 shadow-2xl border-primary/10 bg-gradient-to-br from-slate-950 to-slate-900">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-cyan-400">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_10px_rgba(34,211,238,0.8)]"></span>
-                Visualização Lateral Semi-3D
-              </h3>
-              <p className="text-xs text-slate-400 mb-4">
-                Visão anatômica das camadas e profundidade da estimulação
-              </p>
-              
-              <TensSemi3DView
-                frequencyHz={frequency}
-                pulseWidthUs={pulseWidth}
-                intensitymA={intensity}
-                mode={mode}
-                activationLevel={sim.activationLevel}
-                comfortLevel={sim.comfortLevel}
-                tissueConfig={tissueConfig}
-                riskResult={riskResult}
-              />
-              
-              {/* Legenda */}
-              <div className="mt-4 p-3 bg-slate-900/50 rounded-lg border border-slate-700/50">
-                <div className="flex justify-between items-center mb-2">
-                  <div className="text-xs font-medium text-slate-300">Anatomia: {tissueConfig.name}</div>
-                  {tissueConfig.hasMetalImplant && (
-                    <Badge variant="outline" className="text-amber-400 border-amber-400/50">
-                      ⚡ Implante Metálico
-                    </Badge>
-                  )}
-                </div>
-                <div className="grid grid-cols-3 gap-4 text-xs">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-cyan-400/80" />
-                    <span className="text-slate-300">Superficial</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-amber-400/80" />
-                    <span className="text-slate-300">Subcutâneo</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-red-400/80" />
-                    <span className="text-slate-300">Muscular</span>
-                  </div>
-                </div>
-              </div>
+            <Card className="shadow-lg border-slate-800">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_10px_rgba(34,211,238,0.8)]"></span>
+                  Simulador 3D Biomédico
+                </CardTitle>
+                <CardDescription>
+                  Modelo fisiológico tridimensional com campo elétrico e análise de riscos
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Tens3DSimulator
+                  frequencyHz={frequency}
+                  pulseWidthUs={pulseWidth}
+                  intensitymA={intensity}
+                  mode={mode}
+                  activationLevel={sim.activationLevel}
+                  comfortLevel={sim.comfortLevel}
+                  tissueConfig={tissueConfig}
+                  riskResult={riskResult}
+                />
+              </CardContent>
             </Card>
 
 
