@@ -19,9 +19,9 @@ import ModuleViewer from "@/pages/ModuleViewer";
 import ModuleCapsules from "@/pages/ModuleCapsules";
 import LessonViewer from "@/pages/LessonViewer";
 import CapsuleViewer from "@/pages/CapsuleViewer";
-import VirtualLabEditor from "@/pages/VirtualLabEditor";
+import VirtualLabEditorUnified from "@/pages/VirtualLabEditorUnified";
 import VirtualLabsAdmin from "@/pages/VirtualLabsAdmin";
-import TensLabPage from "@/pages/TensLabPage";
+import LabViewer from "@/pages/LabViewer";
 import DeleteUserTest from "@/pages/DeleteUserTest";
 import NotFound from "@/pages/NotFound";
 
@@ -62,9 +62,9 @@ const AppContent = () => {
           <Route path="/lesson/:lessonId" element={<LessonViewer />} />
           <Route path="/capsula/:capsulaId" element={<CapsuleViewer />} />
           <Route path="/admin/labs" element={<VirtualLabsAdmin />} />
-          <Route path="/admin/labs/novo" element={<VirtualLabEditor />} />
-          <Route path="/admin/labs/editar/:labId" element={<VirtualLabEditor />} />
-          <Route path="/labs/tens" element={<TensLabPage />} />
+          <Route path="/admin/labs/novo" element={<VirtualLabEditorUnified />} />
+          <Route path="/admin/labs/editar/:labId" element={<VirtualLabEditorUnified />} />
+          <Route path="/labs/:slug" element={<LabViewer />} />
           <Route path="/delete-user-test" element={<DeleteUserTest />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

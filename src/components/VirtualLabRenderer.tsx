@@ -6,6 +6,7 @@ import { EletroterapiaLab } from "@/components/labs/EletroterapiaLab";
 import { ThermalLab } from "@/components/labs/ThermalLab";
 import { ElectrotherapyDoseLab } from "@/components/labs/ElectrotherapyDoseLab";
 import { TherapeuticUltrasoundLab } from "@/components/labs/TherapeuticUltrasoundLab";
+import TensLabPage from "@/pages/TensLabPage";
 import { Card, CardContent } from "@/components/ui/card";
 import { Beaker, Loader2 } from "lucide-react";
 
@@ -82,6 +83,9 @@ export function VirtualLabRenderer({ labId, className }: VirtualLabRendererProps
       case "ultrasound":
         // Pass the complete configuration directly to UltrasoundUnifiedLab
         return <UltrasoundUnifiedLab config={config} />;
+      
+      case "tens":
+        return <TensLabPage config={config} />;
       
       case "eletroterapia_sim":
       case "electrotherapy":

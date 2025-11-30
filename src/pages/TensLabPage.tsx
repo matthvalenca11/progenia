@@ -19,13 +19,13 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
   
   // Estados dos parâmetros com valores iniciais baseados na config
   const [frequency, setFrequency] = useState(
-    Math.min(80, config.frequencyRange.max)
+    Math.min(80, config.frequencyRange.max, Math.max(config.frequencyRange.min, 80))
   );
   const [pulseWidth, setPulseWidth] = useState(
-    Math.min(200, config.pulseWidthRange.max)
+    Math.min(200, config.pulseWidthRange.max, Math.max(config.pulseWidthRange.min, 200))
   );
   const [intensity, setIntensity] = useState(
-    Math.min(20, config.intensityRange.max)
+    Math.min(20, config.intensityRange.max, Math.max(config.intensityRange.min, 20))
   );
   const [mode, setMode] = useState<TensMode>(
     config.allowedModes[0] || "convencional"
@@ -137,86 +137,88 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
           {/* Coluna Esquerda - Controles */}
           <div className="space-y-6">
             {/* Card de Controles Principais */}
-            <Card className="p-6 shadow-lg">
-              <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                Parâmetros de Estimulação
-              </h2>
-              
-              <div className="space-y-8">
-                {/* Frequência */}
-                {config.enabledControls.frequency && (
-                  <div>
-                    <div className="flex justify-between items-center mb-3">
-                      <Label className="text-base font-medium">Frequência</Label>
-                      <span className="text-lg font-bold text-primary">
-                        {frequency} <span className="text-sm font-normal text-muted-foreground">Hz</span>
-                      </span>
+            {(config.enabledControls.frequency || config.enabledControls.pulseWidth || config.enabledControls.intensity) && (
+              <Card className="p-6 shadow-lg">
+                <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                  Parâmetros de Estimulação
+                </h2>
+                
+                <div className="space-y-8">
+                  {/* Frequência */}
+                  {config.enabledControls.frequency && (
+                    <div>
+                      <div className="flex justify-between items-center mb-3">
+                        <Label className="text-base font-medium">Frequência</Label>
+                        <span className="text-lg font-bold text-primary">
+                          {frequency} <span className="text-sm font-normal text-muted-foreground">Hz</span>
+                        </span>
+                      </div>
+                      <Slider
+                        value={[frequency]}
+                        onValueChange={(v) => setFrequency(v[0])}
+                        min={config.frequencyRange.min}
+                        max={config.frequencyRange.max}
+                        step={1}
+                        className="py-4"
+                      />
+                      <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                        <span>{config.frequencyRange.min} Hz</span>
+                        <span>{config.frequencyRange.max} Hz</span>
+                      </div>
                     </div>
-                    <Slider
-                      value={[frequency]}
-                      onValueChange={(v) => setFrequency(v[0])}
-                      min={config.frequencyRange.min}
-                      max={config.frequencyRange.max}
-                      step={1}
-                      className="py-4"
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                      <span>{config.frequencyRange.min} Hz</span>
-                      <span>{config.frequencyRange.max} Hz</span>
-                    </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Largura de Pulso */}
-                {config.enabledControls.pulseWidth && (
-                  <div>
-                    <div className="flex justify-between items-center mb-3">
-                      <Label className="text-base font-medium">Largura de Pulso</Label>
-                      <span className="text-lg font-bold text-primary">
-                        {pulseWidth} <span className="text-sm font-normal text-muted-foreground">µs</span>
-                      </span>
+                  {/* Largura de Pulso */}
+                  {config.enabledControls.pulseWidth && (
+                    <div>
+                      <div className="flex justify-between items-center mb-3">
+                        <Label className="text-base font-medium">Largura de Pulso</Label>
+                        <span className="text-lg font-bold text-primary">
+                          {pulseWidth} <span className="text-sm font-normal text-muted-foreground">µs</span>
+                        </span>
+                      </div>
+                      <Slider
+                        value={[pulseWidth]}
+                        onValueChange={(v) => setPulseWidth(v[0])}
+                        min={config.pulseWidthRange.min}
+                        max={config.pulseWidthRange.max}
+                        step={10}
+                        className="py-4"
+                      />
+                      <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                        <span>{config.pulseWidthRange.min} µs</span>
+                        <span>{config.pulseWidthRange.max} µs</span>
+                      </div>
                     </div>
-                    <Slider
-                      value={[pulseWidth]}
-                      onValueChange={(v) => setPulseWidth(v[0])}
-                      min={config.pulseWidthRange.min}
-                      max={config.pulseWidthRange.max}
-                      step={10}
-                      className="py-4"
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                      <span>{config.pulseWidthRange.min} µs</span>
-                      <span>{config.pulseWidthRange.max} µs</span>
-                    </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Intensidade */}
-                {config.enabledControls.intensity && (
-                  <div>
-                    <div className="flex justify-between items-center mb-3">
-                      <Label className="text-base font-medium">Intensidade</Label>
-                      <span className="text-lg font-bold text-primary">
-                        {intensity} <span className="text-sm font-normal text-muted-foreground">mA</span>
-                      </span>
+                  {/* Intensidade */}
+                  {config.enabledControls.intensity && (
+                    <div>
+                      <div className="flex justify-between items-center mb-3">
+                        <Label className="text-base font-medium">Intensidade</Label>
+                        <span className="text-lg font-bold text-primary">
+                          {intensity} <span className="text-sm font-normal text-muted-foreground">mA</span>
+                        </span>
+                      </div>
+                      <Slider
+                        value={[intensity]}
+                        onValueChange={(v) => setIntensity(v[0])}
+                        min={config.intensityRange.min}
+                        max={config.intensityRange.max}
+                        step={1}
+                        className="py-4"
+                      />
+                      <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                        <span>{config.intensityRange.min} mA</span>
+                        <span>{config.intensityRange.max} mA</span>
+                      </div>
                     </div>
-                    <Slider
-                      value={[intensity]}
-                      onValueChange={(v) => setIntensity(v[0])}
-                      min={config.intensityRange.min}
-                      max={config.intensityRange.max}
-                      step={1}
-                      className="py-4"
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                      <span>{config.intensityRange.min} mA</span>
-                      <span>{config.intensityRange.max} mA</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </Card>
+                  )}
+                </div>
+              </Card>
+            )}
 
             {/* Modo TENS */}
             {config.enabledControls.mode && config.allowedModes.length > 0 && (
@@ -343,65 +345,67 @@ export default function TensLabPage({ config = defaultTensLabConfig }: TensLabPa
             </Card>
 
             {/* Gráfico de Forma de Onda */}
-            <Card className="p-6 shadow-lg">
-              <h3 className="text-lg font-semibold mb-4">Forma de Onda TENS</h3>
-              
-              <div className="h-64 mb-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={waveformData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis 
-                      dataKey="time" 
-                      label={{ value: 'Tempo (ms)', position: 'insideBottom', offset: -5 }}
-                      className="text-xs"
-                      type="number"
-                      domain={[0, 'dataMax']}
-                    />
-                    <YAxis 
-                      label={{ value: 'Amplitude (mA)', angle: -90, position: 'insideLeft' }}
-                      className="text-xs"
-                      domain={[0, 'dataMax']}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--background))', 
-                        border: '1px solid hsl(var(--border))' 
-                      }}
-                    />
-                    <Line 
-                      type="stepAfter" 
-                      dataKey="amplitude" 
-                      stroke="hsl(var(--primary))" 
-                      strokeWidth={2}
-                      dot={false}
-                      isAnimationActive={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+            {config.showWaveform && (
+              <Card className="p-6 shadow-lg">
+                <h3 className="text-lg font-semibold mb-4">Forma de Onda TENS</h3>
+                
+                <div className="h-64 mb-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={waveformData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis 
+                        dataKey="time" 
+                        label={{ value: 'Tempo (ms)', position: 'insideBottom', offset: -5 }}
+                        className="text-xs"
+                        type="number"
+                        domain={[0, 'dataMax']}
+                      />
+                      <YAxis 
+                        label={{ value: 'Amplitude (mA)', angle: -90, position: 'insideLeft' }}
+                        className="text-xs"
+                        domain={[0, 'dataMax']}
+                      />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'hsl(var(--background))', 
+                          border: '1px solid hsl(var(--border))' 
+                        }}
+                      />
+                      <Line 
+                        type="stepAfter" 
+                        dataKey="amplitude" 
+                        stroke="hsl(var(--primary))" 
+                        strokeWidth={2}
+                        dot={false}
+                        isAnimationActive={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
 
-              {/* Métricas calculadas */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="p-3 bg-muted/50 rounded-lg text-center">
-                  <div className="text-xs text-muted-foreground mb-1">Período</div>
-                  <div className="text-sm font-bold">
-                    {(1000 / frequency).toFixed(1)} ms
+                {/* Métricas calculadas */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="p-3 bg-muted/50 rounded-lg text-center">
+                    <div className="text-xs text-muted-foreground mb-1">Período</div>
+                    <div className="text-sm font-bold">
+                      {(1000 / frequency).toFixed(1)} ms
+                    </div>
+                  </div>
+                  <div className="p-3 bg-muted/50 rounded-lg text-center">
+                    <div className="text-xs text-muted-foreground mb-1">Duty Cycle</div>
+                    <div className="text-sm font-bold">
+                      {((pulseWidth / 1000) / (1000 / frequency) * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                  <div className="p-3 bg-muted/50 rounded-lg text-center">
+                    <div className="text-xs text-muted-foreground mb-1">Carga/Pulso</div>
+                    <div className="text-sm font-bold">
+                      {(intensity * pulseWidth / 1000).toFixed(1)} µC
+                    </div>
                   </div>
                 </div>
-                <div className="p-3 bg-muted/50 rounded-lg text-center">
-                  <div className="text-xs text-muted-foreground mb-1">Duty Cycle</div>
-                  <div className="text-sm font-bold">
-                    {((pulseWidth / 1000) / (1000 / frequency) * 100).toFixed(1)}%
-                  </div>
-                </div>
-                <div className="p-3 bg-muted/50 rounded-lg text-center">
-                  <div className="text-xs text-muted-foreground mb-1">Carga/Pulso</div>
-                  <div className="text-sm font-bold">
-                    {(intensity * pulseWidth / 1000).toFixed(1)} µC
-                  </div>
-                </div>
-              </div>
-            </Card>
+              </Card>
+            )}
           </div>
         </div>
       </div>
