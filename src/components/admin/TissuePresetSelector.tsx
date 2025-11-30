@@ -5,9 +5,11 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { TissueConfig, TissuePreset, tissuePresets, TissuePresetId } from "@/types/tissueConfig";
 import { TensSemi3DView } from "@/components/labs/TensSemi3DView";
 import { simulateTissueRisk } from "@/lib/tissueRiskSimulation";
+import { Settings2 } from "lucide-react";
 
 interface TissuePresetSelectorProps {
   selectedPresetId: TissuePresetId;
@@ -22,6 +24,9 @@ export function TissuePresetSelector({
   onPresetChange,
   onCustomConfigChange,
 }: TissuePresetSelectorProps) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [tempSelectedId, setTempSelectedId] = useState<TissuePresetId>(selectedPresetId);
+  
   const selectedPreset = tissuePresets.find(p => p.id === selectedPresetId);
   const isCustom = selectedPresetId === "custom";
   
@@ -35,6 +40,18 @@ export function TissuePresetSelector({
 
   const updateCustomConfig = (updates: Partial<TissueConfig>) => {
     onCustomConfigChange({ ...customConfig, ...updates });
+  };
+  
+  const handleApplyPreset = () => {
+    onPresetChange(tempSelectedId);
+    setDialogOpen(false);
+  };
+  
+  const handleDialogOpenChange = (open: boolean) => {
+    if (open) {
+      setTempSelectedId(selectedPresetId);
+    }
+    setDialogOpen(open);
   };
   
   // Calculate risk for preview
@@ -53,55 +70,96 @@ export function TissuePresetSelector({
 
   return (
     <div className="space-y-6">
-      {/* Seletor de Presets */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Cenário Anatômico</CardTitle>
-          <CardDescription>
-            Escolha um preset predefinido ou configure manualmente
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {tissuePresets.map((preset) => (
-              <button
-                key={preset.id}
-                onClick={() => onPresetChange(preset.id)}
-                className={`
-                  w-full h-28 p-4 rounded-xl border shadow-sm overflow-hidden
-                  transition-all duration-200
-                  ${selectedPresetId === preset.id 
-                    ? 'bg-primary text-primary-foreground border-primary shadow-md' 
-                    : 'bg-card hover:bg-accent hover:border-accent-foreground/20'
-                  }
-                `}
-              >
-                <div className="flex flex-col h-full justify-between">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-base font-semibold text-left truncate flex-1">
-                      {preset.label}
-                    </h3>
-                    <div className="flex gap-1 flex-shrink-0">
-                      {preset.config.hasMetalImplant && (
-                        <span className="text-xs">⚡</span>
-                      )}
-                      {preset.isCustom && (
-                        <span className="text-xs">✏️</span>
-                      )}
-                    </div>
-                  </div>
-                  <p className={`text-sm text-left line-clamp-1 ${
-                    selectedPresetId === preset.id 
-                      ? 'text-primary-foreground/80' 
-                      : 'text-muted-foreground'
-                  }`}>
-                    {preset.description}
-                  </p>
-                </div>
-              </button>
-            ))}
+      {/* Resumo Compacto + Botão para abrir Dialog */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold text-foreground mb-1">
+              Cenário anatômico selecionado
+            </h3>
+            <p className="text-sm text-muted-foreground truncate">
+              {selectedPreset?.label}
+              {isCustom && (
+                <span className="ml-2 inline-flex px-2 py-0.5 text-xs rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+                  ✏️ Personalizado
+                </span>
+              )}
+              {selectedPreset?.config.hasMetalImplant && !isCustom && (
+                <span className="ml-2 inline-flex px-2 py-0.5 text-xs rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">
+                  ⚡ Implante
+                </span>
+              )}
+            </p>
           </div>
-        </CardContent>
+          
+          <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="flex-shrink-0">
+                <Settings2 className="h-4 w-4 mr-2" />
+                Alterar cenário
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Escolher cenário anatômico</DialogTitle>
+                <DialogDescription>
+                  Selecione um preset predefinido ou configure manualmente as camadas de tecido
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="py-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {tissuePresets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => setTempSelectedId(preset.id)}
+                      className={`
+                        w-full h-24 p-3 rounded-xl border shadow-sm overflow-hidden
+                        transition-all duration-200
+                        ${tempSelectedId === preset.id 
+                          ? 'bg-primary text-primary-foreground border-primary shadow-md' 
+                          : 'bg-card hover:bg-accent hover:border-accent-foreground/20'
+                        }
+                      `}
+                    >
+                      <div className="flex flex-col h-full justify-between">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="text-sm font-semibold text-left truncate flex-1">
+                            {preset.label}
+                          </h3>
+                          <div className="flex gap-1 flex-shrink-0">
+                            {preset.config.hasMetalImplant && (
+                              <span className="text-xs">⚡</span>
+                            )}
+                            {preset.isCustom && (
+                              <span className="text-xs">✏️</span>
+                            )}
+                          </div>
+                        </div>
+                        <p className={`text-xs text-left line-clamp-1 ${
+                          tempSelectedId === preset.id 
+                            ? 'text-primary-foreground/80' 
+                            : 'text-muted-foreground'
+                        }`}>
+                          {preset.description}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleApplyPreset}>
+                  Aplicar cenário
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </Card>
 
       {/* Preview da Anatomia */}
