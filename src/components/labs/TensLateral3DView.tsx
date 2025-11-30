@@ -70,6 +70,32 @@ export const TensLateral3DView = ({
 
   return (
     <div className="w-full h-[500px] relative bg-gradient-to-b from-slate-900 to-slate-950 rounded-lg overflow-hidden border border-slate-700/50">
+      {/* DEBUG VISUAL - Parâmetros em tempo real */}
+      <div className="absolute top-2 left-2 z-50 bg-slate-950/90 border border-cyan-500/50 rounded-lg p-2 text-xs font-mono text-cyan-400 shadow-lg">
+        <div className="space-y-1">
+          <div className="flex gap-2">
+            <span className="text-slate-400">Freq:</span>
+            <span className="font-bold">{frequency} Hz</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="text-slate-400">Int:</span>
+            <span className="font-bold">{intensity} mA</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="text-slate-400">PW:</span>
+            <span className="font-bold">{pulseWidth} µs</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="text-slate-400">Modo:</span>
+            <span className="font-bold capitalize">{mode}</span>
+          </div>
+          <div className="flex gap-2 pt-1 border-t border-cyan-500/30">
+            <span className="text-slate-400">Act:</span>
+            <span className="font-bold">{activationLevel}/100</span>
+          </div>
+        </div>
+      </div>
+      
       {/* Grid background for scientific look */}
       <div className="absolute inset-0 opacity-10">
         <div className="w-full h-full" style={{
