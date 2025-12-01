@@ -52,32 +52,48 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
   };
   
   const handlePresetChange = (presetId: TissuePresetId) => {
+    console.log('🔄 Preset changed to:', presetId);
     setSelectedPresetId(presetId);
     
     if (presetId === "custom") {
+      // Quando muda para custom, manter os valores atuais do preset anterior
+      const currentPreset = tissuePresets.find(p => p.id === selectedPresetId);
+      if (currentPreset && selectedPresetId !== "custom") {
+        console.log('📋 Copying preset values to custom config');
+        setTissueConfig({ 
+          ...currentPreset.config, 
+          id: "custom",
+          name: "Personalizado"
+        });
+      }
       updateConfig({ tissueConfigId: undefined });
     } else {
-      updateConfig({ tissueConfigId: presetId });
       const preset = tissuePresets.find(p => p.id === presetId);
       if (preset) {
+        console.log('📋 Loading preset:', preset.label);
         setTissueConfig({ ...preset.config, id: preset.id });
       }
+      updateConfig({ tissueConfigId: presetId });
     }
   };
   
   const handleCustomConfigChange = (newConfig: TissueConfig) => {
+    console.log('🔄 TensLabConfigEditor - Received new config:', {
+      skin: newConfig.skinThickness,
+      fat: newConfig.fatThickness,
+      muscle: newConfig.muscleThickness,
+      bone: newConfig.boneDepth
+    });
     setTissueConfig({ ...newConfig });
   };
   
   // Get the actual tissue config for preview
   const previewTissueConfig = useMemo(() => {
-    if (selectedPresetId === "custom") {
-      return {
-        ...tissueConfig,
-        id: tissueConfig.id || "custom",
-        name: tissueConfig.name || "Configuração Personalizada",
-      };
-    } else {
+    const result = selectedPresetId === "custom" ? {
+      ...tissueConfig,
+      id: tissueConfig.id || "custom",
+      name: tissueConfig.name || "Configuração Personalizada",
+    } : (() => {
       const preset = tissuePresets.find(p => p.id === selectedPresetId);
       return preset ? { 
         ...preset.config, 
@@ -88,34 +104,78 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
         id: tissueConfig.id || "custom",
         name: tissueConfig.name || "Configuração Personalizada",
       };
-    }
+    })();
+    
+    console.log('📊 previewTissueConfig updated:', {
+      preset: selectedPresetId,
+      skin: result.skinThickness,
+      fat: result.fatThickness,
+      muscle: result.muscleThickness,
+      bone: result.boneDepth
+    });
+    
+    return result;
   }, [selectedPresetId, tissueConfig]);
 
   return (
     <Tabs defaultValue="anatomy" className="w-full">
-      <TabsList className="grid w-full grid-cols-3 mb-6">
+      <TabsList className="grid w-full grid-cols-2 mb-6">
         <TabsTrigger value="anatomy" className="flex items-center gap-2">
           <Dna className="h-4 w-4" />
-          Anatomia
+          Anatomia e Preview
         </TabsTrigger>
         <TabsTrigger value="controls" className="flex items-center gap-2">
           <Settings2 className="h-4 w-4" />
           Controles Disponíveis
         </TabsTrigger>
-        <TabsTrigger value="preview" className="flex items-center gap-2">
-          <Eye className="h-4 w-4" />
-          Preview Final
-        </TabsTrigger>
       </TabsList>
 
-      {/* Tab 1: Anatomia */}
+      {/* Tab 1: Anatomia com Preview Integrado */}
       <TabsContent value="anatomy" className="mt-6">
-        <TissuePresetSelector
-          selectedPresetId={selectedPresetId}
-          tissueConfig={tissueConfig}
-          onPresetChange={handlePresetChange}
-          onCustomConfigChange={handleCustomConfigChange}
-        />
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* Coluna Esquerda: Configuração de Anatomia */}
+          <div>
+            <TissuePresetSelector
+              selectedPresetId={selectedPresetId}
+              tissueConfig={tissueConfig}
+              onPresetChange={handlePresetChange}
+              onCustomConfigChange={handleCustomConfigChange}
+            />
+          </div>
+          
+          {/* Coluna Direita: Preview em Tempo Real */}
+          <div className="space-y-6">
+            <Card className="bg-gradient-to-br from-slate-950 to-slate-900 border-cyan-500/20">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2 text-cyan-400">
+                  <Eye className="w-4 h-4" />
+                  Preview da Anatomia
+                </CardTitle>
+                <CardDescription className="text-slate-400">
+                  Visualização em tempo real das camadas
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[500px] rounded-lg overflow-hidden">
+                  <TensSemi3DView
+                    frequencyHz={80}
+                    pulseWidthUs={200}
+                    intensitymA={20}
+                    mode="convencional"
+                    activationLevel={50}
+                    comfortLevel={70}
+                    tissueConfig={previewTissueConfig}
+                    riskResult={{
+                      riskLevel: "baixo",
+                      riskScore: 10,
+                      messages: []
+                    }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </TabsContent>
 
       {/* Tab 2: Controles Disponíveis */}
@@ -472,23 +532,6 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
             </div>
           </CardContent>
         </Card>
-      </TabsContent>
-
-      {/* Tab 3: Preview Final */}
-      <TabsContent value="preview" className="mt-6">
-        <div className="space-y-4">
-          <Card className="p-4 bg-muted/50 border-dashed">
-            <p className="text-sm text-muted-foreground">
-              <strong>Preview Final:</strong> Esta é a visualização exata que o aluno verá. 
-              Teste os controles para verificar se tudo está funcionando conforme esperado.
-            </p>
-          </Card>
-          
-          <TensLabPreview 
-            config={config} 
-            tissueConfig={previewTissueConfig}
-          />
-        </div>
       </TabsContent>
     </Tabs>
   );
