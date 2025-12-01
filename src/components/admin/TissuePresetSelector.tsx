@@ -1,19 +1,18 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
-import { TissueConfig, TissuePreset, tissuePresets, TissuePresetId } from "@/types/tissueConfig";
-import { TensSemi3DView } from "@/components/labs/TensSemi3DView";
-import { simulateTissueRisk } from "@/lib/tissueRiskSimulation";
+import { TissueConfig, tissuePresets, TissuePresetId } from "@/types/tissueConfig";
+import { InclusionsEditor } from "./InclusionsEditor";
 import { Settings2 } from "lucide-react";
 
 interface TissuePresetSelectorProps {
   selectedPresetId: TissuePresetId;
   customConfig: TissueConfig;
+  tissueConfig: TissueConfig;
   onPresetChange: (presetId: TissuePresetId) => void;
   onCustomConfigChange: (config: TissueConfig) => void;
 }
@@ -21,6 +20,7 @@ interface TissuePresetSelectorProps {
 export function TissuePresetSelector({
   selectedPresetId,
   customConfig,
+  tissueConfig,
   onPresetChange,
   onCustomConfigChange,
 }: TissuePresetSelectorProps) {
@@ -29,14 +29,6 @@ export function TissuePresetSelector({
   
   const selectedPreset = tissuePresets.find(p => p.id === selectedPresetId);
   const isCustom = selectedPresetId === "custom";
-  
-  // Config para preview - usa custom se selecionado, caso contrário usa o preset
-  const previewConfig: TissueConfig = isCustom 
-    ? customConfig 
-    : {
-        ...selectedPreset!.config,
-        id: selectedPreset!.id,
-      };
 
   const updateCustomConfig = (updates: Partial<TissueConfig>) => {
     onCustomConfigChange({ ...customConfig, ...updates });
@@ -53,20 +45,6 @@ export function TissuePresetSelector({
     }
     setDialogOpen(open);
   };
-  
-  // Calculate risk for preview
-  const previewRisk = useMemo(() => 
-    simulateTissueRisk(
-      {
-        frequencyHz: 80,
-        pulseWidthUs: 200,
-        intensitymA: 15,
-        mode: "convencional",
-      },
-      previewConfig
-    ),
-    [previewConfig]
-  );
 
   return (
     <div className="space-y-6">
@@ -160,31 +138,6 @@ export function TissuePresetSelector({
             </DialogContent>
           </Dialog>
         </div>
-      </Card>
-
-      {/* Preview da Anatomia */}
-      <Card className="border-primary/20">
-        <CardHeader>
-          <CardTitle className="text-base">Preview da Anatomia</CardTitle>
-          <CardDescription>
-            Visualização das camadas anatômicas configuradas
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[300px] rounded-lg overflow-hidden">
-            <TensSemi3DView
-              key={`preview-${previewConfig.skinThickness}-${previewConfig.fatThickness}-${previewConfig.muscleThickness}-${previewConfig.hasMetalImplant}`}
-              frequencyHz={80}
-              pulseWidthUs={200}
-              intensitymA={15}
-              mode="convencional"
-              activationLevel={50}
-              comfortLevel={70}
-              tissueConfig={previewConfig}
-              riskResult={previewRisk}
-            />
-          </div>
-        </CardContent>
       </Card>
 
       {/* Editor Manual - apenas se Custom estiver selecionado */}
@@ -330,6 +283,14 @@ export function TissuePresetSelector({
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Editor de Inclusões */}
+            <div className="pt-6 border-t">
+              <InclusionsEditor
+                inclusions={customConfig.inclusions || []}
+                onChange={(inclusions) => updateCustomConfig({ inclusions })}
+              />
             </div>
           </CardContent>
         </Card>
