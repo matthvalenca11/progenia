@@ -85,7 +85,7 @@ export default function TensLabPage({ config = defaultTensLabConfig, previewMode
   
   // Atualizar tissueConfig diretamente (usado no modo custom)
   const handleCustomConfigChange = (config: TissueConfig) => {
-    console.log('🔧 handleCustomConfigChange called:', {
+    console.log('🔧 handleCustomConfigChange CALLED with config:', {
       skinThickness: config.skinThickness,
       fatThickness: config.fatThickness,
       muscleThickness: config.muscleThickness,
@@ -93,8 +93,10 @@ export default function TensLabPage({ config = defaultTensLabConfig, previewMode
       hasMetalImplant: config.hasMetalImplant,
       inclusionsCount: config.inclusions?.length || 0,
     });
+    console.log('🔧 Current tissueConfig state BEFORE update:', tissueConfig);
     const newConfig = { ...config }; // Nova referência para forçar re-render
     setTissueConfig(newConfig);
+    console.log('✅ setTissueConfig CALLED with newConfig:', newConfig);
   };
   
   // Estados dos parâmetros com valores iniciais baseados na config

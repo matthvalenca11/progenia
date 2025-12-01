@@ -30,6 +30,7 @@ export function TissuePresetSelector({
 
   const updateCustomConfig = (updates: Partial<TissueConfig>) => {
     console.log('📝 updateCustomConfig called with:', updates);
+    console.log('📝 Current tissueConfig before merge:', tissueConfig);
     // Criar nova referência completa para garantir re-render
     const newConfig = { 
       ...tissueConfig, // Usar tissueConfig atual ao invés de customConfig
@@ -38,6 +39,7 @@ export function TissuePresetSelector({
       inclusions: updates.inclusions !== undefined ? updates.inclusions : (tissueConfig.inclusions || [])
     };
     console.log('📤 Sending newConfig to onCustomConfigChange:', newConfig);
+    console.log('📤 onCustomConfigChange function exists?', typeof onCustomConfigChange);
     onCustomConfigChange(newConfig);
   };
   
