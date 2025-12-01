@@ -29,11 +29,18 @@ export function TissuePresetSelector({
   const isCustom = selectedPresetId === "custom";
 
   const updateCustomConfig = (updates: Partial<TissueConfig>) => {
+    console.log('📝 TissuePresetSelector - updateCustomConfig called with:', updates);
     const newConfig = { 
       ...tissueConfig,
       ...updates,
       inclusions: updates.inclusions !== undefined ? updates.inclusions : (tissueConfig.inclusions || [])
     };
+    console.log('📤 TissuePresetSelector - Calling onCustomConfigChange with:', {
+      skin: newConfig.skinThickness,
+      fat: newConfig.fatThickness,
+      muscle: newConfig.muscleThickness,
+      bone: newConfig.boneDepth
+    });
     onCustomConfigChange(newConfig);
   };
   

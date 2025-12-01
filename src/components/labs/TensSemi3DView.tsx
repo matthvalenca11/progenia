@@ -90,7 +90,17 @@ export function TensSemi3DView({
   }, [intensityNorm, penetrationDepth]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 relative">
+      {/* DEBUG OVERLAY - TEMPORÁRIO */}
+      <div className="absolute top-2 right-2 z-50 text-[10px] bg-red-600/90 text-white px-3 py-2 rounded-md font-mono border-2 border-red-400 shadow-lg">
+        <div className="font-bold mb-1">🔴 DEBUG - Preview 2D</div>
+        skin: {(tissueConfig.skinThickness * 100).toFixed(0)}%<br />
+        fat: {(tissueConfig.fatThickness * 100).toFixed(0)}%<br />
+        muscle: {(tissueConfig.muscleThickness * 100).toFixed(0)}%<br />
+        bone: {(tissueConfig.boneDepth * 100).toFixed(0)}%<br />
+        implant: {tissueConfig.hasMetalImplant ? 'SIM' : 'NÃO'}
+      </div>
+      
       {/* TOP PANEL - Superior View */}
       <div className="relative w-full h-48 bg-gradient-to-br from-rose-100 to-rose-50 dark:from-rose-950/40 dark:to-rose-900/20 rounded-lg overflow-hidden border border-rose-200/50 dark:border-rose-800/30">
         <div className="absolute inset-0 opacity-30" style={{
