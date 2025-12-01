@@ -111,6 +111,12 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
       };
     })();
     
+    console.log('🎯 previewTissueConfig recalculated:', { 
+      selectedPresetId, 
+      boneDepth: result.boneDepth,
+      fullConfig: result 
+    });
+    
     return result;
   }, [selectedPresetId, tissueConfig]);
 

@@ -24,6 +24,13 @@ export function TensSemi3DView({
   tissueConfig,
   riskResult,
 }: TensSemi3DViewProps) {
+  console.log('👁️ TensSemi3DView render with tissueConfig:', {
+    boneDepth: tissueConfig.boneDepth,
+    skinThickness: tissueConfig.skinThickness,
+    fatThickness: tissueConfig.fatThickness,
+    muscleThickness: tissueConfig.muscleThickness,
+  });
+  
   // Normalize parameters
   const intensityNorm = Math.min(1, intensitymA / 80);
   const pulseNorm = (pulseWidthUs - 50) / (400 - 50);
