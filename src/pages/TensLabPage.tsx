@@ -85,6 +85,14 @@ export default function TensLabPage({ config = defaultTensLabConfig, previewMode
   
   // Atualizar tissueConfig diretamente (usado no modo custom)
   const handleCustomConfigChange = (config: TissueConfig) => {
+    console.log('🔧 handleCustomConfigChange called:', {
+      skinThickness: config.skinThickness,
+      fatThickness: config.fatThickness,
+      muscleThickness: config.muscleThickness,
+      boneDepth: config.boneDepth,
+      hasMetalImplant: config.hasMetalImplant,
+      inclusionsCount: config.inclusions?.length || 0,
+    });
     const newConfig = { ...config }; // Nova referência para forçar re-render
     setTissueConfig(newConfig);
   };
@@ -297,7 +305,6 @@ export default function TensLabPage({ config = defaultTensLabConfig, previewMode
               <CardContent>
                 <div className="h-[600px] rounded-lg overflow-hidden">
                   <TensSemi3DView
-                    key={`anatomy-${tissueConfig.skinThickness}-${tissueConfig.fatThickness}-${tissueConfig.muscleThickness}-${tissueConfig.hasMetalImplant}-${tissueConfig.inclusions?.length}`}
                     frequencyHz={frequency}
                     pulseWidthUs={pulseWidth}
                     intensitymA={intensity}
@@ -326,7 +333,6 @@ export default function TensLabPage({ config = defaultTensLabConfig, previewMode
               </CardHeader>
               <CardContent>
                 <Tens3DSimulator
-                  key={`3d-${tissueConfig.skinThickness}-${tissueConfig.fatThickness}-${tissueConfig.muscleThickness}-${tissueConfig.hasMetalImplant}-${tissueConfig.inclusions?.length}`}
                   frequencyHz={frequency}
                   pulseWidthUs={pulseWidth}
                   intensitymA={intensity}

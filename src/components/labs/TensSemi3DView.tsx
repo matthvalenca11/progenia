@@ -29,16 +29,16 @@ export function TensSemi3DView({
   const pulseNorm = (pulseWidthUs - 50) / (400 - 50);
   const freqNorm = (frequencyHz - 1) / (200 - 1);
   
-  // Calculate penetration depth based on parameters and tissue
+  // Calculate penetration depth based on parameters and tissue (valores já 0-1)
   const basePenetration = intensityNorm * 0.6 + pulseNorm * 0.3;
-  const fatResistance = tissueConfig.fatThickness / 100;
+  const fatResistance = tissueConfig.fatThickness; // Já está 0-1
   const penetrationDepth = Math.max(0.2, Math.min(0.9, basePenetration * (1 - fatResistance * 0.4)));
   
   // Calculate damage/thermal load
   const thermalLoad = intensityNorm * 0.5 + pulseNorm * 0.3 + freqNorm * 0.2;
   const damageScore = Math.max(0, Math.min(100, thermalLoad * 100 * (tissueConfig.hasMetalImplant ? 1.5 : 1)));
   
-  // Calculate layer percentages
+  // Calculate layer percentages - tissueConfig já está normalizado (0-1)
   const totalDepth = tissueConfig.skinThickness + tissueConfig.fatThickness + tissueConfig.muscleThickness;
   const skinPercent = (tissueConfig.skinThickness / totalDepth) * 100;
   const fatPercent = (tissueConfig.fatThickness / totalDepth) * 100;
@@ -56,13 +56,13 @@ export function TensSemi3DView({
       spots.push({ x: 50, y: 10, intensity: intensityNorm * 0.8, size: 25 });
     }
     
-    // Fat-muscle interface
-    if (tissueConfig.fatThickness < 15 && intensityNorm > 0.5) {
+    // Fat-muscle interface (valores já 0-1, então comparar com 0.15 ao invés de 15)
+    if (tissueConfig.fatThickness < 0.15 && intensityNorm > 0.5) {
       spots.push({ x: 50, y: skinPercent + fatPercent * 0.7, intensity: 0.6, size: 30 });
     }
     
-    // Muscle-bone interface
-    if (tissueConfig.boneDepth < 50 && intensityNorm > 0.6) {
+    // Muscle-bone interface (valores já 0-1, então comparar com 0.5 ao invés de 50)
+    if (tissueConfig.boneDepth < 0.5 && intensityNorm > 0.6) {
       spots.push({ x: 50, y: skinPercent + fatPercent + musclePercent * 0.8, intensity: 0.8, size: 35 });
     }
     
@@ -91,6 +91,17 @@ export function TensSemi3DView({
 
   return (
     <div className="space-y-4">
+      {/* DEBUG OVERLAY */}
+      <div className="absolute top-2 right-2 z-50 text-[10px] bg-black/80 text-white px-3 py-2 rounded-md font-mono border border-cyan-500/30">
+        <div className="font-bold text-cyan-400 mb-1">DEBUG - Preview 2D</div>
+        skin: {(tissueConfig.skinThickness * 100).toFixed(0)}% ({skinPercent.toFixed(1)}%)<br />
+        fat: {(tissueConfig.fatThickness * 100).toFixed(0)}% ({fatPercent.toFixed(1)}%)<br />
+        muscle: {(tissueConfig.muscleThickness * 100).toFixed(0)}% ({musclePercent.toFixed(1)}%)<br />
+        bone: {(tissueConfig.boneDepth * 100).toFixed(0)}%<br />
+        implant: {tissueConfig.hasMetalImplant ? 'YES' : 'NO'}<br />
+        inclusions: {tissueConfig.inclusions?.length || 0}
+      </div>
+      
       {/* TOP PANEL - Superior View */}
       <div className="relative w-full h-48 bg-gradient-to-br from-rose-100 to-rose-50 dark:from-rose-950/40 dark:to-rose-900/20 rounded-lg overflow-hidden border border-rose-200/50 dark:border-rose-800/30">
         <div className="absolute inset-0 opacity-30" style={{
@@ -260,7 +271,7 @@ export function TensSemi3DView({
             backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.3) 1px, transparent 1px)',
             backgroundSize: '6px 6px'
           }} />
-          {tissueConfig.boneDepth < 50 && intensityNorm > 0.6 && (
+          {tissueConfig.boneDepth < 0.5 && intensityNorm > 0.6 && (
             <div className="absolute inset-0 bg-gradient-to-t from-red-500/30 to-transparent blur-md" />
           )}
         </div>
