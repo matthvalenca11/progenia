@@ -227,37 +227,10 @@ export default function VirtualLabEditorUnified() {
         {lab.lab_type === "ultrasound" && <UltrasoundLabBuilder />}
         
         {lab.lab_type === "tens" && lab.config_data && (
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr,900px] gap-6">
-            <div className="space-y-6">
-              <TensLabConfigEditor
-                config={lab.config_data}
-                onChange={(config) => setLab({ ...lab, config_data: config })}
-              />
-            </div>
-            
-            {/* Preview do TENS */}
-            <div className="xl:sticky xl:top-6 space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Preview do Simulador</CardTitle>
-                  <CardDescription>
-                    Visualize como o laboratório aparecerá para os alunos
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-2">
-                  <div 
-                    className="w-full bg-gradient-to-br from-background via-background to-primary/5 rounded-lg"
-                    style={{
-                      maxHeight: 'calc(100vh - 200px)',
-                      overflow: 'auto',
-                    }}
-                  >
-                    <TensLabPage config={lab.config_data} previewMode={true} />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+          <TensLabConfigEditor
+            config={lab.config_data}
+            onChange={(config) => setLab({ ...lab, config_data: config })}
+          />
         )}
 
         {!["ultrasound", "tens"].includes(lab.lab_type || "") && (
