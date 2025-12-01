@@ -29,6 +29,7 @@ export function TissuePresetSelector({
   const isCustom = selectedPresetId === "custom";
 
   const updateCustomConfig = (updates: Partial<TissueConfig>) => {
+    console.log('📝 updateCustomConfig called with:', updates);
     // Criar nova referência completa para garantir re-render
     const newConfig = { 
       ...tissueConfig, // Usar tissueConfig atual ao invés de customConfig
@@ -36,6 +37,7 @@ export function TissuePresetSelector({
       // Garantir que inclusions é sempre um array
       inclusions: updates.inclusions !== undefined ? updates.inclusions : (tissueConfig.inclusions || [])
     };
+    console.log('📤 Sending newConfig to onCustomConfigChange:', newConfig);
     onCustomConfigChange(newConfig);
   };
   

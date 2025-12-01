@@ -18,11 +18,12 @@ export function TissueLayersModel({
   intensityNorm,
   lesionIndex = 0,
 }: TissueLayersModelProps) {
-  // Calculate layer dimensions - wrapped in useMemo to trigger re-render
+  // Calculate layer dimensions - tissueConfig valores já estão normalizados (0-1)
   const { skinHeight, fatHeight, muscleHeight, boneHeight, skinY, fatY, muscleY, boneY } = useMemo(() => {
-    const skinH = tissueConfig.skinThickness / 10;
-    const fatH = tissueConfig.fatThickness / 10;
-    const muscleH = tissueConfig.muscleThickness / 10;
+    // Multiplicar por 5 para ter dimensões visíveis (ao invés de /10)
+    const skinH = tissueConfig.skinThickness * 5;
+    const fatH = tissueConfig.fatThickness * 5;
+    const muscleH = tissueConfig.muscleThickness * 5;
     const boneH = 0.5;
 
     // Calculate Y positions (stacking from top)
