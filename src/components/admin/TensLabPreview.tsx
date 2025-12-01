@@ -53,28 +53,16 @@ export function TensLabPreview({ config, tissueConfig }: TensLabPreviewProps) {
   );
 
   return (
-    <div className="space-y-6">
-      <Card className="p-4 bg-muted/30">
-        <h3 className="text-lg font-semibold mb-1">Preview do Simulador</h3>
-        <p className="text-sm text-muted-foreground">
-          Visualize como o laboratório aparecerá para os alunos
-        </p>
-      </Card>
-
-      {/* Cenário anatômico selecionado */}
-      <Card className="p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h4 className="text-sm font-semibold">Cenário anatômico selecionado</h4>
-            <p className="text-sm text-muted-foreground mt-1">{tissueConfig.name || "Antebraço..."}</p>
-          </div>
-        </div>
-      </Card>
-
-      {/* Parâmetros de Estimulação */}
-      <Card className="p-6">
-        <h3 className="text-base font-semibold mb-4">Parâmetros de Estimulação</h3>
-        <div className="space-y-6">
+    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      {/* Coluna 1: Controles de Estimulação */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Parâmetros de Estimulação</CardTitle>
+          <CardDescription>
+            Ajuste os parâmetros para testar o laboratório
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
           {config.enabledControls.frequency && (
             <div>
               <div className="flex justify-between items-center mb-2">
@@ -141,56 +129,53 @@ export function TensLabPreview({ config, tissueConfig }: TensLabPreviewProps) {
               </div>
             </div>
           )}
-        </div>
+        </CardContent>
       </Card>
 
-      {/* Preview 2D e Simulador 3D lado a lado */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Preview da Anatomia 2D */}
-        <Card className="bg-gradient-to-br from-slate-950 to-slate-900 border-cyan-500/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base text-cyan-400">Preview da Anatomia</CardTitle>
-            <CardDescription className="text-slate-400">
-              Visualização em tempo real das camadas anatômicas configuradas
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <TensSemi3DView
-              frequencyHz={frequency}
-              pulseWidthUs={pulseWidth}
-              intensitymA={intensity}
-              mode={mode}
-              activationLevel={sim.activationLevel}
-              comfortLevel={sim.comfortLevel}
-              tissueConfig={tissueConfig}
-              riskResult={riskResult}
-            />
-          </CardContent>
-        </Card>
+      {/* Coluna 2: Preview 2D da Anatomia */}
+      <Card className="bg-gradient-to-br from-slate-950 to-slate-900 border-cyan-500/20">
+        <CardHeader>
+          <CardTitle className="text-lg text-cyan-400">Preview da Anatomia</CardTitle>
+          <CardDescription className="text-slate-400">
+            Visualização em tempo real das camadas anatômicas
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="h-[600px]">
+          <TensSemi3DView
+            frequencyHz={frequency}
+            pulseWidthUs={pulseWidth}
+            intensitymA={intensity}
+            mode={mode}
+            activationLevel={sim.activationLevel}
+            comfortLevel={sim.comfortLevel}
+            tissueConfig={tissueConfig}
+            riskResult={riskResult}
+          />
+        </CardContent>
+      </Card>
 
-        {/* Simulador 3D Biomédico */}
-        <Card className="bg-gradient-to-br from-slate-950 to-slate-900 border-blue-500/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base text-blue-400">Simulador 3D Biomédico</CardTitle>
-            <CardDescription className="text-slate-400">
-              Modelo fisiológico tridimensional com campo elétrico e análise de riscos
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tens3DSimulator
-              frequencyHz={frequency}
-              pulseWidthUs={pulseWidth}
-              intensitymA={intensity}
-              mode={mode}
-              activationLevel={sim.activationLevel}
-              comfortLevel={sim.comfortLevel}
-              tissueConfig={tissueConfig}
-              riskResult={riskResult}
-              compact={true}
-            />
-          </CardContent>
-        </Card>
-      </div>
+      {/* Coluna 3: Simulador 3D Biomédico */}
+      <Card className="bg-gradient-to-br from-slate-950 to-slate-900 border-blue-500/20">
+        <CardHeader>
+          <CardTitle className="text-lg text-blue-400">Simulador 3D Biomédico</CardTitle>
+          <CardDescription className="text-slate-400">
+            Modelo fisiológico com campo elétrico
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="h-[600px]">
+          <Tens3DSimulator
+            frequencyHz={frequency}
+            pulseWidthUs={pulseWidth}
+            intensitymA={intensity}
+            mode={mode}
+            activationLevel={sim.activationLevel}
+            comfortLevel={sim.comfortLevel}
+            tissueConfig={tissueConfig}
+            riskResult={riskResult}
+            compact={true}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }

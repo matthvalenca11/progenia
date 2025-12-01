@@ -9,7 +9,7 @@ import { TensLabConfig } from "@/types/tensLabConfig";
 import { TissueConfig, TissuePresetId, tissuePresets } from "@/types/tissueConfig";
 import { TissuePresetSelector } from "./TissuePresetSelector";
 import { TensLabPreview } from "./TensLabPreview";
-import { TensSemi3DView } from "@/components/labs/TensSemi3DView";
+
 import { Dna, Settings2, Eye } from "lucide-react";
 
 interface TensLabConfigEditorProps {
@@ -113,22 +113,33 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
 
       {/* Tab 1: Anatomia com Preview Integrado */}
       <TabsContent value="anatomy" className="mt-6">
-        <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6">
-          {/* Coluna Esquerda: Apenas Configuração */}
-          <div>
+        <div className="space-y-6">
+          {/* Info sobre cenário selecionado */}
+          <Card className="p-4 bg-muted/30">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-semibold">Cenário anatômico selecionado</h4>
+                <p className="text-sm text-muted-foreground mt-1">{previewTissueConfig.name || "Antebraço..."}</p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Layout em 4 colunas: Controles Anatomia | Controles Estimulação | Preview 2D | Simulador 3D */}
+          <div className="grid grid-cols-1 xl:grid-cols-[350px_1fr] gap-6">
+            {/* Coluna 1: Configuração de Anatomia */}
             <TissuePresetSelector
               selectedPresetId={selectedPresetId}
               tissueConfig={tissueConfig}
               onPresetChange={handlePresetChange}
               onCustomConfigChange={handleCustomConfigChange}
             />
+            
+            {/* Colunas 2, 3 e 4: Preview com Controles de Estimulação + Preview 2D + 3D */}
+            <TensLabPreview 
+              config={config} 
+              tissueConfig={previewTissueConfig}
+            />
           </div>
-          
-          {/* Coluna Direita: Preview do Simulador (2D + 3D lado a lado) */}
-          <TensLabPreview 
-            config={config} 
-            tissueConfig={previewTissueConfig}
-          />
         </div>
       </TabsContent>
 
