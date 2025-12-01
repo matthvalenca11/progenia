@@ -61,10 +61,20 @@ export function TensLabPreview({ config, tissueConfig }: TensLabPreviewProps) {
         </p>
       </Card>
 
+      {/* Cenário anatômico selecionado */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-sm font-semibold">Cenário anatômico selecionado</h4>
+            <p className="text-sm text-muted-foreground mt-1">{tissueConfig.name || "Antebraço..."}</p>
+          </div>
+        </div>
+      </Card>
+
       {/* Parâmetros de Estimulação */}
       <Card className="p-6">
         <h3 className="text-base font-semibold mb-4">Parâmetros de Estimulação</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-6">
           {config.enabledControls.frequency && (
             <div>
               <div className="flex justify-between items-center mb-2">
@@ -115,8 +125,8 @@ export function TensLabPreview({ config, tissueConfig }: TensLabPreviewProps) {
           
           {config.enabledControls.mode && config.allowedModes.length > 0 && (
             <div>
-              <Label className="mb-2 block">Modo de Estimulação</Label>
-              <div className="flex flex-wrap gap-2">
+              <Label className="mb-3 block">Modo de Estimulação</Label>
+              <div className="grid grid-cols-2 gap-2">
                 {config.allowedModes.map((m) => (
                   <Button
                     key={m}
@@ -145,18 +155,16 @@ export function TensLabPreview({ config, tissueConfig }: TensLabPreviewProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[500px] rounded-lg overflow-hidden">
-              <TensSemi3DView
-                frequencyHz={frequency}
-                pulseWidthUs={pulseWidth}
-                intensitymA={intensity}
-                mode={mode}
-                activationLevel={sim.activationLevel}
-                comfortLevel={sim.comfortLevel}
-                tissueConfig={tissueConfig}
-                riskResult={riskResult}
-              />
-            </div>
+            <TensSemi3DView
+              frequencyHz={frequency}
+              pulseWidthUs={pulseWidth}
+              intensitymA={intensity}
+              mode={mode}
+              activationLevel={sim.activationLevel}
+              comfortLevel={sim.comfortLevel}
+              tissueConfig={tissueConfig}
+              riskResult={riskResult}
+            />
           </CardContent>
         </Card>
 
@@ -169,19 +177,17 @@ export function TensLabPreview({ config, tissueConfig }: TensLabPreviewProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[500px] rounded-lg overflow-hidden">
-              <Tens3DSimulator
-                frequencyHz={frequency}
-                pulseWidthUs={pulseWidth}
-                intensitymA={intensity}
-                mode={mode}
-                activationLevel={sim.activationLevel}
-                comfortLevel={sim.comfortLevel}
-                tissueConfig={tissueConfig}
-                riskResult={riskResult}
-                compact={true}
-              />
-            </div>
+            <Tens3DSimulator
+              frequencyHz={frequency}
+              pulseWidthUs={pulseWidth}
+              intensitymA={intensity}
+              mode={mode}
+              activationLevel={sim.activationLevel}
+              comfortLevel={sim.comfortLevel}
+              tissueConfig={tissueConfig}
+              riskResult={riskResult}
+              compact={true}
+            />
           </CardContent>
         </Card>
       </div>
