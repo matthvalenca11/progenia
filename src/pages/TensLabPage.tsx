@@ -34,10 +34,6 @@ export default function TensLabPage({ config = defaultTensLabConfig, previewMode
     ...defaultTissueConfig,
     inclusions: [],
   }));
-  const [customConfig, setCustomConfig] = useState<TissueConfig>(() => ({
-    ...defaultTissueConfig,
-    inclusions: [],
-  }));
   
   // Carregar tissue config inicial
   useEffect(() => {
@@ -60,7 +56,6 @@ export default function TensLabPage({ config = defaultTensLabConfig, previewMode
             if (loaded) {
               setTissueConfig(loaded);
               setSelectedPresetId("custom");
-              setCustomConfig(loaded);
             }
           } catch (error) {
             console.error("Error loading tissue config:", error);
@@ -76,9 +71,7 @@ export default function TensLabPage({ config = defaultTensLabConfig, previewMode
   const handlePresetChange = (presetId: TissuePresetId) => {
     setSelectedPresetId(presetId);
     
-    if (presetId === "custom") {
-      setTissueConfig(customConfig);
-    } else {
+    if (presetId !== "custom") {
       const preset = tissuePresets.find(p => p.id === presetId);
       if (preset) {
         setTissueConfig({
@@ -87,14 +80,13 @@ export default function TensLabPage({ config = defaultTensLabConfig, previewMode
         });
       }
     }
+    // Se for custom, mantém o tissueConfig atual
   };
   
-  // Atualizar customConfig
+  // Atualizar tissueConfig diretamente (usado no modo custom)
   const handleCustomConfigChange = (config: TissueConfig) => {
-    setCustomConfig(config);
-    if (selectedPresetId === "custom") {
-      setTissueConfig(config);
-    }
+    const newConfig = { ...config }; // Nova referência para forçar re-render
+    setTissueConfig(newConfig);
   };
   
   // Estados dos parâmetros com valores iniciais baseados na config
@@ -173,7 +165,6 @@ export default function TensLabPage({ config = defaultTensLabConfig, previewMode
             {/* Seletor de Cenário Anatômico */}
             <TissuePresetSelector
               selectedPresetId={selectedPresetId}
-              customConfig={customConfig}
               tissueConfig={tissueConfig}
               onPresetChange={handlePresetChange}
               onCustomConfigChange={handleCustomConfigChange}
