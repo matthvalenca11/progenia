@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { TissueConfig, tissuePresets, TissuePresetId } from "@/types/tissueConfig";
-import { InclusionsEditor } from "./InclusionsEditor";
+import { TensInclusionsEditor } from "./TensInclusionsEditor";
 import { Settings2 } from "lucide-react";
 
 interface TissuePresetSelectorProps {
@@ -287,7 +287,7 @@ export function TissuePresetSelector({
 
             {/* Editor de Inclusões */}
             <div className="pt-6 border-t">
-              <InclusionsEditor
+              <TensInclusionsEditor
                 inclusions={customConfig.inclusions || []}
                 onChange={(inclusions) => updateCustomConfig({ inclusions })}
               />
