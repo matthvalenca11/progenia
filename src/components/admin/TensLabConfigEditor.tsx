@@ -9,6 +9,7 @@ import { TensLabConfig } from "@/types/tensLabConfig";
 import { TissueConfig, TissuePresetId, tissuePresets } from "@/types/tissueConfig";
 import { TissuePresetSelector } from "./TissuePresetSelector";
 import { TensLabPreview } from "./TensLabPreview";
+import { TensSemi3DView } from "@/components/labs/TensSemi3DView";
 import { Dna, Settings2, Eye } from "lucide-react";
 
 interface TensLabConfigEditorProps {
@@ -65,7 +66,9 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
   };
   
   const handleCustomConfigChange = (newConfig: TissueConfig) => {
+    console.log('🔧 TensLabConfigEditor - handleCustomConfigChange called:', newConfig);
     setTissueConfig({ ...newConfig }); // Nova referência para forçar re-render
+    console.log('✅ TensLabConfigEditor - setTissueConfig called');
   };
   
   // Get the actual tissue config for preview
@@ -96,12 +99,50 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
 
       {/* Tab 1: Anatomia */}
       <TabsContent value="anatomy" className="mt-6">
-        <TissuePresetSelector
-          selectedPresetId={selectedPresetId}
-          tissueConfig={tissueConfig}
-          onPresetChange={handlePresetChange}
-          onCustomConfigChange={handleCustomConfigChange}
-        />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Coluna 1: Seletor de Preset */}
+          <div>
+            <TissuePresetSelector
+              selectedPresetId={selectedPresetId}
+              tissueConfig={tissueConfig}
+              onPresetChange={handlePresetChange}
+              onCustomConfigChange={handleCustomConfigChange}
+            />
+          </div>
+          
+          {/* Coluna 2: Preview em Tempo Real */}
+          <div className="space-y-4">
+            <Card className="shadow-lg border-primary/20">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                  Preview em Tempo Real
+                </CardTitle>
+                <CardDescription>
+                  Visualização das camadas anatômicas configuradas
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[600px] rounded-lg overflow-hidden bg-gradient-to-br from-slate-950 to-slate-900">
+                  <TensSemi3DView
+                    frequencyHz={80}
+                    pulseWidthUs={200}
+                    intensitymA={20}
+                    mode="convencional"
+                    activationLevel={50}
+                    comfortLevel={70}
+                    tissueConfig={tissueConfig}
+                    riskResult={{
+                      riskLevel: "baixo",
+                      riskScore: 10,
+                      messages: []
+                    }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </TabsContent>
 
       {/* Tab 2: Controles Disponíveis */}
