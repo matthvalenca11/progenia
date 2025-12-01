@@ -34,6 +34,7 @@ export function TissuePresetSelector({
       ...updates,
       inclusions: updates.inclusions !== undefined ? updates.inclusions : (tissueConfig.inclusions || [])
     };
+    console.log('🔧 updateCustomConfig called:', { updates, newConfig });
     onCustomConfigChange(newConfig);
   };
   
@@ -217,12 +218,18 @@ export function TissuePresetSelector({
               </div>
               <Slider
                 value={[tissueConfig.boneDepth * 100]}
-                onValueChange={(v) => updateCustomConfig({ boneDepth: v[0] / 100 })}
+                onValueChange={(v) => {
+                  console.log('🦴 Bone depth slider changed:', v[0]);
+                  updateCustomConfig({ boneDepth: v[0] / 100 });
+                }}
                 min={20}
                 max={95}
                 step={1}
                 className="py-2"
               />
+              <div className="text-xs text-muted-foreground">
+                Debug: boneDepth atual = {tissueConfig.boneDepth}
+              </div>
             </div>
 
             <div className="pt-4 border-t">
