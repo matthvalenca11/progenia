@@ -5,12 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
 import { TensLabConfig } from "@/types/tensLabConfig";
 import { TissueConfig, TissuePresetId, tissuePresets } from "@/types/tissueConfig";
 import { TissuePresetSelector } from "./TissuePresetSelector";
 import { TensLabPreview } from "./TensLabPreview";
-
-import { Dna, Settings2, Eye } from "lucide-react";
+import { simulateTens, type TensMode } from "@/lib/tensSimulation";
+import { Dna, Settings2 } from "lucide-react";
 
 interface TensLabConfigEditorProps {
   config: TensLabConfig;
@@ -30,6 +32,20 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
       inclusions: [],
     };
   });
+  
+  // Estado para parâmetros de estimulação (preview)
+  const [frequency, setFrequency] = useState(
+    Math.floor((config.frequencyRange.min + config.frequencyRange.max) / 2)
+  );
+  const [pulseWidth, setPulseWidth] = useState(
+    Math.floor((config.pulseWidthRange.min + config.pulseWidthRange.max) / 2)
+  );
+  const [intensity, setIntensity] = useState(
+    Math.floor((config.intensityRange.min + config.intensityRange.max) / 2)
+  );
+  const [mode, setMode] = useState<TensMode>(
+    config.allowedModes[0] || "convencional"
+  );
   
   const updateConfig = (updates: Partial<TensLabConfig>) => {
     onChange({ ...config, ...updates });
@@ -113,33 +129,112 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
 
       {/* Tab 1: Anatomia com Preview Integrado */}
       <TabsContent value="anatomy" className="mt-6">
-        <div className="space-y-6">
-          {/* Info sobre cenário selecionado */}
-          <Card className="p-4 bg-muted/30">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="text-sm font-semibold">Cenário anatômico selecionado</h4>
-                <p className="text-sm text-muted-foreground mt-1">{previewTissueConfig.name || "Antebraço..."}</p>
-              </div>
-            </div>
-          </Card>
+        {/* Layout em 3 colunas: Controles | Preview 2D | Simulador 3D */}
+        <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr_1fr] gap-6">
+          {/* COLUNA 1: Controles de Anatomia + Estimulação */}
+          <div className="space-y-6">
+            {/* Cenário selecionado */}
+            <Card className="p-4 bg-muted/30">
+              <h4 className="text-sm font-semibold">Cenário anatômico</h4>
+              <p className="text-sm text-muted-foreground mt-1">{previewTissueConfig.name || "Antebraço..."}</p>
+            </Card>
 
-          {/* Layout em 4 colunas: Controles Anatomia | Controles Estimulação | Preview 2D | Simulador 3D */}
-          <div className="grid grid-cols-1 xl:grid-cols-[350px_1fr] gap-6">
-            {/* Coluna 1: Configuração de Anatomia */}
+            {/* Configuração de Anatomia */}
             <TissuePresetSelector
               selectedPresetId={selectedPresetId}
               tissueConfig={tissueConfig}
               onPresetChange={handlePresetChange}
               onCustomConfigChange={handleCustomConfigChange}
             />
-            
-            {/* Colunas 2, 3 e 4: Preview com Controles de Estimulação + Preview 2D + 3D */}
-            <TensLabPreview 
-              config={config} 
-              tissueConfig={previewTissueConfig}
-            />
+
+            {/* Parâmetros de Estimulação */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Parâmetros de Estimulação</CardTitle>
+                <CardDescription>
+                  Ajuste para testar o laboratório
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {config.enabledControls.frequency && (
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <Label>Frequência</Label>
+                      <span className="text-sm font-bold text-primary">{frequency} Hz</span>
+                    </div>
+                    <Slider
+                      value={[frequency]}
+                      onValueChange={(v) => setFrequency(v[0])}
+                      min={config.frequencyRange.min}
+                      max={config.frequencyRange.max}
+                      step={1}
+                    />
+                  </div>
+                )}
+                
+                {config.enabledControls.pulseWidth && (
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <Label>Largura de Pulso</Label>
+                      <span className="text-sm font-bold text-primary">{pulseWidth} µs</span>
+                    </div>
+                    <Slider
+                      value={[pulseWidth]}
+                      onValueChange={(v) => setPulseWidth(v[0])}
+                      min={config.pulseWidthRange.min}
+                      max={config.pulseWidthRange.max}
+                      step={10}
+                    />
+                  </div>
+                )}
+                
+                {config.enabledControls.intensity && (
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <Label>Intensidade</Label>
+                      <span className="text-sm font-bold text-primary">{intensity} mA</span>
+                    </div>
+                    <Slider
+                      value={[intensity]}
+                      onValueChange={(v) => setIntensity(v[0])}
+                      min={config.intensityRange.min}
+                      max={config.intensityRange.max}
+                      step={1}
+                    />
+                  </div>
+                )}
+                
+                {config.enabledControls.mode && config.allowedModes.length > 0 && (
+                  <div>
+                    <Label className="mb-3 block">Modo de Estimulação</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {config.allowedModes.map((m) => (
+                        <Button
+                          key={m}
+                          variant={mode === m ? "default" : "outline"}
+                          onClick={() => setMode(m)}
+                          size="sm"
+                          className="capitalize"
+                        >
+                          {m}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
+          
+          {/* COLUNAS 2 e 3: Preview 2D + Simulador 3D */}
+          <TensLabPreview 
+            config={config} 
+            tissueConfig={previewTissueConfig}
+            frequency={frequency}
+            pulseWidth={pulseWidth}
+            intensity={intensity}
+            mode={mode}
+          />
         </div>
       </TabsContent>
 
