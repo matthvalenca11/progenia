@@ -1,11 +1,12 @@
 import { useState, useMemo } from "react";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { TensSemi3DView } from "@/components/labs/TensSemi3DView";
+import { Tens3DSimulator } from "@/components/labs/tens3d/Tens3DSimulator";
 import { TensLabConfig } from "@/types/tensLabConfig";
-import { TissueConfig, tissuePresets } from "@/types/tissueConfig";
+import { TissueConfig } from "@/types/tissueConfig";
 import { simulateTens, type TensMode } from "@/lib/tensSimulation";
 import { simulateTissueRisk } from "@/lib/tissueRiskSimulation";
 
@@ -15,7 +16,6 @@ interface TensLabPreviewProps {
 }
 
 export function TensLabPreview({ config, tissueConfig }: TensLabPreviewProps) {
-  // Initialize with middle values
   const [frequency, setFrequency] = useState(
     Math.floor((config.frequencyRange.min + config.frequencyRange.max) / 2)
   );
@@ -29,7 +29,6 @@ export function TensLabPreview({ config, tissueConfig }: TensLabPreviewProps) {
     config.allowedModes[0] || "convencional"
   );
 
-  // Real-time simulation
   const sim = useMemo(() => 
     simulateTens({
       frequencyHz: frequency,
@@ -55,11 +54,17 @@ export function TensLabPreview({ config, tissueConfig }: TensLabPreviewProps) {
 
   return (
     <div className="space-y-6">
-      {/* Controls */}
+      <Card className="p-4 bg-muted/30">
+        <h3 className="text-lg font-semibold mb-1">Preview do Simulador</h3>
+        <p className="text-sm text-muted-foreground">
+          Visualize como o laboratório aparecerá para os alunos
+        </p>
+      </Card>
+
+      {/* Parâmetros de Estimulação */}
       <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Controles de Teste</h3>
+        <h3 className="text-base font-semibold mb-4">Parâmetros de Estimulação</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Frequency */}
           {config.enabledControls.frequency && (
             <div>
               <div className="flex justify-between items-center mb-2">
@@ -76,7 +81,6 @@ export function TensLabPreview({ config, tissueConfig }: TensLabPreviewProps) {
             </div>
           )}
           
-          {/* Pulse Width */}
           {config.enabledControls.pulseWidth && (
             <div>
               <div className="flex justify-between items-center mb-2">
@@ -93,7 +97,6 @@ export function TensLabPreview({ config, tissueConfig }: TensLabPreviewProps) {
             </div>
           )}
           
-          {/* Intensity */}
           {config.enabledControls.intensity && (
             <div>
               <div className="flex justify-between items-center mb-2">
@@ -110,7 +113,6 @@ export function TensLabPreview({ config, tissueConfig }: TensLabPreviewProps) {
             </div>
           )}
           
-          {/* Mode */}
           {config.enabledControls.mode && config.allowedModes.length > 0 && (
             <div>
               <Label className="mb-2 block">Modo de Estimulação</Label>
@@ -132,59 +134,57 @@ export function TensLabPreview({ config, tissueConfig }: TensLabPreviewProps) {
         </div>
       </Card>
 
-      {/* Visualization */}
-      <Card className="p-6 bg-gradient-to-br from-slate-950 to-slate-900">
-        <h3 className="text-lg font-semibold mb-4 text-cyan-400">
-          Preview da Simulação
-        </h3>
-        <TensSemi3DView
-          frequencyHz={frequency}
-          pulseWidthUs={pulseWidth}
-          intensitymA={intensity}
-          mode={mode}
-          activationLevel={sim.activationLevel}
-          comfortLevel={sim.comfortLevel}
-          tissueConfig={tissueConfig}
-          riskResult={riskResult}
-        />
-      </Card>
-      
-      {/* Feedback */}
-      {config.showComfortCard && (
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Feedback da Estimulação</h3>
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-muted-foreground">Nível de Conforto</span>
-                <span className="font-bold">{sim.comfortLevel}/100</span>
-              </div>
-              <div className="h-3 bg-muted rounded-full overflow-hidden">
-                <div 
-                  className={`h-full transition-all duration-300 ${
-                    sim.comfortLevel >= 70 ? "bg-green-500" :
-                    sim.comfortLevel >= 40 ? "bg-amber-500" : "bg-red-500"
-                  }`}
-                  style={{ width: `${sim.comfortLevel}%` }}
-                />
-              </div>
+      {/* Preview 2D e Simulador 3D lado a lado */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {/* Preview da Anatomia 2D */}
+        <Card className="bg-gradient-to-br from-slate-950 to-slate-900 border-cyan-500/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base text-cyan-400">Preview da Anatomia</CardTitle>
+            <CardDescription className="text-slate-400">
+              Visualização em tempo real das camadas anatômicas configuradas
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[500px] rounded-lg overflow-hidden">
+              <TensSemi3DView
+                frequencyHz={frequency}
+                pulseWidthUs={pulseWidth}
+                intensitymA={intensity}
+                mode={mode}
+                activationLevel={sim.activationLevel}
+                comfortLevel={sim.comfortLevel}
+                tissueConfig={tissueConfig}
+                riskResult={riskResult}
+              />
             </div>
-
-            <div>
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-muted-foreground">Nível de Ativação</span>
-                <span className="font-bold">{sim.activationLevel}/100</span>
-              </div>
-              <div className="h-3 bg-muted rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-primary transition-all duration-300"
-                  style={{ width: `${sim.activationLevel}%` }}
-                />
-              </div>
-            </div>
-          </div>
+          </CardContent>
         </Card>
-      )}
+
+        {/* Simulador 3D Biomédico */}
+        <Card className="bg-gradient-to-br from-slate-950 to-slate-900 border-blue-500/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base text-blue-400">Simulador 3D Biomédico</CardTitle>
+            <CardDescription className="text-slate-400">
+              Modelo fisiológico tridimensional com campo elétrico e análise de riscos
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[500px] rounded-lg overflow-hidden">
+              <Tens3DSimulator
+                frequencyHz={frequency}
+                pulseWidthUs={pulseWidth}
+                intensitymA={intensity}
+                mode={mode}
+                activationLevel={sim.activationLevel}
+                comfortLevel={sim.comfortLevel}
+                tissueConfig={tissueConfig}
+                riskResult={riskResult}
+                compact={true}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
