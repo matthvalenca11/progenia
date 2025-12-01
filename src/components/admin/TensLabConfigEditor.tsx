@@ -73,11 +73,36 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
   
   // Get the actual tissue config for preview
   const previewTissueConfig = useMemo(() => {
+    let result: TissueConfig;
+    
     if (selectedPresetId === "custom") {
-      return tissueConfig;
+      result = {
+        ...tissueConfig,
+        id: tissueConfig.id || "custom",
+        name: tissueConfig.name || "Configuração Personalizada",
+      };
+    } else {
+      const preset = tissuePresets.find(p => p.id === selectedPresetId);
+      result = preset ? { 
+        ...preset.config, 
+        id: preset.id,
+        name: preset.label,
+      } : {
+        ...tissueConfig,
+        id: tissueConfig.id || "custom",
+        name: tissueConfig.name || "Configuração Personalizada",
+      };
     }
-    const preset = tissuePresets.find(p => p.id === selectedPresetId);
-    return preset ? { ...preset.config, id: preset.id } : tissueConfig;
+    
+    console.log('📊 previewTissueConfig recalculated:', {
+      selectedPresetId,
+      skinThickness: result.skinThickness,
+      fatThickness: result.fatThickness,
+      muscleThickness: result.muscleThickness,
+      boneDepth: result.boneDepth,
+    });
+    
+    return result;
   }, [selectedPresetId, tissueConfig]);
 
   return (
@@ -100,48 +125,44 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
       {/* Tab 1: Anatomia */}
       <TabsContent value="anatomy" className="mt-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Coluna 1: Seletor de Preset */}
-          <div>
-            <TissuePresetSelector
-              selectedPresetId={selectedPresetId}
-              tissueConfig={tissueConfig}
-              onPresetChange={handlePresetChange}
-              onCustomConfigChange={handleCustomConfigChange}
-            />
-          </div>
+          {/* Coluna da Esquerda: Configurações */}
+          <TissuePresetSelector
+            selectedPresetId={selectedPresetId}
+            tissueConfig={tissueConfig}
+            onPresetChange={handlePresetChange}
+            onCustomConfigChange={handleCustomConfigChange}
+          />
           
-          {/* Coluna 2: Preview em Tempo Real */}
-          <div className="space-y-4">
-            <Card className="shadow-lg border-primary/20">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                  Preview em Tempo Real
-                </CardTitle>
-                <CardDescription>
-                  Visualização das camadas anatômicas configuradas
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[600px] rounded-lg overflow-hidden bg-gradient-to-br from-slate-950 to-slate-900">
-                  <TensSemi3DView
-                    frequencyHz={80}
-                    pulseWidthUs={200}
-                    intensitymA={20}
-                    mode="convencional"
-                    activationLevel={50}
-                    comfortLevel={70}
-                    tissueConfig={tissueConfig}
-                    riskResult={{
-                      riskLevel: "baixo",
-                      riskScore: 10,
-                      messages: []
-                    }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          {/* Coluna da Direita: Preview Visual */}
+          <Card className="shadow-lg">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Eye className="w-4 h-4" />
+                Preview Visual da Anatomia
+              </CardTitle>
+              <CardDescription>
+                Visualização em tempo real das camadas configuradas
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[650px] bg-gradient-to-br from-slate-950 to-slate-900 rounded-lg overflow-hidden">
+                <TensSemi3DView
+                  frequencyHz={80}
+                  pulseWidthUs={200}
+                  intensitymA={20}
+                  mode="convencional"
+                  activationLevel={50}
+                  comfortLevel={70}
+                  tissueConfig={tissueConfig}
+                  riskResult={{
+                    riskLevel: "baixo",
+                    riskScore: 10,
+                    messages: []
+                  }}
+                />
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </TabsContent>
 
