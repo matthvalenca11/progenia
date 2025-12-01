@@ -11,16 +11,14 @@ import { Settings2 } from "lucide-react";
 
 interface TissuePresetSelectorProps {
   selectedPresetId: TissuePresetId;
-  customConfig: TissueConfig;
-  tissueConfig: TissueConfig;
+  tissueConfig: TissueConfig; // Estado ativo atual
   onPresetChange: (presetId: TissuePresetId) => void;
   onCustomConfigChange: (config: TissueConfig) => void;
 }
 
 export function TissuePresetSelector({
   selectedPresetId,
-  customConfig,
-  tissueConfig,
+  tissueConfig, // Agora usa apenas o tissueConfig ativo
   onPresetChange,
   onCustomConfigChange,
 }: TissuePresetSelectorProps) {
@@ -31,7 +29,14 @@ export function TissuePresetSelector({
   const isCustom = selectedPresetId === "custom";
 
   const updateCustomConfig = (updates: Partial<TissueConfig>) => {
-    onCustomConfigChange({ ...customConfig, ...updates });
+    // Criar nova referência completa para garantir re-render
+    const newConfig = { 
+      ...tissueConfig, // Usar tissueConfig atual ao invés de customConfig
+      ...updates,
+      // Garantir que inclusions é sempre um array
+      inclusions: updates.inclusions !== undefined ? updates.inclusions : (tissueConfig.inclusions || [])
+    };
+    onCustomConfigChange(newConfig);
   };
   
   const handleApplyPreset = () => {
@@ -155,11 +160,11 @@ export function TissuePresetSelector({
               <div className="flex justify-between">
                 <Label>Espessura da Pele</Label>
                 <span className="text-sm text-muted-foreground">
-                  {(customConfig.skinThickness * 100).toFixed(0)}%
+                  {(tissueConfig.skinThickness * 100).toFixed(0)}%
                 </span>
               </div>
               <Slider
-                value={[customConfig.skinThickness * 100]}
+                value={[tissueConfig.skinThickness * 100]}
                 onValueChange={(v) => updateCustomConfig({ skinThickness: v[0] / 100 })}
                 min={5}
                 max={30}
@@ -173,11 +178,11 @@ export function TissuePresetSelector({
               <div className="flex justify-between">
                 <Label>Espessura do Tecido Adiposo</Label>
                 <span className="text-sm text-muted-foreground">
-                  {(customConfig.fatThickness * 100).toFixed(0)}%
+                  {(tissueConfig.fatThickness * 100).toFixed(0)}%
                 </span>
               </div>
               <Slider
-                value={[customConfig.fatThickness * 100]}
+                value={[tissueConfig.fatThickness * 100]}
                 onValueChange={(v) => updateCustomConfig({ fatThickness: v[0] / 100 })}
                 min={0}
                 max={70}
@@ -191,11 +196,11 @@ export function TissuePresetSelector({
               <div className="flex justify-between">
                 <Label>Espessura Muscular</Label>
                 <span className="text-sm text-muted-foreground">
-                  {(customConfig.muscleThickness * 100).toFixed(0)}%
+                  {(tissueConfig.muscleThickness * 100).toFixed(0)}%
                 </span>
               </div>
               <Slider
-                value={[customConfig.muscleThickness * 100]}
+                value={[tissueConfig.muscleThickness * 100]}
                 onValueChange={(v) => updateCustomConfig({ muscleThickness: v[0] / 100 })}
                 min={10}
                 max={80}
@@ -209,11 +214,11 @@ export function TissuePresetSelector({
               <div className="flex justify-between">
                 <Label>Profundidade Óssea</Label>
                 <span className="text-sm text-muted-foreground">
-                  {(customConfig.boneDepth * 100).toFixed(0)}%
+                  {(tissueConfig.boneDepth * 100).toFixed(0)}%
                 </span>
               </div>
               <Slider
-                value={[customConfig.boneDepth * 100]}
+                value={[tissueConfig.boneDepth * 100]}
                 onValueChange={(v) => updateCustomConfig({ boneDepth: v[0] / 100 })}
                 min={20}
                 max={95}
@@ -234,7 +239,7 @@ export function TissuePresetSelector({
                 </div>
                 <Switch
                   id="hasImplant"
-                  checked={customConfig.hasMetalImplant}
+                  checked={tissueConfig.hasMetalImplant}
                   onCheckedChange={(checked) => 
                     updateCustomConfig({ 
                       hasMetalImplant: checked,
@@ -246,17 +251,17 @@ export function TissuePresetSelector({
               </div>
 
               {/* Configurações do Implante */}
-              {customConfig.hasMetalImplant && (
+              {tissueConfig.hasMetalImplant && (
                 <div className="space-y-6 pl-4 border-l-2 border-amber-500/30">
                   <div className="space-y-3">
                     <div className="flex justify-between">
                       <Label className="text-sm">Profundidade do Implante</Label>
                       <span className="text-sm text-muted-foreground">
-                        {((customConfig.metalImplantDepth || 0.5) * 100).toFixed(0)}%
+                        {((tissueConfig.metalImplantDepth || 0.5) * 100).toFixed(0)}%
                       </span>
                     </div>
                     <Slider
-                      value={[(customConfig.metalImplantDepth || 0.5) * 100]}
+                      value={[(tissueConfig.metalImplantDepth || 0.5) * 100]}
                       onValueChange={(v) => updateCustomConfig({ metalImplantDepth: v[0] / 100 })}
                       min={20}
                       max={80}
@@ -269,11 +274,11 @@ export function TissuePresetSelector({
                     <div className="flex justify-between">
                       <Label className="text-sm">Extensão do Implante</Label>
                       <span className="text-sm text-muted-foreground">
-                        {((customConfig.metalImplantSpan || 0.6) * 100).toFixed(0)}%
+                        {((tissueConfig.metalImplantSpan || 0.6) * 100).toFixed(0)}%
                       </span>
                     </div>
                     <Slider
-                      value={[(customConfig.metalImplantSpan || 0.6) * 100]}
+                      value={[(tissueConfig.metalImplantSpan || 0.6) * 100]}
                       onValueChange={(v) => updateCustomConfig({ metalImplantSpan: v[0] / 100 })}
                       min={20}
                       max={90}
@@ -288,7 +293,7 @@ export function TissuePresetSelector({
             {/* Editor de Inclusões */}
             <div className="pt-6 border-t">
               <TensInclusionsEditor
-                inclusions={customConfig.inclusions || []}
+                inclusions={tissueConfig.inclusions || []}
                 onChange={(inclusions) => updateCustomConfig({ inclusions })}
               />
             </div>

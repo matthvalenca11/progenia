@@ -21,14 +21,6 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
   const [selectedPresetId, setSelectedPresetId] = useState<TissuePresetId>(
     config.tissueConfigId ? "custom" : "forearm_slim"
   );
-  const [customConfig, setCustomConfig] = useState<TissueConfig>(() => {
-    const customPreset = tissuePresets.find(p => p.id === "custom");
-    return {
-      ...customPreset!.config,
-      id: "custom",
-      inclusions: [],
-    };
-  });
   const [tissueConfig, setTissueConfig] = useState<TissueConfig>(() => {
     const customPreset = tissuePresets.find(p => p.id === "custom");
     return {
@@ -65,21 +57,25 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
       updateConfig({ tissueConfigId: undefined });
     } else {
       updateConfig({ tissueConfigId: presetId });
+      const preset = tissuePresets.find(p => p.id === presetId);
+      if (preset) {
+        setTissueConfig({ ...preset.config, id: preset.id });
+      }
     }
   };
   
-  const handleCustomConfigChange = (newCustomConfig: TissueConfig) => {
-    setCustomConfig(newCustomConfig);
+  const handleCustomConfigChange = (newConfig: TissueConfig) => {
+    setTissueConfig({ ...newConfig }); // Nova referência para forçar re-render
   };
   
   // Get the actual tissue config for preview
   const previewTissueConfig = useMemo(() => {
     if (selectedPresetId === "custom") {
-      return customConfig;
+      return tissueConfig;
     }
     const preset = tissuePresets.find(p => p.id === selectedPresetId);
-    return preset ? { ...preset.config, id: preset.id } : customConfig;
-  }, [selectedPresetId, customConfig]);
+    return preset ? { ...preset.config, id: preset.id } : tissueConfig;
+  }, [selectedPresetId, tissueConfig]);
 
   return (
     <Tabs defaultValue="anatomy" className="w-full">
@@ -102,7 +98,6 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
       <TabsContent value="anatomy" className="mt-6">
         <TissuePresetSelector
           selectedPresetId={selectedPresetId}
-          customConfig={customConfig}
           tissueConfig={tissueConfig}
           onPresetChange={handlePresetChange}
           onCustomConfigChange={handleCustomConfigChange}
