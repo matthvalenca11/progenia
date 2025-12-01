@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tens3DSimulator } from "@/components/labs/tens3d/Tens3DSimulator";
 import { TensInsightsPanel } from "@/components/labs/TensInsightsPanel";
 import { TissuePresetSelector } from "@/components/admin/TissuePresetSelector";
+import { TensSemi3DView } from "@/components/labs/TensSemi3DView";
 import { Activity, ArrowLeft, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { simulateTens, type TensMode } from "@/lib/tensSimulation";
@@ -23,14 +24,20 @@ interface TensLabPageProps {
 export default function TensLabPage({ config = defaultTensLabConfig, previewMode = false }: TensLabPageProps) {
   const navigate = useNavigate();
   
-  // Estado do tissue config e preset selecionado
+  // Estado centralizado de tissue config - SINGLE SOURCE OF TRUTH
   const [selectedPresetId, setSelectedPresetId] = useState<TissuePresetId>(() => {
     const presetId = config.tissueConfigId;
     const preset = tissuePresets.find(p => p.id === presetId);
     return preset ? preset.id : "forearm_slim";
   });
-  const [tissueConfig, setTissueConfig] = useState<TissueConfig>(defaultTissueConfig);
-  const [customConfig, setCustomConfig] = useState<TissueConfig>(defaultTissueConfig);
+  const [tissueConfig, setTissueConfig] = useState<TissueConfig>(() => ({
+    ...defaultTissueConfig,
+    inclusions: [],
+  }));
+  const [customConfig, setCustomConfig] = useState<TissueConfig>(() => ({
+    ...defaultTissueConfig,
+    inclusions: [],
+  }));
   
   // Carregar tissue config inicial
   useEffect(() => {
@@ -160,13 +167,14 @@ export default function TensLabPage({ config = defaultTensLabConfig, previewMode
         )}
 
         {/* Layout principal */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Coluna Esquerda - Controles */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Coluna 1 - Controles */}
           <div className="space-y-6">
             {/* Seletor de Cenário Anatômico */}
             <TissuePresetSelector
               selectedPresetId={selectedPresetId}
               customConfig={customConfig}
+              tissueConfig={tissueConfig}
               onPresetChange={handlePresetChange}
               onCustomConfigChange={handleCustomConfigChange}
             />
@@ -283,9 +291,38 @@ export default function TensLabPage({ config = defaultTensLabConfig, previewMode
 
           </div>
 
-          {/* Coluna Direita - Visualização */}
+          {/* Coluna 2 - Preview Anatômico 2D Central */}
           <div className="space-y-6">
-            {/* Visualização Lateral Semi-3D */}
+            <Card className="shadow-lg border-primary/20">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                  Preview da Anatomia
+                </CardTitle>
+                <CardDescription>
+                  Visualização em tempo real das camadas anatômicas configuradas
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[600px] rounded-lg overflow-hidden">
+                  <TensSemi3DView
+                    key={`anatomy-${tissueConfig.skinThickness}-${tissueConfig.fatThickness}-${tissueConfig.muscleThickness}-${tissueConfig.hasMetalImplant}-${tissueConfig.inclusions?.length}`}
+                    frequencyHz={frequency}
+                    pulseWidthUs={pulseWidth}
+                    intensitymA={intensity}
+                    mode={mode}
+                    activationLevel={sim.activationLevel}
+                    comfortLevel={sim.comfortLevel}
+                    tissueConfig={tissueConfig}
+                    riskResult={riskResult}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Coluna 3 - Simulador 3D Biomédico */}
+          <div className="space-y-6">
             <Card className="shadow-lg border-slate-800">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -298,6 +335,7 @@ export default function TensLabPage({ config = defaultTensLabConfig, previewMode
               </CardHeader>
               <CardContent>
                 <Tens3DSimulator
+                  key={`3d-${tissueConfig.skinThickness}-${tissueConfig.fatThickness}-${tissueConfig.muscleThickness}-${tissueConfig.hasMetalImplant}-${tissueConfig.inclusions?.length}`}
                   frequencyHz={frequency}
                   pulseWidthUs={pulseWidth}
                   intensitymA={intensity}

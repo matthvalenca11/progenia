@@ -26,6 +26,15 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
     return {
       ...customPreset!.config,
       id: "custom",
+      inclusions: [],
+    };
+  });
+  const [tissueConfig, setTissueConfig] = useState<TissueConfig>(() => {
+    const customPreset = tissuePresets.find(p => p.id === "custom");
+    return {
+      ...customPreset!.config,
+      id: "custom",
+      inclusions: [],
     };
   });
   
@@ -94,6 +103,7 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
         <TissuePresetSelector
           selectedPresetId={selectedPresetId}
           customConfig={customConfig}
+          tissueConfig={tissueConfig}
           onPresetChange={handlePresetChange}
           onCustomConfigChange={handleCustomConfigChange}
         />

@@ -7,6 +7,16 @@ export type TissuePresetId =
   | "ankle_bony"
   | "custom";
 
+export type TissueInclusionType = "bone" | "metal_implant";
+
+export interface TissueInclusion {
+  id: string;
+  type: TissueInclusionType;
+  depth: number;      // 0–1 (superfície → profundo)
+  span: number;       // largura / extensão relativa (0-1)
+  position: number;   // posição entre os eletrodos (0–1)
+}
+
 export interface TissueConfig {
   id: string;
   name: string;
@@ -18,10 +28,13 @@ export interface TissueConfig {
   muscleThickness: number;       // 0-1
   boneDepth: number;             // 0-1 (profundidade em relação à superfície)
   
-  // Implantes metálicos
+  // Implantes metálicos (legacy - mantido para compatibilidade)
   hasMetalImplant: boolean;
   metalImplantDepth?: number;    // 0-1 (profundidade da prótese)
   metalImplantSpan?: number;     // 0-1 (quanto se estende entre os eletrodos)
+  
+  // Sistema moderno de inclusões
+  inclusions?: TissueInclusion[];
   
   tissueType: TissueType;
   
@@ -63,6 +76,7 @@ export const tissuePresets: TissuePreset[] = [
       hasMetalImplant: false,
       tissueType: "soft",
       enableRiskSimulation: true,
+      inclusions: [],
     },
   },
   {
@@ -80,6 +94,7 @@ export const tissuePresets: TissuePreset[] = [
       hasMetalImplant: false,
       tissueType: "muscular",
       enableRiskSimulation: true,
+      inclusions: [],
     },
   },
   {
@@ -99,6 +114,7 @@ export const tissuePresets: TissuePreset[] = [
       metalImplantSpan: 0.80,
       tissueType: "mixed",
       enableRiskSimulation: true,
+      inclusions: [],
     },
   },
   {
@@ -116,12 +132,13 @@ export const tissuePresets: TissuePreset[] = [
       hasMetalImplant: false,
       tissueType: "soft",
       enableRiskSimulation: true,
+      inclusions: [],
     },
   },
   {
     id: "custom",
     label: "Personalizado",
-    description: "Permite ajustar manualmente espessuras de pele, gordura, músculo, osso e implantes.",
+    description: "Permite ajustar manualmente espessuras de pele, gordura, músculo, osso e inclusões.",
     isCustom: true,
     config: {
       name: "Personalizado",
@@ -133,6 +150,7 @@ export const tissuePresets: TissuePreset[] = [
       hasMetalImplant: false,
       tissueType: "mixed",
       enableRiskSimulation: true,
+      inclusions: [],
     },
   },
 ];
@@ -149,4 +167,5 @@ export const defaultTissueConfig: TissueConfig = {
   hasMetalImplant: false,
   tissueType: "muscular",
   enableRiskSimulation: true,
+  inclusions: [],
 };
