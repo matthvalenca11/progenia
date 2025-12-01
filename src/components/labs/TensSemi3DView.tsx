@@ -24,13 +24,6 @@ export function TensSemi3DView({
   tissueConfig,
   riskResult,
 }: TensSemi3DViewProps) {
-  console.log('👁️ TensSemi3DView render with tissueConfig:', {
-    boneDepth: tissueConfig.boneDepth,
-    skinThickness: tissueConfig.skinThickness,
-    fatThickness: tissueConfig.fatThickness,
-    muscleThickness: tissueConfig.muscleThickness,
-  });
-  
   // Normalize parameters
   const intensityNorm = Math.min(1, intensitymA / 80);
   const pulseNorm = (pulseWidthUs - 50) / (400 - 50);
@@ -258,9 +251,10 @@ export function TensSemi3DView({
         
         {/* Bone */}
         <div 
-          className="absolute left-0 right-0 bottom-0 bg-gradient-to-b from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600"
+          className="absolute left-0 right-0 bg-gradient-to-b from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600"
           style={{ 
-            height: `${Math.min(20, 100 - skinPercent - fatPercent - musclePercent)}%`
+            top: `${tissueConfig.boneDepth * 100}%`,
+            bottom: 0,
           }}
         >
           <div className="absolute inset-0 opacity-50" style={{
