@@ -129,8 +129,8 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
 
       {/* Tab 1: Anatomia com Preview Integrado */}
       <TabsContent value="anatomy" className="mt-6">
-        {/* Layout em 3 colunas: Controles | Preview 2D | Simulador 3D */}
-        <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr_1fr] gap-6">
+        {/* Layout: Controles à esquerda, Previews à direita */}
+        <div className="grid grid-cols-1 xl:grid-cols-[400px_1fr] gap-8">
           {/* COLUNA 1: Controles de Anatomia + Estimulação */}
           <div className="space-y-6">
             {/* Cenário selecionado */}
@@ -226,8 +226,8 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
             </Card>
           </div>
           
-          {/* COLUNAS 2 e 3: Preview 2D + Simulador 3D */}
-          <TensLabPreview 
+          {/* COLUNA 2: Previews (2D + 3D) + Painel de Análises */}
+          <TensLabPreview
             config={config} 
             tissueConfig={previewTissueConfig}
             frequency={frequency}
