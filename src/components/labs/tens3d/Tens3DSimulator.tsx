@@ -67,17 +67,6 @@ export function Tens3DSimulator({
 
   return (
     <div className={`relative w-full bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 rounded-xl overflow-hidden border border-slate-800 touch-none`} style={{ height: canvasHeight }}>
-      {/* DEBUG OVERLAY */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 text-[10px] bg-black/80 text-white px-3 py-2 rounded-md font-mono border border-cyan-500/30">
-        <div className="font-bold text-cyan-400 mb-1">DEBUG - Simulador 3D</div>
-        skin: {(tissueConfig.skinThickness * 100).toFixed(0)}% | 
-        fat: {(tissueConfig.fatThickness * 100).toFixed(0)}% | 
-        muscle: {(tissueConfig.muscleThickness * 100).toFixed(0)}% | 
-        bone: {(tissueConfig.boneDepth * 100).toFixed(0)}% | 
-        implant: {tissueConfig.hasMetalImplant ? 'Y' : 'N'} | 
-        inc: {tissueConfig.inclusions?.length || 0}
-      </div>
-      
       {/* Mode Selector */}
       <div className="absolute top-4 left-4 z-10 flex gap-2 flex-wrap">
         <Button

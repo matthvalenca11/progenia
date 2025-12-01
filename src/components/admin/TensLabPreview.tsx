@@ -15,13 +15,6 @@ interface TensLabPreviewProps {
 }
 
 export function TensLabPreview({ config, tissueConfig }: TensLabPreviewProps) {
-  console.log('🎬 TensLabPreview rendered with tissueConfig:', {
-    skinThickness: tissueConfig.skinThickness,
-    fatThickness: tissueConfig.fatThickness,
-    muscleThickness: tissueConfig.muscleThickness,
-    boneDepth: tissueConfig.boneDepth,
-  });
-  
   // Initialize with middle values
   const [frequency, setFrequency] = useState(
     Math.floor((config.frequencyRange.min + config.frequencyRange.max) / 2)

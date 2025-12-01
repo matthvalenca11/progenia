@@ -66,24 +66,20 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
   };
   
   const handleCustomConfigChange = (newConfig: TissueConfig) => {
-    console.log('🔧 TensLabConfigEditor - handleCustomConfigChange called:', newConfig);
-    setTissueConfig({ ...newConfig }); // Nova referência para forçar re-render
-    console.log('✅ TensLabConfigEditor - setTissueConfig called');
+    setTissueConfig({ ...newConfig });
   };
   
   // Get the actual tissue config for preview
   const previewTissueConfig = useMemo(() => {
-    let result: TissueConfig;
-    
     if (selectedPresetId === "custom") {
-      result = {
+      return {
         ...tissueConfig,
         id: tissueConfig.id || "custom",
         name: tissueConfig.name || "Configuração Personalizada",
       };
     } else {
       const preset = tissuePresets.find(p => p.id === selectedPresetId);
-      result = preset ? { 
+      return preset ? { 
         ...preset.config, 
         id: preset.id,
         name: preset.label,
@@ -93,16 +89,6 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
         name: tissueConfig.name || "Configuração Personalizada",
       };
     }
-    
-    console.log('📊 previewTissueConfig recalculated:', {
-      selectedPresetId,
-      skinThickness: result.skinThickness,
-      fatThickness: result.fatThickness,
-      muscleThickness: result.muscleThickness,
-      boneDepth: result.boneDepth,
-    });
-    
-    return result;
   }, [selectedPresetId, tissueConfig]);
 
   return (
@@ -124,46 +110,12 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
 
       {/* Tab 1: Anatomia */}
       <TabsContent value="anatomy" className="mt-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Coluna da Esquerda: Configurações */}
-          <TissuePresetSelector
-            selectedPresetId={selectedPresetId}
-            tissueConfig={tissueConfig}
-            onPresetChange={handlePresetChange}
-            onCustomConfigChange={handleCustomConfigChange}
-          />
-          
-          {/* Coluna da Direita: Preview Visual */}
-          <Card className="shadow-lg">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Eye className="w-4 h-4" />
-                Preview Visual da Anatomia
-              </CardTitle>
-              <CardDescription>
-                Visualização em tempo real das camadas configuradas
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[650px] bg-gradient-to-br from-slate-950 to-slate-900 rounded-lg overflow-hidden">
-                <TensSemi3DView
-                  frequencyHz={80}
-                  pulseWidthUs={200}
-                  intensitymA={20}
-                  mode="convencional"
-                  activationLevel={50}
-                  comfortLevel={70}
-                  tissueConfig={tissueConfig}
-                  riskResult={{
-                    riskLevel: "baixo",
-                    riskScore: 10,
-                    messages: []
-                  }}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <TissuePresetSelector
+          selectedPresetId={selectedPresetId}
+          tissueConfig={tissueConfig}
+          onPresetChange={handlePresetChange}
+          onCustomConfigChange={handleCustomConfigChange}
+        />
       </TabsContent>
 
       {/* Tab 2: Controles Disponíveis */}
