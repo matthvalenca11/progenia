@@ -710,25 +710,40 @@ export class UnifiedUltrasoundEngine {
   }
   
   /**
+   * Smoothstep clássico para transições suaves
+   */
+  private smoothstep(edge0: number, edge1: number, x: number): number {
+    const t = Math.min(Math.max((x - edge0) / (edge1 - edge0), 0), 1);
+    return t * t * (3 - 2 * t);
+  }
+  
+  /**
+   * Linear interpolation
+   */
+  private lerp(a: number, b: number, t: number): number {
+    return a * (1 - t) + b * t;
+  }
+  
+  /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * LINEAR SHADOW - FUNÇÃO 1D ISOLADA POR COLUNA (RECONSTRUÍDA DO ZERO)
+   * LINEAR SHADOW - FUNÇÃO 1D ISOLADA POR COLUNA (CURVA SUAVE)
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
    * Aplica sombra acústica em uma coluna 1D (modo linear).
    * - shadowColumn: vetor de atenuação para esta coluna (iniciado em 1.0)
    * - insideMask: mesmo tamanho, true quando o sample está dentro da inclusão
-   * - alpha: coeficiente de atenuação (0.03-0.08 típico)
+   * - alpha: coeficiente de atenuação (0.08-0.15)
+   * - fadeDepth: profundidade de fade em pixels (8-15)
    * 
-   * Algoritmo puro:
+   * Algoritmo:
    * 1. Encontrar último índice dentro da inclusão (exitIndex)
-   * 2. Aplicar atenuação exponencial a partir de exitIndex+1
-   * 
-   * Sem edgeBlend, sem lerp, sem fórmulas geométricas.
+   * 2. Aplicar curva suave com smoothstep + exponencial
    */
   private applyLinearShadowColumn(
     shadowColumn: Float32Array,
     insideMask: boolean[],
-    alpha: number
+    alpha: number,
+    fadeDepth: number
   ): void {
     const n = shadowColumn.length;
     let exitIndex = -1;
@@ -742,14 +757,26 @@ export class UnifiedUltrasoundEngine {
     
     if (exitIndex < 0) return; // Feixe não atingiu inclusão
 
-    // 2) Aplicar atenuação exponencial a partir de exitIndex+1
-    let atten = 1.0;
-    const dz = 1.0; // passo normalizado por sample
-
+    // 2) Aplicar atenuação suave a partir de exitIndex+1
+    // Intensidade mínima para preservar speckle
+    const minIntensity = 0.25;
+    
     for (let z = exitIndex + 1; z < n; z++) {
-      atten *= Math.exp(-alpha * dz);
-      // Multiplicar no shadowColumn (1.0 = sem sombra, <1.0 = com sombra)
-      shadowColumn[z] *= atten;
+      const depth = z - exitIndex;
+      
+      // Curva exponencial suave
+      const expAtten = Math.exp(-alpha * depth);
+      
+      // Blend weight: transição suave do início
+      const w = this.smoothstep(0, fadeDepth, depth);
+      
+      // Atenuação alvo (com piso mínimo para manter speckle visível)
+      const targetAtten = Math.max(minIntensity, expAtten);
+      
+      // Lerp: início suave, não cortado
+      const finalAtten = this.lerp(1.0, targetAtten, w);
+      
+      shadowColumn[z] *= finalAtten;
     }
   }
   
@@ -809,8 +836,8 @@ export class UnifiedUltrasoundEngine {
     if (shadowInclusions.length === 0) return;
     
     // Coeficiente alpha para atenuação exponencial
-    // Valor calibrado para shadow visível mas não excessiva
-    const ALPHA = 0.05;
+    // Valor calibrado para shadow suave e realista (0.08-0.15)
+    const ALPHA = 0.10;
     
     // ═══════════════════════════════════════════════════════════════════════════════
     // PARA CADA COLUNA (FEIXE VERTICAL)
@@ -840,7 +867,8 @@ export class UnifiedUltrasoundEngine {
       }
       
       // Aplicar sombra 1D nesta coluna
-      this.applyLinearShadowColumn(shadowColumn, insideMask, ALPHA);
+      // alpha=0.10, fadeDepth=12 pixels para curva suave
+      this.applyLinearShadowColumn(shadowColumn, insideMask, ALPHA, 12);
       
       // Copiar resultado para o mapa 2D
       for (let y = 0; y < height; y++) {
