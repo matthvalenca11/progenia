@@ -726,24 +726,22 @@ export class UnifiedUltrasoundEngine {
   
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * LINEAR SHADOW - FUNÇÃO 1D ISOLADA POR COLUNA (CURVA SUAVE)
+   * LINEAR SHADOW - FUNÇÃO 1D COM REFERÊNCIA DE TECIDO VIZINHO
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
    * Aplica sombra acústica em uma coluna 1D (modo linear).
-   * - shadowColumn: vetor de atenuação para esta coluna (iniciado em 1.0)
-   * - insideMask: mesmo tamanho, true quando o sample está dentro da inclusão
-   * - alpha: coeficiente de atenuação (0.08-0.15)
-   * - fadeDepth: profundidade de fade em pixels (8-15)
+   * Usa coluna vizinha como referência para escurecimento relativo.
    * 
-   * Algoritmo:
-   * 1. Encontrar último índice dentro da inclusão (exitIndex)
-   * 2. Aplicar curva suave com smoothstep + exponencial
+   * Parâmetros de contraste realista:
+   * - maxDrop: escurecimento máximo (0.6 = sombra mínima de 40% do tecido)
+   * - k: velocidade de crescimento do escurecimento
+   * - minRatio: razão mínima sombra/tecido (nunca menos que 30%)
    */
-  private applyLinearShadowColumn(
+  private applyLinearShadowColumnWithReference(
     shadowColumn: Float32Array,
     insideMask: boolean[],
-    alpha: number,
-    fadeDepth: number
+    referenceColumn: Float32Array | null,
+    depthScale: number
   ): void {
     const n = shadowColumn.length;
     let exitIndex = -1;
@@ -757,26 +755,34 @@ export class UnifiedUltrasoundEngine {
     
     if (exitIndex < 0) return; // Feixe não atingiu inclusão
 
-    // 2) Aplicar atenuação suave a partir de exitIndex+1
-    // Intensidade mínima para preservar speckle
-    const minIntensity = 0.25;
-    
+    // 2) Parâmetros de contraste realista
+    const maxDrop = 0.55;    // Escurece no máximo 55% (sombra mínima = 45% do tecido)
+    const k = 0.6;           // Quão rápido cresce o escurecimento
+    const minRatio = 0.35;   // Nunca menos que 35% do tecido vizinho
+    const blendFactor = 0.65; // Blend para preservar speckle
+
+    // 3) Aplicar sombra suave a partir de exitIndex+1
     for (let z = exitIndex + 1; z < n; z++) {
-      const depth = z - exitIndex;
+      // Profundidade relativa normalizada (em "unidades" de profundidade)
+      const dz = (z - exitIndex) * depthScale;
       
-      // Curva exponencial suave
-      const expAtten = Math.exp(-alpha * depth);
+      // s(dz) vai de 0 até maxDrop, suavemente
+      // Curva saturante: começa lenta, satura em maxDrop
+      const s = maxDrop * (1.0 - Math.exp(-k * dz));
       
-      // Blend weight: transição suave do início
-      const w = this.smoothstep(0, fadeDepth, depth);
+      // Intensidade de referência (tecido vizinho sem sombra)
+      // Se não houver referência, usar o valor atual como base
+      const I_ref = referenceColumn ? referenceColumn[z] : 1.0;
       
-      // Atenuação alvo (com piso mínimo para manter speckle visível)
-      const targetAtten = Math.max(minIntensity, expAtten);
+      // Intensidade alvo na sombra (nunca abaixo de minRatio * I_ref)
+      const I_target = Math.max(minRatio, 1.0 - s) * I_ref;
       
-      // Lerp: início suave, não cortado
-      const finalAtten = this.lerp(1.0, targetAtten, w);
+      // Intensidade atual (vai receber o blend)
+      const I_current = shadowColumn[z];
       
-      shadowColumn[z] *= finalAtten;
+      // Blend suave para preservar speckle
+      // shadowColumn recebe mix entre atual e alvo
+      shadowColumn[z] = I_current * (1.0 - blendFactor) + I_target * blendFactor;
     }
   }
   
@@ -805,14 +811,56 @@ export class UnifiedUltrasoundEngine {
   }
   
   /**
+   * Encontra uma coluna de referência próxima que NÃO passa por inclusões
+   */
+  private findReferenceColumn(
+    targetX: number,
+    width: number,
+    height: number,
+    shadowInclusions: UltrasoundInclusionConfig[]
+  ): Float32Array | null {
+    // Tentar colunas vizinhas em ordem crescente de distância
+    const offsets = [3, -3, 6, -6, 10, -10, 15, -15];
+    
+    for (const offset of offsets) {
+      const refX = targetX + offset;
+      if (refX < 0 || refX >= width) continue;
+      
+      const lateralCm = ((refX / width) - 0.5) * 5.0;
+      let passesInclusion = false;
+      
+      // Verificar se esta coluna passa por alguma inclusão
+      for (let y = 0; y < height && !passesInclusion; y++) {
+        const depthCm = (y / height) * this.config.depth;
+        for (const inclusion of shadowInclusions) {
+          if (this.isPointInsideInclusionForShadow(depthCm, lateralCm, inclusion)) {
+            passesInclusion = true;
+            break;
+          }
+        }
+      }
+      
+      // Se não passa por inclusão, usar como referência
+      if (!passesInclusion) {
+        // Criar coluna de referência com valores base (1.0)
+        const refColumn = new Float32Array(height);
+        refColumn.fill(1.0);
+        return refColumn;
+      }
+    }
+    
+    return null; // Não encontrou coluna livre
+  }
+  
+  /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * LINEAR SHADOW MAP - RECONSTRUÍDO DO ZERO COM FUNÇÃO 1D ISOLADA
+   * LINEAR SHADOW MAP - COM REFERÊNCIA DE TECIDO VIZINHO
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * Pipeline simplificado:
+   * Pipeline:
    * 1. Para cada coluna (feixe), construir insideMask
-   * 2. Chamar applyLinearShadowColumn
-   * 3. Pronto - sem blur, sem offset, sem fórmula geométrica
+   * 2. Encontrar coluna vizinha de referência
+   * 3. Aplicar sombra relativa ao tecido vizinho
    */
   private computeLinearShadowMap(): void {
     const { width, height } = this.canvas;
@@ -835,9 +883,9 @@ export class UnifiedUltrasoundEngine {
     const shadowInclusions = this.config.inclusions.filter(inc => inc.hasStrongShadow);
     if (shadowInclusions.length === 0) return;
     
-    // Coeficiente alpha para atenuação exponencial
-    // Valor calibrado para shadow suave e realista (0.08-0.15)
-    const ALPHA = 0.10;
+    // Escala de profundidade: converte pixels para unidades normalizadas
+    // Valor baixo = sombra cresce mais lentamente com a profundidade
+    const depthScale = 0.08;
     
     // ═══════════════════════════════════════════════════════════════════════════════
     // PARA CADA COLUNA (FEIXE VERTICAL)
@@ -850,25 +898,30 @@ export class UnifiedUltrasoundEngine {
       const insideMask: boolean[] = new Array(height).fill(false);
       
       // Posição lateral em CM para esta coluna
-      // x=0 → lateral=-2.5, x=width → lateral=+2.5
       const lateralCm = ((x / width) - 0.5) * 5.0;
       
-      // Construir máscara: para cada sample de profundidade, verificar se está dentro de inclusão
+      // Construir máscara: para cada sample de profundidade
+      let hasInclusion = false;
       for (let y = 0; y < height; y++) {
         const depthCm = (y / height) * this.config.depth;
         
-        // Verificar contra todas as inclusões com sombra
         for (const inclusion of shadowInclusions) {
           if (this.isPointInsideInclusionForShadow(depthCm, lateralCm, inclusion)) {
             insideMask[y] = true;
-            break; // Uma inclusão já basta
+            hasInclusion = true;
+            break;
           }
         }
       }
       
-      // Aplicar sombra 1D nesta coluna
-      // alpha=0.10, fadeDepth=12 pixels para curva suave
-      this.applyLinearShadowColumn(shadowColumn, insideMask, ALPHA, 12);
+      // Se esta coluna não passa por inclusão, pular
+      if (!hasInclusion) continue;
+      
+      // Encontrar coluna de referência (tecido vizinho sem sombra)
+      const referenceColumn = this.findReferenceColumn(x, width, height, shadowInclusions);
+      
+      // Aplicar sombra 1D nesta coluna com referência
+      this.applyLinearShadowColumnWithReference(shadowColumn, insideMask, referenceColumn, depthScale);
       
       // Copiar resultado para o mapa 2D
       for (let y = 0; y < height; y++) {
