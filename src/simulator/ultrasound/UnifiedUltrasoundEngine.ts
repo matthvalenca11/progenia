@@ -711,35 +711,81 @@ export class UnifiedUltrasoundEngine {
   
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * LINEAR SHADOW MAP - Pre-computed with Gaussian lateral smoothing
+   * LINEAR SHADOW - FUNÇÃO 1D ISOLADA POR COLUNA (RECONSTRUÍDA DO ZERO)
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * This creates a smooth, organic shadow by:
-   * 1. Computing raw attenuation per beam (column)
-   * 2. Applying Gaussian blur in the lateral (x) direction
-   * 3. The result is used when rendering each pixel
+   * Aplica sombra acústica em uma coluna 1D (modo linear).
+   * - shadowColumn: vetor de atenuação para esta coluna (iniciado em 1.0)
+   * - insideMask: mesmo tamanho, true quando o sample está dentro da inclusão
+   * - alpha: coeficiente de atenuação (0.03-0.08 típico)
+   * 
+   * Algoritmo puro:
+   * 1. Encontrar último índice dentro da inclusão (exitIndex)
+   * 2. Aplicar atenuação exponencial a partir de exitIndex+1
+   * 
+   * Sem edgeBlend, sem lerp, sem fórmulas geométricas.
    */
+  private applyLinearShadowColumn(
+    shadowColumn: Float32Array,
+    insideMask: boolean[],
+    alpha: number
+  ): void {
+    const n = shadowColumn.length;
+    let exitIndex = -1;
+
+    // 1) Encontrar último índice dentro da inclusão
+    for (let z = 0; z < n; z++) {
+      if (insideMask[z]) {
+        exitIndex = z;
+      }
+    }
+    
+    if (exitIndex < 0) return; // Feixe não atingiu inclusão
+
+    // 2) Aplicar atenuação exponencial a partir de exitIndex+1
+    let atten = 1.0;
+    const dz = 1.0; // passo normalizado por sample
+
+    for (let z = exitIndex + 1; z < n; z++) {
+      atten *= Math.exp(-alpha * dz);
+      // Multiplicar no shadowColumn (1.0 = sem sombra, <1.0 = com sombra)
+      shadowColumn[z] *= atten;
+    }
+  }
+  
+  /**
+   * Verifica se um ponto (depthCm, lateralCm) está dentro de uma inclusão
+   */
+  private isPointInsideInclusionForShadow(
+    depthCm: number,
+    lateralCm: number,
+    inclusion: UltrasoundInclusionConfig
+  ): boolean {
+    const inclLateral = inclusion.centerLateralPos * 2.5; // -2.5 to +2.5 cm
+    const dx = lateralCm - inclLateral;
+    const dy = depthCm - inclusion.centerDepthCm;
+    
+    const halfW = inclusion.sizeCm.width / 2;
+    const halfH = inclusion.sizeCm.height / 2;
+    
+    if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+      const normX = dx / halfW;
+      const normY = dy / halfH;
+      return (normX * normX + normY * normY) <= 1.0;
+    } else {
+      return Math.abs(dx) <= halfW && Math.abs(dy) <= halfH;
+    }
+  }
+  
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * LINEAR SHADOW MAP v7 - PHYSICAL MODEL with expanding sigma
+   * LINEAR SHADOW MAP - RECONSTRUÍDO DO ZERO COM FUNÇÃO 1D ISOLADA
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * NEW ALGORITHM (per user request):
-   * 1. For each inclusion, find center beam (b0) and exit depth (z0)
-   * 2. For each pixel (b, z) below z0:
-   *    - db = lateral distance in beams
-   *    - dz = depth distance below inclusion
-   *    - sigma = sigma0 + k * dz  (sigma GROWS with depth = shadow widens)
-   *    - lateral = exp(-(db²)/(2*sigma²))  (Gaussian lateral profile)
-   *    - axial = exp(-alpha * dz)  (exponential depth attenuation)
-   *    - shadowFactor = 1.0 - shadowStrength * lateral * axial
-   * 
-   * This creates:
-   * - Narrow shadow right below inclusion
-   * - Shadow gradually widens with depth
-   * - Gaussian (bell-curve) lateral edges, NOT rectangular
-   * - Speckle preserved inside shadow
-   * - NO post-processing blur needed
+   * Pipeline simplificado:
+   * 1. Para cada coluna (feixe), construir insideMask
+   * 2. Chamar applyLinearShadowColumn
+   * 3. Pronto - sem blur, sem offset, sem fórmula geométrica
    */
   private computeLinearShadowMap(): void {
     const { width, height } = this.canvas;
@@ -758,144 +804,50 @@ export class UnifiedUltrasoundEngine {
       return;
     }
     
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // KEY INSIGHT (same as Convex/Microconvex):
-    // 
-    // Motion is applied to the SAMPLING POINT in calculatePixelIntensity(), 
-    // NOT to the inclusion position. The shadow map should use ORIGINAL
-    // inclusion positions, and the apparent motion comes from displaced sampling.
-    //
-    // This keeps inclusion + shadow aligned in the same coordinate system.
-    // ═══════════════════════════════════════════════════════════════════════════════
+    // Filtrar apenas inclusões com sombra forte
+    const shadowInclusions = this.config.inclusions.filter(inc => inc.hasStrongShadow);
+    if (shadowInclusions.length === 0) return;
     
-    const numBeams = width;
-    const numDepthSamples = height;
+    // Coeficiente alpha para atenuação exponencial
+    // Valor calibrado para shadow visível mas não excessiva
+    const ALPHA = 0.05;
     
     // ═══════════════════════════════════════════════════════════════════════════════
-    // UNIFIED SHADOW - REBUILT FROM SCRATCH TO MATCH CONVEX EXACTLY
+    // PARA CADA COLUNA (FEIXE VERTICAL)
     // ═══════════════════════════════════════════════════════════════════════════════
-    // 
-    // KEY INSIGHT: The Convex mode works perfectly because it:
-    //   1. Traces ray sample-by-sample to find z_exit
-    //   2. Applies attenuation DIRECTLY to shadowMap (no second pass blur!)
-    //   3. Uses appropriate alpha for its coordinate system
-    //
-    // The Linear mode was broken because of:
-    //   1. A SECOND PASS of lateral Gaussian blur (Convex doesn't have this!)
-    //   2. Alpha too low (0.012 vs 0.40)
-    //   3. Intermediate rawShadowMap → blur → linearShadowMap (Convex writes directly)
-    //
-    // FIX: Remove ALL differences. Make Linear identical to Convex structurally.
-    // ═══════════════════════════════════════════════════════════════════════════════
-    
-    // ═══ PARAMETERS - Matched to work with cartesian coordinates ═══
-    // Note: Linear uses depth in CM directly, so alpha needs adjustment
-    const SHADOW_ALPHA_BASE = 0.35;     // Matched to Convex (was 0.012, too weak!)
-    const SHADOW_STRENGTH = 0.60;       // Same as Convex
-    const SHADOW_MIN_INTENSITY = 0.18;  // Same as Convex
-    const TRANSITION_DEPTH_CM = 0.15;   // Same as Convex
-    
-    for (const inclusion of this.config.inclusions) {
-      if (!inclusion.hasStrongShadow) continue;
+    for (let x = 0; x < width; x++) {
+      // Criar coluna de shadow e máscara para esta coluna
+      const shadowColumn = new Float32Array(height);
+      shadowColumn.fill(1.0);
       
-      // ═══ INCLUSION GEOMETRY (same approach as Convex) ═══
-      const inclCenterDepthCm = inclusion.centerDepthCm;
-      const inclCenterLateralCm = inclusion.centerLateralPos * 2.5;
+      const insideMask: boolean[] = new Array(height).fill(false);
       
-      const halfWidth = inclusion.sizeCm.width / 2;
-      const halfHeight = inclusion.sizeCm.height / 2;
+      // Posição lateral em CM para esta coluna
+      // x=0 → lateral=-2.5, x=width → lateral=+2.5
+      const lateralCm = ((x / width) - 0.5) * 5.0;
       
-      // Material properties for alpha calculation (same as Convex)
-      const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
-      const materialAttenuation = inclusionMedium.attenuation_dB_per_cm_MHz;
-      const baseAlpha = SHADOW_ALPHA_BASE + Math.min(0.3, materialAttenuation / 8);
-      
-      // ═══ FOR EACH BEAM: RAY-TRACE SAMPLE-BY-SAMPLE (EXACTLY LIKE CONVEX) ═══
-      for (let beamIdx = 0; beamIdx < numBeams; beamIdx++) {
-        const physCoords = this.pixelToPhysical(beamIdx, 0);
-        const beamLateralCm = physCoords.lateral;
+      // Construir máscara: para cada sample de profundidade, verificar se está dentro de inclusão
+      for (let y = 0; y < height; y++) {
+        const depthCm = (y / height) * this.config.depth;
         
-        // ═══ STEP 1: TRACE BEAM TO FIND z_exit (IDENTICAL TO CONVEX) ═══
-        let z_exit = -1;
-        let wasInside = false;
-        let edgeFactor = 1.0;
-        
-        for (let depthIdx = 0; depthIdx < numDepthSamples; depthIdx++) {
-          const depthCoords = this.pixelToPhysical(beamIdx, depthIdx);
-          const r = depthCoords.depth;  // ← "r" naming to match Convex
-          
-          const dx = beamLateralCm - inclCenterLateralCm;
-          const dy = r - inclCenterDepthCm;
-          
-          // Check if sample is inside inclusion
-          let isInside = false;
-          if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
-            const normX = dx / halfWidth;
-            const normY = dy / halfHeight;
-            const distSq = normX * normX + normY * normY;
-            isInside = distSq <= 1.0;
-            // Edge factor for softer shadows (same as Convex)
-            if (isInside) {
-              const dist = Math.sqrt(distSq);
-              edgeFactor = Math.pow(1 - dist * 0.5, 0.5);
-            }
-          } else {
-            isInside = Math.abs(dx) <= halfWidth && Math.abs(dy) <= halfHeight;
+        // Verificar contra todas as inclusões com sombra
+        for (const inclusion of shadowInclusions) {
+          if (this.isPointInsideInclusionForShadow(depthCm, lateralCm, inclusion)) {
+            insideMask[y] = true;
+            break; // Uma inclusão já basta
           }
-          
-          if (isInside) {
-            wasInside = true;
-            z_exit = r;  // ← Store in CM (like Convex: z_exit = r)
-          } else if (wasInside && !isInside) {
-            break;  // Exited inclusion
-          }
-        }
-        
-        // If beam never hit inclusion, skip
-        if (z_exit < 0) continue;
-        
-        // Per-beam noise (same as Convex)
-        const beamNoise = 1.0 + (this.hashNoise(beamIdx * 17 + 42) - 0.5) * 0.12;
-        const alpha = baseAlpha * beamNoise;
-        
-        // ═══ STEP 2: APPLY ATTENUATION (EXACTLY LIKE CONVEX - NO SECOND PASS!) ═══
-        for (let depthIdx = 0; depthIdx < numDepthSamples; depthIdx++) {
-          const depthCoords = this.pixelToPhysical(beamIdx, depthIdx);
-          const r = depthCoords.depth;
-          
-          // Same comparison as Convex: if (r <= z_exit) continue;
-          if (r <= z_exit) continue;
-          
-          // Same calculation as Convex: posteriorDepth = r - z_exit;
-          const posteriorDepth = r - z_exit;
-          const attenuation = Math.exp(-alpha * posteriorDepth);
-          
-          // Same shadow formula as Convex
-          const rawShadow = 1.0 - SHADOW_STRENGTH * edgeFactor * (1.0 - attenuation);
-          const shadowFactor = Math.max(SHADOW_MIN_INTENSITY, rawShadow);
-          
-          // Same smooth transition as Convex
-          let transitionBlend = 1.0;
-          if (posteriorDepth < TRANSITION_DEPTH_CM) {
-            const t = posteriorDepth / TRANSITION_DEPTH_CM;
-            transitionBlend = t * t * (3 - 2 * t);  // smoothstep
-          }
-          
-          const finalShadow = 1.0 * (1 - transitionBlend) + shadowFactor * transitionBlend;
-          
-          // ═══ CRITICAL: WRITE DIRECTLY TO FINAL MAP (LIKE CONVEX) ═══
-          // Convex: this.shadowMap[idx] = Math.min(this.shadowMap[idx], finalShadow);
-          // Linear: this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], finalShadow);
-          // NO INTERMEDIATE rawShadowMap, NO SECOND PASS BLUR!
-          const idx = depthIdx * numBeams + beamIdx;
-          this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], finalShadow);
         }
       }
+      
+      // Aplicar sombra 1D nesta coluna
+      this.applyLinearShadowColumn(shadowColumn, insideMask, ALPHA);
+      
+      // Copiar resultado para o mapa 2D
+      for (let y = 0; y < height; y++) {
+        const idx = y * width + x;
+        this.linearShadowMap[idx] = shadowColumn[y];
+      }
     }
-    
-    // ═══ NO SECOND PASS! ═══
-    // Convex doesn't have a second pass - neither should Linear.
-    // The blur was causing the horizontal line artifacts.
   }
   /**
    * Hash-based noise for organic variation (deterministic)
