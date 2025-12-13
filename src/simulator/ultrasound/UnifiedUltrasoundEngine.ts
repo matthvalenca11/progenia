@@ -978,27 +978,31 @@ export class UnifiedUltrasoundEngine {
     let reflection = 0;
     
     if (!tissue.isInclusion) {
-      // RAY-BASED SHADOWING for Convex/Microconvex
       if (this.config.transducerType === 'convex' || this.config.transducerType === 'microconvex') {
-        // Calculate which RAY this pixel is on
+        // ═══════════════════════════════════════════════════════════════════════
+        // CONVEX/MICROCONVEX: UNIFIED ACOUSTIC SHADOW MODEL
+        // ═══════════════════════════════════════════════════════════════════════
+        // Physical model: diverging beam geometry from center of curvature
+        // Shadows follow diverging rays, creating fan-shaped shadow zones
+        
         const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
         const distAtCurrentDepth = radiusOfCurvature + depth;
         
-        // Back-calculate the angle of the ray that hits this pixel
+        // Calculate ray angle from center of curvature
         const rayAngle = Math.asin(Math.max(-1, Math.min(1, lateral / distAtCurrentDepth)));
         
-        // Now march this RAY from depth=0 to current depth, checking for occlusions
+        // Ray marching for occlusion detection
         let isRayShadowed = false;
         let shadowInclusion: UltrasoundInclusionConfig | null = null;
         let shadowStartDepth = 0;
+        let shadowExitDepth = 0;
         
-        // Ray marching: check depths from 0 to current
-        const marchSteps = 50; // Precision of occlusion detection
+        const marchSteps = 80; // Higher resolution for smoother results
         for (let step = 0; step < marchSteps; step++) {
           const marchDepth = (step / marchSteps) * depth;
           if (marchDepth >= depth) break;
           
-          // Calculate lateral position of this ray at marchDepth
+          // Calculate lateral position of this ray at marchDepth (diverging)
           const distAtMarchDepth = radiusOfCurvature + marchDepth;
           const lateralAtMarchDepth = distAtMarchDepth * Math.sin(rayAngle);
           
@@ -1009,62 +1013,98 @@ export class UnifiedUltrasoundEngine {
             const distInfo = this.getDistanceFromInclusion(marchDepth, lateralAtMarchDepth, inclusion);
             
             if (distInfo.isInside) {
-              // Ray is occluded from this point forward
-              isRayShadowed = true;
-              shadowInclusion = inclusion;
-              shadowStartDepth = marchDepth;
-              break;
+              if (!isRayShadowed) {
+                isRayShadowed = true;
+                shadowInclusion = inclusion;
+                shadowStartDepth = marchDepth;
+              }
+              shadowExitDepth = marchDepth;
             }
           }
-          
-          if (isRayShadowed) break;
         }
         
-        // Apply shadow if ray was occluded
+        // Apply unified shadow physics
         if (isRayShadowed && shadowInclusion) {
-          const posteriorDepth = depth - shadowStartDepth;
-          const inclusionThickness = shadowInclusion.sizeCm.height;
+          const inclusionThickness = shadowExitDepth - shadowStartDepth + shadowInclusion.sizeCm.height * 0.5;
+          const inclusionBottomDepth = shadowStartDepth + inclusionThickness;
+          const posteriorDepth = Math.max(0, depth - inclusionBottomDepth);
           
-          // Shadow intensity based on thickness
-          const thicknessFactor = Math.min(1, inclusionThickness / 2.0);
-          const baseShadowStrength = 0.25 + thicknessFactor * 0.35;
+          // For convex: calculate angular distance from shadow center
+          const inclLateral = shadowInclusion.centerLateralPos * 2.5;
+          const distAtInclusion = radiusOfCurvature + shadowInclusion.centerDepthCm;
+          const inclAngle = Math.asin(Math.max(-1, Math.min(1, inclLateral / distAtInclusion)));
+          const angleDiff = Math.abs(rayAngle - inclAngle);
           
-          // Shadow texture (degraded speckle)
-          const shadowTexture = Math.sin(posteriorDepth * 8 + lateral * 6) * 0.03;
-          const shadowCore = baseShadowStrength + shadowTexture;
+          // Get inclusion effective angular width
+          let effectiveWidth;
+          if (shadowInclusion.shape === 'circle') {
+            effectiveWidth = (shadowInclusion.sizeCm.width + shadowInclusion.sizeCm.height) / 4;
+          } else {
+            effectiveWidth = shadowInclusion.sizeCm.width / 2;
+          }
+          const angularHalfWidth = Math.atan2(effectiveWidth, distAtInclusion);
           
-          // Depth decay
-          const depthDecay = Math.exp(-posteriorDepth * 0.35);
-          const finalShadowStrength = shadowCore * depthDecay;
+          // Normalized angular distance from shadow center
+          const normalizedDist = angleDiff / angularHalfWidth;
           
-          attenuationFactor *= (0.15 + 0.85 * (1 - finalShadowStrength));
+          // Shadow intensity based on inclusion thickness and medium attenuation
+          const inclusionMedium = getAcousticMedium(shadowInclusion.mediumInsideId);
+          const attenuationCoeff = inclusionMedium.attenuation_dB_per_cm_MHz;
+          const thicknessFactor = Math.min(1, (inclusionThickness * attenuationCoeff) / 3.0);
+          const baseShadowStrength = 0.3 + thicknessFactor * 0.4; // 0.3 to 0.7 range
+          
+          // ═══ UNIFIED SHADOW PROFILE (same physics for all transducers) ═══
+          // Progressive attenuation with organic texture and Gaussian edges
+          
+          // Depth decay: gradual energy loss posterior to inclusion
+          const depthDecay = Math.exp(-posteriorDepth * 0.4);
+          
+          // Organic texture: multi-frequency noise for realistic speckle degradation
+          const noise1 = Math.sin(posteriorDepth * 12 + lateral * 8 + this.time * 0.5) * 0.02;
+          const noise2 = Math.sin(posteriorDepth * 25 + lateral * 15) * 0.015;
+          const noise3 = Math.sin(posteriorDepth * 5 + lateral * 3) * 0.01;
+          const organicNoise = noise1 + noise2 + noise3;
+          
+          if (normalizedDist < 1.0) {
+            // Core shadow zone: Gaussian intensity from center
+            const gaussianCore = Math.exp(-normalizedDist * normalizedDist * 1.2);
+            const coreStrength = baseShadowStrength * gaussianCore + organicNoise;
+            const finalStrength = coreStrength * depthDecay;
+            
+            // Apply attenuation (never completely black, maintain some speckle)
+            const minIntensity = 0.08 + (1 - thicknessFactor) * 0.1;
+            attenuationFactor *= (minIntensity + (1 - minIntensity) * (1 - finalStrength));
+          } else if (normalizedDist < 2.0) {
+            // Penumbra zone: smooth Gaussian falloff (diffraction zone)
+            const penumbraT = (normalizedDist - 1.0);
+            const gaussianPenumbra = Math.exp(-penumbraT * penumbraT * 2.5);
+            const penumbraStrength = baseShadowStrength * 0.4 * gaussianPenumbra + organicNoise * 0.5;
+            const finalStrength = penumbraStrength * depthDecay;
+            
+            attenuationFactor *= (0.5 + 0.5 * (1 - finalStrength));
+          }
+          // Beyond penumbra: no shadow effect
         }
       } else {
-        // LINEAR: Ray-based shadowing similar to Convex for realistic diverging shadows
-        // Linear transducers have nearly parallel rays but we still use ray marching
-        // for consistent shadow physics with gradual edges
+        // ═══════════════════════════════════════════════════════════════════════
+        // LINEAR TRANSDUCER: UNIFIED ACOUSTIC SHADOW MODEL
+        // ═══════════════════════════════════════════════════════════════════════
+        // Physical model: parallel beam geometry with realistic attenuation
+        // Shadows are vertical, narrow, with smooth Gaussian penumbra
         
-        // For linear: rays are nearly parallel (very large virtual radius)
-        const virtualRadius = 50.0; // Large radius = nearly parallel rays
-        const distAtCurrentDepth = virtualRadius + depth;
-        
-        // Calculate ray angle (very small for linear)
-        const rayAngle = Math.asin(Math.max(-1, Math.min(1, lateral / distAtCurrentDepth)));
-        
-        // Ray marching for occlusion detection
+        // Ray marching along vertical ray for Linear transducer
         let isRayShadowed = false;
         let shadowInclusion: UltrasoundInclusionConfig | null = null;
         let shadowStartDepth = 0;
         let shadowExitDepth = 0;
         
-        const marchSteps = 60;
+        const marchSteps = 80; // Higher resolution for smoother results
         for (let step = 0; step < marchSteps; step++) {
           const marchDepth = (step / marchSteps) * depth;
           if (marchDepth >= depth) break;
           
-          // Calculate lateral position of ray at marchDepth
-          const distAtMarchDepth = virtualRadius + marchDepth;
-          const lateralAtMarchDepth = distAtMarchDepth * Math.sin(rayAngle);
+          // Linear: rays are parallel, so lateral position stays constant
+          const lateralAtMarchDepth = lateral;
           
           // Check if ray hits any inclusion
           for (const inclusion of this.config.inclusions) {
@@ -1083,7 +1123,7 @@ export class UnifiedUltrasoundEngine {
           }
         }
         
-        // Apply shadow with smooth gradient
+        // Apply unified shadow physics
         if (isRayShadowed && shadowInclusion) {
           const inclusionThickness = shadowExitDepth - shadowStartDepth + shadowInclusion.sizeCm.height * 0.5;
           const inclusionBottomDepth = shadowStartDepth + inclusionThickness;
@@ -1093,41 +1133,60 @@ export class UnifiedUltrasoundEngine {
           const inclLateral = shadowInclusion.centerLateralPos * 2.5;
           const distFromCenter = Math.abs(lateral - inclLateral);
           
-          // Shadow width expands slightly with depth (slight beam divergence)
-          const shadowSpreadAngle = 0.015; // Slightly wider than before for realistic spread
+          // Get inclusion effective width
           let effectiveWidth;
           if (shadowInclusion.shape === 'circle') {
             effectiveWidth = (shadowInclusion.sizeCm.width + shadowInclusion.sizeCm.height) / 4;
           } else {
             effectiveWidth = shadowInclusion.sizeCm.width / 2;
           }
-          const shadowHalfWidth = effectiveWidth + posteriorDepth * Math.tan(shadowSpreadAngle);
           
-          // Shadow intensity based on inclusion thickness
-          const thicknessFactor = Math.min(1, inclusionThickness / 2.0);
-          const baseShadowStrength = 0.25 + thicknessFactor * 0.35;
+          // Linear: minimal shadow spread (parallel beams)
+          // Slight spread to simulate acoustic diffraction at edges
+          const shadowSpreadRate = 0.02; // Very small for parallel beams
+          const shadowHalfWidth = effectiveWidth * (1 + posteriorDepth * shadowSpreadRate);
           
-          // Smooth Gaussian edge falloff (no hard edges)
+          // Normalized distance from shadow center
           const normalizedDist = distFromCenter / shadowHalfWidth;
           
-          // Core shadow (center)
+          // Shadow intensity based on inclusion thickness and medium attenuation
+          const inclusionMedium = getAcousticMedium(shadowInclusion.mediumInsideId);
+          const attenuationCoeff = inclusionMedium.attenuation_dB_per_cm_MHz;
+          const thicknessFactor = Math.min(1, (inclusionThickness * attenuationCoeff) / 3.0);
+          const baseShadowStrength = 0.3 + thicknessFactor * 0.4; // 0.3 to 0.7 range
+          
+          // ═══ UNIFIED SHADOW PROFILE (same physics for all transducers) ═══
+          // Progressive attenuation with organic texture and Gaussian edges
+          
+          // Depth decay: gradual energy loss posterior to inclusion
+          const depthDecay = Math.exp(-posteriorDepth * 0.4);
+          
+          // Organic texture: multi-frequency noise for realistic speckle degradation
+          const noise1 = Math.sin(posteriorDepth * 12 + lateral * 8 + this.time * 0.5) * 0.02;
+          const noise2 = Math.sin(posteriorDepth * 25 + lateral * 15) * 0.015;
+          const noise3 = Math.sin(posteriorDepth * 5 + lateral * 3) * 0.01;
+          const organicNoise = noise1 + noise2 + noise3;
+          
           if (normalizedDist < 1.0) {
-            // Inside main shadow - Gaussian intensity from center
-            const gaussianCore = Math.exp(-normalizedDist * normalizedDist * 0.8);
-            const internalTexture = Math.sin(posteriorDepth * 8 + lateral * 6) * 0.02;
-            const shadowCore = baseShadowStrength * gaussianCore + internalTexture;
-            const depthDecay = Math.exp(-posteriorDepth * 0.3);
-            const finalShadowStrength = shadowCore * depthDecay;
-            attenuationFactor *= (0.12 + 0.88 * (1 - finalShadowStrength));
-          } else if (normalizedDist < 2.5) {
-            // Penumbra region - smooth Gaussian falloff
-            const penumbraDist = normalizedDist - 1.0;
-            const gaussianFalloff = Math.exp(-penumbraDist * penumbraDist * 1.5);
-            const penumbraStrength = baseShadowStrength * 0.5 * gaussianFalloff;
-            const depthDecay = Math.exp(-posteriorDepth * 0.35);
-            attenuationFactor *= (0.4 + 0.6 * (1 - penumbraStrength * depthDecay));
+            // Core shadow zone: Gaussian intensity from center
+            // Maximum attenuation at center, smooth falloff toward edges
+            const gaussianCore = Math.exp(-normalizedDist * normalizedDist * 1.2);
+            const coreStrength = baseShadowStrength * gaussianCore + organicNoise;
+            const finalStrength = coreStrength * depthDecay;
+            
+            // Apply attenuation (never completely black, maintain some speckle)
+            const minIntensity = 0.08 + (1 - thicknessFactor) * 0.1;
+            attenuationFactor *= (minIntensity + (1 - minIntensity) * (1 - finalStrength));
+          } else if (normalizedDist < 2.0) {
+            // Penumbra zone: smooth Gaussian falloff (diffraction zone)
+            const penumbraT = (normalizedDist - 1.0);
+            const gaussianPenumbra = Math.exp(-penumbraT * penumbraT * 2.5);
+            const penumbraStrength = baseShadowStrength * 0.4 * gaussianPenumbra + organicNoise * 0.5;
+            const finalStrength = penumbraStrength * depthDecay;
+            
+            attenuationFactor *= (0.5 + 0.5 * (1 - finalStrength));
           }
-          // Beyond penumbra: no shadow effect (attenuationFactor unchanged)
+          // Beyond penumbra: no shadow effect
         }
       }
       

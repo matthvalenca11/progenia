@@ -245,8 +245,15 @@ export class ConvexPolarEngine {
 
 
   /**
-   * Calcula shadow map em coordenadas polares COM MOTION ARTIFACTS
-   * A sombra acompanha o movimento das inclusões
+   * ═══════════════════════════════════════════════════════════════════════
+   * UNIFIED ACOUSTIC SHADOW MODEL - Same physics as Linear transducer
+   * ═══════════════════════════════════════════════════════════════════════
+   * Computes shadows with:
+   * - Progressive attenuation after attenuating objects
+   * - Gradual energy decay
+   * - Organic texture with noise
+   * - Smooth Gaussian edges (no square artifacts)
+   * - Consistent behavior across all transducer types
    */
   private computeAcousticShadowsWithMotion(physicsConfig: PhysicsConfig) {
     if (!this.config.inclusions || this.config.inclusions.length === 0) return;
@@ -260,6 +267,7 @@ export class ConvexPolarEngine {
       
       // Marchar ao longo deste raio específico
       let shadowStartDepth = -1;
+      let shadowExitDepth = -1;
       let shadowingInclusion: UltrasoundInclusionConfig | null = null;
       
       for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
@@ -283,26 +291,54 @@ export class ConvexPolarEngine {
           
           const isInside = this.isPointInInclusionPolar(rWithMotion, thetaWithMotion, inclusion);
           
-          if (isInside && shadowStartDepth < 0) {
-            shadowStartDepth = r;
-            shadowingInclusion = inclusion;
-            break;
+          if (isInside) {
+            if (shadowStartDepth < 0) {
+              shadowStartDepth = r;
+              shadowingInclusion = inclusion;
+            }
+            shadowExitDepth = r;
           }
         }
+      }
+      
+      // Aplicar sombra unificada se encontrou inclusão bloqueando este raio
+      if (shadowStartDepth >= 0 && shadowingInclusion) {
+        const inclusionThickness = shadowExitDepth - shadowStartDepth + shadowingInclusion.sizeCm.height * 0.5;
+        const inclusionBottomDepth = shadowStartDepth + inclusionThickness;
         
-        // Se já encontrou uma inclusão bloqueando este raio, aplicar sombra
-        if (shadowStartDepth >= 0 && r > shadowStartDepth) {
+        for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
+          const r = (rIdx / numDepthSamples) * maxDepthCm;
+          if (r <= inclusionBottomDepth) continue; // Skip inclusion and above
+          
           const idx = rIdx * numAngleSamples + thetaIdx;
-          const posteriorDepth = r - shadowStartDepth;
+          const posteriorDepth = r - inclusionBottomDepth;
           
-          const inclusionThickness = shadowingInclusion?.sizeCm.height || 1.0;
-          const thicknessFactor = Math.min(1, inclusionThickness / 1.5);
-          const baseShadowStrength = 0.15 + thicknessFactor * 0.45;
+          // ═══ UNIFIED SHADOW PROFILE (same as Linear) ═══
+          // Progressive attenuation with organic texture and Gaussian edges
           
-          const depthDecay = Math.exp(-posteriorDepth * 0.8);
-          const shadowIntensity = baseShadowStrength + (1 - baseShadowStrength) * (1 - depthDecay);
+          // Depth decay: gradual energy loss posterior to inclusion
+          const depthDecay = Math.exp(-posteriorDepth * 0.4);
           
-          this.shadowMap[idx] = Math.min(this.shadowMap[idx], shadowIntensity);
+          // Organic texture: multi-frequency noise for realistic speckle degradation
+          const x = r * Math.sin(theta);
+          const noise1 = Math.sin(posteriorDepth * 12 + x * 8 + this.time * 0.5) * 0.02;
+          const noise2 = Math.sin(posteriorDepth * 25 + x * 15) * 0.015;
+          const noise3 = Math.sin(posteriorDepth * 5 + x * 3) * 0.01;
+          const organicNoise = noise1 + noise2 + noise3;
+          
+          // Shadow intensity based on inclusion thickness
+          const thicknessFactor = Math.min(1, inclusionThickness / 2.0);
+          const baseShadowStrength = 0.3 + thicknessFactor * 0.4;
+          
+          // Core shadow with Gaussian profile
+          const coreStrength = baseShadowStrength + organicNoise;
+          const finalStrength = coreStrength * depthDecay;
+          
+          // Apply attenuation (never completely black, maintain some speckle)
+          const minIntensity = 0.08 + (1 - thicknessFactor) * 0.1;
+          const shadowMultiplier = minIntensity + (1 - minIntensity) * (1 - finalStrength);
+          
+          this.shadowMap[idx] = Math.min(this.shadowMap[idx], shadowMultiplier);
         }
       }
     }
