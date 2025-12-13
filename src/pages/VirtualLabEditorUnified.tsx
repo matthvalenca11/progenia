@@ -77,8 +77,11 @@ export default function VirtualLabEditorUnified() {
   };
 
   const handleSave = async () => {
+    // For ultrasound labs, get name from Zustand store
+    const labName = lab.lab_type === "ultrasound" ? ultrasoundStore.labName : lab.name;
+    
     // Validation
-    if (!lab.name?.trim()) {
+    if (!labName?.trim()) {
       toast.error("Validação", { description: "O nome do laboratório é obrigatório" });
       return;
     }
@@ -92,8 +95,8 @@ export default function VirtualLabEditorUnified() {
       setLoading(true);
       
       // Generate slug if empty
-      const slug = lab.slug || virtualLabService.generateSlug(lab.name);
-      const title = lab.title || lab.name;
+      const slug = lab.slug || virtualLabService.generateSlug(labName);
+      const title = lab.title || labName;
       
       // For ultrasound labs, get config from Zustand store
       let configData = lab.config_data || {};
@@ -124,6 +127,7 @@ export default function VirtualLabEditorUnified() {
       
       const labData = {
         ...lab,
+        name: labName, // Use labName which comes from store for ultrasound
         slug,
         title,
         config_data: configData,
