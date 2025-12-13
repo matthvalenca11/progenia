@@ -350,12 +350,13 @@ export class ConvexPolarEngine {
       for (const inclusion of this.config.inclusions) {
         if (!inclusion.hasStrongShadow) continue;
         
-        // ═══ USE SAME GEOMETRY AS getTissueAtPolar ═══
+        // ═══ USE EXACT SAME GEOMETRY AS isPointInInclusionPolar ═══
         const inclDepth = inclusion.centerDepthCm;
-        const inclLateralNorm = inclusion.centerLateralPos;
+        const inclLateral = inclusion.centerLateralPos;
         
-        const maxLateralAtDepth = inclDepth * Math.tan(halfFOVRad);
-        const inclX = inclLateralNorm * maxLateralAtDepth * 2;
+        // MUST match isPointInInclusionPolar exactly
+        const maxLateralAtInclDepth = inclDepth * Math.tan(halfFOVRad);
+        const inclX = inclLateral * maxLateralAtInclDepth * 2;
         const inclY = inclDepth;
         
         const halfWidth = inclusion.sizeCm.width / 2;
@@ -375,6 +376,9 @@ export class ConvexPolarEngine {
           const dx = x - inclX;
           const dy = y - inclY;
           
+          // ═══ MATCH EXACTLY isPointInInclusionPolar beamWidthFactor ═══
+          // beamWidthFactor distorts dx to account for beam divergence
+          // Shadow must use EXACT same factor as inclusion detection
           const beamWidthFactor = 1.0 + (r / maxDepthCm) * 0.4;
           const distortedDx = dx / beamWidthFactor;
           
@@ -402,7 +406,23 @@ export class ConvexPolarEngine {
         
         if (z_exit < 0) continue;
         
-        // ═══ COMPUTE ALPHA - PURE GEOMETRY (NO SIN/COS NOISE) ═══
+        // ═══ COMPUTE SHADOW WIDTH - MUST MATCH INCLUSION WIDTH ═══
+        // The shadow starts exactly at the inclusion edges and follows beam geometry
+        
+        // Get the lateral range where the beam passes through inclusion at z_exit
+        const xAtExit = z_exit * Math.sin(theta) + offsetCm;
+        const lateralDistFromIncl = xAtExit - inclX;
+        
+        // Beam width factor at exit point
+        const beamWidthAtExit = 1.0 + (z_exit / maxDepthCm) * 0.4;
+        const normalizedLateralPos = lateralDistFromIncl / beamWidthAtExit / halfWidth;
+        
+        // Edge factor - stronger shadow in center, weaker at edges
+        const absNormLat = Math.abs(normalizedLateralPos);
+        if (absNormLat > 1.0) continue; // Beam doesn't actually hit inclusion
+        edgeFactor = 1.0 - absNormLat * 0.5; // Linear falloff from center to edge
+        
+        // ═══ COMPUTE ALPHA ═══
         const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
         const materialAttenuation = inclusionMedium.attenuation_dB_per_cm_MHz;
         const baseAlpha = SHADOW_ALPHA_BASE + Math.min(0.3, materialAttenuation / 8);
@@ -412,8 +432,6 @@ export class ConvexPolarEngine {
         const alpha = baseAlpha * beamNoise;
         
         // ═══ APPLY ATTENUATION WITH SMOOTH TRANSITION AT SHADOW START ═══
-        // Problem: Hard shadow start creates a visible horizontal line
-        // Solution: Apply gradual "fade-in" over the first portion of shadow
         const TRANSITION_DEPTH_CM = 0.15; // Transition zone in cm
         
         for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
@@ -431,7 +449,6 @@ export class ConvexPolarEngine {
           // ═══ SMOOTH TRANSITION: Blend shadow gradually at the start ═══
           let transitionBlend = 1.0;
           if (posteriorDepth < TRANSITION_DEPTH_CM) {
-            // Smooth sigmoid-like transition from 0 to 1 over TRANSITION_DEPTH_CM
             const t = posteriorDepth / TRANSITION_DEPTH_CM;
             transitionBlend = t * t * (3 - 2 * t); // smoothstep function
           }
