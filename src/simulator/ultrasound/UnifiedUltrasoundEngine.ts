@@ -1435,23 +1435,20 @@ export class UnifiedUltrasoundEngine {
   
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * ACOUSTIC SHADOW - COMPLETE REWRITE v5 (LINEAR)
+   * ACOUSTIC SHADOW - COMPLETE REWRITE v6 (LINEAR)
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * PROBLEMA IDENTIFICADO:
-   * O shadowMap pré-computado estava retornando valores muito baixos (0.1-0.3)
-   * quando deveria retornar 0.5-0.8. Isso causava sombra quase preta.
+   * PROBLEMA v5: Linha horizontal artificial na borda inferior da inclusão
    * 
-   * NOVA ABORDAGEM:
-   * Calcular a sombra DIRETAMENTE em calculateInclusionEffects, sem shadowMap.
+   * CAUSA: A sombra começava abruptamente em depth > inclBottomDepth, criando
+   * uma descontinuidade visual entre a inclusão e a sombra.
    * 
-   * MODELO FOTOMÉTRICO ALVO:
-   * - Início da sombra (0-5mm abaixo): 0.75-0.85 do tecido (15-25% mais escuro)
-   * - Meio (5-15mm): 0.60-0.75 do tecido (25-40% mais escuro)
-   * - Fundo (>15mm): 0.55-0.65 do tecido (35-45% mais escuro)
-   * - NUNCA menos que 0.50 do tecido
+   * SOLUÇÃO v6: A transição sombra começa DENTRO da inclusão, seguindo a
+   * curvatura da elipse. Não há linha horizontal porque o blend é contínuo.
    * 
-   * RESULTADO ESPERADO: ratio shadow/tissue entre 0.55 e 0.75
+   * FÍSICA REAL: A sombra acústica é uma atenuação gradual que começa
+   * exatamente onde o feixe sai do objeto atenuante. Para uma elipse,
+   * isso significa que a sombra segue a curvatura inferior da elipse.
    */
   private calculateInclusionEffects(
     x: number,
@@ -1464,87 +1461,120 @@ export class UnifiedUltrasoundEngine {
     let reflection = 0;
     
     if (this.config.transducerType === 'linear') {
-      // ═══════════════════════════════════════════════════════════════════════════════
-      // CÁLCULO DIRETO DA SOMBRA (sem shadowMap pré-computado)
-      // ═══════════════════════════════════════════════════════════════════════════════
       
-      // Para cada inclusão, verificar se estamos na zona de sombra
       for (const inclusion of this.config.inclusions) {
         if (!inclusion.hasStrongShadow) continue;
         
         // Posição da inclusão
         const inclLateral = inclusion.centerLateralPos * 2.5; // -2.5 to +2.5 cm
         const inclCenterDepth = inclusion.centerDepthCm;
-        const inclBottomDepth = inclCenterDepth + inclusion.sizeCm.height / 2;
         const inclHalfWidth = inclusion.sizeCm.width / 2;
+        const inclHalfHeight = inclusion.sizeCm.height / 2;
         
-        // Verificar se estamos na coluna de sombra (abaixo da inclusão, dentro da largura)
+        // Distância lateral do centro da inclusão
         const lateralDist = Math.abs(lateral - inclLateral);
         
-        // Verificar se estamos abaixo da inclusão e dentro da largura
-        const isInShadowColumn = lateralDist <= inclHalfWidth * 1.1; // 10% de margem para bordas difusas
-        const isBelowInclusion = depth > inclBottomDepth;
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // CALCULAR A BORDA INFERIOR DA ELIPSE PARA ESTA POSIÇÃO LATERAL
+        // Para uma elipse: (x/a)² + (y/b)² = 1
+        // Resolvendo para y: y = b * sqrt(1 - (x/a)²)
+        // A borda inferior em cada posição lateral é: centerY + y
+        // ═══════════════════════════════════════════════════════════════════════════════
         
-        if (isInShadowColumn && isBelowInclusion && !tissue.isInclusion) {
-          // ═══ ESTAMOS NA ZONA DE SOMBRA ═══
-          
-          // Profundidade relativa abaixo da inclusão (em cm)
-          const dzCm = depth - inclBottomDepth;
-          
-          // ═══ FATOR LATERAL: bordas difusas ═══
-          // No centro da sombra: fator = 1.0 (sombra total)
-          // Nas bordas: fator < 1.0 (sombra parcial)
-          const lateralNorm = lateralDist / inclHalfWidth; // 0 = centro, 1 = borda
-          const lateralFactor = 1.0 - Math.pow(Math.max(0, lateralNorm - 0.7) / 0.4, 2); // Suave nas bordas
-          
-          // ═══ FATOR DE PROFUNDIDADE: gradiente suave ═══
-          // dzCm = 0: factor = 0.80 (20% mais escuro que tecido)
-          // dzCm = 2cm: factor = 0.55 (45% mais escuro que tecido)
-          // Nunca abaixo de 0.55
-          const maxFactor = 0.82;  // Logo abaixo da inclusão (18% mais escuro)
-          const minFactor = 0.58;  // Profundidade máxima (42% mais escuro)
-          const decayRate = 1.2;   // Taxa de decaimento (cm^-1)
-          
-          const depthFactor = minFactor + (maxFactor - minFactor) * Math.exp(-decayRate * dzCm);
-          
-          // ═══ RUÍDO ORGÂNICO por pixel ═══
-          const pixelSeed = x * 7919 + y * 104729;
-          const noise = (this.hashNoise(pixelSeed) - 0.5) * 0.08; // ±4% variação
-          
-          // ═══ FATOR FINAL DE SOMBRA ═══
-          // Combina profundidade, lateral, e ruído
-          const shadowFactor = Math.max(0.55, Math.min(0.90, depthFactor + noise)) * lateralFactor + (1 - lateralFactor);
-          
-          // ═══ TRANSIÇÃO SUAVE no início da sombra ═══
-          const transitionCm = 0.15; // 1.5mm de transição
-          let transitionBlend = 1.0;
-          if (dzCm < transitionCm) {
-            const t = dzCm / transitionCm;
-            transitionBlend = t * t * (3 - 2 * t); // smoothstep
-          }
-          
-          // ═══ APLICAR SOMBRA COM BLEND ═══
-          // NUNCA multiplicar diretamente - usar lerp para preservar speckle
-          const finalFactor = this.lerp(1.0, shadowFactor, transitionBlend);
-          
-          attenuationFactor *= finalFactor;
-          
-          // DEBUG: Log para verificar valores
-          if (Math.random() < 0.0001) {
-            console.log(`[SHADOW DEBUG] dzCm=${dzCm.toFixed(2)}, depthFactor=${depthFactor.toFixed(3)}, lateralFactor=${lateralFactor.toFixed(3)}, finalFactor=${finalFactor.toFixed(3)}`);
-          }
-          
-          break; // Só aplica sombra de uma inclusão
+        // Verificar se estamos dentro da largura da inclusão (com margem para bordas)
+        const lateralNorm = lateralDist / inclHalfWidth;
+        if (lateralNorm > 1.15) continue; // Fora da zona de sombra
+        
+        // Para pontos dentro da largura da elipse, calcular a borda inferior exata
+        let ellipseBottomAtThisLateral: number;
+        if (lateralNorm <= 1.0) {
+          // Dentro da elipse: borda inferior curva
+          const yOffset = inclHalfHeight * Math.sqrt(1 - lateralNorm * lateralNorm);
+          ellipseBottomAtThisLateral = inclCenterDepth + yOffset;
+        } else {
+          // Fora da elipse mas na margem: usar a borda lateral
+          ellipseBottomAtThisLateral = inclCenterDepth;
         }
+        
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // DETERMINAR SE ESTAMOS NA ZONA DE SOMBRA OU ZONA DE TRANSIÇÃO
+        // ═══════════════════════════════════════════════════════════════════════════════
+        
+        // Profundidade relativa à borda inferior da elipse nesta coluna
+        const dzFromEllipseBottom = depth - ellipseBottomAtThisLateral;
+        
+        // Zona de transição: começa 0.5mm DENTRO da inclusão até 2mm FORA
+        const transitionStartCm = -0.05;  // 0.5mm dentro da inclusão
+        const transitionEndCm = 0.20;     // 2mm fora da inclusão
+        
+        if (dzFromEllipseBottom < transitionStartCm) {
+          // Muito dentro da inclusão - sem efeito de sombra
+          continue;
+        }
+        
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // CALCULAR FATOR DE SOMBRA
+        // ═══════════════════════════════════════════════════════════════════════════════
+        
+        // Fator de profundidade: mais escuro conforme aumenta a profundidade
+        const maxFactor = 0.82;  // Logo abaixo da inclusão
+        const minFactor = 0.58;  // Profundidade máxima
+        const decayRate = 1.0;   // Taxa de decaimento
+        
+        const dzCm = Math.max(0, dzFromEllipseBottom);
+        const depthFactor = minFactor + (maxFactor - minFactor) * Math.exp(-decayRate * dzCm);
+        
+        // Fator lateral: bordas difusas
+        let lateralFactor = 1.0;
+        if (lateralNorm > 0.8) {
+          lateralFactor = 1.0 - Math.pow((lateralNorm - 0.8) / 0.35, 2);
+          lateralFactor = Math.max(0, Math.min(1, lateralFactor));
+        }
+        
+        // Ruído orgânico por pixel
+        const pixelSeed = x * 7919 + y * 104729;
+        const noise = (this.hashNoise(pixelSeed) - 0.5) * 0.06;
+        
+        // Fator base de sombra
+        const baseShadowFactor = Math.max(0.55, Math.min(0.88, depthFactor + noise));
+        
+        // Combinar com fator lateral
+        const shadowFactor = baseShadowFactor * lateralFactor + (1 - lateralFactor);
+        
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // TRANSIÇÃO SUAVE (smoothstep) - ELIMINA A LINHA HORIZONTAL
+        // ═══════════════════════════════════════════════════════════════════════════════
+        let transitionBlend: number;
+        
+        if (dzFromEllipseBottom < 0) {
+          // Dentro da inclusão, perto da borda inferior
+          // Blend de 0 (longe da borda) até ~0.3 (na borda)
+          const t = (dzFromEllipseBottom - transitionStartCm) / (-transitionStartCm);
+          transitionBlend = t * t * 0.3; // Máximo 0.3 dentro da inclusão
+        } else if (dzFromEllipseBottom < transitionEndCm) {
+          // Na zona de transição logo após a borda
+          const t = dzFromEllipseBottom / transitionEndCm;
+          transitionBlend = 0.3 + t * t * (3 - 2 * t) * 0.7; // De 0.3 até 1.0
+        } else {
+          // Fora da zona de transição - sombra completa
+          transitionBlend = 1.0;
+        }
+        
+        // Aplicar sombra com blend
+        const finalFactor = this.lerp(1.0, shadowFactor, transitionBlend);
+        
+        attenuationFactor *= finalFactor;
+        
+        break; // Só aplica sombra de uma inclusão
       }
       
-      // Posterior enhancement (for cystic/fluid structures)
+      // Posterior enhancement
       if (this.config.enablePosteriorEnhancement && !tissue.isInclusion) {
         const enhancementFactor = this.applyPosteriorEnhancement(depth, lateral);
         attenuationFactor *= enhancementFactor;
       }
     } else {
-      // CONVEX/MICROCONVEX - manter lógica original
+      // CONVEX/MICROCONVEX
       if (!tissue.isInclusion) {
         if (this.config.enablePosteriorEnhancement) {
           const enhancementFactor = this.applyPosteriorEnhancement(depth, lateral);
