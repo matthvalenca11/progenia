@@ -969,6 +969,22 @@ export class UnifiedUltrasoundEngine {
     return reflection * 0.6;
   }
   
+  /**
+   * ═══════════════════════════════════════════════════════════════════════════════
+   * ACOUSTIC SHADOW - SIMPLIFIED RAY-BASED MODEL
+   * ═══════════════════════════════════════════════════════════════════════════════
+   * 
+   * Physical model:
+   * 1. For each scanline (beam), detect if it passes through an inclusion
+   * 2. Shadow starts EXACTLY at z_obj (bottom edge of inclusion) - NO GAP
+   * 3. Apply exponential attenuation: I(z) = I(z) * exp(-alpha * (z - z_obj))
+   * 4. Add slight noise variation to alpha to prevent banding
+   * 5. Apply lateral Gaussian smoothing for diffuse edges
+   * 
+   * Geometry per transducer:
+   * - LINEAR: Parallel vertical beams, shadow is narrow column
+   * - CONVEX/MICROCONVEX: Diverging fan beams, shadow follows angular spread
+   */
   private calculateInclusionEffects(
     depth: number,
     lateral: number,
@@ -979,150 +995,172 @@ export class UnifiedUltrasoundEngine {
     
     if (!tissue.isInclusion) {
       // ═══════════════════════════════════════════════════════════════════════════
-      // UNIFIED ACOUSTIC SHADOW MODEL - All Transducers
+      // APPLY ACOUSTIC SHADOW
       // ═══════════════════════════════════════════════════════════════════════════
-      // Physical principles:
-      // 1. Shadow starts IMMEDIATELY at inclusion bottom edge (no gap)
-      // 2. Progressive attenuation with depth
-      // 3. Organic texture with granular noise
-      // 4. Smooth Gaussian edges (no geometric artifacts)
-      // 5. Geometry varies by transducer: Linear=parallel, Convex=diverging
-      
-      for (const inclusion of this.config.inclusions) {
-        if (!this.config.enableAcousticShadow || !inclusion.hasStrongShadow) continue;
-        
-        // ═══ CALCULATE INCLUSION GEOMETRY ═══
-        const inclCenterDepth = inclusion.centerDepthCm;
-        const inclCenterLateral = inclusion.centerLateralPos * 2.5; // Convert normalized to cm
-        const inclHalfHeight = inclusion.sizeCm.height / 2;
-        const inclHalfWidth = inclusion.shape === 'circle' 
-          ? (inclusion.sizeCm.width + inclusion.sizeCm.height) / 4 
-          : inclusion.sizeCm.width / 2;
-        
-        // Bottom edge of inclusion - shadow starts EXACTLY here
-        const inclusionBottomDepth = inclCenterDepth + inclHalfHeight;
-        
-        // Only apply shadow if we're BELOW the inclusion
-        if (depth <= inclusionBottomDepth) continue;
-        
-        // ═══ TRANSDUCER-SPECIFIC GEOMETRY ═══
-        let isInShadowColumn = false;
-        let normalizedLateralDist = 0;
-        
-        if (this.config.transducerType === 'linear') {
-          // LINEAR: Parallel beams - shadow is vertical column
-          // Shadow width equals inclusion width (no divergence)
-          const distFromCenter = Math.abs(lateral - inclCenterLateral);
-          normalizedLateralDist = distFromCenter / inclHalfWidth;
-          isInShadowColumn = normalizedLateralDist < 1.5; // Core + penumbra
-          
-        } else {
-          // CONVEX/MICROCONVEX: Diverging beams - shadow fans out
-          const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
-          
-          // Calculate angular position of current point
-          const distAtCurrentDepth = radiusOfCurvature + depth;
-          const currentAngle = Math.atan2(lateral, depth);
-          
-          // Calculate angular bounds of inclusion at its depth
-          const distAtInclusion = radiusOfCurvature + inclCenterDepth;
-          const inclLeftAngle = Math.atan2(inclCenterLateral - inclHalfWidth, inclCenterDepth);
-          const inclRightAngle = Math.atan2(inclCenterLateral + inclHalfWidth, inclCenterDepth);
-          const inclCenterAngle = Math.atan2(inclCenterLateral, inclCenterDepth);
-          const inclAngularHalfWidth = (inclRightAngle - inclLeftAngle) / 2;
-          
-          // Check if current point's angle falls within shadow cone
-          const angleDiff = Math.abs(currentAngle - inclCenterAngle);
-          normalizedLateralDist = angleDiff / Math.max(0.001, inclAngularHalfWidth);
-          isInShadowColumn = normalizedLateralDist < 1.5; // Core + penumbra
-        }
-        
-        if (!isInShadowColumn) continue;
-        
-        // ═══ SHADOW PHYSICS (identical for all transducers) ═══
-        const posteriorDepth = depth - inclusionBottomDepth;
-        
-        // Medium properties affect shadow intensity
-        const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
-        const attenuationCoeff = inclusionMedium.attenuation_dB_per_cm_MHz;
-        const inclusionThickness = inclusion.sizeCm.height;
-        
-        // Shadow strength based on inclusion properties
-        // Higher attenuation coefficient = stronger shadow
-        // Thicker inclusion = stronger shadow
-        const thicknessFactor = Math.min(1, (inclusionThickness * attenuationCoeff) / 2.5);
-        const baseShadowStrength = 0.4 + thicknessFactor * 0.45; // 0.4 to 0.85
-        
-        // ═══ PROGRESSIVE ATTENUATION ═══
-        // Shadow is strongest immediately after inclusion, decays with depth
-        // Faster decay near inclusion, slower further away (exponential)
-        const decayRate = 0.3 + thicknessFactor * 0.2; // Higher attenuation = slower decay
-        const depthDecay = Math.exp(-posteriorDepth * decayRate);
-        
-        // ═══ ORGANIC TEXTURE (granular speckle-like noise) ═══
-        // Multi-frequency noise creates realistic "degraded speckle" appearance
-        const timeOffset = this.time * 0.3;
-        const noiseScale1 = 15 + this.config.frequency * 2; // Frequency-dependent texture
-        const noiseScale2 = 8 + this.config.frequency;
-        const noiseScale3 = 4;
-        
-        const noise1 = Math.sin(posteriorDepth * noiseScale1 + lateral * 12 + timeOffset) * 0.025;
-        const noise2 = Math.sin(posteriorDepth * noiseScale2 + lateral * 8 + timeOffset * 0.7) * 0.02;
-        const noise3 = Math.sin(posteriorDepth * noiseScale3 + lateral * 5) * 0.015;
-        const organicNoise = (noise1 + noise2 + noise3) * (0.8 + depthDecay * 0.4);
-        
-        // ═══ LATERAL PROFILE (Gaussian edges) ═══
-        let lateralFactor: number;
-        if (normalizedLateralDist < 1.0) {
-          // Core shadow: Gaussian falloff from center
-          // Center is darkest, edges are lighter
-          lateralFactor = Math.exp(-normalizedLateralDist * normalizedLateralDist * 0.8);
-        } else {
-          // Penumbra: Rapid Gaussian falloff outside core
-          const penumbraT = normalizedLateralDist - 1.0;
-          lateralFactor = Math.exp(-penumbraT * penumbraT * 3.0) * 0.4;
-        }
-        
-        // ═══ FINAL SHADOW CALCULATION ═══
-        const shadowStrength = baseShadowStrength * lateralFactor * depthDecay + organicNoise;
-        
-        // Gain compensation: shadow responds to gain setting
-        const gainFactor = Math.pow(10, (this.config.gain - 50) / 80); // Subtle gain response
-        const adjustedStrength = shadowStrength * (0.7 + gainFactor * 0.3);
-        
-        // Apply attenuation (maintain some minimum speckle, never pure black)
-        const minIntensity = 0.05 + (1 - thicknessFactor) * 0.08;
-        const shadowMultiplier = minIntensity + (1 - minIntensity) * (1 - Math.min(1, adjustedStrength));
-        
-        attenuationFactor *= shadowMultiplier;
-      }
+      const shadowFactor = this.applyAcousticShadow(depth, lateral);
+      attenuationFactor *= shadowFactor;
       
       // ═══ POSTERIOR ENHANCEMENT (for cystic/fluid structures) ═══
       if (this.config.enablePosteriorEnhancement) {
-        for (const inclusion of this.config.inclusions) {
-          if (inclusion.mediumInsideId !== 'cyst_fluid' && 
-              inclusion.mediumInsideId !== 'blood' && 
-              inclusion.mediumInsideId !== 'water') continue;
-          
-          const inclusionBottomDepth = inclusion.centerDepthCm + inclusion.sizeCm.height / 2;
-          if (depth <= inclusionBottomDepth) continue;
-          
-          const inclLateral = inclusion.centerLateralPos * 2.5;
-          const lateralDist = Math.abs(lateral - inclLateral);
-          const posteriorDepth = depth - inclusionBottomDepth;
-          
-          const effectiveWidth = inclusion.sizeCm.width / 2;
-          if (lateralDist < effectiveWidth && posteriorDepth < 2.0) {
-            // Enhancement is strongest right after fluid, decays with depth
-            const enhancementStrength = 0.35 * Math.exp(-posteriorDepth * 0.6);
-            const lateralFalloff = 1 - (lateralDist / effectiveWidth) * 0.3;
-            attenuationFactor *= (1 + enhancementStrength * lateralFalloff);
-          }
-        }
+        const enhancementFactor = this.applyPosteriorEnhancement(depth, lateral);
+        attenuationFactor *= enhancementFactor;
       }
     }
     
     return { attenuationFactor, reflection };
+  }
+  
+  /**
+   * ═══════════════════════════════════════════════════════════════════════════════
+   * SIMPLIFIED RAY-BASED ACOUSTIC SHADOW
+   * ═══════════════════════════════════════════════════════════════════════════════
+   * 
+   * For each point (depth, lateral):
+   * 1. Find if this point is in the "shadow zone" of any inclusion
+   * 2. Shadow zone = directly below the inclusion along the beam path
+   * 3. Apply exponential attenuation from inclusion bottom edge
+   */
+  private applyAcousticShadow(depth: number, lateral: number): number {
+    if (!this.config.enableAcousticShadow) return 1.0;
+    
+    let minShadowFactor = 1.0;
+    
+    for (const inclusion of this.config.inclusions) {
+      if (!inclusion.hasStrongShadow) continue;
+      
+      // ═══ INCLUSION GEOMETRY ═══
+      const inclCenterDepth = inclusion.centerDepthCm;
+      const inclCenterLateral = inclusion.centerLateralPos * 2.5; // Convert normalized to cm
+      const inclHalfWidth = inclusion.shape === 'circle' 
+        ? (inclusion.sizeCm.width + inclusion.sizeCm.height) / 4 
+        : inclusion.sizeCm.width / 2;
+      const inclHalfHeight = inclusion.sizeCm.height / 2;
+      
+      // Bottom edge of inclusion - shadow starts EXACTLY here
+      const z_obj = inclCenterDepth + inclHalfHeight;
+      
+      // Only apply shadow if we're BELOW the inclusion
+      if (depth <= z_obj) continue;
+      
+      // ═══ CHECK IF POINT IS IN SHADOW ZONE (based on transducer geometry) ═══
+      let isInShadow = false;
+      let normalizedDistFromCenter = 0; // 0 = center of shadow, 1 = edge
+      
+      if (this.config.transducerType === 'linear') {
+        // LINEAR: Parallel beams - shadow is a vertical column
+        // Shadow width = inclusion width (no expansion)
+        const distFromCenter = Math.abs(lateral - inclCenterLateral);
+        normalizedDistFromCenter = distFromCenter / inclHalfWidth;
+        isInShadow = normalizedDistFromCenter < 1.3; // Core + soft penumbra
+        
+      } else {
+        // CONVEX/MICROCONVEX: Diverging beams - shadow fans out
+        // Calculate angle from beam origin (virtual apex)
+        const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
+        
+        // Angle of current point from center
+        const currentAngle = Math.atan2(lateral, depth + radiusOfCurvature);
+        
+        // Angle of inclusion center
+        const inclCenterAngle = Math.atan2(inclCenterLateral, inclCenterDepth + radiusOfCurvature);
+        
+        // Angular half-width of inclusion (at its depth)
+        const inclLeftAngle = Math.atan2(inclCenterLateral - inclHalfWidth, inclCenterDepth + radiusOfCurvature);
+        const inclRightAngle = Math.atan2(inclCenterLateral + inclHalfWidth, inclCenterDepth + radiusOfCurvature);
+        const inclAngularHalfWidth = Math.abs(inclRightAngle - inclLeftAngle) / 2;
+        
+        // Check if current angle is within shadow cone
+        const angleDiff = Math.abs(currentAngle - inclCenterAngle);
+        normalizedDistFromCenter = angleDiff / Math.max(0.001, inclAngularHalfWidth);
+        isInShadow = normalizedDistFromCenter < 1.3; // Core + soft penumbra
+      }
+      
+      if (!isInShadow) continue;
+      
+      // ═══ EXPONENTIAL ATTENUATION ═══
+      // I(z) = I(z) * exp(-alpha * (z - z_obj))
+      const posteriorDepth = depth - z_obj;
+      
+      // Base alpha depends on inclusion properties (higher attenuation = stronger shadow)
+      const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
+      const attenuationCoeff = inclusionMedium.attenuation_dB_per_cm_MHz;
+      const alpha = 0.8 + Math.min(1, attenuationCoeff / 3) * 0.7; // Range: 0.8 - 1.5
+      
+      // Add slight noise to alpha to prevent banding
+      const noiseVariation = Math.sin(lateral * 50 + depth * 30 + this.time * 2) * 0.1;
+      const alpha_eff = alpha * (1 + noiseVariation);
+      
+      // Exponential decay with depth
+      const depthAttenuation = Math.exp(-alpha_eff * posteriorDepth);
+      
+      // ═══ LATERAL GAUSSIAN PROFILE ═══
+      // Shadow is darkest at center, fades to edges
+      let lateralFactor: number;
+      if (normalizedDistFromCenter < 1.0) {
+        // Core: Gaussian falloff
+        lateralFactor = Math.exp(-normalizedDistFromCenter * normalizedDistFromCenter * 1.5);
+      } else {
+        // Penumbra: rapid falloff
+        const penumbraT = (normalizedDistFromCenter - 1.0) / 0.3;
+        lateralFactor = Math.exp(-penumbraT * penumbraT * 2.0) * 0.5;
+      }
+      
+      // ═══ ORGANIC TEXTURE (granular noise) ═══
+      // Multi-frequency noise for realistic degraded speckle appearance
+      const noise1 = Math.sin(posteriorDepth * 18 + lateral * 15 + this.time * 0.3) * 0.03;
+      const noise2 = Math.sin(posteriorDepth * 10 + lateral * 8) * 0.02;
+      const noise3 = Math.sin(posteriorDepth * 5 + lateral * 4 + this.time * 0.2) * 0.015;
+      const organicNoise = noise1 + noise2 + noise3;
+      
+      // ═══ FINAL SHADOW CALCULATION ═══
+      // Shadow strength = base * lateral_profile * depth_decay
+      const baseShadowStrength = 0.7 + Math.min(1, inclusion.sizeCm.height * attenuationCoeff / 2) * 0.25;
+      const shadowStrength = baseShadowStrength * lateralFactor * depthAttenuation;
+      
+      // Minimum intensity (never pure black - maintain some speckle)
+      const minIntensity = 0.08;
+      const shadowFactor = minIntensity + (1 - minIntensity) * (1 - Math.min(1, shadowStrength + organicNoise));
+      
+      // Take minimum shadow (darkest shadow wins if multiple inclusions)
+      minShadowFactor = Math.min(minShadowFactor, shadowFactor);
+    }
+    
+    return minShadowFactor;
+  }
+  
+  /**
+   * POSTERIOR ENHANCEMENT - Increased brightness behind fluid-filled structures
+   */
+  private applyPosteriorEnhancement(depth: number, lateral: number): number {
+    let enhancementFactor = 1.0;
+    
+    for (const inclusion of this.config.inclusions) {
+      // Only fluid-filled structures cause enhancement
+      if (inclusion.mediumInsideId !== 'cyst_fluid' && 
+          inclusion.mediumInsideId !== 'blood' && 
+          inclusion.mediumInsideId !== 'water') continue;
+      
+      const inclCenterLateral = inclusion.centerLateralPos * 2.5;
+      const inclHalfWidth = inclusion.sizeCm.width / 2;
+      const inclHalfHeight = inclusion.sizeCm.height / 2;
+      const inclusionBottomDepth = inclusion.centerDepthCm + inclHalfHeight;
+      
+      // Only apply below inclusion
+      if (depth <= inclusionBottomDepth) continue;
+      
+      const posteriorDepth = depth - inclusionBottomDepth;
+      const lateralDist = Math.abs(lateral - inclCenterLateral);
+      
+      // Check if in enhancement zone
+      if (lateralDist < inclHalfWidth && posteriorDepth < 2.0) {
+        // Enhancement decays with depth
+        const enhancement = 0.35 * Math.exp(-posteriorDepth * 0.6);
+        const lateralFalloff = 1 - (lateralDist / inclHalfWidth) * 0.3;
+        enhancementFactor *= (1 + enhancement * lateralFalloff);
+      }
+    }
+    
+    return enhancementFactor;
   }
   
   
