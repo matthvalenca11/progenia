@@ -758,10 +758,15 @@ export class UnifiedUltrasoundEngine {
       return;
     }
     
-    // ═══ MOTION PARAMETERS - EXACT SAME AS calculatePixelIntensity() ═══
-    const breathingCycle = Math.sin(this.time * 0.3) * 0.015;
-    const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008;
-    const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // KEY INSIGHT (same as Convex/Microconvex):
+    // 
+    // Motion is applied to the SAMPLING POINT in calculatePixelIntensity(), 
+    // NOT to the inclusion position. The shadow map should use ORIGINAL
+    // inclusion positions, and the apparent motion comes from displaced sampling.
+    //
+    // This keeps inclusion + shadow aligned in the same coordinate system.
+    // ═══════════════════════════════════════════════════════════════════════════════
     
     const numBeams = width;
     const numDepthSamples = height;
@@ -778,14 +783,10 @@ export class UnifiedUltrasoundEngine {
     for (const inclusion of this.config.inclusions) {
       if (!inclusion.hasStrongShadow) continue;
       
-      // ═══ APPLY MOTION TO INCLUSION (EXACTLY AS RENDERING) ═══
-      const breathingDepthEffect = inclusion.centerDepthCm / this.config.depth;
-      const motionDepthOffset = breathingCycle * breathingDepthEffect + jitterDepth;
-      const motionLateralOffset = jitterLateral;
-      
-      // Motion-adjusted inclusion position in physical coords
-      const inclCenterDepthCm = inclusion.centerDepthCm + motionDepthOffset;
-      const inclCenterLateralCm = (inclusion.centerLateralPos * 2.5) + motionLateralOffset;
+      // ═══ USE ORIGINAL INCLUSION POSITION (NO MOTION) ═══
+      // Motion will be applied to sampling coordinates in calculatePixelIntensity()
+      const inclCenterDepthCm = inclusion.centerDepthCm;
+      const inclCenterLateralCm = inclusion.centerLateralPos * 2.5; // -0.5 to +0.5 → -1.25 to +1.25
       
       // Inclusion geometry in physical coords
       const halfWidth = inclusion.sizeCm.width / 2;
@@ -806,11 +807,8 @@ export class UnifiedUltrasoundEngine {
         
         // Check if beam passes through inclusion (depends on shape)
         let hitsInclusion = false;
-        let effectiveHalfWidth = halfWidth;
         
         if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
-          // For ellipse: beam hits if |dx| < halfWidth
-          // Also compute the effective width at this dx for ellipse
           if (Math.abs(dx) <= halfWidth) {
             hitsInclusion = true;
           }
@@ -827,13 +825,10 @@ export class UnifiedUltrasoundEngine {
         let z_exit_cm: number;
         
         if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
-          // For ellipse: z_exit depends on lateral position (chord length)
-          // y = centerY + halfHeight * sqrt(1 - (dx/halfWidth)^2)
           const normalizedDx = dx / halfWidth;
           const exitOffset = halfHeight * Math.sqrt(Math.max(0, 1 - normalizedDx * normalizedDx));
           z_exit_cm = inclCenterDepthCm + exitOffset;
         } else {
-          // Rectangle: constant exit depth
           z_exit_cm = inclCenterDepthCm + halfHeight;
         }
         
@@ -1220,7 +1215,39 @@ export class UnifiedUltrasoundEngine {
     if (!tissue.isInclusion) {
       // ═══ LINEAR: Use pre-computed smoothed shadow map ═══
       if (this.config.transducerType === 'linear') {
-        attenuationFactor *= this.getLinearShadowFactor(Math.floor(x), Math.floor(y));
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // KEY INSIGHT (same as Convex/Microconvex):
+        // 
+        // The shadow map was computed using ORIGINAL inclusion positions.
+        // But calculatePixelIntensity() applies motion to the sampling point (depth, lateral).
+        // 
+        // For shadow to move with the inclusion, we need to look up the shadow map
+        // using coordinates that REVERSE the motion offset, effectively looking up
+        // "where this point would be in the original coordinate system".
+        //
+        // Motion applied in calculatePixelIntensity():
+        //   depth += breathingCycle * breathingDepthEffect + jitterDepth
+        //   lateral += jitterLateral
+        //
+        // So we need to compute what (x, y) would be WITHOUT that motion.
+        // ═══════════════════════════════════════════════════════════════════════════════
+        
+        // Compute motion offsets (SAME AS calculatePixelIntensity)
+        const breathingCycle = Math.sin(this.time * 0.3) * 0.015;
+        const breathingDepthEffect = depth / this.config.depth;
+        const motionDepthOffset = breathingCycle * breathingDepthEffect;
+        const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008;
+        const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
+        
+        // Reverse motion to get original coordinates
+        const originalDepth = depth - motionDepthOffset - jitterDepth;
+        const originalLateral = lateral - jitterLateral;
+        
+        // Convert back to pixel coordinates
+        const originalY = (originalDepth / this.config.depth) * this.canvas.height;
+        const originalX = ((originalLateral + 2.5) / 5.0) * this.canvas.width;
+        
+        attenuationFactor *= this.getLinearShadowFactor(Math.floor(originalX), Math.floor(originalY));
       }
       
       // Posterior enhancement (for cystic/fluid structures)
