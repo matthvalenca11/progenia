@@ -230,15 +230,6 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
 
                     {/* Rendering flags */}
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label>Produz sombra acústica intensa</Label>
-                        <Switch
-                          checked={inclusion.hasStrongShadow !== false}
-                          onCheckedChange={(checked) => 
-                            handleUpdateInclusion(index, { hasStrongShadow: checked })
-                          }
-                        />
-                      </div>
 
                       <div className="flex items-center justify-between">
                         <Label>Gera reforço posterior</Label>
