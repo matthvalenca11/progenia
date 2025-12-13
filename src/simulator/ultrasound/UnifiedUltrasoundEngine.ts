@@ -835,16 +835,34 @@ export class UnifiedUltrasoundEngine {
         const normalizedDist = Math.abs(dx) / halfWidth;
         const edgeSoftness = Math.pow(1 - normalizedDist, 0.6); // Softer at edges
         
-        // ═══ APPLY ATTENUATION STARTING EXACTLY AT z0 (NO GAP) ═══
+        // ═══ APPLY ATTENUATION WITH SMOOTH TRANSITION AT SHADOW START ═══
+        // Problem: Hard shadow start creates a visible horizontal line
+        // Solution: Apply gradual "fade-in" over the first few pixels of shadow
+        const TRANSITION_PIXELS = 8; // Number of pixels for smooth transition
+        
         for (let depthIdx = z0; depthIdx < numDepthSamples; depthIdx++) {
           const dz = depthIdx - z0;
           const attenuation = Math.exp(-effectiveAlpha * dz);
+          
           // Softer shadow with edge falloff
           const rawShadow = 1.0 - SHADOW_STRENGTH * edgeSoftness * (1.0 - attenuation);
           const clampedShadow = Math.max(SHADOW_MIN_INTENSITY, rawShadow);
           
+          // ═══ SMOOTH TRANSITION: Blend shadow gradually at the start ═══
+          // Instead of hard shadow at z0, gradually increase shadow strength
+          // This eliminates the horizontal line artifact
+          let transitionBlend = 1.0;
+          if (dz < TRANSITION_PIXELS) {
+            // Smooth sigmoid-like transition from 0 to 1 over TRANSITION_PIXELS
+            const t = dz / TRANSITION_PIXELS;
+            transitionBlend = t * t * (3 - 2 * t); // smoothstep function
+          }
+          
+          // Apply transitioned shadow: lerp(1.0, clampedShadow, transitionBlend)
+          const finalShadow = 1.0 * (1 - transitionBlend) + clampedShadow * transitionBlend;
+          
           const idx = depthIdx * numBeams + beamIdx;
-          rawShadowMap[idx] = Math.min(rawShadowMap[idx], clampedShadow);
+          rawShadowMap[idx] = Math.min(rawShadowMap[idx], finalShadow);
         }
       }
     }
