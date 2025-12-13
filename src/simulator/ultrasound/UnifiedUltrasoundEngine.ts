@@ -1216,38 +1216,28 @@ export class UnifiedUltrasoundEngine {
       // ═══ LINEAR: Use pre-computed smoothed shadow map ═══
       if (this.config.transducerType === 'linear') {
         // ═══════════════════════════════════════════════════════════════════════════════
-        // KEY INSIGHT (same as Convex/Microconvex):
+        // CORRECT APPROACH:
         // 
-        // The shadow map was computed using ORIGINAL inclusion positions.
-        // But calculatePixelIntensity() applies motion to the sampling point (depth, lateral).
+        // The shadow map was computed using ORIGINAL inclusion positions (no motion).
+        // The `depth` and `lateral` parameters already have motion applied from 
+        // calculatePixelIntensity().
         // 
-        // For shadow to move with the inclusion, we need to look up the shadow map
-        // using coordinates that REVERSE the motion offset, effectively looking up
-        // "where this point would be in the original coordinate system".
-        //
-        // Motion applied in calculatePixelIntensity():
-        //   depth += breathingCycle * breathingDepthEffect + jitterDepth
-        //   lateral += jitterLateral
-        //
-        // So we need to compute what (x, y) would be WITHOUT that motion.
+        // To make shadow move WITH the inclusion, we convert the motion-adjusted
+        // physical coords (depth, lateral) directly to shadow map pixel indices.
+        // 
+        // This works because:
+        // - Shadow map has shadow "painted" at original inclusion position
+        // - When we sample at displaced coords, we're querying a different part of the map
+        // - The shadow appears to shift by the same amount as the displacement
         // ═══════════════════════════════════════════════════════════════════════════════
         
-        // Compute motion offsets (SAME AS calculatePixelIntensity)
-        const breathingCycle = Math.sin(this.time * 0.3) * 0.015;
-        const breathingDepthEffect = depth / this.config.depth;
-        const motionDepthOffset = breathingCycle * breathingDepthEffect;
-        const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008;
-        const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
+        // Convert motion-adjusted physical coords to shadow map pixel indices
+        // lateral range: -2.5 to +2.5 cm (5cm total width)
+        // depth range: 0 to config.depth cm
+        const shadowX = ((lateral + 2.5) / 5.0) * this.canvas.width;
+        const shadowY = (depth / this.config.depth) * this.canvas.height;
         
-        // Reverse motion to get original coordinates
-        const originalDepth = depth - motionDepthOffset - jitterDepth;
-        const originalLateral = lateral - jitterLateral;
-        
-        // Convert back to pixel coordinates
-        const originalY = (originalDepth / this.config.depth) * this.canvas.height;
-        const originalX = ((originalLateral + 2.5) / 5.0) * this.canvas.width;
-        
-        attenuationFactor *= this.getLinearShadowFactor(Math.floor(originalX), Math.floor(originalY));
+        attenuationFactor *= this.getLinearShadowFactor(Math.floor(shadowX), Math.floor(shadowY));
       }
       
       // Posterior enhancement (for cystic/fluid structures)
