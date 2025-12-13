@@ -1218,16 +1218,16 @@ export class UnifiedUltrasoundEngine {
       if (distInfo.isInside) {
         const medium = getAcousticMedium(inclusion.mediumInsideId);
         
-        // Smooth transition at border (soft tissue blending)
-        // BUT: Skip transition zone at the very bottom edge to avoid gap with shadow
-        const inclusionBottomDepth = inclusion.centerDepthCm + inclusion.sizeCm.height / 2;
-        const distToBottom = Math.abs(depth - inclusionBottomDepth);
-        
+        // ═══ TRANSIÇÃO SUAVE EM TODA A BORDA (incluindo inferior) ═══
+        // Usar distância real da borda da elipse, não linha horizontal fixa
         let blendFactor = 1;
-        // Only blend on sides and top, NOT on bottom (to avoid shadow gap)
-        if (distInfo.distanceFromEdge < 0.05 && distToBottom > 0.02) {
-          // Tighter gradual transition zone (but not at bottom)
-          blendFactor = Math.pow(1 - distInfo.distanceFromEdge / 0.05, 0.7);
+        
+        // Transição suave nas bordas - usar distanceFromEdge que já é calculado
+        // corretamente para elipses/retângulos
+        if (distInfo.distanceFromEdge < 0.08) {
+          // Gradual transition zone baseado na distância real da borda
+          const t = distInfo.distanceFromEdge / 0.08;
+          blendFactor = this.smoothstep(0, 1, t);
         }
         
         // Simplified - motion is now in speckle calculation above
@@ -1408,38 +1408,78 @@ export class UnifiedUltrasoundEngine {
     let attenuationFactor = 1;
     let reflection = 0;
     
-    if (!tissue.isInclusion) {
-      // ═══ LINEAR: Use pre-computed smoothed shadow map ═══
-      if (this.config.transducerType === 'linear') {
-        // ═══════════════════════════════════════════════════════════════════════════════
-        // CORRECT APPROACH:
-        // 
-        // The shadow map was computed using ORIGINAL inclusion positions (no motion).
-        // The `depth` and `lateral` parameters already have motion applied from 
-        // calculatePixelIntensity().
-        // 
-        // To make shadow move WITH the inclusion, we convert the motion-adjusted
-        // physical coords (depth, lateral) directly to shadow map pixel indices.
-        // 
-        // This works because:
-        // - Shadow map has shadow "painted" at original inclusion position
-        // - When we sample at displaced coords, we're querying a different part of the map
-        // - The shadow appears to shift by the same amount as the displacement
-        // ═══════════════════════════════════════════════════════════════════════════════
+    // ═══ APLICAR SOMBRA COM TRANSIÇÃO SUAVE NA BORDA ═══
+    // Ao invés de um corte abrupto em !tissue.isInclusion,
+    // usar uma transição baseada na distância da borda da inclusão
+    
+    if (this.config.transducerType === 'linear') {
+      // Calcular distância da borda da inclusão mais próxima
+      let minDistFromEdge = Infinity;
+      let isNearInclusion = false;
+      
+      for (const inclusion of this.config.inclusions) {
+        const distInfo = this.getDistanceFromInclusion(depth, lateral, inclusion);
+        if (distInfo.isInside) {
+          // Dentro da inclusão - não aplicar sombra, mas preparar transição
+          minDistFromEdge = -distInfo.distanceFromEdge; // Negativo = dentro
+          isNearInclusion = true;
+          break;
+        } else {
+          // Fora da inclusão - calcular distância
+          // distanceFromEdge é 0 quando está exatamente na borda
+          const distOutside = distInfo.distanceFromEdge;
+          if (distOutside < minDistFromEdge) {
+            minDistFromEdge = distOutside;
+            isNearInclusion = distOutside < 0.3; // Zona de transição de 0.3cm
+          }
+        }
+      }
+      
+      // Aplicar sombra com transição gradual
+      const shadowX = ((lateral + 2.5) / 5.0) * this.canvas.width;
+      const shadowY = (depth / this.config.depth) * this.canvas.height;
+      const rawShadow = this.getLinearShadowFactor(Math.floor(shadowX), Math.floor(shadowY));
+      
+      if (tissue.isInclusion) {
+        // Dentro da inclusão - usar transição suave nas bordas inferiores
+        const distFromEdge = Math.abs(minDistFromEdge);
+        const transitionZone = 0.15; // cm de transição
         
-        // Convert motion-adjusted physical coords to shadow map pixel indices
-        // lateral range: -2.5 to +2.5 cm (5cm total width)
-        // depth range: 0 to config.depth cm
-        const shadowX = ((lateral + 2.5) / 5.0) * this.canvas.width;
-        const shadowY = (depth / this.config.depth) * this.canvas.height;
+        if (distFromEdge < transitionZone) {
+          // Perto da borda - começar a aplicar sombra gradualmente
+          const t = 1.0 - (distFromEdge / transitionZone);
+          const smoothT = t * t; // Quadrático para suavidade
+          // Interpolar entre 1.0 (sem sombra) e rawShadow
+          attenuationFactor *= this.lerp(1.0, rawShadow, smoothT * 0.5);
+        }
+        // Longe da borda interior - não aplica sombra
+      } else {
+        // Fora da inclusão - aplicar sombra com fade-in
+        const transitionZone = 0.1; // cm de transição após sair da inclusão
         
-        attenuationFactor *= this.getLinearShadowFactor(Math.floor(shadowX), Math.floor(shadowY));
+        if (minDistFromEdge < transitionZone && isNearInclusion) {
+          // Logo após sair da inclusão - fade-in gradual
+          const t = minDistFromEdge / transitionZone;
+          const smoothT = t * t * (3 - 2 * t); // Smoothstep
+          attenuationFactor *= this.lerp(1.0, rawShadow, smoothT);
+        } else {
+          // Longe da inclusão - aplicar sombra total
+          attenuationFactor *= rawShadow;
+        }
       }
       
       // Posterior enhancement (for cystic/fluid structures)
-      if (this.config.enablePosteriorEnhancement) {
+      if (this.config.enablePosteriorEnhancement && !tissue.isInclusion) {
         const enhancementFactor = this.applyPosteriorEnhancement(depth, lateral);
         attenuationFactor *= enhancementFactor;
+      }
+    } else {
+      // CONVEX/MICROCONVEX - manter lógica original
+      if (!tissue.isInclusion) {
+        if (this.config.enablePosteriorEnhancement) {
+          const enhancementFactor = this.applyPosteriorEnhancement(depth, lateral);
+          attenuationFactor *= enhancementFactor;
+        }
       }
     }
     
