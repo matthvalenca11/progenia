@@ -726,33 +726,47 @@ export class UnifiedUltrasoundEngine {
   
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * LINEAR SHADOW - CURVA ALVO IDÊNTICA AO CONVEXO
+   * LINEAR SHADOW - MODELO FOTOMÉTRICO BASEADO EM I_REF (TECIDO VIZINHO)
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * DIAGNÓSTICO CONVEXO vs LINEAR:
+   * DIAGNÓSTICO DO PROBLEMA:
    * ──────────────────────────────────────────────────────────────────────────────
-   * CONVEXO usa:
-   *   - SHADOW_STRENGTH = 0.60 (60% de redução MÁXIMA)
-   *   - SHADOW_MIN_INTENSITY = 0.18
-   *   - rawShadow = 1.0 - SHADOW_STRENGTH * edgeFactor * (1.0 - attenuation)
-   *   - Resultado: sombra entre 0.40 e 1.0 (nunca abaixo de 40% do tecido)
+   * Antes: a sombra usava exp(-alpha * dz) direto, resultando em valores ~0.1-0.3
+   *        → ratio shadow/tissue ficava muito baixo (< 0.3) = cilindro preto
    * 
-   * LINEAR ANTES usava:
-   *   - expAtten = Math.exp(-alpha * dz * depthScale)
-   *   - targetAtten = Math.max(minIntensity, expAtten)
-   *   - Problema: expAtten caía muito rápido → sombra muito escura (0.1-0.2)
-   * 
-   * CORREÇÃO: Usar MESMA fórmula do Convexo!
-   *   - SHADOW_STRENGTH = 0.55 (55% de redução máxima → sombra mínima = 45%)
-   *   - rawShadow = 1.0 - SHADOW_STRENGTH * (1.0 - expAtten)
-   *   - expAtten agora é só modulador, não atenuador direto
+   * MODELO CORRETO (baseado em Convexo):
    * ──────────────────────────────────────────────────────────────────────────────
+   * 1. Para cada coluna na sombra, definir I_target = I_ref * targetShadowFactor(dz)
+   * 2. targetShadowFactor varia de 0.75 (perto da inclusão) a 0.50 (fundo)
+   * 3. Resultado: sombra é apenas 25-50% mais escura que o tecido, não cilindro preto
+   * 4. Blend com intensidade atual para preservar speckle
    * 
-   * CURVA ALVO DE CONTRASTE (mesmo que Convexo):
-   * - início (0–5 mm): 20–30% mais escuro que o tecido
-   * - meio  (5–20 mm): 40–55% mais escuro que o tecido
-   * - fundo (>20 mm): 50–55% mais escuro, mas NUNCA preto
+   * CURVA ALVO:
+   *   início (0-5mm): 0.70-0.80 do tecido vizinho (20-30% mais escuro)
+   *   meio (5-20mm):  0.55-0.70 do tecido vizinho (30-45% mais escuro)
+   *   fundo (>20mm):  0.50-0.55 do tecido vizinho (45-50% mais escuro, nunca preto)
+   * ──────────────────────────────────────────────────────────────────────────────
    */
+  
+  /**
+   * Calcula o fator de sombra alvo em função da profundidade relativa
+   * Retorna valor entre 0.50 e 0.80 (nunca próximo de zero!)
+   */
+  private targetShadowFactor(dzNormalized: number): number {
+    // dzNormalized: 0 = logo abaixo da inclusão, 1 = profundidade máxima da sombra
+    const dzClamped = Math.max(0, Math.min(1, dzNormalized));
+    
+    // No início: ~0.78 (22% mais escuro que tecido)
+    // No fundo: ~0.52 (48% mais escuro que tecido)
+    const maxFactor = 0.78;  // Logo abaixo da inclusão
+    const minFactor = 0.52;  // Na profundidade máxima
+    
+    // Curva exponencial suave
+    const factor = maxFactor - (maxFactor - minFactor) * (1 - Math.exp(-2.5 * dzClamped));
+    
+    return factor;
+  }
+  
   private applyLinearShadowColumnWithReference(
     shadowColumn: Float32Array,
     insideMask: boolean[],
@@ -773,50 +787,40 @@ export class UnifiedUltrasoundEngine {
     if (exitIndex < 0) return;
 
     // ═══════════════════════════════════════════════════════════════════════════════
-    // PARÂMETROS IDÊNTICOS AO CONVEXO - para consistência visual entre modos
+    // PARÂMETROS DO MODELO FOTOMÉTRICO
     // ═══════════════════════════════════════════════════════════════════════════════
-    const SHADOW_STRENGTH = 0.55;       // Mesmo que Convexo: escurece no máx 55%
-    const SHADOW_MIN_INTENSITY = 0.40;  // Mínimo 40% para preservar speckle (mais alto que Convexo para Linear)
-    const TRANSITION_DEPTH_PIXELS = 12; // Zona de transição suave (em pixels)
-    const ALPHA_BASE = 0.35;            // Taxa de atenuação exponencial (similar ao Convexo 0.40)
+    const dzMax = 150; // Pixels até profundidade máxima do efeito de sombra
+    const TRANSITION_PIXELS = 8; // Zona de transição suave no início
     
-    // 2) Aplicar sombra com VARIAÇÃO POR PIXEL
+    // 2) Aplicar sombra como FATOR MULTIPLICATIVO (não como intensidade absoluta)
+    // O shadowColumn vai conter valores entre 0.50 e 1.0
+    // Esses valores serão usados diretamente como multiplicadores em calculateInclusionEffects
     for (let z = exitIndex + 1; z < n; z++) {
-      const dz = z - exitIndex; // Distância em pixels
-      const dzCm = dz * depthScale * 0.5; // Converter para cm aproximado
+      const dz = z - exitIndex; // Distância em pixels do ponto de saída
+      const dzNormalized = dz / dzMax;
       
-      // ═══ RUÍDO POR PIXEL - variação orgânica ═══
+      // ═══ RUÍDO POR PIXEL para variação orgânica (±5%) ═══
       const pixelSeed = columnX * 7919 + z * 104729;
-      const beamNoise = 1.0 + (this.hashNoise(pixelSeed) - 0.5) * 0.12; // ±6% variação
-      const alpha = ALPHA_BASE * beamNoise;
+      const noise = (this.hashNoise(pixelSeed) - 0.5) * 0.10; // -0.05 a +0.05
       
-      // ═══ ATENUAÇÃO EXPONENCIAL SUAVE ═══
-      const attenuation = Math.exp(-alpha * dzCm);
+      // ═══ FATOR DE SOMBRA ALVO (0.50 a 0.80) ═══
+      const baseFactor = this.targetShadowFactor(dzNormalized);
+      const factor = Math.max(0.50, Math.min(0.85, baseFactor + noise));
       
-      // ═══ FÓRMULA IDÊNTICA AO CONVEXO ═══
-      // rawShadow = 1.0 - SHADOW_STRENGTH * (1.0 - attenuation)
-      // Quando attenuation=1 (perto da inclusão) → rawShadow=1.0 (sem sombra)
-      // Quando attenuation=0 (muito longe) → rawShadow=0.45 (sombra máxima)
-      const rawShadow = 1.0 - SHADOW_STRENGTH * (1.0 - attenuation);
-      
-      // Garantir mínimo para preservar speckle
-      const shadowFactor = Math.max(SHADOW_MIN_INTENSITY, rawShadow);
-      
-      // ═══ TRANSIÇÃO SUAVE NO INÍCIO DA SOMBRA (smoothstep) ═══
+      // ═══ TRANSIÇÃO SUAVE NO INÍCIO DA SOMBRA ═══
       let transitionBlend = 1.0;
-      if (dz < TRANSITION_DEPTH_PIXELS) {
-        const t = dz / TRANSITION_DEPTH_PIXELS;
+      if (dz < TRANSITION_PIXELS) {
+        const t = dz / TRANSITION_PIXELS;
         transitionBlend = t * t * (3.0 - 2.0 * t); // smoothstep
       }
       
-      // Lerp entre sem-sombra (1.0) e sombra (shadowFactor)
-      const finalShadow = this.lerp(1.0, shadowFactor, transitionBlend);
+      // ═══ FATOR FINAL (lerp entre 1.0 e factor baseado na transição) ═══
+      // No início da sombra: valor mais próximo de 1.0 (sem sombra)
+      // Com profundidade: valor vai para o factor alvo (0.50-0.80)
+      const finalFactor = this.lerp(1.0, factor, transitionBlend);
       
-      // Referência do tecido vizinho
-      const I_ref = referenceColumn ? referenceColumn[z] : 1.0;
-      
-      // Aplicar atenuação relativa
-      shadowColumn[z] *= finalShadow * I_ref;
+      // Guardar fator multiplicativo (NÃO intensidade!)
+      shadowColumn[z] = finalFactor;
     }
   }
   
@@ -964,13 +968,58 @@ export class UnifiedUltrasoundEngine {
       }
     }
     
-    // ═══ NOVO: Aplicar blur 2D para suavizar a transição na borda da inclusão ═══
+    // ═══ BLUR REDUZIDO - blur excessivo estava removendo o speckle ═══
     this.applyShadowMapBlur(width, height);
+    
+    // ═══ DEBUG: Medir ratio shadow/tissue ═══
+    this.debugShadowRatio(width, height, shadowInclusions);
+  }
+  
+  /**
+   * DEBUG: Mede a razão intensidade_sombra / intensidade_tecido
+   * Alvo: ratio entre 0.5 e 0.7
+   */
+  private debugShadowRatio(width: number, height: number, shadowInclusions: UltrasoundInclusionConfig[]): void {
+    if (!this.linearShadowMap || shadowInclusions.length === 0) return;
+    
+    const inclusion = shadowInclusions[0];
+    const inclCenterX = Math.floor((0.5 + inclusion.centerLateralPos * 0.5) * width);
+    const inclBottomY = Math.floor(((inclusion.centerDepthCm + inclusion.sizeCm.height / 2) / this.config.depth) * height);
+    
+    // ROI_shadow: coluna central, de 5% a 20% abaixo da inclusão
+    const shadowStartY = inclBottomY + Math.floor(height * 0.02);
+    const shadowEndY = Math.min(height - 1, inclBottomY + Math.floor(height * 0.15));
+    
+    // ROI_tissue: mesma faixa de profundidade, 20% à direita da inclusão
+    const tissueX = Math.min(width - 1, inclCenterX + Math.floor(width * 0.15));
+    
+    let sumShadow = 0;
+    let sumTissue = 0;
+    let count = 0;
+    
+    for (let y = shadowStartY; y <= shadowEndY; y++) {
+      const shadowVal = this.linearShadowMap[y * width + inclCenterX];
+      const tissueVal = this.linearShadowMap[y * width + tissueX];
+      sumShadow += shadowVal;
+      sumTissue += tissueVal;
+      count++;
+    }
+    
+    if (count > 0) {
+      const meanShadow = sumShadow / count;
+      const meanTissue = sumTissue / count;
+      const ratio = meanTissue > 0 ? meanShadow / meanTissue : 0;
+      
+      // Log apenas a cada ~60 frames para não poluir o console
+      if (Math.random() < 0.017) { // ~1x por segundo a 60fps
+        console.log(`[LINEAR SHADOW DEBUG] mean_shadow=${meanShadow.toFixed(3)}, mean_tissue=${meanTissue.toFixed(3)}, ratio=${ratio.toFixed(3)} (alvo: 0.5-0.7)`);
+      }
+    }
   }
   
   /**
    * Aplica um blur gaussiano 2D ao mapa de sombra para suavizar transições
-   * Foca especialmente na região de transição inclusão → sombra
+   * REDUZIDO: blur excessivo estava homogeneizando o speckle
    */
   private applyShadowMapBlur(width: number, height: number): void {
     if (!this.linearShadowMap) return;
@@ -978,11 +1027,11 @@ export class UnifiedUltrasoundEngine {
     // Criar cópia temporária para ler valores originais
     const original = new Float32Array(this.linearShadowMap);
     
-    // Parâmetros do blur - aumentados significativamente
-    const blurRadiusX = 12; // Raio horizontal maior
-    const blurRadiusY = 16; // Raio vertical ainda maior para suavizar a linha horizontal
-    const sigmaX = 5.0;
-    const sigmaY = 7.0;
+    // Parâmetros do blur - REDUZIDOS para preservar speckle
+    const blurRadiusX = 4;  // Reduzido de 12 para 4
+    const blurRadiusY = 6;  // Reduzido de 16 para 6
+    const sigmaX = 2.0;     // Reduzido de 5.0 para 2.0
+    const sigmaY = 3.0;     // Reduzido de 7.0 para 3.0
     
     // Pré-computar pesos Gaussianos horizontais
     const weightsX: number[] = [];
