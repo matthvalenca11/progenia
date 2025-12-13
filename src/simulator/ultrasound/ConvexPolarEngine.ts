@@ -411,7 +411,11 @@ export class ConvexPolarEngine {
         const beamNoise = 1.0 + (this.noise(thetaIdx * 17 + 42) - 0.5) * 0.12;
         const alpha = baseAlpha * beamNoise;
         
-        // ═══ APPLY ATTENUATION STARTING EXACTLY AT z_exit (NO GAP) ═══
+        // ═══ APPLY ATTENUATION WITH SMOOTH TRANSITION AT SHADOW START ═══
+        // Problem: Hard shadow start creates a visible horizontal line
+        // Solution: Apply gradual "fade-in" over the first portion of shadow
+        const TRANSITION_DEPTH_CM = 0.15; // Transition zone in cm
+        
         for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
           const r = (rIdx / numDepthSamples) * maxDepthCm;
           
@@ -419,12 +423,24 @@ export class ConvexPolarEngine {
           
           const posteriorDepth = r - z_exit;
           const attenuation = Math.exp(-alpha * posteriorDepth);
-          // Use unified SHADOW_STRENGTH with edge softness - NO TEXTURE (pure geometry)
+          
+          // Softer shadow with edge softness
           const rawShadow = 1.0 - SHADOW_STRENGTH * edgeFactor * (1.0 - attenuation);
           const shadowFactor = Math.max(SHADOW_MIN_INTENSITY, rawShadow);
           
+          // ═══ SMOOTH TRANSITION: Blend shadow gradually at the start ═══
+          let transitionBlend = 1.0;
+          if (posteriorDepth < TRANSITION_DEPTH_CM) {
+            // Smooth sigmoid-like transition from 0 to 1 over TRANSITION_DEPTH_CM
+            const t = posteriorDepth / TRANSITION_DEPTH_CM;
+            transitionBlend = t * t * (3 - 2 * t); // smoothstep function
+          }
+          
+          // Apply transitioned shadow: lerp(1.0, shadowFactor, transitionBlend)
+          const finalShadow = 1.0 * (1 - transitionBlend) + shadowFactor * transitionBlend;
+          
           const idx = rIdx * numAngleSamples + thetaIdx;
-          this.shadowMap[idx] = Math.min(this.shadowMap[idx], shadowFactor);
+          this.shadowMap[idx] = Math.min(this.shadowMap[idx], finalShadow);
         }
       }
     }
