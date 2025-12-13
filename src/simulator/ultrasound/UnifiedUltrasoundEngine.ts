@@ -726,24 +726,39 @@ export class UnifiedUltrasoundEngine {
   
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * LINEAR SHADOW - FUNÇÃO 1D COM REFERÊNCIA DE TECIDO VIZINHO
+   * LINEAR SHADOW - CURVA ALVO IDÊNTICA AO CONVEXO
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * Aplica sombra acústica em uma coluna 1D (modo linear) COM VARIAÇÃO POR PIXEL.
-   * Usa coluna vizinha como referência + ruído orgânico para evitar blocos horizontais.
+   * DIAGNÓSTICO CONVEXO vs LINEAR:
+   * ──────────────────────────────────────────────────────────────────────────────
+   * CONVEXO usa:
+   *   - SHADOW_STRENGTH = 0.60 (60% de redução MÁXIMA)
+   *   - SHADOW_MIN_INTENSITY = 0.18
+   *   - rawShadow = 1.0 - SHADOW_STRENGTH * edgeFactor * (1.0 - attenuation)
+   *   - Resultado: sombra entre 0.40 e 1.0 (nunca abaixo de 40% do tecido)
    * 
-   * CRÍTICO: A sombra varia por PIXEL, não por LINHA!
-   * Cada shadowColumn[z] recebe valor único baseado em:
-   * - Profundidade relativa (dz)
-   * - Ruído orgânico per-pixel
-   * - Blending suave no início
+   * LINEAR ANTES usava:
+   *   - expAtten = Math.exp(-alpha * dz * depthScale)
+   *   - targetAtten = Math.max(minIntensity, expAtten)
+   *   - Problema: expAtten caía muito rápido → sombra muito escura (0.1-0.2)
+   * 
+   * CORREÇÃO: Usar MESMA fórmula do Convexo!
+   *   - SHADOW_STRENGTH = 0.55 (55% de redução máxima → sombra mínima = 45%)
+   *   - rawShadow = 1.0 - SHADOW_STRENGTH * (1.0 - expAtten)
+   *   - expAtten agora é só modulador, não atenuador direto
+   * ──────────────────────────────────────────────────────────────────────────────
+   * 
+   * CURVA ALVO DE CONTRASTE (mesmo que Convexo):
+   * - início (0–5 mm): 20–30% mais escuro que o tecido
+   * - meio  (5–20 mm): 40–55% mais escuro que o tecido
+   * - fundo (>20 mm): 50–55% mais escuro, mas NUNCA preto
    */
   private applyLinearShadowColumnWithReference(
     shadowColumn: Float32Array,
     insideMask: boolean[],
     referenceColumn: Float32Array | null,
     depthScale: number,
-    columnX: number = 0  // ← NOVO: posição X da coluna para variação 2D
+    columnX: number = 0
   ): void {
     const n = shadowColumn.length;
     let exitIndex = -1;
@@ -755,49 +770,53 @@ export class UnifiedUltrasoundEngine {
       }
     }
     
-    if (exitIndex < 0) return; // Feixe não atingiu inclusão
+    if (exitIndex < 0) return;
 
-    // 2) Parâmetros de contraste realista - MAIS SUAVES para parecer com Convexo
-    const alphaBase = 0.08;     // Atenuação exponencial mais suave
-    const minIntensity = 0.35;  // Nunca menos que 35% (preserva speckle)
-    const fadeDepth = 10;       // Pixels de transição suave no início
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // PARÂMETROS IDÊNTICOS AO CONVEXO - para consistência visual entre modos
+    // ═══════════════════════════════════════════════════════════════════════════════
+    const SHADOW_STRENGTH = 0.55;       // Mesmo que Convexo: escurece no máx 55%
+    const SHADOW_MIN_INTENSITY = 0.40;  // Mínimo 40% para preservar speckle (mais alto que Convexo para Linear)
+    const TRANSITION_DEPTH_PIXELS = 12; // Zona de transição suave (em pixels)
+    const ALPHA_BASE = 0.35;            // Taxa de atenuação exponencial (similar ao Convexo 0.40)
     
-    // 3) Aplicar sombra com VARIAÇÃO POR PIXEL (não por linha!)
+    // 2) Aplicar sombra com VARIAÇÃO POR PIXEL
     for (let z = exitIndex + 1; z < n; z++) {
-      const dz = z - exitIndex; // Distância em pixels do ponto de saída
+      const dz = z - exitIndex; // Distância em pixels
+      const dzCm = dz * depthScale * 0.5; // Converter para cm aproximado
       
-      // ═══ RUÍDO POR PIXEL - Cada (x,z) tem variação única ═══
+      // ═══ RUÍDO POR PIXEL - variação orgânica ═══
       const pixelSeed = columnX * 7919 + z * 104729;
-      const noise1 = this.hashNoise(pixelSeed);
-      const noise2 = this.hashNoise(pixelSeed + 12345);
-      const organicNoise = 0.85 + 0.3 * (noise1 - 0.5) + 0.2 * (noise2 - 0.5); // 0.7 - 1.15
+      const beamNoise = 1.0 + (this.hashNoise(pixelSeed) - 0.5) * 0.12; // ±6% variação
+      const alpha = ALPHA_BASE * beamNoise;
       
-      // ═══ ATENUAÇÃO EXPONENCIAL com variação ═══
-      const alphaWithNoise = alphaBase * organicNoise;
-      const expAtten = Math.exp(-alphaWithNoise * dz * depthScale);
+      // ═══ ATENUAÇÃO EXPONENCIAL SUAVE ═══
+      const attenuation = Math.exp(-alpha * dzCm);
       
-      // ═══ BLENDING SUAVE no início da sombra ═══
-      // t vai de 0 (logo após inclusão) até 1 (após fadeDepth pixels)
-      const t = Math.min(dz / fadeDepth, 1.0);
-      // Smoothstep para transição ainda mais suave
-      const smoothT = t * t * (3.0 - 2.0 * t);
-      
-      // ═══ VALOR ALVO da sombra (nunca zera o speckle) ═══
-      const targetAtten = Math.max(minIntensity, expAtten);
-      
-      // ═══ LERP entre sem-sombra (1.0) e sombra (targetAtten) ═══
-      // No início (smoothT≈0) → praticamente sem sombra
-      // Depois (smoothT=1) → sombra completa
-      const finalAtten = this.lerp(1.0, targetAtten, smoothT);
-      
-      // Referência do tecido vizinho (se disponível)
-      const I_ref = referenceColumn ? referenceColumn[z] : 1.0;
-      
-      // Aplicar atenuação relativa à referência
-      shadowColumn[z] *= finalAtten * I_ref;
+      // ═══ FÓRMULA IDÊNTICA AO CONVEXO ═══
+      // rawShadow = 1.0 - SHADOW_STRENGTH * (1.0 - attenuation)
+      // Quando attenuation=1 (perto da inclusão) → rawShadow=1.0 (sem sombra)
+      // Quando attenuation=0 (muito longe) → rawShadow=0.45 (sombra máxima)
+      const rawShadow = 1.0 - SHADOW_STRENGTH * (1.0 - attenuation);
       
       // Garantir mínimo para preservar speckle
-      shadowColumn[z] = Math.max(shadowColumn[z], minIntensity);
+      const shadowFactor = Math.max(SHADOW_MIN_INTENSITY, rawShadow);
+      
+      // ═══ TRANSIÇÃO SUAVE NO INÍCIO DA SOMBRA (smoothstep) ═══
+      let transitionBlend = 1.0;
+      if (dz < TRANSITION_DEPTH_PIXELS) {
+        const t = dz / TRANSITION_DEPTH_PIXELS;
+        transitionBlend = t * t * (3.0 - 2.0 * t); // smoothstep
+      }
+      
+      // Lerp entre sem-sombra (1.0) e sombra (shadowFactor)
+      const finalShadow = this.lerp(1.0, shadowFactor, transitionBlend);
+      
+      // Referência do tecido vizinho
+      const I_ref = referenceColumn ? referenceColumn[z] : 1.0;
+      
+      // Aplicar atenuação relativa
+      shadowColumn[z] *= finalShadow * I_ref;
     }
   }
   
