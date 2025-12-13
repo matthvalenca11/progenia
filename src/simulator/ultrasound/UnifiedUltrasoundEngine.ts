@@ -914,13 +914,53 @@ export class UnifiedUltrasoundEngine {
     const tissueTremor = Math.sin(x * 0.02 + this.time * 5) * Math.cos(y * 0.015 + this.time * 4) * 0.003;
     depth += tissueTremor;
     
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // CORRECT PIPELINE ORDER:
+    // 1. Base intensity (clean, no noise)
+    // 2. Physical effects (attenuation, TGC, focal gain)
+    // 3. SHADOW (applied to clean image, geometry-based only)
+    // 4. SPECKLE (applied last, multiplicative noise)
+    // ═══════════════════════════════════════════════════════════════════════════════
+    
     // 1. Get tissue properties at this location
     const tissue = this.getTissueAtPosition(depth, lateral);
     
-    // 2. Base echogenicity
+    // 2. Base echogenicity (CLEAN - no noise)
     let intensity = this.getBaseEchogenicity(tissue.echogenicity);
     
-    // 3. Realistic speckle with flow motion for blood
+    // 3. Frequency-dependent attenuation
+    const attenuation = this.calculateAttenuation(depth, tissue);
+    intensity *= attenuation;
+    
+    // 4. Focal zone enhancement
+    const focalGain = this.calculateFocalGain(depth);
+    intensity *= focalGain;
+    
+    // 5. Time Gain Compensation (TGC)
+    const tgc = this.getTGC(depth);
+    intensity *= tgc;
+    
+    // 6. Interface reflections
+    const reflection = this.calculateInterfaceReflection(depth, lateral);
+    intensity += reflection;
+    
+    // 7. Beam geometry
+    const beamFalloff = this.calculateBeamFalloff(depth, lateral);
+    intensity *= beamFalloff;
+    
+    // 8. ═══ SHADOW - Applied BEFORE speckle, uses pre-computed clean mask ═══
+    // Shadow mask is geometry-based only (no noise dependency)
+    const inclusionEffect = this.calculateInclusionEffects(x, y, depth, lateral, tissue);
+    intensity *= inclusionEffect.attenuationFactor;
+    intensity += inclusionEffect.reflection;
+    
+    // 9. Artifacts (before speckle)
+    if (this.config.enableReverberation) {
+      intensity += this.calculateReverberation(depth) * 0.15;
+    }
+    
+    // 10. ═══ SPECKLE - Applied LAST, multiplicative noise ═══
+    // Speckle is applied to the already-shadowed image
     if (this.config.enableSpeckle) {
       const speckleIdx = y * this.canvas.width + x;
       const rayleigh = Math.abs(this.rayleighCache[speckleIdx % this.rayleighCache.length]);
@@ -932,67 +972,29 @@ export class UnifiedUltrasoundEngine {
       // Check if we're in blood vessel for flow simulation
       let flowOffset = 0;
       if (tissue.isInclusion && tissue.inclusion?.mediumInsideId === 'blood') {
-        // REDESIGNED: Actual speckle displacement (flow simulation)
-        const inclLateral = tissue.inclusion.centerLateralPos * 2.5; // 5cm field: -2.5 to +2.5
+        const inclLateral = tissue.inclusion.centerLateralPos * 2.5;
         const dx = lateral - inclLateral;
         const dy = depth - tissue.inclusion.centerDepthCm;
         const radialPos = Math.sqrt(dx * dx + dy * dy) / (tissue.inclusion.sizeCm.width / 2);
-        
-        // Parabolic flow profile (laminar flow - faster in center)
         const flowSpeed = (1 - radialPos * radialPos) * 0.8;
-        
-        // Flow direction creates phase shift in noise pattern
         const flowPhase = this.time * flowSpeed * 25;
         flowOffset = Math.sin(flowPhase + depth * 8 + lateral * 6) * 0.3;
-        
-        // Pulsatile modulation (arterial pulse)
         const heartRate = 1.2;
         const pulse = 0.5 + 0.5 * Math.sin(this.time * heartRate * 2 * Math.PI);
         flowOffset *= pulse;
       }
       
-      // ═══ ENHANCED SPECKLE - More realistic ultrasound texture ═══
-      // Increased variance for grainier appearance
-      const speckleVariance = 1.4; // Multiplier for more granular texture
-      const fineNoise = Math.sin(x * 0.8 + y * 0.6 + this.time * 3) * 0.12; // Fine grain
-      const microNoise = Math.cos(x * 1.5 - y * 1.2) * 0.08; // Micro texture
+      // Enhanced speckle texture
+      const speckleVariance = 1.4;
+      const fineNoise = Math.sin(x * 0.8 + y * 0.6 + this.time * 3) * 0.12;
+      const microNoise = Math.cos(x * 1.5 - y * 1.2) * 0.08;
       
       const baseSpeckle = (rayleigh * 0.45 + (perlin * 0.5 + 0.5) * 0.55) * depthFactor;
       const enhancedSpeckle = baseSpeckle * speckleVariance + fineNoise + microNoise;
       
-      // Combine with wider variance (0.25 to 1.0 range instead of 0.4 to 1.0)
+      // Multiplicative speckle on already-shadowed image
       intensity *= (0.25 + (enhancedSpeckle + flowOffset) * 0.75);
     }
-    
-    // 4. Frequency-dependent attenuation
-    const attenuation = this.calculateAttenuation(depth, tissue);
-    intensity *= attenuation;
-    
-    // 5. Focal zone enhancement
-    const focalGain = this.calculateFocalGain(depth);
-    intensity *= focalGain;
-    
-    // 6. Time Gain Compensation (TGC)
-    const tgc = this.getTGC(depth);
-    intensity *= tgc;
-    
-    // 7. Interface reflections
-    const reflection = this.calculateInterfaceReflection(depth, lateral);
-    intensity += reflection;
-    
-    // 8. Inclusion effects (uses pre-computed shadow map for Linear)
-    const inclusionEffect = this.calculateInclusionEffects(x, y, depth, lateral, tissue);
-    intensity *= inclusionEffect.attenuationFactor;
-    intensity += inclusionEffect.reflection;
-    
-    // 9. Artifacts
-    if (this.config.enableReverberation) {
-      intensity += this.calculateReverberation(depth) * 0.15;
-    }
-    
-    // 10. Beam geometry
-    const beamFalloff = this.calculateBeamFalloff(depth, lateral);
-    intensity *= beamFalloff;
     
     return intensity;
   }

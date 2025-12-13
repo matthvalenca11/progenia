@@ -144,30 +144,21 @@ export class ConvexPolarEngine {
         const pixelX = Math.floor((theta / (2 * halfFOVRad) + 0.5) * this.config.canvasWidth);
         const pixelY = Math.floor((r / maxDepthCm) * this.config.canvasHeight);
         
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // CORRECT PIPELINE ORDER:
+        // 1. Base intensity (clean, no noise)
+        // 2. Physical effects (attenuation, TGC, focal gain)
+        // 3. SHADOW (applied to clean image, geometry-based only)
+        // 4. SPECKLE (applied last, multiplicative noise)
+        // ═══════════════════════════════════════════════════════════════════════════════
+        
         // ═══ 1. OBTER TECIDO EM (r, θ) COM MOTION ═══
         const tissue = this.getTissueAtPolar(rWithMotion, thetaWithMotion);
         
-        // ═══ 2. ECHOGENICIDADE BASE (motor unificado) ═══
+        // ═══ 2. ECHOGENICIDADE BASE (LIMPA - sem ruído) ═══
         let intensity = this.physicsCore.getBaseEchogenicity(tissue.echogenicity);
         
-        // ═══ 3. ENHANCED SPECKLE - More realistic ultrasound texture ═══
-        const speckleMultiplier = this.physicsCore.multiOctaveNoisePolar(r, theta, 4);
-        
-        // Enhanced fine-grain noise for more realistic texture
-        const fineNoise = Math.sin(pixelX * 0.8 + pixelY * 0.6 + this.time * 3) * 0.10;
-        const microNoise = Math.cos(pixelX * 1.3 - pixelY * 1.1) * 0.06;
-        
-        // Escala de speckle baseada na echogenicidade
-        const speckleScale = tissue.echogenicity === "anechoic" ? 0.1 : 
-                            tissue.echogenicity === "hypoechoic" ? 0.5 :
-                            tissue.echogenicity === "isoechoic" ? 0.7 :
-                            0.9;
-        
-        // Increased variance (1.3x) for grainier appearance
-        const enhancedSpeckle = speckleMultiplier * speckleScale * 1.3 + fineNoise + microNoise;
-        intensity *= (0.28 + enhancedSpeckle * 0.72);
-        
-        // ═══ 4. ATENUAÇÃO (motor unificado) ═══
+        // ═══ 3. ATENUAÇÃO (motor unificado) ═══
         const tissueProps: TissueProperties = {
           echogenicity: tissue.echogenicity,
           attenuation: tissue.attenuation,
@@ -182,32 +173,45 @@ export class ConvexPolarEngine {
         const attenuation = this.physicsCore.calculateAttenuation(r, tissueProps, frequency);
         intensity *= attenuation;
         
-        // ═══ 5. GANHO FOCAL (motor unificado) ═══
+        // ═══ 4. GANHO FOCAL (motor unificado) ═══
         const focalGain = this.physicsCore.calculateFocalGain(r, physicsConfig.focus);
         intensity *= focalGain;
         
-        // ═══ 6. TGC (motor unificado) ═══
+        // ═══ 5. TGC (motor unificado) ═══
         const tgc = this.physicsCore.calculateTGC(r, maxDepthCm);
         intensity *= tgc;
         
-        // ═══ 7. APLICAR SOMBRA ACÚSTICA COM MESMO MOTION ═══
-        // O shadowMap está em coordenadas "mundo" (sem motion).
-        // Para sincronizar, consultamos usando as coordenadas COM motion.
+        // ═══ 6. APLICAR SOMBRA ACÚSTICA - ANTES DO SPECKLE ═══
+        // Shadow mask é baseado apenas em geometria (sem dependência de ruído)
         const rIdxWithMotion = Math.floor((rWithMotion / maxDepthCm) * numDepthSamples);
         const thetaIdxWithMotion = Math.floor(((thetaWithMotion / halfFOVRad) + 1) * 0.5 * numAngleSamples);
         
-        // Clamp to valid indices
         const clampedRIdx = Math.max(0, Math.min(numDepthSamples - 1, rIdxWithMotion));
         const clampedThetaIdx = Math.max(0, Math.min(numAngleSamples - 1, thetaIdxWithMotion));
         const shadowIdx = clampedRIdx * numAngleSamples + clampedThetaIdx;
         
         intensity *= this.shadowMap[shadowIdx];
         
-        // ═══ 8. REALCE POSTERIOR (se aplicável) ═══
+        // ═══ 7. REALCE POSTERIOR (se aplicável) ═══
         if (tissue.posteriorEnhancement) {
           const enhancementFactor = 1.2 + (r / maxDepthCm) * 0.4;
           intensity *= enhancementFactor;
         }
+        
+        // ═══ 8. SPECKLE - APLICADO POR ÚLTIMO (ruído multiplicativo) ═══
+        // Speckle é aplicado na imagem já com sombra
+        const speckleMultiplier = this.physicsCore.multiOctaveNoisePolar(r, theta, 4);
+        
+        const fineNoise = Math.sin(pixelX * 0.8 + pixelY * 0.6 + this.time * 3) * 0.10;
+        const microNoise = Math.cos(pixelX * 1.3 - pixelY * 1.1) * 0.06;
+        
+        const speckleScale = tissue.echogenicity === "anechoic" ? 0.1 : 
+                            tissue.echogenicity === "hypoechoic" ? 0.5 :
+                            tissue.echogenicity === "isoechoic" ? 0.7 :
+                            0.9;
+        
+        const enhancedSpeckle = speckleMultiplier * speckleScale * 1.3 + fineNoise + microNoise;
+        intensity *= (0.28 + enhancedSpeckle * 0.72);
         
         // ═══ 9. APLICAR GANHO E COMPRESSÃO (motor unificado) ═══
         intensity = this.physicsCore.applyGainAndCompression(intensity, gain, 60);
