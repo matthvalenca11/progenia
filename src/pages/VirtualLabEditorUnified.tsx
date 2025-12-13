@@ -205,82 +205,126 @@ export default function VirtualLabEditorUnified() {
           </Button>
         </div>
 
-        {/* Basic Info */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Informações Básicas</CardTitle>
-            <CardDescription>Dados gerais do laboratório</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="name">Nome do Laboratório *</Label>
-                <Input
-                  id="name"
-                  value={lab.name}
-                  onChange={(e) => setLab({ ...lab, name: e.target.value })}
-                  placeholder="Ex: Simulador de TENS Interativo"
-                />
-              </div>
+        {/* Lab Type Selector + Video in grid for ultrasound (since UltrasoundLabBuilder has its own BasicInfo) */}
+        {lab.lab_type === "ultrasound" ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Lab Type Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Tipo de Laboratório</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Select
+                  value={lab.lab_type}
+                  onValueChange={handleLabTypeChange}
+                  disabled={isEdit}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ultrasound">Ultrassom</SelectItem>
+                    <SelectItem value="tens">TENS (Estimulação Elétrica Transcutânea)</SelectItem>
+                    <SelectItem value="electrotherapy">Eletroterapia (Outros)</SelectItem>
+                    <SelectItem value="thermal">Terapias Térmicas</SelectItem>
+                    <SelectItem value="other">Outro</SelectItem>
+                  </SelectContent>
+                </Select>
+                {isEdit && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    O tipo não pode ser alterado após criar o laboratório
+                  </p>
+                )}
+              </CardContent>
+            </Card>
 
-              <div>
-                <Label htmlFor="slug">Slug (URL) *</Label>
-                <Input
-                  id="slug"
-                  value={lab.slug}
-                  onChange={(e) => setLab({ ...lab, slug: e.target.value })}
-                  placeholder="Ex: tens-interativo"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Será gerado automaticamente se deixar vazio
-                </p>
-              </div>
-            </div>
+            {/* Video Uploader - Compact */}
+            <LabVideoUploader
+              videoUrl={videoUrl}
+              onVideoChange={setVideoUrl}
+              disabled={loading}
+            />
+          </div>
+        ) : (
+          <>
+            {/* Basic Info for non-ultrasound labs */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Informações Básicas</CardTitle>
+                <CardDescription>Dados gerais do laboratório</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="name">Nome do Laboratório *</Label>
+                    <Input
+                      id="name"
+                      value={lab.name}
+                      onChange={(e) => setLab({ ...lab, name: e.target.value })}
+                      placeholder="Ex: Simulador de TENS Interativo"
+                    />
+                  </div>
 
-            <div>
-              <Label htmlFor="description">Descrição</Label>
-              <Textarea
-                id="description"
-                value={lab.description}
-                onChange={(e) => setLab({ ...lab, description: e.target.value })}
-                placeholder="Descrição breve do laboratório"
-                rows={3}
-              />
-            </div>
+                  <div>
+                    <Label htmlFor="slug">Slug (URL) *</Label>
+                    <Input
+                      id="slug"
+                      value={lab.slug}
+                      onChange={(e) => setLab({ ...lab, slug: e.target.value })}
+                      placeholder="Ex: tens-interativo"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Será gerado automaticamente se deixar vazio
+                    </p>
+                  </div>
+                </div>
 
-            <div>
-              <Label htmlFor="labType">Tipo de Laboratório *</Label>
-              <Select
-                value={lab.lab_type}
-                onValueChange={handleLabTypeChange}
-                disabled={isEdit} // Não permitir mudar tipo ao editar
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ultrasound">Ultrassom</SelectItem>
-                  <SelectItem value="tens">TENS (Estimulação Elétrica Transcutânea)</SelectItem>
-                  <SelectItem value="electrotherapy">Eletroterapia (Outros)</SelectItem>
-                  <SelectItem value="thermal">Terapias Térmicas</SelectItem>
-                  <SelectItem value="other">Outro</SelectItem>
-                </SelectContent>
-              </Select>
-              {isEdit && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  O tipo não pode ser alterado após criar o laboratório
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                <div>
+                  <Label htmlFor="description">Descrição</Label>
+                  <Textarea
+                    id="description"
+                    value={lab.description}
+                    onChange={(e) => setLab({ ...lab, description: e.target.value })}
+                    placeholder="Descrição breve do laboratório"
+                    rows={3}
+                  />
+                </div>
 
-        {/* Video Uploader - Available for ALL lab types */}
-        <LabVideoUploader
-          videoUrl={videoUrl}
-          onVideoChange={setVideoUrl}
-          disabled={loading}
-        />
+                <div>
+                  <Label htmlFor="labType">Tipo de Laboratório *</Label>
+                  <Select
+                    value={lab.lab_type}
+                    onValueChange={handleLabTypeChange}
+                    disabled={isEdit}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ultrasound">Ultrassom</SelectItem>
+                      <SelectItem value="tens">TENS (Estimulação Elétrica Transcutânea)</SelectItem>
+                      <SelectItem value="electrotherapy">Eletroterapia (Outros)</SelectItem>
+                      <SelectItem value="thermal">Terapias Térmicas</SelectItem>
+                      <SelectItem value="other">Outro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {isEdit && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      O tipo não pode ser alterado após criar o laboratório
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Video Uploader for non-ultrasound */}
+            <LabVideoUploader
+              videoUrl={videoUrl}
+              onVideoChange={setVideoUrl}
+              disabled={loading}
+            />
+          </>
+        )}
 
         {/* Type-Specific Configuration */}
         {lab.lab_type === "ultrasound" && <UltrasoundLabBuilder />}
