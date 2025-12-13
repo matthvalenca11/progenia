@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { virtualLabService, VirtualLab, VirtualLabType } from "@/services/virtualLabService";
 import { UltrasoundLabBuilder } from "@/components/admin/ultrasound/UltrasoundLabBuilder";
 import { TensLabConfigEditor } from "@/components/admin/TensLabConfigEditor";
+import { LabVideoUploader } from "@/components/admin/LabVideoUploader";
 import { defaultTensLabConfig } from "@/types/tensLabConfig";
 import TensLabPage from "@/pages/TensLabPage";
 import { useUltrasoundLabStore } from "@/stores/ultrasoundLabStore";
@@ -21,6 +22,7 @@ export default function VirtualLabEditorUnified() {
   const isEdit = !!labId;
 
   const [loading, setLoading] = useState(false);
+  const [videoUrl, setVideoUrl] = useState<string | undefined>();
   const [lab, setLab] = useState<Partial<VirtualLab>>({
     name: "",
     slug: "",
@@ -49,6 +51,11 @@ export default function VirtualLabEditorUnified() {
       const data = await virtualLabService.getById(labId!);
       if (data) {
         setLab(data);
+        
+        // Load video URL from config_data
+        if (data.config_data?.videoUrl) {
+          setVideoUrl(data.config_data.videoUrl);
+        }
         
         // If ultrasound lab, load config into Zustand store
         if (data.lab_type === "ultrasound" && data.config_data) {
@@ -89,7 +96,7 @@ export default function VirtualLabEditorUnified() {
       const title = lab.title || lab.name;
       
       // For ultrasound labs, get config from Zustand store
-      let configData = lab.config_data;
+      let configData = lab.config_data || {};
       if (lab.lab_type === "ultrasound") {
         const storeState = ultrasoundStore;
         configData = {
@@ -108,6 +115,11 @@ export default function VirtualLabEditorUnified() {
           complexityLevel: storeState.complexityLevel,
           studentControls: storeState.studentControls,
         };
+      }
+      
+      // Add video URL to config_data (applies to ALL lab types)
+      if (videoUrl) {
+        configData = { ...configData, videoUrl };
       }
       
       const labData = {
@@ -262,6 +274,13 @@ export default function VirtualLabEditorUnified() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Video Uploader - Available for ALL lab types */}
+        <LabVideoUploader
+          videoUrl={videoUrl}
+          onVideoChange={setVideoUrl}
+          disabled={loading}
+        />
 
         {/* Type-Specific Configuration */}
         {lab.lab_type === "ultrasound" && <UltrasoundLabBuilder />}
