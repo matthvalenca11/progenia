@@ -350,11 +350,11 @@ export class ConvexPolarEngine {
       for (const inclusion of this.config.inclusions) {
         if (!inclusion.hasStrongShadow) continue;
         
-        // ═══ USE EXACT SAME GEOMETRY AS isPointInInclusionPolar ═══
+        // ═══ EXACT SAME GEOMETRY AS isPointInInclusionPolar ═══
         const inclDepth = inclusion.centerDepthCm;
         const inclLateral = inclusion.centerLateralPos;
         
-        // MUST match isPointInInclusionPolar exactly
+        // Match isPointInInclusionPolar exactly
         const maxLateralAtInclDepth = inclDepth * Math.tan(halfFOVRad);
         const inclX = inclLateral * maxLateralAtInclDepth * 2;
         const inclY = inclDepth;
@@ -363,11 +363,10 @@ export class ConvexPolarEngine {
         const halfHeight = inclusion.sizeCm.height / 2;
         
         // ═══ TRACE BEAM TO FIND EXACT INTERSECTION ═══
-        // Use PHYSICAL geometry - no beamWidthFactor distortion
-        // Shadow should match EXACT physical size of inclusion
+        // MUST use same beamWidthFactor as isPointInInclusionPolar
         let z_exit = -1;
         let wasInside = false;
-        let lastNormDist = 1.0;
+        let edgeFactor = 1.0;
         
         for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
           const r = (rIdx / numDepthSamples) * maxDepthCm;
@@ -378,39 +377,37 @@ export class ConvexPolarEngine {
           const dx = x - inclX;
           const dy = y - inclY;
           
-          // ═══ USE PHYSICAL COORDINATES - NO beamWidthFactor ═══
-          // The shadow should match the ACTUAL physical size of the inclusion
-          // beamWidthFactor is a visual distortion for rendering, not for shadow physics
+          // ═══ SAME beamWidthFactor as isPointInInclusionPolar ═══
+          const beamWidthFactor = 1.0 + (r / maxDepthCm) * 0.4;
+          const distortedDx = dx / beamWidthFactor;
           
           let isInside = false;
-          let normDist = 1.0;
           
           if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
-            const normX = dx / halfWidth;
+            const normX = distortedDx / halfWidth;
             const normY = dy / halfHeight;
-            normDist = Math.sqrt(normX * normX + normY * normY);
-            isInside = normDist <= 1.0;
-          } else {
-            isInside = Math.abs(dx) <= halfWidth && Math.abs(dy) <= halfHeight;
+            const dist = Math.sqrt(normX * normX + normY * normY);
+            isInside = dist <= 1.0;
             if (isInside) {
-              normDist = Math.max(Math.abs(dx) / halfWidth, Math.abs(dy) / halfHeight);
+              edgeFactor = Math.max(0.3, 1.0 - dist * 0.7);
+            }
+          } else {
+            isInside = Math.abs(distortedDx) <= halfWidth && Math.abs(dy) <= halfHeight;
+            if (isInside) {
+              const normDist = Math.max(Math.abs(distortedDx) / halfWidth, Math.abs(dy) / halfHeight);
+              edgeFactor = Math.max(0.3, 1.0 - normDist * 0.7);
             }
           }
           
           if (isInside) {
             wasInside = true;
             z_exit = r;
-            lastNormDist = normDist;
           } else if (wasInside && !isInside) {
             break;
           }
         }
         
         if (z_exit < 0) continue;
-        
-        // ═══ EDGE FACTOR - stronger shadow in center, weaker at edges ═══
-        // Based on how close this beam passes to the center of inclusion
-        const edgeFactor = Math.max(0.3, 1.0 - lastNormDist * 0.7);
         
         // ═══ COMPUTE ALPHA ═══
         const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
