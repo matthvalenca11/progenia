@@ -797,68 +797,79 @@ export class UnifiedUltrasoundEngine {
       const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
       const materialFactor = 1.0 + Math.min(0.3, inclusionMedium.attenuation_dB_per_cm_MHz / 15);
       
-      // ═══ FOR EACH BEAM (COLUMN): CHECK IF IT PASSES THROUGH INCLUSION ═══
+      // ═══ FOR EACH BEAM (COLUMN): USE SAME RAY-TRACING LOGIC AS CONVEX ═══
       for (let beamIdx = 0; beamIdx < numBeams; beamIdx++) {
         const physCoords = this.pixelToPhysical(beamIdx, 0);
         const beamLateralCm = physCoords.lateral;
-        const dx = beamLateralCm - inclCenterLateralCm;
         
-        // Check if beam passes through inclusion
-        if (Math.abs(dx) > halfWidth) continue;
+        // ═══ RAY-TRACE TO FIND EXACT EXIT POINT (SAME AS CONVEX) ═══
+        // Instead of using geometric formula, iterate through each sample
+        // and track when we exit the inclusion - exactly like ConvexPolarEngine
+        let z_exit_idx = -1;
+        let wasInside = false;
+        let edgeFactor = 1.0;
         
-        // ═══ FIND z_exit: EXACT EXIT POINT ═══
-        let z_exit_cm: number;
-        if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
-          const normalizedDx = dx / halfWidth;
-          const exitOffset = halfHeight * Math.sqrt(Math.max(0, 1 - normalizedDx * normalizedDx));
-          z_exit_cm = inclCenterDepthCm + exitOffset;
-        } else {
-          z_exit_cm = inclCenterDepthCm + halfHeight;
-        }
-        
-        // Convert z_exit to pixel index - shadow starts IMMEDIATELY after
-        let z0 = -1;
         for (let depthIdx = 0; depthIdx < numDepthSamples; depthIdx++) {
-          const depthCoords = this.pixelToPhysical(0, depthIdx);
-          if (depthCoords.depth >= z_exit_cm) {
-            z0 = depthIdx;
+          const depthCoords = this.pixelToPhysical(beamIdx, depthIdx);
+          const sampleDepthCm = depthCoords.depth;
+          
+          const dx = beamLateralCm - inclCenterLateralCm;
+          const dy = sampleDepthCm - inclCenterDepthCm;
+          
+          // Check if this sample is inside the inclusion
+          let isInside = false;
+          if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+            const normX = dx / halfWidth;
+            const normY = dy / halfHeight;
+            const distSq = normX * normX + normY * normY;
+            isInside = distSq <= 1.0;
+            // Compute edge factor for softer shadow at edges (same as Convex)
+            if (isInside) {
+              const dist = Math.sqrt(distSq);
+              edgeFactor = Math.pow(1 - dist * 0.5, 0.5);
+            }
+          } else {
+            isInside = Math.abs(dx) <= halfWidth && Math.abs(dy) <= halfHeight;
+          }
+          
+          if (isInside) {
+            wasInside = true;
+            z_exit_idx = depthIdx; // Keep updating until we exit
+          } else if (wasInside && !isInside) {
+            // We just exited the inclusion - stop here
             break;
           }
         }
-        if (z0 < 0) continue;
+        
+        // If beam never hit the inclusion, skip
+        if (z_exit_idx < 0) continue;
         
         // Per-beam noise for organic texture (breaks straight edges)
-        const beamNoise = 1.0 + (this.hashNoise(beamIdx * 17 + 42) - 0.5) * 0.20;
+        const beamNoise = 1.0 + (this.hashNoise(beamIdx * 17 + 42) - 0.5) * 0.12;
         const effectiveAlpha = SHADOW_ALPHA_BASE * materialFactor * beamNoise;
         
-        // Edge softness factor - beams near edge have weaker shadow
-        const normalizedDist = Math.abs(dx) / halfWidth;
-        const edgeSoftness = Math.pow(1 - normalizedDist, 0.6); // Softer at edges
+        // ═══ APPLY ATTENUATION STARTING AT z_exit_idx + 1 (EXACTLY LIKE CONVEX) ═══
+        // Shadow starts immediately after the last sample inside inclusion
+        const TRANSITION_DEPTH_CM = 0.15; // Same as Convex for consistency
         
-        // ═══ APPLY ATTENUATION WITH SMOOTH TRANSITION AT SHADOW START ═══
-        // Problem: Hard shadow start creates a visible horizontal line
-        // Solution: Apply gradual "fade-in" over the first few pixels of shadow
-        const TRANSITION_PIXELS = 8; // Number of pixels for smooth transition
-        
-        for (let depthIdx = z0; depthIdx < numDepthSamples; depthIdx++) {
-          const dz = depthIdx - z0;
-          const attenuation = Math.exp(-effectiveAlpha * dz);
+        for (let depthIdx = z_exit_idx + 1; depthIdx < numDepthSamples; depthIdx++) {
+          const depthCoords = this.pixelToPhysical(beamIdx, depthIdx);
+          const exitCoords = this.pixelToPhysical(beamIdx, z_exit_idx);
+          const posteriorDepth = depthCoords.depth - exitCoords.depth;
           
-          // Softer shadow with edge falloff
-          const rawShadow = 1.0 - SHADOW_STRENGTH * edgeSoftness * (1.0 - attenuation);
+          const attenuation = Math.exp(-effectiveAlpha * posteriorDepth);
+          
+          // Softer shadow with edge falloff (same formula as Convex)
+          const rawShadow = 1.0 - SHADOW_STRENGTH * edgeFactor * (1.0 - attenuation);
           const clampedShadow = Math.max(SHADOW_MIN_INTENSITY, rawShadow);
           
-          // ═══ SMOOTH TRANSITION: Blend shadow gradually at the start ═══
-          // Instead of hard shadow at z0, gradually increase shadow strength
-          // This eliminates the horizontal line artifact
+          // ═══ SMOOTH TRANSITION (SAME AS CONVEX) ═══
           let transitionBlend = 1.0;
-          if (dz < TRANSITION_PIXELS) {
-            // Smooth sigmoid-like transition from 0 to 1 over TRANSITION_PIXELS
-            const t = dz / TRANSITION_PIXELS;
-            transitionBlend = t * t * (3 - 2 * t); // smoothstep function
+          if (posteriorDepth < TRANSITION_DEPTH_CM) {
+            const t = posteriorDepth / TRANSITION_DEPTH_CM;
+            transitionBlend = t * t * (3 - 2 * t); // smoothstep
           }
           
-          // Apply transitioned shadow: lerp(1.0, clampedShadow, transitionBlend)
           const finalShadow = 1.0 * (1 - transitionBlend) + clampedShadow * transitionBlend;
           
           const idx = depthIdx * numBeams + beamIdx;
