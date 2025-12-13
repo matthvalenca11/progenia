@@ -1012,25 +1012,22 @@ export class UnifiedUltrasoundEngine {
   
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * PURE RAY-BASED ACOUSTIC SHADOW
+   * PURE RAY-BASED ACOUSTIC SHADOW - COMPLETE REWRITE
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * NO masks, polygons, zones, or pre-drawn shapes.
-   * Shadow emerges ONLY from per-beam exponential attenuation.
+   * ALGORITHM (exactly as real ultrasound):
+   * 1. For each beam/scanline, trace its path through space
+   * 2. If beam hits inclusion, mark z_hit = bottom edge of inclusion
+   * 3. For every point z > z_hit along THAT beam:
+   *    intensity[z] = intensity[z] * exp(-alpha * (z - z_hit))
+   * 4. Alpha varies slightly per-beam (5-10%) for natural irregularity
+   * 5. Speckle is preserved - only amplitude is reduced
    * 
-   * For each beam (scanline):
-   * 1. Detect where beam intersects inclusion (z_obj)
-   * 2. From z_obj down: intensity[z] *= exp(-alpha * (z - z_obj))
-   * 3. Preserve speckle - only reduce amplitude
+   * NO masks, NO polygons, NO gradients, NO blur, NO edge falloff.
+   * Shadow is PURELY from cumulative attenuation along individual beams.
    */
   private applyAcousticShadow(depth: number, lateral: number): number {
     if (!this.config.enableAcousticShadow) return 1.0;
-    
-    // Deterministic noise based on position (for speckle preservation)
-    const hash = (x: number, y: number, seed: number): number => {
-      const n = Math.sin(x * 127.1 + y * 311.7 + seed * 758.5) * 43758.5453;
-      return n - Math.floor(n);
-    };
     
     let shadowFactor = 1.0;
     
@@ -1040,108 +1037,96 @@ export class UnifiedUltrasoundEngine {
       // ═══ INCLUSION GEOMETRY ═══
       const inclCenterDepth = inclusion.centerDepthCm;
       const inclCenterLateral = inclusion.centerLateralPos * 2.5;
-      const inclHalfWidth = inclusion.shape === 'circle' 
+      const inclRadius = inclusion.shape === 'circle' 
         ? (inclusion.sizeCm.width + inclusion.sizeCm.height) / 4 
         : inclusion.sizeCm.width / 2;
       const inclHalfHeight = inclusion.sizeCm.height / 2;
       
-      // Bottom edge - shadow starts EXACTLY here
-      const z_obj = inclCenterDepth + inclHalfHeight;
+      // z_hit: bottom edge of inclusion - shadow starts EXACTLY here
+      const z_hit = inclCenterDepth + inclHalfHeight;
       
       // Only apply shadow BELOW the inclusion
-      if (depth <= z_obj) continue;
+      if (depth <= z_hit) continue;
       
-      // ═══ RAY-BEAM INTERSECTION CHECK ═══
-      // Check if current point's beam passes through the inclusion
+      // ═══ BEAM PATH CHECK ═══
+      // Does this beam pass through the inclusion?
       let beamHitsInclusion = false;
-      let beamCenterDistance = 0; // Distance from beam to inclusion center
       
       if (this.config.transducerType === 'linear') {
-        // LINEAR: Check if lateral position is within inclusion's lateral extent
-        // Each beam is a vertical column
+        // LINEAR: Beam is a vertical line at position 'lateral'
+        // Check if beam's lateral position intersects inclusion's lateral extent
+        
+        // Unique noise seed per beam (based on lateral position only)
+        const beamSeed = Math.floor(lateral * 1000);
+        const beamNoise = this.deterministicNoise(beamSeed) * 0.1 - 0.05; // ±5%
+        const effectiveRadius = inclRadius * (1 + beamNoise);
+        
         const lateralDist = Math.abs(lateral - inclCenterLateral);
-        
-        // Add per-beam noise to inclusion boundary (organic edges)
-        const beamNoise = (hash(lateral * 47.3, 0, 1) - 0.5) * 0.12;
-        const effectiveHalfWidth = inclHalfWidth * (1 + beamNoise);
-        
-        if (lateralDist < effectiveHalfWidth) {
-          beamHitsInclusion = true;
-          beamCenterDistance = lateralDist / effectiveHalfWidth;
-        }
+        beamHitsInclusion = lateralDist <= effectiveRadius;
         
       } else {
-        // CONVEX/MICROCONVEX: Check if angular ray passes through inclusion
+        // CONVEX/MICROCONVEX: Beam is a ray emanating from virtual apex
         const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
         
-        // Current beam angle (from virtual apex)
+        // This beam's angle (from virtual apex at -radiusOfCurvature)
         const beamAngle = Math.atan2(lateral, depth + radiusOfCurvature);
         
-        // Inclusion angular extent at its depth
+        // Inclusion's angular extent as seen from virtual apex
         const inclAngle = Math.atan2(inclCenterLateral, inclCenterDepth + radiusOfCurvature);
-        const inclLeftAngle = Math.atan2(inclCenterLateral - inclHalfWidth, inclCenterDepth + radiusOfCurvature);
-        const inclRightAngle = Math.atan2(inclCenterLateral + inclHalfWidth, inclCenterDepth + radiusOfCurvature);
-        const inclAngularHalfWidth = Math.abs(inclRightAngle - inclLeftAngle) / 2;
+        const inclAngularRadius = Math.atan(inclRadius / (inclCenterDepth + radiusOfCurvature));
         
-        // Add per-beam noise for organic edges
-        const beamNoise = (hash(beamAngle * 100, 0, 2) - 0.5) * 0.08;
-        const effectiveAngularWidth = inclAngularHalfWidth * (1 + beamNoise);
+        // Unique noise seed per beam
+        const beamSeed = Math.floor(beamAngle * 10000);
+        const beamNoise = this.deterministicNoise(beamSeed) * 0.1 - 0.05; // ±5%
+        const effectiveAngularRadius = inclAngularRadius * (1 + beamNoise);
         
         const angleDiff = Math.abs(beamAngle - inclAngle);
-        
-        if (angleDiff < effectiveAngularWidth) {
-          beamHitsInclusion = true;
-          beamCenterDistance = angleDiff / effectiveAngularWidth;
-        }
+        beamHitsInclusion = angleDiff <= effectiveAngularRadius;
       }
       
       if (!beamHitsInclusion) continue;
       
       // ═══ EXPONENTIAL ATTENUATION ═══
-      // intensity[z] *= exp(-alpha * (z - z_obj))
-      const posteriorDepth = depth - z_obj;
+      // intensity[z] = intensity[z] * exp(-alpha * (z - z_hit))
       
-      // Alpha based on inclusion acoustic properties
+      const posteriorDepth = depth - z_hit;
+      
+      // Alpha based on inclusion material (bone = high, calcification = very high)
       const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
-      const attenuationCoeff = inclusionMedium.attenuation_dB_per_cm_MHz;
+      const materialAttenuation = inclusionMedium.attenuation_dB_per_cm_MHz;
       
-      // Base alpha: 0.6 to 1.2 depending on material
-      const baseAlpha = 0.6 + Math.min(0.6, attenuationCoeff / 4);
+      // Base alpha: 0.8-1.5 range (higher = darker shadow)
+      const baseAlpha = 0.8 + Math.min(0.7, materialAttenuation / 3);
       
-      // Per-beam random variation to prevent banding (subtle)
-      const beamVariation = (hash(lateral * 31.7, depth * 0.1, 3) - 0.5) * 0.2;
-      const alpha = baseAlpha * (1 + beamVariation);
+      // Per-beam alpha variation (5-10% random)
+      const beamSeed = this.config.transducerType === 'linear' 
+        ? Math.floor(lateral * 1000)
+        : Math.floor(Math.atan2(lateral, depth) * 10000);
+      const alphaVariation = this.deterministicNoise(beamSeed + 999) * 0.1; // 0-10%
+      const alpha = baseAlpha * (1 + alphaVariation);
       
-      // Core attenuation: exponential decay with depth
-      const depthAttenuation = Math.exp(-alpha * posteriorDepth);
+      // Core formula: exponential decay
+      const attenuation = Math.exp(-alpha * posteriorDepth);
       
-      // ═══ SOFT EDGE FALLOFF (based on distance from beam center) ═══
-      // Beams near edge of inclusion get less attenuation (penumbra effect)
-      // This creates organic edges without using geometric shapes
-      const edgeFalloff = 1 - Math.pow(beamCenterDistance, 2);
+      // Shadow factor = attenuation (1.0 = no shadow, 0.0 = full shadow)
+      // Clamp to never go fully black (preserve some speckle)
+      const minValue = 0.08; // 8% minimum to keep speckle visible
+      const thisShadow = Math.max(minValue, attenuation);
       
-      // ═══ SPECKLE PRESERVATION ═══
-      // Add texture that mimics real ultrasound speckle (reduced amplitude)
-      const speckleVar1 = (hash(lateral * 89, depth * 67, 4) - 0.5) * 0.1;
-      const speckleVar2 = (hash(lateral * 41, depth * 29, 5) - 0.5) * 0.06;
-      const speckleVar3 = (hash(lateral * 17, depth * 13, 6) - 0.5) * 0.03;
-      const speckleTexture = 1 + speckleVar1 + speckleVar2 + speckleVar3;
-      
-      // ═══ FINAL SHADOW FACTOR ═══
-      // Combine: depth decay × edge falloff × speckle
-      const rawAttenuation = (1 - depthAttenuation) * edgeFalloff;
-      const maxAttenuation = 0.82; // Never fully black
-      const minIntensity = 0.15; // Preserve some signal
-      
-      const thisBeamShadow = 1 - (rawAttenuation * maxAttenuation);
-      const texturedShadow = thisBeamShadow * speckleTexture;
-      const clampedShadow = Math.max(minIntensity, Math.min(1.0, texturedShadow));
-      
-      // Use darkest shadow from all inclusions
-      shadowFactor = Math.min(shadowFactor, clampedShadow);
+      // Take darkest shadow if multiple inclusions
+      shadowFactor = Math.min(shadowFactor, thisShadow);
     }
     
     return shadowFactor;
+  }
+  
+  /**
+   * Deterministic noise function based on integer seed
+   * Returns value in [0, 1]
+   */
+  private deterministicNoise(seed: number): number {
+    const x = Math.sin(seed * 12.9898) * 43758.5453;
+    return x - Math.floor(x);
   }
   
   /**
