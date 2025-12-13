@@ -245,105 +245,111 @@ export class ConvexPolarEngine {
 
 
   /**
-   * ═══════════════════════════════════════════════════════════════════════
-   * UNIFIED ACOUSTIC SHADOW MODEL - Convex/Microconvex
-   * ═══════════════════════════════════════════════════════════════════════
-   * Physical principles:
-   * 1. Shadow starts IMMEDIATELY at inclusion bottom edge (no gap)
-   * 2. Progressive attenuation with depth
-   * 3. Organic texture with granular noise
-   * 4. Smooth Gaussian edges (no geometric artifacts)
-   * 5. Shadow follows diverging beam geometry (fan shape)
+   * ═══════════════════════════════════════════════════════════════════════════════
+   * ACOUSTIC SHADOW - SIMPLIFIED RAY-BASED MODEL (Convex/Microconvex)
+   * ═══════════════════════════════════════════════════════════════════════════════
+   * 
+   * Physical model:
+   * 1. For each angular scanline (θ), detect if it passes through an inclusion
+   * 2. Shadow starts EXACTLY at z_obj (bottom edge of inclusion) - NO GAP
+   * 3. Apply exponential attenuation: I(z) = I(z) * exp(-alpha * (z - z_obj))
+   * 4. Add slight noise variation to alpha to prevent banding
+   * 5. Shadow follows diverging fan beam geometry
    */
   private computeAcousticShadowsWithMotion(physicsConfig: PhysicsConfig) {
     if (!this.config.inclusions || this.config.inclusions.length === 0) return;
     
-    const { numDepthSamples, numAngleSamples, maxDepthCm, fovDegrees } = this.config;
+    const { numDepthSamples, numAngleSamples, maxDepthCm, fovDegrees, transducerRadiusCm } = this.config;
     const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
     
     // Process each inclusion
     for (const inclusion of this.config.inclusions) {
       if (!inclusion.hasStrongShadow) continue;
       
-      // ═══ CALCULATE INCLUSION GEOMETRY ═══
+      // ═══ INCLUSION GEOMETRY ═══
       const inclCenterDepth = inclusion.centerDepthCm;
       const inclHalfHeight = inclusion.sizeCm.height / 2;
       const inclHalfWidth = inclusion.shape === 'circle' 
         ? (inclusion.sizeCm.width + inclusion.sizeCm.height) / 4 
         : inclusion.sizeCm.width / 2;
       
-      // Bottom edge of inclusion - shadow starts EXACTLY here
-      const inclusionBottomDepth = inclCenterDepth + inclHalfHeight;
+      // Bottom edge of inclusion - shadow starts EXACTLY here (NO GAP)
+      const z_obj = inclCenterDepth + inclHalfHeight;
       
       // Calculate angular bounds of inclusion
       const inclLateralNorm = inclusion.centerLateralPos;
       const maxLateralAtDepth = inclCenterDepth * Math.tan(halfFOVRad);
       const inclCenterLateral = inclLateralNorm * maxLateralAtDepth * 2;
       
-      const inclLeftAngle = Math.atan2(inclCenterLateral - inclHalfWidth, inclCenterDepth);
-      const inclRightAngle = Math.atan2(inclCenterLateral + inclHalfWidth, inclCenterDepth);
-      const inclCenterAngle = Math.atan2(inclCenterLateral, inclCenterDepth);
-      const inclAngularHalfWidth = Math.max(0.01, (inclRightAngle - inclLeftAngle) / 2);
+      // Angle of inclusion center (from virtual apex)
+      const inclCenterAngle = Math.atan2(inclCenterLateral, inclCenterDepth + transducerRadiusCm);
+      
+      // Angular half-width of inclusion
+      const inclLeftAngle = Math.atan2(inclCenterLateral - inclHalfWidth, inclCenterDepth + transducerRadiusCm);
+      const inclRightAngle = Math.atan2(inclCenterLateral + inclHalfWidth, inclCenterDepth + transducerRadiusCm);
+      const inclAngularHalfWidth = Math.max(0.005, Math.abs(inclRightAngle - inclLeftAngle) / 2);
       
       // Medium properties affect shadow intensity
       const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
       const attenuationCoeff = inclusionMedium.attenuation_dB_per_cm_MHz;
-      const inclusionThickness = inclusion.sizeCm.height;
-      const thicknessFactor = Math.min(1, (inclusionThickness * attenuationCoeff) / 2.5);
-      const baseShadowStrength = 0.4 + thicknessFactor * 0.45;
+      const alpha = 0.8 + Math.min(1, attenuationCoeff / 3) * 0.7; // Range: 0.8 - 1.5
       
-      // Apply shadow to all points below inclusion
+      // ═══ APPLY SHADOW TO ALL POINTS BELOW INCLUSION ═══
       for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
         const r = (rIdx / numDepthSamples) * maxDepthCm;
         
         // Only apply shadow BELOW inclusion bottom
-        if (r <= inclusionBottomDepth) continue;
+        if (r <= z_obj) continue;
         
-        const posteriorDepth = r - inclusionBottomDepth;
-        
-        // Progressive attenuation with depth
-        const decayRate = 0.3 + thicknessFactor * 0.2;
-        const depthDecay = Math.exp(-posteriorDepth * decayRate);
+        const posteriorDepth = r - z_obj;
         
         for (let thetaIdx = 0; thetaIdx < numAngleSamples; thetaIdx++) {
           const theta = ((thetaIdx / numAngleSamples) * 2 - 1) * halfFOVRad;
           
-          // Check if this angle falls within shadow cone
+          // ═══ CHECK IF ANGLE IS IN SHADOW CONE ═══
           const angleDiff = Math.abs(theta - inclCenterAngle);
-          const normalizedLateralDist = angleDiff / inclAngularHalfWidth;
+          const normalizedDistFromCenter = angleDiff / inclAngularHalfWidth;
           
           // Skip if outside shadow region (core + penumbra)
-          if (normalizedLateralDist >= 1.5) continue;
+          if (normalizedDistFromCenter >= 1.3) continue;
           
           const idx = rIdx * numAngleSamples + thetaIdx;
           
-          // ═══ ORGANIC TEXTURE ═══
+          // ═══ EXPONENTIAL ATTENUATION ═══
+          // Add noise variation to alpha to prevent banding
           const x = r * Math.sin(theta);
-          const timeOffset = this.time * 0.3;
-          const noiseScale1 = 15 + this.config.frequency * 2;
-          const noiseScale2 = 8 + this.config.frequency;
+          const noiseVariation = Math.sin(x * 50 + r * 30 + this.time * 2) * 0.1;
+          const alpha_eff = alpha * (1 + noiseVariation);
           
-          const noise1 = Math.sin(posteriorDepth * noiseScale1 + x * 12 + timeOffset) * 0.025;
-          const noise2 = Math.sin(posteriorDepth * noiseScale2 + x * 8 + timeOffset * 0.7) * 0.02;
-          const noise3 = Math.sin(posteriorDepth * 4 + x * 5) * 0.015;
-          const organicNoise = (noise1 + noise2 + noise3) * (0.8 + depthDecay * 0.4);
+          // Exponential decay with depth
+          const depthAttenuation = Math.exp(-alpha_eff * posteriorDepth);
           
-          // ═══ LATERAL PROFILE (Gaussian edges) ═══
+          // ═══ LATERAL GAUSSIAN PROFILE ═══
           let lateralFactor: number;
-          if (normalizedLateralDist < 1.0) {
-            lateralFactor = Math.exp(-normalizedLateralDist * normalizedLateralDist * 0.8);
+          if (normalizedDistFromCenter < 1.0) {
+            // Core: Gaussian falloff
+            lateralFactor = Math.exp(-normalizedDistFromCenter * normalizedDistFromCenter * 1.5);
           } else {
-            const penumbraT = normalizedLateralDist - 1.0;
-            lateralFactor = Math.exp(-penumbraT * penumbraT * 3.0) * 0.4;
+            // Penumbra: rapid falloff
+            const penumbraT = (normalizedDistFromCenter - 1.0) / 0.3;
+            lateralFactor = Math.exp(-penumbraT * penumbraT * 2.0) * 0.5;
           }
           
+          // ═══ ORGANIC TEXTURE (granular noise) ═══
+          const noise1 = Math.sin(posteriorDepth * 18 + x * 15 + this.time * 0.3) * 0.03;
+          const noise2 = Math.sin(posteriorDepth * 10 + x * 8) * 0.02;
+          const noise3 = Math.sin(posteriorDepth * 5 + x * 4 + this.time * 0.2) * 0.015;
+          const organicNoise = noise1 + noise2 + noise3;
+          
           // ═══ FINAL SHADOW CALCULATION ═══
-          const shadowStrength = baseShadowStrength * lateralFactor * depthDecay + organicNoise;
+          const baseShadowStrength = 0.7 + Math.min(1, inclusion.sizeCm.height * attenuationCoeff / 2) * 0.25;
+          const shadowStrength = baseShadowStrength * lateralFactor * depthAttenuation;
           
-          // Apply attenuation
-          const minIntensity = 0.05 + (1 - thicknessFactor) * 0.08;
-          const shadowMultiplier = minIntensity + (1 - minIntensity) * (1 - Math.min(1, shadowStrength));
+          // Minimum intensity (never pure black)
+          const minIntensity = 0.08;
+          const shadowMultiplier = minIntensity + (1 - minIntensity) * (1 - Math.min(1, shadowStrength + organicNoise));
           
+          // Apply to shadow map (take darkest shadow)
           this.shadowMap[idx] = Math.min(this.shadowMap[idx], shadowMultiplier);
         }
       }
