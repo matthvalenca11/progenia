@@ -771,10 +771,10 @@ export class UnifiedUltrasoundEngine {
     const numBeams = width;
     const numDepthSamples = height;
     
-    // ═══ PHYSICAL MODEL PARAMETERS ═══
-    const alpha = 0.018;          // Axial attenuation rate
-    const shadowStrength = 0.88;  // Maximum shadow intensity
-    const lateralSmoothSigma = 3.0; // Sigma for lateral smoothing (in pixels)
+    // ═══ PHYSICAL MODEL PARAMETERS - SOFTER, MORE REALISTIC SHADOW ═══
+    const SHADOW_ALPHA_BASE = 0.010;   // Reduced from 0.018 for softer gradient
+    const SHADOW_STRENGTH = 0.65;      // Reduced from 0.88 for less contrast
+    const lateralSmoothSigma = 3.0;    // Sigma for lateral smoothing (in pixels)
     
     // First pass: compute raw shadow per beam (each beam that hits inclusion gets shadow)
     const rawShadowMap = new Float32Array(width * height);
@@ -844,14 +844,16 @@ export class UnifiedUltrasoundEngine {
         
         // Per-beam noise for organic texture
         const beamNoise = 1.0 + (this.hashNoise(beamIdx * 17 + 42) - 0.5) * 0.15;
-        const effectiveAlpha = alpha * materialFactor * beamNoise;
+        const effectiveAlpha = SHADOW_ALPHA_BASE * materialFactor * beamNoise;
         
-        // ═══ APPLY EXPONENTIAL ATTENUATION BELOW z_exit ═══
+        // ═══ APPLY SOFTER EXPONENTIAL ATTENUATION BELOW z_exit ═══
         for (let depthIdx = z0; depthIdx < numDepthSamples; depthIdx++) {
           const dz = depthIdx - z0;
           const attenuation = Math.exp(-effectiveAlpha * dz);
-          const shadowFactor = 1.0 - shadowStrength * (1 - attenuation);
-          const clampedShadow = Math.max(0.06, shadowFactor);
+          // Use SHADOW_STRENGTH to control max darkness (never goes to 0)
+          const shadowFactor = 1.0 - SHADOW_STRENGTH * (1.0 - attenuation);
+          // Higher minimum to preserve speckle visibility
+          const clampedShadow = Math.max(0.15, shadowFactor);
           
           const idx = depthIdx * numBeams + beamIdx;
           rawShadowMap[idx] = Math.min(rawShadowMap[idx], clampedShadow);
@@ -961,9 +963,17 @@ export class UnifiedUltrasoundEngine {
         flowOffset *= pulse;
       }
       
-      // Combine for organic texture
-      const speckle = (rayleigh * 0.35 + (perlin * 0.5 + 0.5) * 0.65) * depthFactor;
-      intensity *= (0.4 + (speckle + flowOffset) * 0.6);
+      // ═══ ENHANCED SPECKLE - More realistic ultrasound texture ═══
+      // Increased variance for grainier appearance
+      const speckleVariance = 1.4; // Multiplier for more granular texture
+      const fineNoise = Math.sin(x * 0.8 + y * 0.6 + this.time * 3) * 0.12; // Fine grain
+      const microNoise = Math.cos(x * 1.5 - y * 1.2) * 0.08; // Micro texture
+      
+      const baseSpeckle = (rayleigh * 0.45 + (perlin * 0.5 + 0.5) * 0.55) * depthFactor;
+      const enhancedSpeckle = baseSpeckle * speckleVariance + fineNoise + microNoise;
+      
+      // Combine with wider variance (0.25 to 1.0 range instead of 0.4 to 1.0)
+      intensity *= (0.25 + (enhancedSpeckle + flowOffset) * 0.75);
     }
     
     // 4. Frequency-dependent attenuation

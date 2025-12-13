@@ -150,8 +150,12 @@ export class ConvexPolarEngine {
         // ═══ 2. ECHOGENICIDADE BASE (motor unificado) ═══
         let intensity = this.physicsCore.getBaseEchogenicity(tissue.echogenicity);
         
-        // ═══ 3. SPECKLE REALISTA (motor unificado - polar) ═══
+        // ═══ 3. ENHANCED SPECKLE - More realistic ultrasound texture ═══
         const speckleMultiplier = this.physicsCore.multiOctaveNoisePolar(r, theta, 4);
+        
+        // Enhanced fine-grain noise for more realistic texture
+        const fineNoise = Math.sin(pixelX * 0.8 + pixelY * 0.6 + this.time * 3) * 0.10;
+        const microNoise = Math.cos(pixelX * 1.3 - pixelY * 1.1) * 0.06;
         
         // Escala de speckle baseada na echogenicidade
         const speckleScale = tissue.echogenicity === "anechoic" ? 0.1 : 
@@ -159,7 +163,9 @@ export class ConvexPolarEngine {
                             tissue.echogenicity === "isoechoic" ? 0.7 :
                             0.9;
         
-        intensity *= (0.4 + speckleMultiplier * speckleScale * 0.6);
+        // Increased variance (1.3x) for grainier appearance
+        const enhancedSpeckle = speckleMultiplier * speckleScale * 1.3 + fineNoise + microNoise;
+        intensity *= (0.28 + enhancedSpeckle * 0.72);
         
         // ═══ 4. ATENUAÇÃO (motor unificado) ═══
         const tissueProps: TissueProperties = {
@@ -374,13 +380,16 @@ export class ConvexPolarEngine {
         // Per-beam noise for organic edges
         const edgeNoise = this.noise(thetaIdx * 13 + 456) * 0.04 - 0.02;
         
-        // ═══ COMPUTE ALPHA ═══
+        // ═══ COMPUTE ALPHA - SOFTER SHADOW ═══
         const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
         const materialAttenuation = inclusionMedium.attenuation_dB_per_cm_MHz;
-        const baseAlpha = 0.6 + Math.min(0.8, materialAttenuation / 4);
+        // Reduced base alpha for softer gradient
+        const SHADOW_ALPHA_BASE = 0.35;  // Reduced from 0.6
+        const SHADOW_STRENGTH = 0.65;    // Max shadow intensity
+        const baseAlpha = SHADOW_ALPHA_BASE + Math.min(0.4, materialAttenuation / 6);
         const alpha = baseAlpha * (1 + alphaVariation + edgeNoise);
         
-        // ═══ APPLY ATTENUATION ALONG BEAM ═══
+        // ═══ APPLY SOFTER ATTENUATION ALONG BEAM ═══
         for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
           const r = (rIdx / numDepthSamples) * maxDepthCm;
           
@@ -388,10 +397,13 @@ export class ConvexPolarEngine {
           
           const posteriorDepth = r - z_exit;
           const attenuation = Math.exp(-alpha * posteriorDepth);
-          const shadowFactor = Math.max(MIN_INTENSITY, attenuation);
+          // Use SHADOW_STRENGTH - never goes fully black
+          const shadowFactor = 1.0 - SHADOW_STRENGTH * (1.0 - attenuation);
+          // Higher minimum for visible speckle in shadow
+          const clampedFactor = Math.max(0.15, shadowFactor);
           
           const idx = rIdx * numAngleSamples + thetaIdx;
-          this.shadowMap[idx] = Math.min(this.shadowMap[idx], shadowFactor);
+          this.shadowMap[idx] = Math.min(this.shadowMap[idx], clampedFactor);
         }
       }
     }
