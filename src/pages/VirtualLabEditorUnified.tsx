@@ -221,9 +221,6 @@ export default function VirtualLabEditorUnified() {
                 {[
                   { value: "ultrasound", label: "Ultrassom", desc: "Simulador de imagem ultrassonográfica" },
                   { value: "tens", label: "TENS", desc: "Estimulação Elétrica Transcutânea" },
-                  { value: "electrotherapy", label: "Eletroterapia", desc: "Outros métodos de eletroterapia" },
-                  { value: "thermal", label: "Terapias Térmicas", desc: "Simuladores de calor/frio" },
-                  { value: "other", label: "Outro", desc: "Tipo personalizado" },
                 ].map((type) => (
                   <Card 
                     key={type.value}
