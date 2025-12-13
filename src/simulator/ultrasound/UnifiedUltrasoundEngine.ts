@@ -797,24 +797,23 @@ export class UnifiedUltrasoundEngine {
       const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
       const materialFactor = 1.0 + Math.min(0.3, inclusionMedium.attenuation_dB_per_cm_MHz / 15);
       
-      // ═══ FOR EACH BEAM (COLUMN): USE SAME RAY-TRACING LOGIC AS CONVEX ═══
+      // ═══ FOR EACH BEAM (COLUMN): USE EXACT SAME LOGIC AS CONVEX ═══
       for (let beamIdx = 0; beamIdx < numBeams; beamIdx++) {
         const physCoords = this.pixelToPhysical(beamIdx, 0);
         const beamLateralCm = physCoords.lateral;
         
-        // ═══ RAY-TRACE TO FIND EXACT EXIT POINT (SAME AS CONVEX) ═══
-        // Instead of using geometric formula, iterate through each sample
-        // and track when we exit the inclusion - exactly like ConvexPolarEngine
-        let z_exit_idx = -1;
+        // ═══ RAY-TRACE TO FIND EXACT EXIT POINT ═══
+        // CRITICAL: Store z_exit in CM (not index) - SAME AS CONVEX
+        let z_exit = -1;       // ← CM, not index (like Convex)
         let wasInside = false;
         let edgeFactor = 1.0;
         
         for (let depthIdx = 0; depthIdx < numDepthSamples; depthIdx++) {
           const depthCoords = this.pixelToPhysical(beamIdx, depthIdx);
-          const sampleDepthCm = depthCoords.depth;
+          const depthCm = depthCoords.depth;  // ← depth in CM
           
           const dx = beamLateralCm - inclCenterLateralCm;
-          const dy = sampleDepthCm - inclCenterDepthCm;
+          const dy = depthCm - inclCenterDepthCm;
           
           // Check if this sample is inside the inclusion
           let isInside = false;
@@ -834,29 +833,31 @@ export class UnifiedUltrasoundEngine {
           
           if (isInside) {
             wasInside = true;
-            z_exit_idx = depthIdx; // Keep updating until we exit
+            z_exit = depthCm;  // ← Store CM value (like Convex: z_exit = r)
           } else if (wasInside && !isInside) {
-            // We just exited the inclusion - stop here
             break;
           }
         }
         
         // If beam never hit the inclusion, skip
-        if (z_exit_idx < 0) continue;
+        if (z_exit < 0) continue;
         
         // Per-beam noise for organic texture (breaks straight edges)
         const beamNoise = 1.0 + (this.hashNoise(beamIdx * 17 + 42) - 0.5) * 0.12;
         const effectiveAlpha = SHADOW_ALPHA_BASE * materialFactor * beamNoise;
         
-        // ═══ APPLY ATTENUATION STARTING AT z_exit_idx + 1 (EXACTLY LIKE CONVEX) ═══
-        // Shadow starts immediately after the last sample inside inclusion
-        const TRANSITION_DEPTH_CM = 0.15; // Same as Convex for consistency
+        // ═══ APPLY ATTENUATION - EXACT SAME PATTERN AS CONVEX ═══
+        const TRANSITION_DEPTH_CM = 0.15;
         
-        for (let depthIdx = z_exit_idx + 1; depthIdx < numDepthSamples; depthIdx++) {
+        for (let depthIdx = 0; depthIdx < numDepthSamples; depthIdx++) {
           const depthCoords = this.pixelToPhysical(beamIdx, depthIdx);
-          const exitCoords = this.pixelToPhysical(beamIdx, z_exit_idx);
-          const posteriorDepth = depthCoords.depth - exitCoords.depth;
+          const depthCm = depthCoords.depth;
           
+          // SAME comparison as Convex: if (r <= z_exit) continue;
+          if (depthCm <= z_exit) continue;
+          
+          // SAME calculation as Convex: posteriorDepth = r - z_exit;
+          const posteriorDepth = depthCm - z_exit;
           const attenuation = Math.exp(-effectiveAlpha * posteriorDepth);
           
           // Softer shadow with edge falloff (same formula as Convex)
