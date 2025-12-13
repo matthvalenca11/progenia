@@ -246,14 +246,11 @@ export class ConvexPolarEngine {
 
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * REALISTIC ACOUSTIC SHADOW - SPECKLE-PRESERVING (Convex/Microconvex)
+   * PURE RAY-BASED ACOUSTIC SHADOW (Convex/Microconvex)
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * Key improvements:
-   * 1. Shadow preserves speckle texture (reduced amplitude, not replaced)
-   * 2. Organic edges with noise-modulated boundaries
-   * 3. Gradual attenuation matching real ultrasound
-   * 4. No geometric artifacts - natural degradation
+   * NO masks, polygons, zones, or shapes.
+   * Each ray is processed independently with exponential attenuation.
    */
   private computeAcousticShadowsWithMotion(physicsConfig: PhysicsConfig) {
     if (!this.config.inclusions || this.config.inclusions.length === 0) return;
@@ -261,97 +258,94 @@ export class ConvexPolarEngine {
     const { numDepthSamples, numAngleSamples, maxDepthCm, fovDegrees, transducerRadiusCm } = this.config;
     const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
     
-    // Pseudo-random hash for organic texture
+    // Deterministic noise
     const hash = (x: number, y: number, seed: number): number => {
-      const a = Math.sin(x * 12.9898 + y * 78.233 + seed) * 43758.5453;
-      return a - Math.floor(a);
+      const n = Math.sin(x * 127.1 + y * 311.7 + seed * 758.5) * 43758.5453;
+      return n - Math.floor(n);
     };
     
-    for (const inclusion of this.config.inclusions) {
-      if (!inclusion.hasStrongShadow) continue;
+    // ═══ PROCESS EACH RAY (SCANLINE) INDEPENDENTLY ═══
+    for (let thetaIdx = 0; thetaIdx < numAngleSamples; thetaIdx++) {
+      const theta = ((thetaIdx / numAngleSamples) * 2 - 1) * halfFOVRad;
       
-      // ═══ INCLUSION GEOMETRY ═══
-      const inclCenterDepth = inclusion.centerDepthCm;
-      const inclHalfHeight = inclusion.sizeCm.height / 2;
-      const inclHalfWidth = inclusion.shape === 'circle' 
-        ? (inclusion.sizeCm.width + inclusion.sizeCm.height) / 4 
-        : inclusion.sizeCm.width / 2;
-      
-      // Bottom edge - shadow starts EXACTLY here (NO GAP)
-      const z_obj = inclCenterDepth + inclHalfHeight;
-      
-      // Angular position of inclusion
-      const inclLateralNorm = inclusion.centerLateralPos;
-      const maxLateralAtDepth = inclCenterDepth * Math.tan(halfFOVRad);
-      const inclCenterLateral = inclLateralNorm * maxLateralAtDepth * 2;
-      
-      const inclCenterAngle = Math.atan2(inclCenterLateral, inclCenterDepth + transducerRadiusCm);
-      const inclLeftAngle = Math.atan2(inclCenterLateral - inclHalfWidth, inclCenterDepth + transducerRadiusCm);
-      const inclRightAngle = Math.atan2(inclCenterLateral + inclHalfWidth, inclCenterDepth + transducerRadiusCm);
-      const inclAngularHalfWidth = Math.max(0.005, Math.abs(inclRightAngle - inclLeftAngle) / 2);
-      
-      // Medium properties
-      const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
-      const attenuationCoeff = inclusionMedium.attenuation_dB_per_cm_MHz;
-      const baseAlpha = 0.5 + Math.min(0.7, attenuationCoeff / 4);
-      
-      // ═══ APPLY SHADOW TO ALL POINTS BELOW INCLUSION ═══
-      for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
-        const r = (rIdx / numDepthSamples) * maxDepthCm;
+      // For each inclusion, check if this ray passes through it
+      for (const inclusion of this.config.inclusions) {
+        if (!inclusion.hasStrongShadow) continue;
         
-        if (r <= z_obj) continue;
+        // ═══ INCLUSION GEOMETRY ═══
+        const inclCenterDepth = inclusion.centerDepthCm;
+        const inclHalfHeight = inclusion.sizeCm.height / 2;
+        const inclHalfWidth = inclusion.shape === 'circle' 
+          ? (inclusion.sizeCm.width + inclusion.sizeCm.height) / 4 
+          : inclusion.sizeCm.width / 2;
         
-        const posteriorDepth = r - z_obj;
+        // Inclusion angular extent
+        const inclLateralNorm = inclusion.centerLateralPos;
+        const maxLateralAtDepth = inclCenterDepth * Math.tan(halfFOVRad);
+        const inclCenterLateral = inclLateralNorm * maxLateralAtDepth * 2;
         
-        for (let thetaIdx = 0; thetaIdx < numAngleSamples; thetaIdx++) {
-          const theta = ((thetaIdx / numAngleSamples) * 2 - 1) * halfFOVRad;
+        const inclCenterAngle = Math.atan2(inclCenterLateral, inclCenterDepth + transducerRadiusCm);
+        const inclLeftAngle = Math.atan2(inclCenterLateral - inclHalfWidth, inclCenterDepth + transducerRadiusCm);
+        const inclRightAngle = Math.atan2(inclCenterLateral + inclHalfWidth, inclCenterDepth + transducerRadiusCm);
+        const inclAngularHalfWidth = Math.max(0.005, Math.abs(inclRightAngle - inclLeftAngle) / 2);
+        
+        // ═══ CHECK IF THIS RAY HITS THE INCLUSION ═══
+        // Add per-ray noise for organic edge
+        const rayNoise = (hash(theta * 100, 0, 1) - 0.5) * 0.08;
+        const effectiveAngularWidth = inclAngularHalfWidth * (1 + rayNoise);
+        
+        const angleDiff = Math.abs(theta - inclCenterAngle);
+        
+        // Ray must pass through inclusion's angular extent
+        if (angleDiff >= effectiveAngularWidth) continue;
+        
+        // Distance from ray to inclusion center (normalized 0-1)
+        const rayCenterDistance = angleDiff / effectiveAngularWidth;
+        
+        // ═══ ATTENUATION PARAMETERS ═══
+        const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
+        const attenuationCoeff = inclusionMedium.attenuation_dB_per_cm_MHz;
+        const baseAlpha = 0.6 + Math.min(0.6, attenuationCoeff / 4);
+        
+        // Per-ray alpha variation
+        const rayAlphaVariation = (hash(theta * 50, 0, 2) - 0.5) * 0.2;
+        const alpha = baseAlpha * (1 + rayAlphaVariation);
+        
+        // Bottom edge - shadow starts EXACTLY here
+        const z_obj = inclCenterDepth + inclHalfHeight;
+        
+        // ═══ APPLY ATTENUATION ALONG THIS RAY ═══
+        for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
+          const r = (rIdx / numDepthSamples) * maxDepthCm;
+          
+          // Only shadow BELOW the inclusion
+          if (r <= z_obj) continue;
+          
+          const posteriorDepth = r - z_obj;
+          
+          // ═══ EXPONENTIAL ATTENUATION ═══
+          const depthAttenuation = Math.exp(-alpha * posteriorDepth);
+          
+          // Edge falloff: rays near edge get less attenuation
+          const edgeFalloff = 1 - Math.pow(rayCenterDistance, 2);
+          
+          // ═══ SPECKLE TEXTURE (preserved, reduced amplitude) ═══
           const x = r * Math.sin(theta);
-          
-          // ═══ ORGANIC EDGE VARIATION ═══
-          const edgeNoise = (hash(theta * 20, r * 3, 2) - 0.5) * 0.1;
-          const effectiveAngularWidth = inclAngularHalfWidth * (1 + edgeNoise);
-          
-          const angleDiff = Math.abs(theta - inclCenterAngle);
-          
-          // Check shadow zones
-          const inShadowCore = angleDiff < effectiveAngularWidth * 0.85;
-          const inShadowPenumbra = angleDiff < effectiveAngularWidth * 1.2;
-          
-          if (!inShadowCore && !inShadowPenumbra) continue;
-          
-          let shadowCoreStrength = 0;
-          if (inShadowCore) {
-            const normalizedDist = angleDiff / effectiveAngularWidth;
-            shadowCoreStrength = 1.0 - normalizedDist * 0.2;
-          } else {
-            const penumbraStart = effectiveAngularWidth * 0.85;
-            const penumbraEnd = effectiveAngularWidth * 1.2;
-            const t = (angleDiff - penumbraStart) / (penumbraEnd - penumbraStart);
-            shadowCoreStrength = (1 - t) * 0.8;
-          }
-          
-          // ═══ ATTENUATION WITH LOCAL VARIATION ═══
-          const alphaVariation = (hash(x * 10, r * 10, 3) - 0.5) * 0.15;
-          const alpha = baseAlpha * (1 + alphaVariation);
-          const depthDecay = Math.exp(-alpha * posteriorDepth);
-          
-          // ═══ SPECKLE-PRESERVING TEXTURE ═══
-          const speckleNoise1 = hash(x * 25, r * 25, 4) - 0.5;
-          const speckleNoise2 = hash(x * 12, r * 12, 5) - 0.5;
-          const speckleNoise3 = hash(x * 6, r * 6, 6) - 0.5;
-          const speckleTexture = speckleNoise1 * 0.08 + speckleNoise2 * 0.06 + speckleNoise3 * 0.04;
+          const speckleVar1 = (hash(x * 89, r * 67, 3) - 0.5) * 0.1;
+          const speckleVar2 = (hash(x * 41, r * 29, 4) - 0.5) * 0.06;
+          const speckleTexture = 1 + speckleVar1 + speckleVar2;
           
           // ═══ FINAL SHADOW ═══
-          const rawShadowStrength = shadowCoreStrength * depthDecay;
-          const minIntensity = 0.12;
-          const maxAttenuation = 0.85;
+          const rawAttenuation = (1 - depthAttenuation) * edgeFalloff;
+          const maxAttenuation = 0.82;
+          const minIntensity = 0.15;
           
-          const attenuationAmount = rawShadowStrength * maxAttenuation;
-          const shadowFactor = 1.0 - attenuationAmount + speckleTexture * (1 - rawShadowStrength * 0.5);
-          const clampedShadowFactor = Math.max(minIntensity, Math.min(1.0, shadowFactor));
+          const thisRayShadow = 1 - (rawAttenuation * maxAttenuation);
+          const texturedShadow = thisRayShadow * speckleTexture;
+          const clampedShadow = Math.max(minIntensity, Math.min(1.0, texturedShadow));
           
           const idx = rIdx * numAngleSamples + thetaIdx;
-          this.shadowMap[idx] = Math.min(this.shadowMap[idx], clampedShadowFactor);
+          this.shadowMap[idx] = Math.min(this.shadowMap[idx], clampedShadow);
         }
       }
     }
