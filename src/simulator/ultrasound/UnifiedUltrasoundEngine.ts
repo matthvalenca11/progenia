@@ -729,19 +729,21 @@ export class UnifiedUltrasoundEngine {
    * LINEAR SHADOW - FUNÇÃO 1D COM REFERÊNCIA DE TECIDO VIZINHO
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * Aplica sombra acústica em uma coluna 1D (modo linear).
-   * Usa coluna vizinha como referência para escurecimento relativo.
+   * Aplica sombra acústica em uma coluna 1D (modo linear) COM VARIAÇÃO POR PIXEL.
+   * Usa coluna vizinha como referência + ruído orgânico para evitar blocos horizontais.
    * 
-   * Parâmetros de contraste realista:
-   * - maxDrop: escurecimento máximo (0.6 = sombra mínima de 40% do tecido)
-   * - k: velocidade de crescimento do escurecimento
-   * - minRatio: razão mínima sombra/tecido (nunca menos que 30%)
+   * CRÍTICO: A sombra varia por PIXEL, não por LINHA!
+   * Cada shadowColumn[z] recebe valor único baseado em:
+   * - Profundidade relativa (dz)
+   * - Ruído orgânico per-pixel
+   * - Blending suave no início
    */
   private applyLinearShadowColumnWithReference(
     shadowColumn: Float32Array,
     insideMask: boolean[],
     referenceColumn: Float32Array | null,
-    depthScale: number
+    depthScale: number,
+    columnX: number = 0  // ← NOVO: posição X da coluna para variação 2D
   ): void {
     const n = shadowColumn.length;
     let exitIndex = -1;
@@ -755,82 +757,47 @@ export class UnifiedUltrasoundEngine {
     
     if (exitIndex < 0) return; // Feixe não atingiu inclusão
 
-    // 2) Parâmetros de contraste realista
-    const maxDrop = 0.55;    // Escurece no máximo 55% (sombra mínima = 45% do tecido)
-    const k = 0.6;           // Quão rápido cresce o escurecimento
-    const minRatio = 0.35;   // Nunca menos que 35% do tecido vizinho
-    const blendFactor = 0.65; // Blend para preservar speckle
+    // 2) Parâmetros de contraste realista - MAIS SUAVES para parecer com Convexo
+    const alphaBase = 0.08;     // Atenuação exponencial mais suave
+    const minIntensity = 0.35;  // Nunca menos que 35% (preserva speckle)
+    const fadeDepth = 10;       // Pixels de transição suave no início
     
-    // ═══ NOVO: Zona de transição suave na borda inferior da inclusão ═══
-    // Aplicar fade gradual nos últimos pixels DENTRO da inclusão
-    const transitionZonePixels = 8; // Quantos pixels de transição dentro da inclusão
-    
-    // Encontrar primeiro índice dentro da inclusão para esta coluna
-    let entryIndex = -1;
-    for (let z = 0; z < n; z++) {
-      if (insideMask[z]) {
-        entryIndex = z;
-        break;
-      }
-    }
-    
-    // Aplicar transição gradual nos últimos pixels da inclusão (antes de exitIndex)
-    if (entryIndex >= 0 && exitIndex > entryIndex) {
-      const inclusionHeight = exitIndex - entryIndex;
-      const actualTransitionZone = Math.min(transitionZonePixels, Math.floor(inclusionHeight * 0.4));
-      
-      for (let z = exitIndex - actualTransitionZone + 1; z <= exitIndex; z++) {
-        if (z < 0 || z >= n) continue;
-        
-        // t vai de 0 (longe da borda) até 1 (exatamente na borda inferior)
-        const distFromExit = exitIndex - z;
-        const t = 1.0 - (distFromExit / actualTransitionZone);
-        
-        // Usar smoothstep para transição ainda mais suave
-        const smoothT = t * t * (3 - 2 * t);
-        
-        // Aplicar escurecimento gradual que aumenta conforme chega na borda
-        const fadeAmount = smoothT * 0.25; // Até 25% de escurecimento na borda
-        shadowColumn[z] *= (1.0 - fadeAmount);
-      }
-    }
-
-    // 3) Aplicar sombra suave a partir de exitIndex+1 com fade-in inicial
-    const shadowFadeInPixels = 12; // Pixels para transição suave do início da sombra
-    
+    // 3) Aplicar sombra com VARIAÇÃO POR PIXEL (não por linha!)
     for (let z = exitIndex + 1; z < n; z++) {
-      // Profundidade relativa normalizada (em "unidades" de profundidade)
-      const dz = (z - exitIndex) * depthScale;
-      const pixelDepth = z - exitIndex;
+      const dz = z - exitIndex; // Distância em pixels do ponto de saída
       
-      // s(dz) vai de 0 até maxDrop, suavemente
-      // Curva saturante: começa lenta, satura em maxDrop
-      const s = maxDrop * (1.0 - Math.exp(-k * dz));
+      // ═══ RUÍDO POR PIXEL - Cada (x,z) tem variação única ═══
+      const pixelSeed = columnX * 7919 + z * 104729;
+      const noise1 = this.hashNoise(pixelSeed);
+      const noise2 = this.hashNoise(pixelSeed + 12345);
+      const organicNoise = 0.85 + 0.3 * (noise1 - 0.5) + 0.2 * (noise2 - 0.5); // 0.7 - 1.15
       
-      // Intensidade de referência (tecido vizinho sem sombra)
-      // Se não houver referência, usar o valor atual como base
+      // ═══ ATENUAÇÃO EXPONENCIAL com variação ═══
+      const alphaWithNoise = alphaBase * organicNoise;
+      const expAtten = Math.exp(-alphaWithNoise * dz * depthScale);
+      
+      // ═══ BLENDING SUAVE no início da sombra ═══
+      // t vai de 0 (logo após inclusão) até 1 (após fadeDepth pixels)
+      const t = Math.min(dz / fadeDepth, 1.0);
+      // Smoothstep para transição ainda mais suave
+      const smoothT = t * t * (3.0 - 2.0 * t);
+      
+      // ═══ VALOR ALVO da sombra (nunca zera o speckle) ═══
+      const targetAtten = Math.max(minIntensity, expAtten);
+      
+      // ═══ LERP entre sem-sombra (1.0) e sombra (targetAtten) ═══
+      // No início (smoothT≈0) → praticamente sem sombra
+      // Depois (smoothT=1) → sombra completa
+      const finalAtten = this.lerp(1.0, targetAtten, smoothT);
+      
+      // Referência do tecido vizinho (se disponível)
       const I_ref = referenceColumn ? referenceColumn[z] : 1.0;
       
-      // Intensidade alvo na sombra (nunca abaixo de minRatio * I_ref)
-      const I_target = Math.max(minRatio, 1.0 - s) * I_ref;
+      // Aplicar atenuação relativa à referência
+      shadowColumn[z] *= finalAtten * I_ref;
       
-      // Intensidade atual (vai receber o blend)
-      const I_current = shadowColumn[z];
-      
-      // ═══ NOVO: Fade-in suave no início da sombra ═══
-      // Nos primeiros pixels da sombra, fazer transição gradual
-      let effectiveBlend = blendFactor;
-      if (pixelDepth <= shadowFadeInPixels) {
-        // t vai de 0 (logo após inclusão) até 1 (após zona de transição)
-        const fadeT = pixelDepth / shadowFadeInPixels;
-        // Usar curva suave para o fade
-        const smoothFadeT = fadeT * fadeT; // Quadrática: começa bem devagar
-        effectiveBlend = blendFactor * smoothFadeT;
-      }
-      
-      // Blend suave para preservar speckle
-      // shadowColumn recebe mix entre atual e alvo
-      shadowColumn[z] = I_current * (1.0 - effectiveBlend) + I_target * effectiveBlend;
+      // Garantir mínimo para preservar speckle
+      shadowColumn[z] = Math.max(shadowColumn[z], minIntensity);
     }
   }
   
@@ -968,8 +935,8 @@ export class UnifiedUltrasoundEngine {
       // Encontrar coluna de referência (tecido vizinho sem sombra)
       const referenceColumn = this.findReferenceColumn(x, width, height, shadowInclusions);
       
-      // Aplicar sombra 1D nesta coluna com referência
-      this.applyLinearShadowColumnWithReference(shadowColumn, insideMask, referenceColumn, depthScale);
+      // Aplicar sombra 1D nesta coluna com referência + posição X para variação 2D
+      this.applyLinearShadowColumnWithReference(shadowColumn, insideMask, referenceColumn, depthScale, x);
       
       // Copiar resultado para o mapa 2D
       for (let y = 0; y < height; y++) {
