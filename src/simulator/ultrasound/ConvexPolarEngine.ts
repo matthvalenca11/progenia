@@ -363,9 +363,11 @@ export class ConvexPolarEngine {
         const halfHeight = inclusion.sizeCm.height / 2;
         
         // ═══ TRACE BEAM TO FIND EXACT INTERSECTION ═══
+        // Use PHYSICAL geometry - no beamWidthFactor distortion
+        // Shadow should match EXACT physical size of inclusion
         let z_exit = -1;
         let wasInside = false;
-        let edgeFactor = 1.0;
+        let lastNormDist = 1.0;
         
         for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
           const r = (rIdx / numDepthSamples) * maxDepthCm;
@@ -376,29 +378,29 @@ export class ConvexPolarEngine {
           const dx = x - inclX;
           const dy = y - inclY;
           
-          // ═══ MATCH EXACTLY isPointInInclusionPolar beamWidthFactor ═══
-          // beamWidthFactor distorts dx to account for beam divergence
-          // Shadow must use EXACT same factor as inclusion detection
-          const beamWidthFactor = 1.0 + (r / maxDepthCm) * 0.4;
-          const distortedDx = dx / beamWidthFactor;
+          // ═══ USE PHYSICAL COORDINATES - NO beamWidthFactor ═══
+          // The shadow should match the ACTUAL physical size of the inclusion
+          // beamWidthFactor is a visual distortion for rendering, not for shadow physics
           
           let isInside = false;
+          let normDist = 1.0;
+          
           if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
-            const normX = distortedDx / halfWidth;
+            const normX = dx / halfWidth;
             const normY = dy / halfHeight;
-            isInside = (normX * normX + normY * normY) <= 1.0;
-            // Compute edge factor for softer shadow at edges
-            if (isInside) {
-              const dist = Math.sqrt(normX * normX + normY * normY);
-              edgeFactor = Math.pow(1 - dist * 0.5, 0.5);
-            }
+            normDist = Math.sqrt(normX * normX + normY * normY);
+            isInside = normDist <= 1.0;
           } else {
-            isInside = Math.abs(distortedDx) <= halfWidth && Math.abs(dy) <= halfHeight;
+            isInside = Math.abs(dx) <= halfWidth && Math.abs(dy) <= halfHeight;
+            if (isInside) {
+              normDist = Math.max(Math.abs(dx) / halfWidth, Math.abs(dy) / halfHeight);
+            }
           }
           
           if (isInside) {
             wasInside = true;
             z_exit = r;
+            lastNormDist = normDist;
           } else if (wasInside && !isInside) {
             break;
           }
@@ -406,21 +408,9 @@ export class ConvexPolarEngine {
         
         if (z_exit < 0) continue;
         
-        // ═══ COMPUTE SHADOW WIDTH - MUST MATCH INCLUSION WIDTH ═══
-        // The shadow starts exactly at the inclusion edges and follows beam geometry
-        
-        // Get the lateral range where the beam passes through inclusion at z_exit
-        const xAtExit = z_exit * Math.sin(theta) + offsetCm;
-        const lateralDistFromIncl = xAtExit - inclX;
-        
-        // Beam width factor at exit point
-        const beamWidthAtExit = 1.0 + (z_exit / maxDepthCm) * 0.4;
-        const normalizedLateralPos = lateralDistFromIncl / beamWidthAtExit / halfWidth;
-        
-        // Edge factor - stronger shadow in center, weaker at edges
-        const absNormLat = Math.abs(normalizedLateralPos);
-        if (absNormLat > 1.0) continue; // Beam doesn't actually hit inclusion
-        edgeFactor = 1.0 - absNormLat * 0.5; // Linear falloff from center to edge
+        // ═══ EDGE FACTOR - stronger shadow in center, weaker at edges ═══
+        // Based on how close this beam passes to the center of inclusion
+        const edgeFactor = Math.max(0.3, 1.0 - lastNormDist * 0.7);
         
         // ═══ COMPUTE ALPHA ═══
         const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
