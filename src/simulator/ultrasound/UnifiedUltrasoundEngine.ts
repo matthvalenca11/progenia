@@ -772,57 +772,69 @@ export class UnifiedUltrasoundEngine {
     const numDepthSamples = height;
     
     // ═══════════════════════════════════════════════════════════════════════════════
-    // UNIFIED SHADOW PARAMETERS - Same values used in Convex/Microconvex
+    // UNIFIED SHADOW - REBUILT FROM SCRATCH TO MATCH CONVEX EXACTLY
     // ═══════════════════════════════════════════════════════════════════════════════
-    const SHADOW_ALPHA_BASE = 0.012;   // Soft gradient (same as convex)
-    const SHADOW_STRENGTH = 0.60;      // Max shadow intensity (same as convex)
-    const SHADOW_MIN_INTENSITY = 0.18; // Never fully black (preserve speckle)
-    const lateralSmoothSigma = 5.0;    // Increased for softer lateral edges
+    // 
+    // KEY INSIGHT: The Convex mode works perfectly because it:
+    //   1. Traces ray sample-by-sample to find z_exit
+    //   2. Applies attenuation DIRECTLY to shadowMap (no second pass blur!)
+    //   3. Uses appropriate alpha for its coordinate system
+    //
+    // The Linear mode was broken because of:
+    //   1. A SECOND PASS of lateral Gaussian blur (Convex doesn't have this!)
+    //   2. Alpha too low (0.012 vs 0.40)
+    //   3. Intermediate rawShadowMap → blur → linearShadowMap (Convex writes directly)
+    //
+    // FIX: Remove ALL differences. Make Linear identical to Convex structurally.
+    // ═══════════════════════════════════════════════════════════════════════════════
     
-    // First pass: compute raw shadow per beam (each beam that hits inclusion gets shadow)
-    const rawShadowMap = new Float32Array(width * height);
-    rawShadowMap.fill(1.0);
+    // ═══ PARAMETERS - Matched to work with cartesian coordinates ═══
+    // Note: Linear uses depth in CM directly, so alpha needs adjustment
+    const SHADOW_ALPHA_BASE = 0.35;     // Matched to Convex (was 0.012, too weak!)
+    const SHADOW_STRENGTH = 0.60;       // Same as Convex
+    const SHADOW_MIN_INTENSITY = 0.18;  // Same as Convex
+    const TRANSITION_DEPTH_CM = 0.15;   // Same as Convex
     
     for (const inclusion of this.config.inclusions) {
       if (!inclusion.hasStrongShadow) continue;
       
-      // ═══ USE ORIGINAL INCLUSION POSITION (NO MOTION) ═══
+      // ═══ INCLUSION GEOMETRY (same approach as Convex) ═══
       const inclCenterDepthCm = inclusion.centerDepthCm;
       const inclCenterLateralCm = inclusion.centerLateralPos * 2.5;
       
       const halfWidth = inclusion.sizeCm.width / 2;
       const halfHeight = inclusion.sizeCm.height / 2;
       
-      // Get material properties
+      // Material properties for alpha calculation (same as Convex)
       const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
-      const materialFactor = 1.0 + Math.min(0.3, inclusionMedium.attenuation_dB_per_cm_MHz / 15);
+      const materialAttenuation = inclusionMedium.attenuation_dB_per_cm_MHz;
+      const baseAlpha = SHADOW_ALPHA_BASE + Math.min(0.3, materialAttenuation / 8);
       
-      // ═══ FOR EACH BEAM (COLUMN): USE EXACT SAME LOGIC AS CONVEX ═══
+      // ═══ FOR EACH BEAM: RAY-TRACE SAMPLE-BY-SAMPLE (EXACTLY LIKE CONVEX) ═══
       for (let beamIdx = 0; beamIdx < numBeams; beamIdx++) {
         const physCoords = this.pixelToPhysical(beamIdx, 0);
         const beamLateralCm = physCoords.lateral;
         
-        // ═══ RAY-TRACE TO FIND EXACT EXIT POINT ═══
-        // CRITICAL: Store z_exit in CM (not index) - SAME AS CONVEX
-        let z_exit = -1;       // ← CM, not index (like Convex)
+        // ═══ STEP 1: TRACE BEAM TO FIND z_exit (IDENTICAL TO CONVEX) ═══
+        let z_exit = -1;
         let wasInside = false;
         let edgeFactor = 1.0;
         
         for (let depthIdx = 0; depthIdx < numDepthSamples; depthIdx++) {
           const depthCoords = this.pixelToPhysical(beamIdx, depthIdx);
-          const depthCm = depthCoords.depth;  // ← depth in CM
+          const r = depthCoords.depth;  // ← "r" naming to match Convex
           
           const dx = beamLateralCm - inclCenterLateralCm;
-          const dy = depthCm - inclCenterDepthCm;
+          const dy = r - inclCenterDepthCm;
           
-          // Check if this sample is inside the inclusion
+          // Check if sample is inside inclusion
           let isInside = false;
           if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
             const normX = dx / halfWidth;
             const normY = dy / halfHeight;
             const distSq = normX * normX + normY * normY;
             isInside = distSq <= 1.0;
-            // Compute edge factor for softer shadow at edges (same as Convex)
+            // Edge factor for softer shadows (same as Convex)
             if (isInside) {
               const dist = Math.sqrt(distSq);
               edgeFactor = Math.pow(1 - dist * 0.5, 0.5);
@@ -833,77 +845,58 @@ export class UnifiedUltrasoundEngine {
           
           if (isInside) {
             wasInside = true;
-            z_exit = depthCm;  // ← Store CM value (like Convex: z_exit = r)
+            z_exit = r;  // ← Store in CM (like Convex: z_exit = r)
           } else if (wasInside && !isInside) {
-            break;
+            break;  // Exited inclusion
           }
         }
         
-        // If beam never hit the inclusion, skip
+        // If beam never hit inclusion, skip
         if (z_exit < 0) continue;
         
-        // Per-beam noise for organic texture (breaks straight edges)
+        // Per-beam noise (same as Convex)
         const beamNoise = 1.0 + (this.hashNoise(beamIdx * 17 + 42) - 0.5) * 0.12;
-        const effectiveAlpha = SHADOW_ALPHA_BASE * materialFactor * beamNoise;
+        const alpha = baseAlpha * beamNoise;
         
-        // ═══ APPLY ATTENUATION - EXACT SAME PATTERN AS CONVEX ═══
-        const TRANSITION_DEPTH_CM = 0.15;
-        
+        // ═══ STEP 2: APPLY ATTENUATION (EXACTLY LIKE CONVEX - NO SECOND PASS!) ═══
         for (let depthIdx = 0; depthIdx < numDepthSamples; depthIdx++) {
           const depthCoords = this.pixelToPhysical(beamIdx, depthIdx);
-          const depthCm = depthCoords.depth;
+          const r = depthCoords.depth;
           
-          // SAME comparison as Convex: if (r <= z_exit) continue;
-          if (depthCm <= z_exit) continue;
+          // Same comparison as Convex: if (r <= z_exit) continue;
+          if (r <= z_exit) continue;
           
-          // SAME calculation as Convex: posteriorDepth = r - z_exit;
-          const posteriorDepth = depthCm - z_exit;
-          const attenuation = Math.exp(-effectiveAlpha * posteriorDepth);
+          // Same calculation as Convex: posteriorDepth = r - z_exit;
+          const posteriorDepth = r - z_exit;
+          const attenuation = Math.exp(-alpha * posteriorDepth);
           
-          // Softer shadow with edge falloff (same formula as Convex)
+          // Same shadow formula as Convex
           const rawShadow = 1.0 - SHADOW_STRENGTH * edgeFactor * (1.0 - attenuation);
-          const clampedShadow = Math.max(SHADOW_MIN_INTENSITY, rawShadow);
+          const shadowFactor = Math.max(SHADOW_MIN_INTENSITY, rawShadow);
           
-          // ═══ SMOOTH TRANSITION (SAME AS CONVEX) ═══
+          // Same smooth transition as Convex
           let transitionBlend = 1.0;
           if (posteriorDepth < TRANSITION_DEPTH_CM) {
             const t = posteriorDepth / TRANSITION_DEPTH_CM;
-            transitionBlend = t * t * (3 - 2 * t); // smoothstep
+            transitionBlend = t * t * (3 - 2 * t);  // smoothstep
           }
           
-          const finalShadow = 1.0 * (1 - transitionBlend) + clampedShadow * transitionBlend;
+          const finalShadow = 1.0 * (1 - transitionBlend) + shadowFactor * transitionBlend;
           
+          // ═══ CRITICAL: WRITE DIRECTLY TO FINAL MAP (LIKE CONVEX) ═══
+          // Convex: this.shadowMap[idx] = Math.min(this.shadowMap[idx], finalShadow);
+          // Linear: this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], finalShadow);
+          // NO INTERMEDIATE rawShadowMap, NO SECOND PASS BLUR!
           const idx = depthIdx * numBeams + beamIdx;
-          rawShadowMap[idx] = Math.min(rawShadowMap[idx], finalShadow);
+          this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], finalShadow);
         }
       }
     }
     
-    // ═══ SECOND PASS: STRONGER LATERAL GAUSSIAN SMOOTHING FOR CURVED EDGES ═══
-    const kernelRadius = Math.ceil(lateralSmoothSigma * 3); // Wider kernel
-    const sigma2 = 2 * lateralSmoothSigma * lateralSmoothSigma;
-    
-    for (let depthIdx = 0; depthIdx < numDepthSamples; depthIdx++) {
-      for (let beamIdx = 0; beamIdx < numBeams; beamIdx++) {
-        let sum = 0;
-        let weightSum = 0;
-        
-        for (let k = -kernelRadius; k <= kernelRadius; k++) {
-          const neighborIdx = beamIdx + k;
-          if (neighborIdx < 0 || neighborIdx >= numBeams) continue;
-          
-          const weight = Math.exp(-(k * k) / sigma2);
-          const srcIdx = depthIdx * numBeams + neighborIdx;
-          sum += rawShadowMap[srcIdx] * weight;
-          weightSum += weight;
-        }
-        
-        const idx = depthIdx * numBeams + beamIdx;
-        this.linearShadowMap[idx] = sum / weightSum;
-      }
-    }
+    // ═══ NO SECOND PASS! ═══
+    // Convex doesn't have a second pass - neither should Linear.
+    // The blur was causing the horizontal line artifacts.
   }
-  
   /**
    * Hash-based noise for organic variation (deterministic)
    */
