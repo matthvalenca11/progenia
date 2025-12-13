@@ -184,8 +184,18 @@ export class ConvexPolarEngine {
         const tgc = this.physicsCore.calculateTGC(r, maxDepthCm);
         intensity *= tgc;
         
-        // ═══ 7. APLICAR SOMBRA ACÚSTICA ═══
-        intensity *= this.shadowMap[idx];
+        // ═══ 7. APLICAR SOMBRA ACÚSTICA COM MESMO MOTION ═══
+        // O shadowMap está em coordenadas "mundo" (sem motion).
+        // Para sincronizar, consultamos usando as coordenadas COM motion.
+        const rIdxWithMotion = Math.floor((rWithMotion / maxDepthCm) * numDepthSamples);
+        const thetaIdxWithMotion = Math.floor(((thetaWithMotion / halfFOVRad) + 1) * 0.5 * numAngleSamples);
+        
+        // Clamp to valid indices
+        const clampedRIdx = Math.max(0, Math.min(numDepthSamples - 1, rIdxWithMotion));
+        const clampedThetaIdx = Math.max(0, Math.min(numAngleSamples - 1, thetaIdxWithMotion));
+        const shadowIdx = clampedRIdx * numAngleSamples + clampedThetaIdx;
+        
+        intensity *= this.shadowMap[shadowIdx];
         
         // ═══ 8. REALCE POSTERIOR (se aplicável) ═══
         if (tissue.posteriorEnhancement) {

@@ -858,8 +858,8 @@ export class UnifiedUltrasoundEngine {
   }
   
   /**
-   * Apply Gaussian smoothing in the lateral (beam/x) direction
-   * Kernel: [0.1, 0.2, 0.4, 0.2, 0.1] - creates smooth bell-curve profile
+   * Apply STRONG Gaussian smoothing in the lateral (beam/x) direction
+   * Uses larger kernel to create truly smooth bell-curve profile
    */
   private applyLateralGaussianSmoothing(
     input: Float32Array,
@@ -867,9 +867,9 @@ export class UnifiedUltrasoundEngine {
     width: number,
     height: number
   ): void {
-    // Gaussian kernel (sigma ≈ 3 pixels)
-    const kernelRadius = 4;
-    const sigma = 3.0;
+    // LARGER Gaussian kernel (sigma = 8 pixels) for very smooth edges
+    const kernelRadius = 12;
+    const sigma = 8.0;
     const kernel: number[] = [];
     let kernelSum = 0;
     
