@@ -278,6 +278,12 @@ export class ConvexPolarEngine {
     // Constants
     const MIN_INTENSITY = 0.06; // Preserve speckle
     
+    // ═══ COMPUTE CURRENT MOTION OFFSET ═══
+    // Same motion parameters as applyMotionArtifacts in physicsCore
+    const breathingCycle = Math.sin(this.time * 0.3) * 0.025;
+    const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.015;
+    const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.012;
+    
     // ═══ PROCESS EACH BEAM (ANGLE) INDEPENDENTLY ═══
     for (let thetaIdx = 0; thetaIdx < numAngleSamples; thetaIdx++) {
       // Beam angle (radians)
@@ -290,11 +296,30 @@ export class ConvexPolarEngine {
       for (const inclusion of this.config.inclusions) {
         if (!inclusion.hasStrongShadow) continue;
         
-        // ═══ CALCULATE RAY-INCLUSION INTERSECTION ═══
+        // ═══ APPLY MOTION TO INCLUSION POSITION ═══
+        // Motion amplitude scaled by depth (deeper = more motion)
+        const motionAmplitude = 2.5; // Same as used in generatePolarImageWithPhysics
+        const depthRatio = inclusion.centerDepthCm / maxDepthCm;
+        const motionDepthOffset = (breathingCycle * depthRatio + jitterDepth) * motionAmplitude;
+        const motionLateralOffset = jitterLateral * motionAmplitude;
+        
+        // Convert lateral offset to angular offset
+        const lateralCmOffset = motionLateralOffset;
+        const angularOffset = Math.atan2(lateralCmOffset, inclusion.centerDepthCm);
+        
+        // Create motion-adjusted inclusion for this frame
+        const motionAdjustedInclusion: UltrasoundInclusionConfig = {
+          ...inclusion,
+          centerDepthCm: inclusion.centerDepthCm + motionDepthOffset,
+          // Adjust lateral position (normalized) by the angular equivalent
+          centerLateralPos: inclusion.centerLateralPos + (angularOffset / halfFOVRad) * 0.5,
+        };
+        
+        // ═══ CALCULATE RAY-INCLUSION INTERSECTION WITH MOTION ═══
         const intersection = this.computeRadialRayIntersection(
           theta, 
           thetaIdx, 
-          inclusion, 
+          motionAdjustedInclusion, 
           halfFOVRad
         );
         

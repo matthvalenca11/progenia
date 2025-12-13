@@ -1018,22 +1018,48 @@ export class UnifiedUltrasoundEngine {
   /**
    * LINEAR ACOUSTIC SHADOW - Pure ray-based vertical beam model
    * 
+   * REWRITTEN v5: Now applies motion to inclusion position so shadow follows motion.
+   * 
    * Algorithm:
-   * 1. This pixel is at position (depth, lateral)
-   * 2. Trace a vertical beam at x = lateral from surface to max depth
-   * 3. Find where this beam exits any blocking inclusion
-   * 4. If depth > z_exit: apply exponential attenuation
+   * 1. Get current motion offset based on time
+   * 2. Apply motion to INCLUSION position (not just pixel coords)
+   * 3. Trace vertical beam and find intersection with motion-adjusted inclusion
+   * 4. Apply exponential attenuation with smooth falloff
+   * 
+   * Key fixes:
+   * - Shadow uses motion-adjusted inclusion position
+   * - Improved edge diffusion for natural look (not rectangular)
+   * - Gaussian lateral falloff for smooth edges
    */
   private applyLinearAcousticShadow(depth: number, lateral: number): number {
     if (!this.config.enableAcousticShadow) return 1.0;
     
     let shadowFactor = 1.0;
     
+    // ═══ COMPUTE CURRENT MOTION OFFSET ═══
+    // Same motion that's applied to pixels - we apply INVERSE to inclusion
+    const breathingCycle = Math.sin(this.time * 0.3) * 0.015;
+    const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008;
+    const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
+    
     for (const inclusion of this.config.inclusions) {
       if (!inclusion.hasStrongShadow) continue;
       
-      // Calculate exit point for this vertical beam
-      const exitResult = this.computeVerticalBeamExit(lateral, inclusion);
+      // ═══ APPLY MOTION TO INCLUSION POSITION ═══
+      // The motion moves the "camera"/probe, so the inclusion appears to move
+      // We need to compute where the inclusion appears at current time
+      const motionDepthOffset = breathingCycle * (inclusion.centerDepthCm / this.config.depth) + jitterDepth;
+      const motionLateralOffset = jitterLateral;
+      
+      // Create motion-adjusted inclusion for this frame
+      const motionAdjustedInclusion = {
+        ...inclusion,
+        centerDepthCm: inclusion.centerDepthCm + motionDepthOffset,
+        centerLateralPos: inclusion.centerLateralPos + motionLateralOffset / 2.5, // Convert cm to normalized
+      };
+      
+      // Calculate exit point for this vertical beam using motion-adjusted position
+      const exitResult = this.computeVerticalBeamExitWithMotion(lateral, motionAdjustedInclusion);
       
       if (exitResult === null) continue; // Beam doesn't hit inclusion
       
@@ -1043,22 +1069,21 @@ export class UnifiedUltrasoundEngine {
       // ═══ EXPONENTIAL ATTENUATION ═══
       const posteriorDepth = depth - exitResult.z_exit;
       
-      // Alpha based on inclusion material + per-beam variation
+      // Alpha based on inclusion material
       const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
       const materialAttenuation = inclusionMedium.attenuation_dB_per_cm_MHz;
       
-      // Base alpha: higher for denser materials (bone: ~15 dB/cm/MHz)
-      const baseAlpha = 0.6 + Math.min(0.8, materialAttenuation / 4);
+      // Base alpha: 0.5-1.2 range (softer than before for more natural look)
+      const baseAlpha = 0.5 + Math.min(0.7, materialAttenuation / 5);
       
-      // Per-beam variation (5-8%) for organic look
+      // Per-beam variation (6-10%) for organic texture
       const beamId = Math.floor(lateral * 1000);
-      const alphaVariation = this.noise(beamId * 7 + 123) * 0.08;
-      const alpha = baseAlpha * (1 + alphaVariation - 0.04);
+      const alphaVariation = this.noise(beamId * 7 + 123) * 0.10 - 0.05;
+      const alpha = baseAlpha * (1 + alphaVariation);
       
-      // ═══ LATERAL EDGE DIFFUSION ═══
-      // Beams at the edge of inclusion have partial shadow (lateral falloff)
-      const lateralFalloff = exitResult.edgeFactor;
-      const effectiveAlpha = alpha * lateralFalloff;
+      // ═══ SMOOTH LATERAL EDGE DIFFUSION ═══
+      // Use Gaussian falloff instead of linear for smoother edges
+      const effectiveAlpha = alpha * exitResult.edgeFactor;
       
       // Core formula: exponential decay
       const attenuation = Math.exp(-effectiveAlpha * posteriorDepth);
@@ -1075,61 +1100,84 @@ export class UnifiedUltrasoundEngine {
   }
   
   /**
-   * Compute where a VERTICAL beam exits an inclusion
+   * Compute where a VERTICAL beam exits an inclusion (with motion support)
    * 
-   * Returns:
-   * - z_exit: exact depth where beam exits inclusion
-   * - edgeFactor: 1.0 at center, 0.0 at edge (for diffuse edges)
+   * IMPROVED v5:
+   * - Uses Gaussian lateral falloff for smooth edges (not hard cutoff)
+   * - Better edge diffusion creates natural, non-rectangular shadow
+   * - Extends shadow slightly beyond geometric edge for realism
    */
-  private computeVerticalBeamExit(
+  private computeVerticalBeamExitWithMotion(
     beamLateral: number,
-    inclusion: UltrasoundInclusionConfig
+    inclusion: { 
+      centerDepthCm: number; 
+      centerLateralPos: number; 
+      sizeCm: { width: number; height: number };
+      shape?: string;
+    }
   ): { z_exit: number; edgeFactor: number } | null {
     
     const inclCenterDepth = inclusion.centerDepthCm;
     const inclCenterLateral = inclusion.centerLateralPos * 2.5; // 5cm field: -2.5 to +2.5
     
+    // Inclusion dimensions
+    const rx = inclusion.sizeCm.width / 2;
+    const ry = inclusion.sizeCm.height / 2;
+    
     // Distance from beam to inclusion center (lateral only)
     const dx = beamLateral - inclCenterLateral;
+    const absDx = Math.abs(dx);
     
-    // Per-beam noise for organic edges (±3%)
+    // Per-beam noise for organic variation (±4%)
     const beamId = Math.floor(beamLateral * 1000);
-    const edgeNoise = this.noise(beamId * 13 + 456) * 0.06 - 0.03;
+    const edgeNoise = this.noise(beamId * 13 + 456) * 0.08 - 0.04;
     
-    if (inclusion.shape === 'circle') {
-      const r = ((inclusion.sizeCm.width + inclusion.sizeCm.height) / 4) * (1 + edgeNoise);
-      
-      if (Math.abs(dx) > r) return null; // No intersection
-      
-      // Circle equation: x² + y² = r²
-      // Vertical beam at x = dx intersects at y = ±sqrt(r² - dx²)
-      // Exit point (bottom) is at center + sqrt(r² - dx²)
-      const dy = Math.sqrt(Math.max(0, r * r - dx * dx));
-      const z_exit = inclCenterDepth + dy;
-      
-      // Edge factor: 1 at center, 0 at edge
-      const normalizedDist = Math.abs(dx) / r;
-      const edgeFactor = Math.pow(1 - normalizedDist, 0.5); // Smooth falloff
-      
-      return { z_exit, edgeFactor };
-      
-    } else { // ellipse or rectangle
-      const rx = (inclusion.sizeCm.width / 2) * (1 + edgeNoise);
-      const ry = inclusion.sizeCm.height / 2;
-      
-      if (Math.abs(dx) > rx) return null;
-      
-      // Ellipse: (dx/rx)² + (dy/ry)² = 1
-      // dy = ry × sqrt(1 - (dx/rx)²)
-      const normalizedX = dx / rx;
-      const dy = ry * Math.sqrt(Math.max(0, 1 - normalizedX * normalizedX));
-      const z_exit = inclCenterDepth + dy;
-      
-      // Edge factor
-      const edgeFactor = Math.pow(1 - Math.abs(normalizedX), 0.5);
-      
-      return { z_exit, edgeFactor };
+    // ═══ GAUSSIAN LATERAL FALLOFF ═══
+    // Instead of hard cutoff at inclusion edge, use Gaussian that extends slightly beyond
+    // This creates soft, diffuse shadow edges instead of hard rectangles
+    
+    // Effective radius with noise
+    const effectiveRx = rx * (1 + edgeNoise);
+    
+    // For beams outside inclusion: check if within "penumbra" zone
+    // Penumbra extends 30% beyond the geometric edge
+    const penumbraZone = effectiveRx * 1.3;
+    
+    if (absDx > penumbraZone) return null; // Completely outside shadow zone
+    
+    // ═══ COMPUTE Z_EXIT ═══
+    let z_exit: number;
+    let geometricEdgeFactor: number;
+    
+    if (absDx <= effectiveRx) {
+      // Inside geometric inclusion
+      // Circle/ellipse: exit at center + sqrt(r² - dx²) or ry*sqrt(1-(dx/rx)²)
+      const normalizedX = dx / effectiveRx;
+      const dyFraction = Math.sqrt(Math.max(0, 1 - normalizedX * normalizedX));
+      z_exit = inclCenterDepth + ry * dyFraction;
+      geometricEdgeFactor = 1.0;
+    } else {
+      // In penumbra zone (outside geometric edge but within shadow falloff)
+      // Shadow starts at the closest edge of the inclusion
+      z_exit = inclCenterDepth + ry * 0.1; // Start near bottom of inclusion
+      geometricEdgeFactor = 0.5; // Reduced shadow in penumbra
     }
+    
+    // ═══ GAUSSIAN EDGE FACTOR ═══
+    // Smooth Gaussian falloff from center to edge
+    // edgeFactor = exp(-(dx/rx)² × k) where k controls falloff sharpness
+    const normalizedDist = absDx / effectiveRx;
+    const gaussianK = 1.8; // Controls edge sharpness (lower = softer)
+    const gaussianFalloff = Math.exp(-normalizedDist * normalizedDist * gaussianK);
+    
+    // Combine geometric and Gaussian factors
+    const edgeFactor = geometricEdgeFactor * gaussianFalloff;
+    
+    // Minimum edge factor to prevent fully transparent shadow at edges
+    const minEdgeFactor = 0.15;
+    const finalEdgeFactor = Math.max(minEdgeFactor, edgeFactor);
+    
+    return { z_exit, edgeFactor: finalEdgeFactor };
   }
   
   /**
