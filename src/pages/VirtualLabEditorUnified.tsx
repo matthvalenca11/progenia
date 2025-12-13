@@ -28,7 +28,7 @@ export default function VirtualLabEditorUnified() {
     slug: "",
     title: "",
     description: "",
-    lab_type: "ultrasound",
+    lab_type: undefined, // No default type - user must select
     config_data: {},
     is_published: false,
   });
@@ -209,15 +209,49 @@ export default function VirtualLabEditorUnified() {
           </Button>
         </div>
 
+        {/* Step 1: Type Selection (only for new labs without type) */}
+        {!lab.lab_type && !isEdit && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Selecione o Tipo de Laboratório</CardTitle>
+              <CardDescription>Escolha qual tipo de simulador você deseja criar</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {[
+                  { value: "ultrasound", label: "Ultrassom", desc: "Simulador de imagem ultrassonográfica" },
+                  { value: "tens", label: "TENS", desc: "Estimulação Elétrica Transcutânea" },
+                  { value: "electrotherapy", label: "Eletroterapia", desc: "Outros métodos de eletroterapia" },
+                  { value: "thermal", label: "Terapias Térmicas", desc: "Simuladores de calor/frio" },
+                  { value: "other", label: "Outro", desc: "Tipo personalizado" },
+                ].map((type) => (
+                  <Card 
+                    key={type.value}
+                    className="cursor-pointer hover:border-primary transition-colors"
+                    onClick={() => handleLabTypeChange(type.value as VirtualLabType)}
+                  >
+                    <CardContent className="p-4 text-center">
+                      <h3 className="font-semibold">{type.label}</h3>
+                      <p className="text-xs text-muted-foreground mt-1">{type.desc}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Type-Specific Configuration */}
-        {lab.lab_type === "ultrasound" ? (
+        {lab.lab_type === "ultrasound" && (
           <UltrasoundLabBuilder 
             videoUrl={videoUrl}
             onVideoChange={setVideoUrl}
           />
-        ) : (
+        )}
+
+        {/* Basic Info for non-ultrasound labs */}
+        {lab.lab_type && lab.lab_type !== "ultrasound" && (
           <>
-            {/* Basic Info for non-ultrasound labs */}
             <Card>
               <CardHeader>
                 <CardTitle>Informações Básicas</CardTitle>
@@ -261,28 +295,20 @@ export default function VirtualLabEditorUnified() {
                 </div>
 
                 <div>
-                  <Label htmlFor="labType">Tipo de Laboratório *</Label>
-                  <Select
-                    value={lab.lab_type}
-                    onValueChange={handleLabTypeChange}
-                    disabled={isEdit}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ultrasound">Ultrassom</SelectItem>
-                      <SelectItem value="tens">TENS (Estimulação Elétrica Transcutânea)</SelectItem>
-                      <SelectItem value="electrotherapy">Eletroterapia (Outros)</SelectItem>
-                      <SelectItem value="thermal">Terapias Térmicas</SelectItem>
-                      <SelectItem value="other">Outro</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {isEdit && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      O tipo não pode ser alterado após criar o laboratório
-                    </p>
-                  )}
+                  <Label>Tipo de Laboratório</Label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-sm font-medium capitalize">{lab.lab_type}</span>
+                    {!isEdit && (
+                      <Button 
+                        variant="link" 
+                        size="sm" 
+                        className="text-xs p-0 h-auto"
+                        onClick={() => setLab({ ...lab, lab_type: undefined })}
+                      >
+                        (alterar)
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
