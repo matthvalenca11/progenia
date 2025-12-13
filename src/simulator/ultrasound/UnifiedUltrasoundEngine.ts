@@ -992,21 +992,34 @@ export class UnifiedUltrasoundEngine {
     // Criar cópia temporária para ler valores originais
     const original = new Float32Array(this.linearShadowMap);
     
-    // Parâmetros do blur
-    const blurRadius = 6; // Raio do kernel em pixels
-    const sigma = 2.5; // Desvio padrão do Gaussiano
+    // Parâmetros do blur - aumentados significativamente
+    const blurRadiusX = 12; // Raio horizontal maior
+    const blurRadiusY = 16; // Raio vertical ainda maior para suavizar a linha horizontal
+    const sigmaX = 5.0;
+    const sigmaY = 7.0;
     
-    // Pré-computar pesos Gaussianos
-    const weights: number[] = [];
-    let weightSum = 0;
-    for (let i = -blurRadius; i <= blurRadius; i++) {
-      const w = Math.exp(-(i * i) / (2 * sigma * sigma));
-      weights.push(w);
-      weightSum += w;
+    // Pré-computar pesos Gaussianos horizontais
+    const weightsX: number[] = [];
+    let weightSumX = 0;
+    for (let i = -blurRadiusX; i <= blurRadiusX; i++) {
+      const w = Math.exp(-(i * i) / (2 * sigmaX * sigmaX));
+      weightsX.push(w);
+      weightSumX += w;
     }
-    // Normalizar pesos
-    for (let i = 0; i < weights.length; i++) {
-      weights[i] /= weightSum;
+    for (let i = 0; i < weightsX.length; i++) {
+      weightsX[i] /= weightSumX;
+    }
+    
+    // Pré-computar pesos Gaussianos verticais
+    const weightsY: number[] = [];
+    let weightSumY = 0;
+    for (let i = -blurRadiusY; i <= blurRadiusY; i++) {
+      const w = Math.exp(-(i * i) / (2 * sigmaY * sigmaY));
+      weightsY.push(w);
+      weightSumY += w;
+    }
+    for (let i = 0; i < weightsY.length; i++) {
+      weightsY[i] /= weightSumY;
     }
     
     // Primeiro passo: blur horizontal
@@ -1015,10 +1028,10 @@ export class UnifiedUltrasoundEngine {
       for (let x = 0; x < width; x++) {
         let sum = 0;
         let wSum = 0;
-        for (let dx = -blurRadius; dx <= blurRadius; dx++) {
+        for (let dx = -blurRadiusX; dx <= blurRadiusX; dx++) {
           const sx = x + dx;
           if (sx >= 0 && sx < width) {
-            const w = weights[dx + blurRadius];
+            const w = weightsX[dx + blurRadiusX];
             sum += original[y * width + sx] * w;
             wSum += w;
           }
@@ -1027,15 +1040,15 @@ export class UnifiedUltrasoundEngine {
       }
     }
     
-    // Segundo passo: blur vertical
+    // Segundo passo: blur vertical (mais forte)
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         let sum = 0;
         let wSum = 0;
-        for (let dy = -blurRadius; dy <= blurRadius; dy++) {
+        for (let dy = -blurRadiusY; dy <= blurRadiusY; dy++) {
           const sy = y + dy;
           if (sy >= 0 && sy < height) {
-            const w = weights[dy + blurRadius];
+            const w = weightsY[dy + blurRadiusY];
             sum += horizontalBlur[sy * width + x] * w;
             wSum += w;
           }
