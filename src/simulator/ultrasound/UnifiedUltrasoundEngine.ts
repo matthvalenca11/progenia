@@ -721,21 +721,25 @@ export class UnifiedUltrasoundEngine {
    */
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * LINEAR SHADOW MAP v6 - TRUE RAY-BASED with per-beam attenuation
+   * LINEAR SHADOW MAP v7 - PHYSICAL MODEL with expanding sigma
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * ALGORITHM (exactly as requested):
-   * 1. Create attenuationMask[beam][depth] initialized to 1.0
-   * 2. For each beam (column x):
-   *    - Find hitIndex = last sample inside inclusion
-   *    - If hit: attenuate exponentially from hitIndex+1 to end
-   * 3. Apply lateral smoothing (Gaussian kernel across beams)
-   * 4. Apply to final image
+   * NEW ALGORITHM (per user request):
+   * 1. For each inclusion, find center beam (b0) and exit depth (z0)
+   * 2. For each pixel (b, z) below z0:
+   *    - db = lateral distance in beams
+   *    - dz = depth distance below inclusion
+   *    - sigma = sigma0 + k * dz  (sigma GROWS with depth = shadow widens)
+   *    - lateral = exp(-(db²)/(2*sigma²))  (Gaussian lateral profile)
+   *    - axial = exp(-alpha * dz)  (exponential depth attenuation)
+   *    - shadowFactor = 1.0 - shadowStrength * lateral * axial
    * 
-   * This creates organic shadows with:
-   * - Smooth bell-curve lateral profile (not rectangular)
-   * - Speckle preserved (just darker)
-   * - Motion synchronized with rendering
+   * This creates:
+   * - Narrow shadow right below inclusion
+   * - Shadow gradually widens with depth
+   * - Gaussian (bell-curve) lateral edges, NOT rectangular
+   * - Speckle preserved inside shadow
+   * - NO post-processing blur needed
    */
   private computeLinearShadowMap(): void {
     const { width, height } = this.canvas;
@@ -759,12 +763,14 @@ export class UnifiedUltrasoundEngine {
     const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008;
     const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
     
-    // ═══ STEP 1: Create raw attenuation mask (per-beam) ═══
-    const rawMask = new Float32Array(width * height);
-    rawMask.fill(1.0);
-    
     const numBeams = width;
     const numDepthSamples = height;
+    
+    // ═══ PHYSICAL MODEL PARAMETERS ═══
+    const sigma0 = 2.0;           // Initial sigma in beams (narrow at start)
+    const k = 0.08;               // Sigma growth rate per depth pixel
+    const alpha = 0.012;          // Axial attenuation rate
+    const shadowStrength = 0.85;  // Maximum shadow intensity (0.85 = 85% darkening)
     
     for (const inclusion of this.config.inclusions) {
       if (!inclusion.hasStrongShadow) continue;
@@ -778,128 +784,63 @@ export class UnifiedUltrasoundEngine {
       const inclCenterDepthCm = inclusion.centerDepthCm + motionDepthOffset;
       const inclCenterLateralCm = (inclusion.centerLateralPos * 2.5) + motionLateralOffset;
       
-      // Inclusion geometry in cm
-      const rx = inclusion.sizeCm.width / 2;
-      const ry = inclusion.sizeCm.height / 2;
+      // Inclusion geometry
+      const ry = inclusion.sizeCm.height / 2; // Half-height for finding z_exit
       
-      // Get material attenuation
-      const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
-      const materialAttenuation = inclusionMedium.attenuation_dB_per_cm_MHz;
-      const baseAlpha = 0.35 + Math.min(0.4, materialAttenuation / 8);
-      
-      // ═══ STEP 2: For each BEAM (column), find hit and attenuate ═══
+      // ═══ FIND CENTER BEAM INDEX (b0) ═══
+      let b0 = 0;
       for (let beamIdx = 0; beamIdx < numBeams; beamIdx++) {
-        // Convert beam index to lateral position in cm
         const physCoords = this.pixelToPhysical(beamIdx, 0);
-        const beamLateralCm = physCoords.lateral;
-        
-        // Distance from beam center to inclusion center
-        const dx = beamLateralCm - inclCenterLateralCm;
-        
-        // Per-beam alpha variation for organic texture (±6%)
-        const beamNoise = this.noise(beamIdx * 7 + 123) * 0.12 - 0.06;
-        
-        // Check if this beam passes through inclusion (with small extension for penumbra)
-        const beamInclRadius = rx * (1 + beamNoise * 0.5);
-        if (Math.abs(dx) > beamInclRadius * 1.2) continue;
-        
-        // ═══ FIND z_exit: where beam exits inclusion ═══
-        // For ellipse: y = ry * sqrt(1 - (x/rx)^2) at normalized position
-        const normalizedX = Math.abs(dx) / beamInclRadius;
-        let z_exit: number;
-        let beamStrength: number;
-        
-        if (normalizedX <= 1.0) {
-          // Beam passes through inclusion
-          const dyFromCenter = ry * Math.sqrt(Math.max(0, 1 - normalizedX * normalizedX));
-          z_exit = inclCenterDepthCm + dyFromCenter;
-          
-          // Beam strength: 1.0 at center, lower at edges (smooth profile)
-          beamStrength = Math.sqrt(1 - normalizedX * normalizedX);
-        } else {
-          // Beam in penumbra zone (just outside geometric edge)
-          z_exit = inclCenterDepthCm + ry * 0.3;
-          beamStrength = Math.max(0, 1 - (normalizedX - 1) / 0.2) * 0.3;
-        }
-        
-        // Skip if beam strength is negligible
-        if (beamStrength < 0.01) continue;
-        
-        // Effective alpha for this beam
-        const effectiveAlpha = baseAlpha * (1 + beamNoise) * beamStrength;
-        
-        // ═══ ATTENUATE FROM z_exit TO END OF BEAM ═══
-        let atten = 1.0;
-        for (let depthIdx = 0; depthIdx < numDepthSamples; depthIdx++) {
-          const depthCoords = this.pixelToPhysical(0, depthIdx);
-          const depthCm = depthCoords.depth;
-          
-          // Shadow starts EXACTLY at z_exit
-          if (depthCm <= z_exit) continue;
-          
-          // Calculate dz (delta depth in cm per pixel)
-          const dz = this.config.depth / numDepthSamples;
-          
-          // Exponential attenuation
-          atten *= Math.exp(-effectiveAlpha * dz);
-          
-          // Clamp to minimum (preserve speckle)
-          const shadowFactor = Math.max(0.08, atten);
-          
-          const idx = depthIdx * numBeams + beamIdx;
-          rawMask[idx] = Math.min(rawMask[idx], shadowFactor);
+        if (Math.abs(physCoords.lateral - inclCenterLateralCm) < Math.abs(this.pixelToPhysical(b0, 0).lateral - inclCenterLateralCm)) {
+          b0 = beamIdx;
         }
       }
-    }
-    
-    // ═══ STEP 3: Apply lateral Gaussian smoothing (across beams) ═══
-    // This transforms rectangular columns into smooth bell-curve profiles
-    this.applyLateralGaussianSmoothing(rawMask, this.linearShadowMap, numBeams, numDepthSamples);
-  }
-  
-  /**
-   * Apply STRONG Gaussian smoothing in the lateral (beam/x) direction
-   * Uses larger kernel to create truly smooth bell-curve profile
-   */
-  private applyLateralGaussianSmoothing(
-    input: Float32Array,
-    output: Float32Array,
-    width: number,
-    height: number
-  ): void {
-    // LARGER Gaussian kernel (sigma = 8 pixels) for very smooth edges
-    const kernelRadius = 12;
-    const sigma = 8.0;
-    const kernel: number[] = [];
-    let kernelSum = 0;
-    
-    for (let i = -kernelRadius; i <= kernelRadius; i++) {
-      const weight = Math.exp(-(i * i) / (2 * sigma * sigma));
-      kernel.push(weight);
-      kernelSum += weight;
-    }
-    
-    // Normalize
-    for (let i = 0; i < kernel.length; i++) {
-      kernel[i] /= kernelSum;
-    }
-    
-    // Apply horizontal convolution (along beams)
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        let sum = 0;
-        let weightSum = 0;
-        
-        for (let k = -kernelRadius; k <= kernelRadius; k++) {
-          const sx = x + k;
-          if (sx >= 0 && sx < width) {
-            const weight = kernel[k + kernelRadius];
-            sum += input[y * width + sx] * weight;
-            weightSum += weight;
-          }
+      
+      // ═══ FIND z0: EXIT DEPTH (pixel index where inclusion ends) ═══
+      const z_exit_cm = inclCenterDepthCm + ry;
+      let z0 = 0;
+      for (let depthIdx = 0; depthIdx < numDepthSamples; depthIdx++) {
+        const depthCoords = this.pixelToPhysical(0, depthIdx);
+        if (depthCoords.depth >= z_exit_cm) {
+          z0 = depthIdx;
+          break;
         }
+      }
+      
+      // Get material properties for slight variation
+      const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
+      const materialFactor = 1.0 + Math.min(0.3, inclusionMedium.attenuation_dB_per_cm_MHz / 15);
+      
+      // ═══ APPLY PHYSICAL SHADOW MODEL ═══
+      // For each pixel below z0, calculate shadow using expanding Gaussian
+      for (let depthIdx = z0; depthIdx < numDepthSamples; depthIdx++) {
+        const dz = depthIdx - z0; // Depth distance from inclusion bottom (in pixels)
         
-        output[y * width + x] = sum / weightSum;
+        // Sigma EXPANDS with depth (key to removing rectangular look)
+        const sigma = sigma0 + k * dz;
+        const sigmaSquared = sigma * sigma;
+        
+        // Axial attenuation (gets lighter with depth)
+        const axialFactor = Math.exp(-alpha * dz * materialFactor);
+        
+        for (let beamIdx = 0; beamIdx < numBeams; beamIdx++) {
+          const db = beamIdx - b0; // Lateral distance from center beam (in pixels)
+          
+          // Gaussian lateral profile (bell curve)
+          const lateral = Math.exp(-(db * db) / (2 * sigmaSquared));
+          
+          // Combined shadow factor
+          // shadowFactor = 1.0 means no shadow, 0.0 means full shadow
+          const combinedAttenuation = shadowStrength * lateral * axialFactor;
+          const shadowFactor = 1.0 - combinedAttenuation;
+          
+          // Clamp to preserve some speckle even in darkest shadow
+          const clampedShadow = Math.max(0.08, shadowFactor);
+          
+          // Apply to shadow map (use min to combine multiple inclusions)
+          const idx = depthIdx * numBeams + beamIdx;
+          this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], clampedShadow);
+        }
       }
     }
   }
