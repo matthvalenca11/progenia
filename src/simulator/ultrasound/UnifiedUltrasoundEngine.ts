@@ -760,11 +760,48 @@ export class UnifiedUltrasoundEngine {
     const k = 0.6;           // Quão rápido cresce o escurecimento
     const minRatio = 0.35;   // Nunca menos que 35% do tecido vizinho
     const blendFactor = 0.65; // Blend para preservar speckle
+    
+    // ═══ NOVO: Zona de transição suave na borda inferior da inclusão ═══
+    // Aplicar fade gradual nos últimos pixels DENTRO da inclusão
+    const transitionZonePixels = 8; // Quantos pixels de transição dentro da inclusão
+    
+    // Encontrar primeiro índice dentro da inclusão para esta coluna
+    let entryIndex = -1;
+    for (let z = 0; z < n; z++) {
+      if (insideMask[z]) {
+        entryIndex = z;
+        break;
+      }
+    }
+    
+    // Aplicar transição gradual nos últimos pixels da inclusão (antes de exitIndex)
+    if (entryIndex >= 0 && exitIndex > entryIndex) {
+      const inclusionHeight = exitIndex - entryIndex;
+      const actualTransitionZone = Math.min(transitionZonePixels, Math.floor(inclusionHeight * 0.4));
+      
+      for (let z = exitIndex - actualTransitionZone + 1; z <= exitIndex; z++) {
+        if (z < 0 || z >= n) continue;
+        
+        // t vai de 0 (longe da borda) até 1 (exatamente na borda inferior)
+        const distFromExit = exitIndex - z;
+        const t = 1.0 - (distFromExit / actualTransitionZone);
+        
+        // Usar smoothstep para transição ainda mais suave
+        const smoothT = t * t * (3 - 2 * t);
+        
+        // Aplicar escurecimento gradual que aumenta conforme chega na borda
+        const fadeAmount = smoothT * 0.25; // Até 25% de escurecimento na borda
+        shadowColumn[z] *= (1.0 - fadeAmount);
+      }
+    }
 
-    // 3) Aplicar sombra suave a partir de exitIndex+1
+    // 3) Aplicar sombra suave a partir de exitIndex+1 com fade-in inicial
+    const shadowFadeInPixels = 12; // Pixels para transição suave do início da sombra
+    
     for (let z = exitIndex + 1; z < n; z++) {
       // Profundidade relativa normalizada (em "unidades" de profundidade)
       const dz = (z - exitIndex) * depthScale;
+      const pixelDepth = z - exitIndex;
       
       // s(dz) vai de 0 até maxDrop, suavemente
       // Curva saturante: começa lenta, satura em maxDrop
@@ -780,9 +817,20 @@ export class UnifiedUltrasoundEngine {
       // Intensidade atual (vai receber o blend)
       const I_current = shadowColumn[z];
       
+      // ═══ NOVO: Fade-in suave no início da sombra ═══
+      // Nos primeiros pixels da sombra, fazer transição gradual
+      let effectiveBlend = blendFactor;
+      if (pixelDepth <= shadowFadeInPixels) {
+        // t vai de 0 (logo após inclusão) até 1 (após zona de transição)
+        const fadeT = pixelDepth / shadowFadeInPixels;
+        // Usar curva suave para o fade
+        const smoothFadeT = fadeT * fadeT; // Quadrática: começa bem devagar
+        effectiveBlend = blendFactor * smoothFadeT;
+      }
+      
       // Blend suave para preservar speckle
       // shadowColumn recebe mix entre atual e alvo
-      shadowColumn[z] = I_current * (1.0 - blendFactor) + I_target * blendFactor;
+      shadowColumn[z] = I_current * (1.0 - effectiveBlend) + I_target * effectiveBlend;
     }
   }
   
