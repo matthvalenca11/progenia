@@ -940,9 +940,9 @@ export class UnifiedUltrasoundEngine {
     const tgc = this.getTGC(depth);
     intensity *= tgc;
     
-    // 6. Interface reflections
+    // 6. Interface reflections (MULTIPLICATIVE, not additive)
     const reflection = this.calculateInterfaceReflection(depth, lateral);
-    intensity += reflection;
+    intensity *= (1 + reflection * 0.3);
     
     // 7. Beam geometry
     const beamFalloff = this.calculateBeamFalloff(depth, lateral);
@@ -954,47 +954,68 @@ export class UnifiedUltrasoundEngine {
     intensity *= inclusionEffect.attenuationFactor;
     intensity += inclusionEffect.reflection;
     
-    // 9. Artifacts (before speckle)
+    // 9. Reverberation artifacts (MULTIPLICATIVE, not additive)
     if (this.config.enableReverberation) {
-      intensity += this.calculateReverberation(depth) * 0.15;
+      const reverb = this.calculateReverberation(depth);
+      intensity *= (1 + reverb * 0.2); // Multiplicative, not additive
     }
     
-    // 10. ═══ SPECKLE - Applied LAST, multiplicative noise ═══
-    // Speckle is applied to the already-shadowed image
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // 10. SPECKLE - MULTIPLICATIVE ONLY (NO ADDITIVE NOISE)
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // CRITICAL: Speckle must be purely multiplicative per-pixel.
+    // NO additive noise (+=), NO row-wise averaging.
+    // Formula: intensity *= (1 + k * random_per_pixel)
     if (this.config.enableSpeckle) {
       const speckleIdx = y * this.canvas.width + x;
       const rayleigh = Math.abs(this.rayleighCache[speckleIdx % this.rayleighCache.length]);
       const perlin = this.perlinCache[speckleIdx % this.perlinCache.length];
       
-      // Speckle size increases with depth
-      const depthFactor = 1 + depth / this.config.depth * 0.3;
+      // Depth-dependent speckle size (deeper = coarser speckle)
+      const depthFactor = 1 + (depth / this.config.depth) * 0.25;
       
-      // Check if we're in blood vessel for flow simulation
-      let flowOffset = 0;
+      // Per-pixel granular noise (hash-based, not periodic sin/cos)
+      const px = x * 0.1 + this.time * 0.5;
+      const py = y * 0.1;
+      const hashNoise = this.noise(px * 12.9898 + py * 78.233) * 2 - 1; // -1 to 1
+      const fineHash = this.noise((px + 100) * 45.123 + (py + 50) * 91.456) * 2 - 1;
+      
+      // PURELY MULTIPLICATIVE speckle (never additive)
+      // Base speckle from cached Rayleigh/Perlin
+      const baseSpeckle = (rayleigh * 0.5 + (perlin * 0.5 + 0.5) * 0.5) * depthFactor;
+      
+      // Add per-pixel variation (multiplicative, not additive)
+      const pixelVariation = 1.0 + hashNoise * 0.15 + fineHash * 0.1;
+      
+      // Combine: mean ~1, with variance
+      const speckleMultiplier = (0.5 + baseSpeckle * 0.5) * pixelVariation;
+      
+      // Blood flow modulation (if applicable)
+      let flowMultiplier = 1.0;
       if (tissue.isInclusion && tissue.inclusion?.mediumInsideId === 'blood') {
         const inclLateral = tissue.inclusion.centerLateralPos * 2.5;
         const dx = lateral - inclLateral;
         const dy = depth - tissue.inclusion.centerDepthCm;
         const radialPos = Math.sqrt(dx * dx + dy * dy) / (tissue.inclusion.sizeCm.width / 2);
-        const flowSpeed = (1 - radialPos * radialPos) * 0.8;
+        const flowSpeed = Math.max(0, 1 - radialPos * radialPos) * 0.8;
         const flowPhase = this.time * flowSpeed * 25;
-        flowOffset = Math.sin(flowPhase + depth * 8 + lateral * 6) * 0.3;
-        const heartRate = 1.2;
-        const pulse = 0.5 + 0.5 * Math.sin(this.time * heartRate * 2 * Math.PI);
-        flowOffset *= pulse;
+        const pulse = 0.5 + 0.5 * Math.sin(this.time * 1.2 * 2 * Math.PI);
+        flowMultiplier = 1.0 + Math.sin(flowPhase + depth * 8 + lateral * 6) * 0.2 * pulse;
       }
       
-      // Enhanced speckle texture
-      const speckleVariance = 1.4;
-      const fineNoise = Math.sin(x * 0.8 + y * 0.6 + this.time * 3) * 0.12;
-      const microNoise = Math.cos(x * 1.5 - y * 1.2) * 0.08;
-      
-      const baseSpeckle = (rayleigh * 0.45 + (perlin * 0.5 + 0.5) * 0.55) * depthFactor;
-      const enhancedSpeckle = baseSpeckle * speckleVariance + fineNoise + microNoise;
-      
-      // Multiplicative speckle on already-shadowed image
-      intensity *= (0.25 + (enhancedSpeckle + flowOffset) * 0.75);
+      // Apply PURELY MULTIPLICATIVE speckle
+      intensity *= speckleMultiplier * flowMultiplier;
     }
+    
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // 11. LOG COMPRESSION (LAST STEP - after shadow and speckle)
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // NO clamp before this, NO threshold before this
+    const gainLinear = Math.pow(10, (this.config.gain - 50) / 20);
+    intensity *= gainLinear;
+    
+    // Log compression to map wide dynamic range to display range
+    intensity = Math.log(1 + intensity * 10) / Math.log(11); // Normalize to 0-1 range
     
     return intensity;
   }

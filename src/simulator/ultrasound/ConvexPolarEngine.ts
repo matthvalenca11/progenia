@@ -198,25 +198,45 @@ export class ConvexPolarEngine {
           intensity *= enhancementFactor;
         }
         
-        // ═══ 8. SPECKLE - APLICADO POR ÚLTIMO (ruído multiplicativo) ═══
-        // Speckle é aplicado na imagem já com sombra
-        const speckleMultiplier = this.physicsCore.multiOctaveNoisePolar(r, theta, 4);
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // 8. SPECKLE - PURELY MULTIPLICATIVE (NO ADDITIVE NOISE)
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // CRITICAL: NO additive noise (+=), NO row-wise operations
+        // Formula: intensity *= (1 + k * random_per_pixel)
         
-        const fineNoise = Math.sin(pixelX * 0.8 + pixelY * 0.6 + this.time * 3) * 0.10;
-        const microNoise = Math.cos(pixelX * 1.3 - pixelY * 1.1) * 0.06;
+        // Per-pixel hash-based noise (not periodic sin/cos)
+        const px = pixelX * 0.1 + this.time * 0.5;
+        const py = pixelY * 0.1;
+        const hashNoise = this.noise(px * 12.9898 + py * 78.233) * 2 - 1; // -1 to 1
+        const fineHash = this.noise((px + 100) * 45.123 + (py + 50) * 91.456) * 2 - 1;
         
-        const speckleScale = tissue.echogenicity === "anechoic" ? 0.1 : 
+        // Multi-octave base from physics core
+        const baseSpeckle = this.physicsCore.multiOctaveNoisePolar(r, theta, 4);
+        
+        // Echogenicity scaling
+        const speckleScale = tissue.echogenicity === "anechoic" ? 0.15 : 
                             tissue.echogenicity === "hypoechoic" ? 0.5 :
                             tissue.echogenicity === "isoechoic" ? 0.7 :
-                            0.9;
+                            0.85;
         
-        const enhancedSpeckle = speckleMultiplier * speckleScale * 1.3 + fineNoise + microNoise;
-        intensity *= (0.28 + enhancedSpeckle * 0.72);
+        // Depth-dependent speckle
+        const depthFactor = 1 + (r / maxDepthCm) * 0.2;
         
-        // ═══ 9. APLICAR GANHO E COMPRESSÃO (motor unificado) ═══
-        intensity = this.physicsCore.applyGainAndCompression(intensity, gain, 60);
+        // PURELY MULTIPLICATIVE speckle (no additive terms)
+        const pixelVariation = 1.0 + hashNoise * 0.12 + fineHash * 0.08;
+        const speckleMultiplier = (0.5 + baseSpeckle * speckleScale * 0.5) * pixelVariation * depthFactor;
         
-        // ═══ 10. CLAMPAR ═══
+        // Apply multiplicative speckle
+        intensity *= speckleMultiplier;
+        
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // 9. LOG COMPRESSION (LAST STEP - after shadow and speckle)
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // NO clamp before this point
+        intensity *= Math.pow(10, (gain - 50) / 20); // Gain
+        intensity = Math.log(1 + intensity * 10) / Math.log(11); // Log compression
+        
+        // ═══ 10. FINAL CLAMP (only after log compression) ═══
         this.polarImage[idx] = Math.max(0, Math.min(1, intensity));
       }
     }
@@ -327,9 +347,6 @@ export class ConvexPolarEngine {
     for (let thetaIdx = 0; thetaIdx < numAngleSamples; thetaIdx++) {
       const theta = ((thetaIdx / numAngleSamples) * 2 - 1) * halfFOVRad;
       
-      const beamSeed = thetaIdx * 7 + 123;
-      const alphaVariation = this.noise(beamSeed) * 0.15 - 0.075; // More variation
-      
       for (const inclusion of this.config.inclusions) {
         if (!inclusion.hasStrongShadow) continue;
         
@@ -385,14 +402,14 @@ export class ConvexPolarEngine {
         
         if (z_exit < 0) continue;
         
-        // Per-beam noise for organic edges
-        const edgeNoise = this.noise(thetaIdx * 13 + 456) * 0.06 - 0.03;
-        
-        // ═══ COMPUTE ALPHA - SOFTER SHADOW ═══
+        // ═══ COMPUTE ALPHA - PURE GEOMETRY (NO SIN/COS NOISE) ═══
         const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
         const materialAttenuation = inclusionMedium.attenuation_dB_per_cm_MHz;
         const baseAlpha = SHADOW_ALPHA_BASE + Math.min(0.3, materialAttenuation / 8);
-        const alpha = baseAlpha * (1 + alphaVariation + edgeNoise);
+        
+        // Per-beam variation using hash noise (not periodic sin)
+        const beamNoise = 1.0 + (this.noise(thetaIdx * 17 + 42) - 0.5) * 0.12;
+        const alpha = baseAlpha * beamNoise;
         
         // ═══ APPLY ATTENUATION STARTING EXACTLY AT z_exit (NO GAP) ═══
         for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
@@ -402,7 +419,7 @@ export class ConvexPolarEngine {
           
           const posteriorDepth = r - z_exit;
           const attenuation = Math.exp(-alpha * posteriorDepth);
-          // Use unified SHADOW_STRENGTH with edge softness
+          // Use unified SHADOW_STRENGTH with edge softness - NO TEXTURE (pure geometry)
           const rawShadow = 1.0 - SHADOW_STRENGTH * edgeFactor * (1.0 - attenuation);
           const shadowFactor = Math.max(SHADOW_MIN_INTENSITY, rawShadow);
           
