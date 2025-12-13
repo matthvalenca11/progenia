@@ -5,6 +5,7 @@ export type StorageBucket =
   | "lesson-videos" 
   | "lesson-assets" 
   | "lab-assets" 
+  | "lab-videos"
   | "public-marketing"
   | "partner-logos"
   | "team-photos";

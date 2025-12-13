@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
 import { UltrasoundUnifiedLab } from "@/components/labs/UltrasoundUnifiedLab";
+import { LabWrapper } from "@/components/labs/LabWrapper";
 import TensLabPage from "@/pages/TensLabPage";
 import { toast } from "sonner";
 
@@ -65,7 +66,10 @@ export default function LabViewer() {
     return null;
   }
 
-  // Render based on lab type
+  // Extract video URL from config
+  const videoUrl = (lab.config_data as any)?.videoUrl;
+
+  // Render based on lab type - wrapped with LabWrapper for video + disclaimer
   if (lab.lab_type === "ultrasound") {
     return (
       <div className="min-h-screen bg-background">
@@ -78,14 +82,22 @@ export default function LabViewer() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Voltar ao Dashboard
           </Button>
-          <UltrasoundUnifiedLab config={lab.config_data as any} />
+          <LabWrapper videoUrl={videoUrl} title={lab.name}>
+            <UltrasoundUnifiedLab config={lab.config_data as any} />
+          </LabWrapper>
         </div>
       </div>
     );
   }
 
   if (lab.lab_type === "tens") {
-    return <TensLabPage config={lab.config_data} />;
+    return (
+      <div className="min-h-screen bg-background">
+        <LabWrapper videoUrl={videoUrl} title={lab.name}>
+          <TensLabPage config={lab.config_data} />
+        </LabWrapper>
+      </div>
+    );
   }
 
   // Fallback for unsupported lab types
@@ -100,12 +112,14 @@ export default function LabViewer() {
           <ArrowLeft className="h-4 w-4 mr-2" />
           Voltar ao Dashboard
         </Button>
-        <div className="text-center py-12">
-          <h1 className="text-2xl font-bold mb-4">Tipo de laboratório não suportado</h1>
-          <p className="text-muted-foreground">
-            Este tipo de laboratório ainda não está implementado.
-          </p>
-        </div>
+        <LabWrapper videoUrl={videoUrl} title={lab.name}>
+          <div className="text-center py-12">
+            <h1 className="text-2xl font-bold mb-4">Tipo de laboratório não suportado</h1>
+            <p className="text-muted-foreground">
+              Este tipo de laboratório ainda não está implementado.
+            </p>
+          </div>
+        </LabWrapper>
       </div>
     </div>
   );
