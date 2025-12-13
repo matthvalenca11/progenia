@@ -6,6 +6,7 @@ import { EletroterapiaLab } from "@/components/labs/EletroterapiaLab";
 import { ThermalLab } from "@/components/labs/ThermalLab";
 import { ElectrotherapyDoseLab } from "@/components/labs/ElectrotherapyDoseLab";
 import { TherapeuticUltrasoundLab } from "@/components/labs/TherapeuticUltrasoundLab";
+import { LabWrapper } from "@/components/labs/LabWrapper";
 import TensLabPage from "@/pages/TensLabPage";
 import { Card, CardContent } from "@/components/ui/card";
 import { Beaker, Loader2 } from "lucide-react";
@@ -111,6 +112,9 @@ export function VirtualLabRenderer({ labId, className }: VirtualLabRendererProps
     }
   };
 
+  // Extract video URL from config
+  const videoUrl = (lab.config_data as any)?.videoUrl;
+
   return (
     <div className={className}>
       <div className="mb-4">
@@ -122,7 +126,9 @@ export function VirtualLabRenderer({ labId, className }: VirtualLabRendererProps
           <p className="text-sm text-muted-foreground">{lab.description}</p>
         )}
       </div>
-      {renderLab()}
+      <LabWrapper videoUrl={videoUrl} title={lab.title}>
+        {renderLab()}
+      </LabWrapper>
     </div>
   );
 }
