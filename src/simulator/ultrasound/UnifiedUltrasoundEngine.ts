@@ -771,10 +771,13 @@ export class UnifiedUltrasoundEngine {
     const numBeams = width;
     const numDepthSamples = height;
     
-    // ═══ PHYSICAL MODEL PARAMETERS - SOFTER, MORE REALISTIC SHADOW ═══
-    const SHADOW_ALPHA_BASE = 0.010;   // Reduced from 0.018 for softer gradient
-    const SHADOW_STRENGTH = 0.65;      // Reduced from 0.88 for less contrast
-    const lateralSmoothSigma = 3.0;    // Sigma for lateral smoothing (in pixels)
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // UNIFIED SHADOW PARAMETERS - Same values used in Convex/Microconvex
+    // ═══════════════════════════════════════════════════════════════════════════════
+    const SHADOW_ALPHA_BASE = 0.012;   // Soft gradient (same as convex)
+    const SHADOW_STRENGTH = 0.60;      // Max shadow intensity (same as convex)
+    const SHADOW_MIN_INTENSITY = 0.18; // Never fully black (preserve speckle)
+    const lateralSmoothSigma = 5.0;    // Increased for softer lateral edges
     
     // First pass: compute raw shadow per beam (each beam that hits inclusion gets shadow)
     const rawShadowMap = new Float32Array(width * height);
@@ -784,46 +787,27 @@ export class UnifiedUltrasoundEngine {
       if (!inclusion.hasStrongShadow) continue;
       
       // ═══ USE ORIGINAL INCLUSION POSITION (NO MOTION) ═══
-      // Motion will be applied to sampling coordinates in calculatePixelIntensity()
       const inclCenterDepthCm = inclusion.centerDepthCm;
-      const inclCenterLateralCm = inclusion.centerLateralPos * 2.5; // -0.5 to +0.5 → -1.25 to +1.25
+      const inclCenterLateralCm = inclusion.centerLateralPos * 2.5;
       
-      // Inclusion geometry in physical coords
       const halfWidth = inclusion.sizeCm.width / 2;
       const halfHeight = inclusion.sizeCm.height / 2;
       
       // Get material properties
       const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
-      const materialFactor = 1.0 + Math.min(0.4, inclusionMedium.attenuation_dB_per_cm_MHz / 12);
+      const materialFactor = 1.0 + Math.min(0.3, inclusionMedium.attenuation_dB_per_cm_MHz / 15);
       
       // ═══ FOR EACH BEAM (COLUMN): CHECK IF IT PASSES THROUGH INCLUSION ═══
       for (let beamIdx = 0; beamIdx < numBeams; beamIdx++) {
-        // Get physical lateral position of this beam
         const physCoords = this.pixelToPhysical(beamIdx, 0);
         const beamLateralCm = physCoords.lateral;
-        
-        // Distance from beam to inclusion center (in cm)
         const dx = beamLateralCm - inclCenterLateralCm;
         
-        // Check if beam passes through inclusion (depends on shape)
-        let hitsInclusion = false;
+        // Check if beam passes through inclusion
+        if (Math.abs(dx) > halfWidth) continue;
         
-        if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
-          if (Math.abs(dx) <= halfWidth) {
-            hitsInclusion = true;
-          }
-        } else {
-          // Rectangle: simple check
-          if (Math.abs(dx) <= halfWidth) {
-            hitsInclusion = true;
-          }
-        }
-        
-        if (!hitsInclusion) continue;
-        
-        // ═══ FIND z_exit: WHERE BEAM EXITS INCLUSION ═══
+        // ═══ FIND z_exit: EXACT EXIT POINT ═══
         let z_exit_cm: number;
-        
         if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
           const normalizedDx = dx / halfWidth;
           const exitOffset = halfHeight * Math.sqrt(Math.max(0, 1 - normalizedDx * normalizedDx));
@@ -832,8 +816,8 @@ export class UnifiedUltrasoundEngine {
           z_exit_cm = inclCenterDepthCm + halfHeight;
         }
         
-        // Convert z_exit to pixel index
-        let z0 = 0;
+        // Convert z_exit to pixel index - shadow starts IMMEDIATELY after
+        let z0 = -1;
         for (let depthIdx = 0; depthIdx < numDepthSamples; depthIdx++) {
           const depthCoords = this.pixelToPhysical(0, depthIdx);
           if (depthCoords.depth >= z_exit_cm) {
@@ -841,19 +825,23 @@ export class UnifiedUltrasoundEngine {
             break;
           }
         }
+        if (z0 < 0) continue;
         
-        // Per-beam noise for organic texture
-        const beamNoise = 1.0 + (this.hashNoise(beamIdx * 17 + 42) - 0.5) * 0.15;
+        // Per-beam noise for organic texture (breaks straight edges)
+        const beamNoise = 1.0 + (this.hashNoise(beamIdx * 17 + 42) - 0.5) * 0.20;
         const effectiveAlpha = SHADOW_ALPHA_BASE * materialFactor * beamNoise;
         
-        // ═══ APPLY SOFTER EXPONENTIAL ATTENUATION BELOW z_exit ═══
+        // Edge softness factor - beams near edge have weaker shadow
+        const normalizedDist = Math.abs(dx) / halfWidth;
+        const edgeSoftness = Math.pow(1 - normalizedDist, 0.6); // Softer at edges
+        
+        // ═══ APPLY ATTENUATION STARTING EXACTLY AT z0 (NO GAP) ═══
         for (let depthIdx = z0; depthIdx < numDepthSamples; depthIdx++) {
           const dz = depthIdx - z0;
           const attenuation = Math.exp(-effectiveAlpha * dz);
-          // Use SHADOW_STRENGTH to control max darkness (never goes to 0)
-          const shadowFactor = 1.0 - SHADOW_STRENGTH * (1.0 - attenuation);
-          // Higher minimum to preserve speckle visibility
-          const clampedShadow = Math.max(0.15, shadowFactor);
+          // Softer shadow with edge falloff
+          const rawShadow = 1.0 - SHADOW_STRENGTH * edgeSoftness * (1.0 - attenuation);
+          const clampedShadow = Math.max(SHADOW_MIN_INTENSITY, rawShadow);
           
           const idx = depthIdx * numBeams + beamIdx;
           rawShadowMap[idx] = Math.min(rawShadowMap[idx], clampedShadow);
@@ -861,8 +849,8 @@ export class UnifiedUltrasoundEngine {
       }
     }
     
-    // ═══ SECOND PASS: LATERAL GAUSSIAN SMOOTHING FOR SOFT EDGES ═══
-    const kernelRadius = Math.ceil(lateralSmoothSigma * 2.5);
+    // ═══ SECOND PASS: STRONGER LATERAL GAUSSIAN SMOOTHING FOR CURVED EDGES ═══
+    const kernelRadius = Math.ceil(lateralSmoothSigma * 3); // Wider kernel
     const sigma2 = 2 * lateralSmoothSigma * lateralSmoothSigma;
     
     for (let depthIdx = 0; depthIdx < numDepthSamples; depthIdx++) {

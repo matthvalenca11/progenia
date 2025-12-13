@@ -308,7 +308,12 @@ export class ConvexPolarEngine {
     const { numDepthSamples, numAngleSamples, maxDepthCm, fovDegrees, lateralOffset } = this.config;
     const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
     
-    const MIN_INTENSITY = 0.06;
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // UNIFIED SHADOW PARAMETERS - Same values as Linear mode
+    // ═══════════════════════════════════════════════════════════════════════════════
+    const SHADOW_ALPHA_BASE = 0.40;    // Base attenuation (adjusted for polar coords)
+    const SHADOW_STRENGTH = 0.60;      // Same as Linear - max shadow intensity
+    const SHADOW_MIN_INTENSITY = 0.18; // Same as Linear - never fully black
     
     // Apply same lateral offset as getTissueAtPolar
     const clampedOffset = Math.max(-0.3, Math.min(0.3, lateralOffset || 0));
@@ -319,7 +324,7 @@ export class ConvexPolarEngine {
       const theta = ((thetaIdx / numAngleSamples) * 2 - 1) * halfFOVRad;
       
       const beamSeed = thetaIdx * 7 + 123;
-      const alphaVariation = this.noise(beamSeed) * 0.10 - 0.05;
+      const alphaVariation = this.noise(beamSeed) * 0.15 - 0.075; // More variation
       
       for (const inclusion of this.config.inclusions) {
         if (!inclusion.hasStrongShadow) continue;
@@ -328,7 +333,6 @@ export class ConvexPolarEngine {
         const inclDepth = inclusion.centerDepthCm;
         const inclLateralNorm = inclusion.centerLateralPos;
         
-        // Convert normalized lateral to cm (same as getTissueAtPolar)
         const maxLateralAtDepth = inclDepth * Math.tan(halfFOVRad);
         const inclX = inclLateralNorm * maxLateralAtDepth * 2;
         const inclY = inclDepth;
@@ -337,22 +341,19 @@ export class ConvexPolarEngine {
         const halfHeight = inclusion.sizeCm.height / 2;
         
         // ═══ TRACE BEAM TO FIND EXACT INTERSECTION ═══
-        // Sample along the beam to find where it enters/exits the inclusion
         let z_exit = -1;
         let wasInside = false;
+        let edgeFactor = 1.0;
         
         for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
           const r = (rIdx / numDepthSamples) * maxDepthCm;
           
-          // Convert polar to Cartesian with offset (SAME AS getTissueAtPolar)
           const x = r * Math.sin(theta) + offsetCm;
           const y = r * Math.cos(theta);
           
-          // Check if point is inside inclusion (SAME LOGIC AS getTissueAtPolar)
           const dx = x - inclX;
           const dy = y - inclY;
           
-          // Beam width factor for divergence
           const beamWidthFactor = 1.0 + (r / maxDepthCm) * 0.4;
           const distortedDx = dx / beamWidthFactor;
           
@@ -361,35 +362,35 @@ export class ConvexPolarEngine {
             const normX = distortedDx / halfWidth;
             const normY = dy / halfHeight;
             isInside = (normX * normX + normY * normY) <= 1.0;
+            // Compute edge factor for softer shadow at edges
+            if (isInside) {
+              const dist = Math.sqrt(normX * normX + normY * normY);
+              edgeFactor = Math.pow(1 - dist * 0.5, 0.5);
+            }
           } else {
             isInside = Math.abs(distortedDx) <= halfWidth && Math.abs(dy) <= halfHeight;
           }
           
           if (isInside) {
             wasInside = true;
-            z_exit = r; // Keep updating until we exit
+            z_exit = r;
           } else if (wasInside && !isInside) {
-            // Just exited the inclusion - z_exit is already set to last point inside
             break;
           }
         }
         
-        // Beam doesn't hit this inclusion
         if (z_exit < 0) continue;
         
         // Per-beam noise for organic edges
-        const edgeNoise = this.noise(thetaIdx * 13 + 456) * 0.04 - 0.02;
+        const edgeNoise = this.noise(thetaIdx * 13 + 456) * 0.06 - 0.03;
         
         // ═══ COMPUTE ALPHA - SOFTER SHADOW ═══
         const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
         const materialAttenuation = inclusionMedium.attenuation_dB_per_cm_MHz;
-        // Reduced base alpha for softer gradient
-        const SHADOW_ALPHA_BASE = 0.35;  // Reduced from 0.6
-        const SHADOW_STRENGTH = 0.65;    // Max shadow intensity
-        const baseAlpha = SHADOW_ALPHA_BASE + Math.min(0.4, materialAttenuation / 6);
+        const baseAlpha = SHADOW_ALPHA_BASE + Math.min(0.3, materialAttenuation / 8);
         const alpha = baseAlpha * (1 + alphaVariation + edgeNoise);
         
-        // ═══ APPLY SOFTER ATTENUATION ALONG BEAM ═══
+        // ═══ APPLY ATTENUATION STARTING EXACTLY AT z_exit (NO GAP) ═══
         for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
           const r = (rIdx / numDepthSamples) * maxDepthCm;
           
@@ -397,13 +398,12 @@ export class ConvexPolarEngine {
           
           const posteriorDepth = r - z_exit;
           const attenuation = Math.exp(-alpha * posteriorDepth);
-          // Use SHADOW_STRENGTH - never goes fully black
-          const shadowFactor = 1.0 - SHADOW_STRENGTH * (1.0 - attenuation);
-          // Higher minimum for visible speckle in shadow
-          const clampedFactor = Math.max(0.15, shadowFactor);
+          // Use unified SHADOW_STRENGTH with edge softness
+          const rawShadow = 1.0 - SHADOW_STRENGTH * edgeFactor * (1.0 - attenuation);
+          const shadowFactor = Math.max(SHADOW_MIN_INTENSITY, rawShadow);
           
           const idx = rIdx * numAngleSamples + thetaIdx;
-          this.shadowMap[idx] = Math.min(this.shadowMap[idx], clampedFactor);
+          this.shadowMap[idx] = Math.min(this.shadowMap[idx], shadowFactor);
         }
       }
     }
