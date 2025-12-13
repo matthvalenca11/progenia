@@ -299,10 +299,14 @@ export class ConvexPolarEngine {
   private computeAcousticShadowsWithMotion(physicsConfig: PhysicsConfig) {
     if (!this.config.inclusions || this.config.inclusions.length === 0) return;
     
-    const { numDepthSamples, numAngleSamples, maxDepthCm, fovDegrees } = this.config;
+    const { numDepthSamples, numAngleSamples, maxDepthCm, fovDegrees, lateralOffset } = this.config;
     const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
     
     const MIN_INTENSITY = 0.06;
+    
+    // Apply same lateral offset as getTissueAtPolar
+    const clampedOffset = Math.max(-0.3, Math.min(0.3, lateralOffset || 0));
+    const offsetCm = clampedOffset * maxDepthCm * 0.5;
     
     // ═══ PROCESS EACH BEAM (ANGLE) ═══
     for (let thetaIdx = 0; thetaIdx < numAngleSamples; thetaIdx++) {
@@ -314,57 +318,67 @@ export class ConvexPolarEngine {
       for (const inclusion of this.config.inclusions) {
         if (!inclusion.hasStrongShadow) continue;
         
-        // ═══ USE ORIGINAL INCLUSION POSITION (same as getTissueAtPolar) ═══
-        // NO motion applied here - motion comes from displaced sampling
-        const inclCenterDepth = inclusion.centerDepthCm;
+        // ═══ USE SAME GEOMETRY AS getTissueAtPolar ═══
+        const inclDepth = inclusion.centerDepthCm;
         const inclLateralNorm = inclusion.centerLateralPos;
         
-        // Map lateral position to angle (same as getTissueAtPolar uses)
-        const maxLateralAtDepth = inclCenterDepth * Math.tan(halfFOVRad);
-        const inclLateralCm = inclLateralNorm * maxLateralAtDepth * 2;
-        const inclTheta = Math.atan2(inclLateralCm, inclCenterDepth);
+        // Convert normalized lateral to cm (same as getTissueAtPolar)
+        const maxLateralAtDepth = inclDepth * Math.tan(halfFOVRad);
+        const inclX = inclLateralNorm * maxLateralAtDepth * 2;
+        const inclY = inclDepth;
         
-        // Compute angular radius of inclusion
-        const inclRadius = inclusion.shape === 'circle' 
-          ? (inclusion.sizeCm.width + inclusion.sizeCm.height) / 4 
-          : inclusion.sizeCm.width / 2;
+        const halfWidth = inclusion.sizeCm.width / 2;
+        const halfHeight = inclusion.sizeCm.height / 2;
         
-        const inclAngularRadius = Math.atan2(inclRadius, inclCenterDepth);
+        // ═══ TRACE BEAM TO FIND EXACT INTERSECTION ═══
+        // Sample along the beam to find where it enters/exits the inclusion
+        let z_exit = -1;
+        let wasInside = false;
         
-        // Per-beam noise for organic edges
-        const edgeNoise = this.noise(thetaIdx * 13 + 456) * 0.08 - 0.04;
-        const effectiveAngularRadius = inclAngularRadius * (1 + edgeNoise);
-        
-        // Angular distance from beam to inclusion center
-        const angleDiff = Math.abs(theta - inclTheta);
-        
-        // Check if beam hits inclusion
-        if (angleDiff > effectiveAngularRadius * 1.2) continue;
-        
-        // ═══ COMPUTE z_exit ═══
-        const normalizedDist = Math.min(1.0, angleDiff / effectiveAngularRadius);
-        const inclHalfHeight = inclusion.sizeCm.height / 2;
-        
-        let z_exit: number;
-        let edgeFactor: number;
-        
-        if (normalizedDist <= 1.0) {
-          const exitOffset = inclHalfHeight * Math.sqrt(Math.max(0, 1 - normalizedDist * normalizedDist));
-          z_exit = inclCenterDepth + exitOffset;
-          edgeFactor = Math.pow(1 - normalizedDist, 0.5);
-        } else {
-          z_exit = inclCenterDepth + inclHalfHeight * 0.3;
-          edgeFactor = Math.max(0, 1 - (normalizedDist - 1) / 0.2) * 0.3;
+        for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
+          const r = (rIdx / numDepthSamples) * maxDepthCm;
+          
+          // Convert polar to Cartesian with offset (SAME AS getTissueAtPolar)
+          const x = r * Math.sin(theta) + offsetCm;
+          const y = r * Math.cos(theta);
+          
+          // Check if point is inside inclusion (SAME LOGIC AS getTissueAtPolar)
+          const dx = x - inclX;
+          const dy = y - inclY;
+          
+          // Beam width factor for divergence
+          const beamWidthFactor = 1.0 + (r / maxDepthCm) * 0.4;
+          const distortedDx = dx / beamWidthFactor;
+          
+          let isInside = false;
+          if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+            const normX = distortedDx / halfWidth;
+            const normY = dy / halfHeight;
+            isInside = (normX * normX + normY * normY) <= 1.0;
+          } else {
+            isInside = Math.abs(distortedDx) <= halfWidth && Math.abs(dy) <= halfHeight;
+          }
+          
+          if (isInside) {
+            wasInside = true;
+            z_exit = r; // Keep updating until we exit
+          } else if (wasInside && !isInside) {
+            // Just exited the inclusion - z_exit is already set to last point inside
+            break;
+          }
         }
         
-        if (edgeFactor < 0.01) continue;
+        // Beam doesn't hit this inclusion
+        if (z_exit < 0) continue;
+        
+        // Per-beam noise for organic edges
+        const edgeNoise = this.noise(thetaIdx * 13 + 456) * 0.04 - 0.02;
         
         // ═══ COMPUTE ALPHA ═══
         const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
         const materialAttenuation = inclusionMedium.attenuation_dB_per_cm_MHz;
         const baseAlpha = 0.6 + Math.min(0.8, materialAttenuation / 4);
-        const alpha = baseAlpha * (1 + alphaVariation);
-        const effectiveAlpha = alpha * edgeFactor;
+        const alpha = baseAlpha * (1 + alphaVariation + edgeNoise);
         
         // ═══ APPLY ATTENUATION ALONG BEAM ═══
         for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
@@ -373,7 +387,7 @@ export class ConvexPolarEngine {
           if (r <= z_exit) continue;
           
           const posteriorDepth = r - z_exit;
-          const attenuation = Math.exp(-effectiveAlpha * posteriorDepth);
+          const attenuation = Math.exp(-alpha * posteriorDepth);
           const shadowFactor = Math.max(MIN_INTENSITY, attenuation);
           
           const idx = rIdx * numAngleSamples + thetaIdx;

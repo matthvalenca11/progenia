@@ -767,10 +767,13 @@ export class UnifiedUltrasoundEngine {
     const numDepthSamples = height;
     
     // ═══ PHYSICAL MODEL PARAMETERS ═══
-    const sigma0 = 2.0;           // Initial sigma in beams (narrow at start)
-    const k = 0.08;               // Sigma growth rate per depth pixel
-    const alpha = 0.012;          // Axial attenuation rate
-    const shadowStrength = 0.85;  // Maximum shadow intensity (0.85 = 85% darkening)
+    const alpha = 0.018;          // Axial attenuation rate
+    const shadowStrength = 0.88;  // Maximum shadow intensity
+    const lateralSmoothSigma = 3.0; // Sigma for lateral smoothing (in pixels)
+    
+    // First pass: compute raw shadow per beam (each beam that hits inclusion gets shadow)
+    const rawShadowMap = new Float32Array(width * height);
+    rawShadowMap.fill(1.0);
     
     for (const inclusion of this.config.inclusions) {
       if (!inclusion.hasStrongShadow) continue;
@@ -784,65 +787,114 @@ export class UnifiedUltrasoundEngine {
       const inclCenterDepthCm = inclusion.centerDepthCm + motionDepthOffset;
       const inclCenterLateralCm = (inclusion.centerLateralPos * 2.5) + motionLateralOffset;
       
-      // Inclusion geometry
-      const ry = inclusion.sizeCm.height / 2; // Half-height for finding z_exit
+      // Inclusion geometry in physical coords
+      const halfWidth = inclusion.sizeCm.width / 2;
+      const halfHeight = inclusion.sizeCm.height / 2;
       
-      // ═══ FIND CENTER BEAM INDEX (b0) ═══
-      let b0 = 0;
-      for (let beamIdx = 0; beamIdx < numBeams; beamIdx++) {
-        const physCoords = this.pixelToPhysical(beamIdx, 0);
-        if (Math.abs(physCoords.lateral - inclCenterLateralCm) < Math.abs(this.pixelToPhysical(b0, 0).lateral - inclCenterLateralCm)) {
-          b0 = beamIdx;
-        }
-      }
-      
-      // ═══ FIND z0: EXIT DEPTH (pixel index where inclusion ends) ═══
-      const z_exit_cm = inclCenterDepthCm + ry;
-      let z0 = 0;
-      for (let depthIdx = 0; depthIdx < numDepthSamples; depthIdx++) {
-        const depthCoords = this.pixelToPhysical(0, depthIdx);
-        if (depthCoords.depth >= z_exit_cm) {
-          z0 = depthIdx;
-          break;
-        }
-      }
-      
-      // Get material properties for slight variation
+      // Get material properties
       const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
-      const materialFactor = 1.0 + Math.min(0.3, inclusionMedium.attenuation_dB_per_cm_MHz / 15);
+      const materialFactor = 1.0 + Math.min(0.4, inclusionMedium.attenuation_dB_per_cm_MHz / 12);
       
-      // ═══ APPLY PHYSICAL SHADOW MODEL ═══
-      // For each pixel below z0, calculate shadow using expanding Gaussian
-      for (let depthIdx = z0; depthIdx < numDepthSamples; depthIdx++) {
-        const dz = depthIdx - z0; // Depth distance from inclusion bottom (in pixels)
+      // ═══ FOR EACH BEAM (COLUMN): CHECK IF IT PASSES THROUGH INCLUSION ═══
+      for (let beamIdx = 0; beamIdx < numBeams; beamIdx++) {
+        // Get physical lateral position of this beam
+        const physCoords = this.pixelToPhysical(beamIdx, 0);
+        const beamLateralCm = physCoords.lateral;
         
-        // Sigma EXPANDS with depth (key to removing rectangular look)
-        const sigma = sigma0 + k * dz;
-        const sigmaSquared = sigma * sigma;
+        // Distance from beam to inclusion center (in cm)
+        const dx = beamLateralCm - inclCenterLateralCm;
         
-        // Axial attenuation (gets lighter with depth)
-        const axialFactor = Math.exp(-alpha * dz * materialFactor);
+        // Check if beam passes through inclusion (depends on shape)
+        let hitsInclusion = false;
+        let effectiveHalfWidth = halfWidth;
         
-        for (let beamIdx = 0; beamIdx < numBeams; beamIdx++) {
-          const db = beamIdx - b0; // Lateral distance from center beam (in pixels)
+        if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+          // For ellipse: beam hits if |dx| < halfWidth
+          // Also compute the effective width at this dx for ellipse
+          if (Math.abs(dx) <= halfWidth) {
+            hitsInclusion = true;
+          }
+        } else {
+          // Rectangle: simple check
+          if (Math.abs(dx) <= halfWidth) {
+            hitsInclusion = true;
+          }
+        }
+        
+        if (!hitsInclusion) continue;
+        
+        // ═══ FIND z_exit: WHERE BEAM EXITS INCLUSION ═══
+        let z_exit_cm: number;
+        
+        if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+          // For ellipse: z_exit depends on lateral position (chord length)
+          // y = centerY + halfHeight * sqrt(1 - (dx/halfWidth)^2)
+          const normalizedDx = dx / halfWidth;
+          const exitOffset = halfHeight * Math.sqrt(Math.max(0, 1 - normalizedDx * normalizedDx));
+          z_exit_cm = inclCenterDepthCm + exitOffset;
+        } else {
+          // Rectangle: constant exit depth
+          z_exit_cm = inclCenterDepthCm + halfHeight;
+        }
+        
+        // Convert z_exit to pixel index
+        let z0 = 0;
+        for (let depthIdx = 0; depthIdx < numDepthSamples; depthIdx++) {
+          const depthCoords = this.pixelToPhysical(0, depthIdx);
+          if (depthCoords.depth >= z_exit_cm) {
+            z0 = depthIdx;
+            break;
+          }
+        }
+        
+        // Per-beam noise for organic texture
+        const beamNoise = 1.0 + (this.hashNoise(beamIdx * 17 + 42) - 0.5) * 0.15;
+        const effectiveAlpha = alpha * materialFactor * beamNoise;
+        
+        // ═══ APPLY EXPONENTIAL ATTENUATION BELOW z_exit ═══
+        for (let depthIdx = z0; depthIdx < numDepthSamples; depthIdx++) {
+          const dz = depthIdx - z0;
+          const attenuation = Math.exp(-effectiveAlpha * dz);
+          const shadowFactor = 1.0 - shadowStrength * (1 - attenuation);
+          const clampedShadow = Math.max(0.06, shadowFactor);
           
-          // Gaussian lateral profile (bell curve)
-          const lateral = Math.exp(-(db * db) / (2 * sigmaSquared));
-          
-          // Combined shadow factor
-          // shadowFactor = 1.0 means no shadow, 0.0 means full shadow
-          const combinedAttenuation = shadowStrength * lateral * axialFactor;
-          const shadowFactor = 1.0 - combinedAttenuation;
-          
-          // Clamp to preserve some speckle even in darkest shadow
-          const clampedShadow = Math.max(0.08, shadowFactor);
-          
-          // Apply to shadow map (use min to combine multiple inclusions)
           const idx = depthIdx * numBeams + beamIdx;
-          this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], clampedShadow);
+          rawShadowMap[idx] = Math.min(rawShadowMap[idx], clampedShadow);
         }
       }
     }
+    
+    // ═══ SECOND PASS: LATERAL GAUSSIAN SMOOTHING FOR SOFT EDGES ═══
+    const kernelRadius = Math.ceil(lateralSmoothSigma * 2.5);
+    const sigma2 = 2 * lateralSmoothSigma * lateralSmoothSigma;
+    
+    for (let depthIdx = 0; depthIdx < numDepthSamples; depthIdx++) {
+      for (let beamIdx = 0; beamIdx < numBeams; beamIdx++) {
+        let sum = 0;
+        let weightSum = 0;
+        
+        for (let k = -kernelRadius; k <= kernelRadius; k++) {
+          const neighborIdx = beamIdx + k;
+          if (neighborIdx < 0 || neighborIdx >= numBeams) continue;
+          
+          const weight = Math.exp(-(k * k) / sigma2);
+          const srcIdx = depthIdx * numBeams + neighborIdx;
+          sum += rawShadowMap[srcIdx] * weight;
+          weightSum += weight;
+        }
+        
+        const idx = depthIdx * numBeams + beamIdx;
+        this.linearShadowMap[idx] = sum / weightSum;
+      }
+    }
+  }
+  
+  /**
+   * Hash-based noise for organic variation (deterministic)
+   */
+  private hashNoise(seed: number): number {
+    const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+    return x - Math.floor(x);
   }
   
   /**
