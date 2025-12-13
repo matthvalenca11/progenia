@@ -160,7 +160,7 @@ export type UltrasoundLayerConfig = {
 /**
  * Inclusion shapes
  */
-export type UltrasoundInclusionShape = "circle" | "ellipse" | "rectangle";
+export type UltrasoundInclusionShape = "ellipse" | "rectangle";
 
 /**
  * Inclusion types

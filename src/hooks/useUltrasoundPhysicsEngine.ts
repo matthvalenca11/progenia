@@ -32,7 +32,7 @@ function isPointInInclusion(
   const rx = inclusion.sizeCm.width / 2;
   const ry = inclusion.sizeCm.height / 2;
   
-  if (inclusion.shape === "circle" || inclusion.shape === "ellipse") {
+  if (inclusion.shape === "ellipse") {
     const distSq = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
     return distSq <= 1.0;
   } else { // rectangle

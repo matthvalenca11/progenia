@@ -507,12 +507,7 @@ export class UltrasoundEngine {
       const inLateral = Math.abs(lateralPos - inc.centerLateralPos) <= inc.sizeCm.width / 2;
       const inDepth = Math.abs(depth - inc.centerDepthCm) <= inc.sizeCm.height / 2;
       
-      if (inc.shape === 'circle') {
-        const dx = lateralPos - inc.centerLateralPos;
-        const dy = depth - inc.centerDepthCm;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist <= inc.sizeCm.width / 2) return inc;
-      } else if (inc.shape === 'ellipse') {
+      if (inc.shape === 'ellipse') {
         const dx = (lateralPos - inc.centerLateralPos) / (inc.sizeCm.width / 2);
         const dy = (depth - inc.centerDepthCm) / (inc.sizeCm.height / 2);
         if (dx * dx + dy * dy <= 1) return inc;

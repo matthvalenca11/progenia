@@ -32,7 +32,6 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
   ];
 
   const shapes: { value: UltrasoundInclusionShape; label: string }[] = [
-    { value: "circle", label: "Círculo" },
     { value: "ellipse", label: "Elipse" },
     { value: "rectangle", label: "Retângulo" },
   ];
@@ -42,7 +41,7 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
       id: `incl-${Date.now()}`,
       type: "cyst",
       label: "Nova inclusão",
-      shape: "circle",
+      shape: "ellipse",
       centerDepthCm: 2.0,
       centerLateralPos: 0,
       sizeCm: { width: 0.5, height: 0.5 },
@@ -321,8 +320,7 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
                   const width = Math.max((inclusion.sizeCm.width / 4) * 100, 3);
                   const height = Math.max((inclusion.sizeCm.height / 10) * 100, 2);
                   
-                  const shapeClass = inclusion.shape === "circle" ? "rounded-full" : 
-                                   inclusion.shape === "ellipse" ? "rounded-full" : 
+                  const shapeClass = inclusion.shape === "ellipse" ? "rounded-full" : 
                                    "rounded-sm";
                   
                   let colorClass = "";

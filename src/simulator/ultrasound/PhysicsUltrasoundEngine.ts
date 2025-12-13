@@ -320,10 +320,7 @@ export class PhysicsUltrasoundEngine {
     const dx = lateralCm - inclusion.centerLateralPos * 2; // Convert -1 to +1 range to cm
     const dy = depthCm - inclusion.centerDepthCm;
 
-    if (inclusion.shape === 'circle') {
-      const radius = inclusion.sizeCm.width / 2;
-      return (dx * dx + dy * dy) <= radius * radius;
-    } else if (inclusion.shape === 'ellipse') {
+    if (inclusion.shape === 'ellipse') {
       const rx = inclusion.sizeCm.width / 2;
       const ry = inclusion.sizeCm.height / 2;
       return (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) <= 1;

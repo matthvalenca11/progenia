@@ -273,7 +273,7 @@ export class ConvexPolarEngine {
     const halfWidth = inclusion.sizeCm.width / 2;
     const halfHeight = inclusion.sizeCm.height / 2;
     
-    if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+    if (inclusion.shape === 'ellipse') {
       const normX = distortedDx / halfWidth;
       const normY = dy / halfHeight;
       return (normX * normX + normY * normY) <= 1.0;
@@ -383,7 +383,7 @@ export class ConvexPolarEngine {
           
           let isInside = false;
           
-          if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+          if (inclusion.shape === 'ellipse') {
             const normX = distortedDx / halfWidth;
             const normY = dy / halfHeight;
             const dist = Math.sqrt(normX * normX + normY * normY);
@@ -483,9 +483,7 @@ export class ConvexPolarEngine {
     const inclTheta = inclLateralNorm * halfFOVRad * 2; // Map to [-halfFOV, +halfFOV]
     
     // Compute angular radius of inclusion (how wide it appears at its depth)
-    const inclRadius = inclusion.shape === 'circle' 
-      ? (inclusion.sizeCm.width + inclusion.sizeCm.height) / 4 
-      : inclusion.sizeCm.width / 2;
+    const inclRadius = inclusion.sizeCm.width / 2;
     
     // Angular radius = atan(radius / depth)
     const inclAngularRadius = Math.atan2(inclRadius, inclCenterDepth);
@@ -573,7 +571,7 @@ export class ConvexPolarEngine {
         
         let isInside = false;
         
-        if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+        if (inclusion.shape === 'ellipse') {
           const normX = distortedDx / halfWidth;
           const normY = dy / halfHeight;
           isInside = (normX * normX + normY * normY) <= 1.0;
