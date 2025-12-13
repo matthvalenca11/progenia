@@ -1012,25 +1012,27 @@ export class UnifiedUltrasoundEngine {
   
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * REALISTIC ACOUSTIC SHADOW - SPECKLE-PRESERVING RAY ATTENUATION
+   * PURE RAY-BASED ACOUSTIC SHADOW
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * Key improvements for realism:
-   * 1. Shadow preserves speckle texture (reduced amplitude, not replaced)
-   * 2. Soft, organic edges with noise-modulated boundaries
-   * 3. Gradual attenuation that matches real ultrasound behavior
-   * 4. No geometric artifacts - natural degradation pattern
+   * NO masks, polygons, zones, or pre-drawn shapes.
+   * Shadow emerges ONLY from per-beam exponential attenuation.
+   * 
+   * For each beam (scanline):
+   * 1. Detect where beam intersects inclusion (z_obj)
+   * 2. From z_obj down: intensity[z] *= exp(-alpha * (z - z_obj))
+   * 3. Preserve speckle - only reduce amplitude
    */
   private applyAcousticShadow(depth: number, lateral: number): number {
     if (!this.config.enableAcousticShadow) return 1.0;
     
-    let minShadowFactor = 1.0;
-    
-    // Pseudo-random hash for organic texture (deterministic based on position)
+    // Deterministic noise based on position (for speckle preservation)
     const hash = (x: number, y: number, seed: number): number => {
-      const a = Math.sin(x * 12.9898 + y * 78.233 + seed) * 43758.5453;
-      return a - Math.floor(a);
+      const n = Math.sin(x * 127.1 + y * 311.7 + seed * 758.5) * 43758.5453;
+      return n - Math.floor(n);
     };
+    
+    let shadowFactor = 1.0;
     
     for (const inclusion of this.config.inclusions) {
       if (!inclusion.hasStrongShadow) continue;
@@ -1043,129 +1045,103 @@ export class UnifiedUltrasoundEngine {
         : inclusion.sizeCm.width / 2;
       const inclHalfHeight = inclusion.sizeCm.height / 2;
       
-      // Bottom edge of inclusion - shadow starts EXACTLY here (NO GAP)
+      // Bottom edge - shadow starts EXACTLY here
       const z_obj = inclCenterDepth + inclHalfHeight;
       
       // Only apply shadow BELOW the inclusion
       if (depth <= z_obj) continue;
       
-      const posteriorDepth = depth - z_obj;
-      
-      // ═══ SHADOW ZONE CHECK (based on transducer geometry) ═══
-      let inShadowCore = false;
-      let inShadowPenumbra = false;
-      let shadowCoreStrength = 0; // 1.0 = full shadow, 0.0 = no shadow
+      // ═══ RAY-BEAM INTERSECTION CHECK ═══
+      // Check if current point's beam passes through the inclusion
+      let beamHitsInclusion = false;
+      let beamCenterDistance = 0; // Distance from beam to inclusion center
       
       if (this.config.transducerType === 'linear') {
-        // LINEAR: Parallel vertical beams
+        // LINEAR: Check if lateral position is within inclusion's lateral extent
+        // Each beam is a vertical column
         const lateralDist = Math.abs(lateral - inclCenterLateral);
         
-        // Add organic edge variation using noise
-        const edgeNoise = (hash(lateral * 5, depth * 3, 1) - 0.5) * 0.15;
-        const effectiveHalfWidth = inclHalfWidth * (1 + edgeNoise);
+        // Add per-beam noise to inclusion boundary (organic edges)
+        const beamNoise = (hash(lateral * 47.3, 0, 1) - 0.5) * 0.12;
+        const effectiveHalfWidth = inclHalfWidth * (1 + beamNoise);
         
-        // Core zone: full shadow
-        inShadowCore = lateralDist < effectiveHalfWidth * 0.85;
-        // Penumbra zone: transition region
-        inShadowPenumbra = lateralDist < effectiveHalfWidth * 1.2;
-        
-        if (inShadowCore) {
-          // Smooth falloff from center
-          const normalizedDist = lateralDist / effectiveHalfWidth;
-          shadowCoreStrength = 1.0 - normalizedDist * 0.2; // Slight gradient even in core
-        } else if (inShadowPenumbra) {
-          // Penumbra: gradual transition
-          const penumbraStart = effectiveHalfWidth * 0.85;
-          const penumbraEnd = effectiveHalfWidth * 1.2;
-          const t = (lateralDist - penumbraStart) / (penumbraEnd - penumbraStart);
-          shadowCoreStrength = (1 - t) * 0.8; // Fade out in penumbra
+        if (lateralDist < effectiveHalfWidth) {
+          beamHitsInclusion = true;
+          beamCenterDistance = lateralDist / effectiveHalfWidth;
         }
         
       } else {
-        // CONVEX/MICROCONVEX: Diverging fan beams
+        // CONVEX/MICROCONVEX: Check if angular ray passes through inclusion
         const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
         
-        // Angle of current point
-        const currentAngle = Math.atan2(lateral, depth + radiusOfCurvature);
+        // Current beam angle (from virtual apex)
+        const beamAngle = Math.atan2(lateral, depth + radiusOfCurvature);
         
-        // Angle of inclusion center
-        const inclCenterAngle = Math.atan2(inclCenterLateral, inclCenterDepth + radiusOfCurvature);
-        
-        // Angular width of inclusion
+        // Inclusion angular extent at its depth
+        const inclAngle = Math.atan2(inclCenterLateral, inclCenterDepth + radiusOfCurvature);
         const inclLeftAngle = Math.atan2(inclCenterLateral - inclHalfWidth, inclCenterDepth + radiusOfCurvature);
         const inclRightAngle = Math.atan2(inclCenterLateral + inclHalfWidth, inclCenterDepth + radiusOfCurvature);
         const inclAngularHalfWidth = Math.abs(inclRightAngle - inclLeftAngle) / 2;
         
-        // Add organic edge variation
-        const edgeNoise = (hash(currentAngle * 20, depth * 3, 2) - 0.5) * 0.1;
-        const effectiveAngularWidth = inclAngularHalfWidth * (1 + edgeNoise);
+        // Add per-beam noise for organic edges
+        const beamNoise = (hash(beamAngle * 100, 0, 2) - 0.5) * 0.08;
+        const effectiveAngularWidth = inclAngularHalfWidth * (1 + beamNoise);
         
-        const angleDiff = Math.abs(currentAngle - inclCenterAngle);
+        const angleDiff = Math.abs(beamAngle - inclAngle);
         
-        inShadowCore = angleDiff < effectiveAngularWidth * 0.85;
-        inShadowPenumbra = angleDiff < effectiveAngularWidth * 1.2;
-        
-        if (inShadowCore) {
-          const normalizedDist = angleDiff / effectiveAngularWidth;
-          shadowCoreStrength = 1.0 - normalizedDist * 0.2;
-        } else if (inShadowPenumbra) {
-          const penumbraStart = effectiveAngularWidth * 0.85;
-          const penumbraEnd = effectiveAngularWidth * 1.2;
-          const t = (angleDiff - penumbraStart) / (penumbraEnd - penumbraStart);
-          shadowCoreStrength = (1 - t) * 0.8;
+        if (angleDiff < effectiveAngularWidth) {
+          beamHitsInclusion = true;
+          beamCenterDistance = angleDiff / effectiveAngularWidth;
         }
       }
       
-      if (!inShadowCore && !inShadowPenumbra) continue;
+      if (!beamHitsInclusion) continue;
       
-      // ═══ ATTENUATION MODEL ═══
-      // Base attenuation coefficient based on inclusion properties
+      // ═══ EXPONENTIAL ATTENUATION ═══
+      // intensity[z] *= exp(-alpha * (z - z_obj))
+      const posteriorDepth = depth - z_obj;
+      
+      // Alpha based on inclusion acoustic properties
       const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
       const attenuationCoeff = inclusionMedium.attenuation_dB_per_cm_MHz;
       
-      // Alpha controls shadow darkness (higher = darker)
-      // Range: 0.5 (mild shadow) to 1.2 (very dark shadow)
-      const baseAlpha = 0.5 + Math.min(0.7, attenuationCoeff / 4);
+      // Base alpha: 0.6 to 1.2 depending on material
+      const baseAlpha = 0.6 + Math.min(0.6, attenuationCoeff / 4);
       
-      // Add local variation to prevent banding (subtle, organic)
-      const alphaVariation = (hash(lateral * 10, depth * 10, 3) - 0.5) * 0.15;
-      const alpha = baseAlpha * (1 + alphaVariation);
+      // Per-beam random variation to prevent banding (subtle)
+      const beamVariation = (hash(lateral * 31.7, depth * 0.1, 3) - 0.5) * 0.2;
+      const alpha = baseAlpha * (1 + beamVariation);
       
-      // ═══ EXPONENTIAL DECAY WITH DEPTH ═══
-      // Shadow is darkest right below inclusion, gradually recovers
-      const depthDecay = Math.exp(-alpha * posteriorDepth);
+      // Core attenuation: exponential decay with depth
+      const depthAttenuation = Math.exp(-alpha * posteriorDepth);
+      
+      // ═══ SOFT EDGE FALLOFF (based on distance from beam center) ═══
+      // Beams near edge of inclusion get less attenuation (penumbra effect)
+      // This creates organic edges without using geometric shapes
+      const edgeFalloff = 1 - Math.pow(beamCenterDistance, 2);
       
       // ═══ SPECKLE PRESERVATION ═══
-      // Add texture noise that mimics reduced-amplitude speckle
-      // Multiple frequencies for realistic granular appearance
-      const speckleNoise1 = hash(lateral * 25, depth * 25, 4) - 0.5;
-      const speckleNoise2 = hash(lateral * 12, depth * 12, 5) - 0.5;
-      const speckleNoise3 = hash(lateral * 6, depth * 6, 6) - 0.5;
+      // Add texture that mimics real ultrasound speckle (reduced amplitude)
+      const speckleVar1 = (hash(lateral * 89, depth * 67, 4) - 0.5) * 0.1;
+      const speckleVar2 = (hash(lateral * 41, depth * 29, 5) - 0.5) * 0.06;
+      const speckleVar3 = (hash(lateral * 17, depth * 13, 6) - 0.5) * 0.03;
+      const speckleTexture = 1 + speckleVar1 + speckleVar2 + speckleVar3;
       
-      // Combine at different amplitudes (higher freq = lower amplitude)
-      const speckleTexture = speckleNoise1 * 0.08 + speckleNoise2 * 0.06 + speckleNoise3 * 0.04;
+      // ═══ FINAL SHADOW FACTOR ═══
+      // Combine: depth decay × edge falloff × speckle
+      const rawAttenuation = (1 - depthAttenuation) * edgeFalloff;
+      const maxAttenuation = 0.82; // Never fully black
+      const minIntensity = 0.15; // Preserve some signal
       
-      // ═══ FINAL SHADOW CALCULATION ═══
-      // Shadow strength combines: core strength × depth decay
-      const rawShadowStrength = shadowCoreStrength * depthDecay;
+      const thisBeamShadow = 1 - (rawAttenuation * maxAttenuation);
+      const texturedShadow = thisBeamShadow * speckleTexture;
+      const clampedShadow = Math.max(minIntensity, Math.min(1.0, texturedShadow));
       
-      // Shadow reduces intensity but never to pure black
-      // Minimum keeps some speckle visible even in deep shadow
-      const minIntensity = 0.12; // ~12% minimum to preserve texture
-      const maxAttenuation = 0.85; // Maximum 85% reduction
-      
-      // Apply shadow with texture variation
-      const attenuationAmount = rawShadowStrength * maxAttenuation;
-      const shadowFactor = 1.0 - attenuationAmount + speckleTexture * (1 - rawShadowStrength * 0.5);
-      
-      // Clamp and ensure minimum intensity
-      const clampedShadowFactor = Math.max(minIntensity, Math.min(1.0, shadowFactor));
-      
-      // Take darkest shadow (multiple inclusions)
-      minShadowFactor = Math.min(minShadowFactor, clampedShadowFactor);
+      // Use darkest shadow from all inclusions
+      shadowFactor = Math.min(shadowFactor, clampedShadow);
     }
     
-    return minShadowFactor;
+    return shadowFactor;
   }
   
   /**
