@@ -721,14 +721,21 @@ export class UnifiedUltrasoundEngine {
    */
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * LINEAR SHADOW MAP v5 - Organic ray-based shadows with proper diffusion
+   * LINEAR SHADOW MAP v6 - TRUE RAY-BASED with per-beam attenuation
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * Creates smooth, organic acoustic shadows by:
-   * 1. Computing raw attenuation per beam (column) with ray-based physics
-   * 2. Using a wide Gaussian profile across beams for diffuse edges
-   * 3. Adding depth-dependent widening (shadows spread with depth)
-   * 4. Motion is synchronized with inclusion rendering
+   * ALGORITHM (exactly as requested):
+   * 1. Create attenuationMask[beam][depth] initialized to 1.0
+   * 2. For each beam (column x):
+   *    - Find hitIndex = last sample inside inclusion
+   *    - If hit: attenuate exponentially from hitIndex+1 to end
+   * 3. Apply lateral smoothing (Gaussian kernel across beams)
+   * 4. Apply to final image
+   * 
+   * This creates organic shadows with:
+   * - Smooth bell-curve lateral profile (not rectangular)
+   * - Speckle preserved (just darker)
+   * - Motion synchronized with rendering
    */
   private computeLinearShadowMap(): void {
     const { width, height } = this.canvas;
@@ -752,6 +759,13 @@ export class UnifiedUltrasoundEngine {
     const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008;
     const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
     
+    // ═══ STEP 1: Create raw attenuation mask (per-beam) ═══
+    const rawMask = new Float32Array(width * height);
+    rawMask.fill(1.0);
+    
+    const numBeams = width;
+    const numDepthSamples = height;
+    
     for (const inclusion of this.config.inclusions) {
       if (!inclusion.hasStrongShadow) continue;
       
@@ -760,101 +774,102 @@ export class UnifiedUltrasoundEngine {
       const motionDepthOffset = breathingCycle * breathingDepthEffect + jitterDepth;
       const motionLateralOffset = jitterLateral;
       
-      // Motion-adjusted inclusion position
-      const inclCenterDepth = inclusion.centerDepthCm + motionDepthOffset;
-      const inclCenterLateral = (inclusion.centerLateralPos * 2.5) + motionLateralOffset;
+      // Motion-adjusted inclusion position in physical coords
+      const inclCenterDepthCm = inclusion.centerDepthCm + motionDepthOffset;
+      const inclCenterLateralCm = (inclusion.centerLateralPos * 2.5) + motionLateralOffset;
       
-      // Inclusion geometry
+      // Inclusion geometry in cm
       const rx = inclusion.sizeCm.width / 2;
       const ry = inclusion.sizeCm.height / 2;
       
       // Get material attenuation
       const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
       const materialAttenuation = inclusionMedium.attenuation_dB_per_cm_MHz;
-      const baseAlpha = 0.4 + Math.min(0.5, materialAttenuation / 6);
+      const baseAlpha = 0.35 + Math.min(0.4, materialAttenuation / 8);
       
-      // Shadow parameters
-      const MIN_INTENSITY = 0.08; // Preserve speckle visibility
-      
-      // ═══ PROCESS EACH PIXEL DIRECTLY (for organic shadow shape) ═══
-      for (let y = 0; y < height; y++) {
-        const depthCoords = this.pixelToPhysical(0, y);
-        const depth = depthCoords.depth;
+      // ═══ STEP 2: For each BEAM (column), find hit and attenuate ═══
+      for (let beamIdx = 0; beamIdx < numBeams; beamIdx++) {
+        // Convert beam index to lateral position in cm
+        const physCoords = this.pixelToPhysical(beamIdx, 0);
+        const beamLateralCm = physCoords.lateral;
         
-        // Shadow only starts below the inclusion's bottom edge
-        // Calculate z_exit at center of inclusion
-        const inclBottomDepth = inclCenterDepth + ry;
-        if (depth <= inclBottomDepth) continue;
+        // Distance from beam center to inclusion center
+        const dx = beamLateralCm - inclCenterLateralCm;
         
-        // Depth below inclusion (how far the shadow has traveled)
-        const posteriorDepth = depth - inclBottomDepth;
+        // Per-beam alpha variation for organic texture (±6%)
+        const beamNoise = this.noise(beamIdx * 7 + 123) * 0.12 - 0.06;
         
-        // Shadow width INCREASES with depth (beam divergence simulation)
-        // At exit point: width = inclusion width
-        // Deeper: width grows gradually
-        const spreadFactor = 0.03; // cm per cm depth
-        const shadowHalfWidth = rx + posteriorDepth * spreadFactor;
+        // Check if this beam passes through inclusion (with small extension for penumbra)
+        const beamInclRadius = rx * (1 + beamNoise * 0.5);
+        if (Math.abs(dx) > beamInclRadius * 1.2) continue;
         
-        // Convert shadow width from cm to pixels
-        const pixelsPerCm = width / 5.0; // Assuming 5cm field width
-        const shadowHalfWidthPixels = shadowHalfWidth * pixelsPerCm;
+        // ═══ FIND z_exit: where beam exits inclusion ═══
+        // For ellipse: y = ry * sqrt(1 - (x/rx)^2) at normalized position
+        const normalizedX = Math.abs(dx) / beamInclRadius;
+        let z_exit: number;
+        let beamStrength: number;
         
-        // Find center pixel X for this inclusion
-        const centerXPixel = ((inclCenterLateral / 2.5) + 0.5) * width;
+        if (normalizedX <= 1.0) {
+          // Beam passes through inclusion
+          const dyFromCenter = ry * Math.sqrt(Math.max(0, 1 - normalizedX * normalizedX));
+          z_exit = inclCenterDepthCm + dyFromCenter;
+          
+          // Beam strength: 1.0 at center, lower at edges (smooth profile)
+          beamStrength = Math.sqrt(1 - normalizedX * normalizedX);
+        } else {
+          // Beam in penumbra zone (just outside geometric edge)
+          z_exit = inclCenterDepthCm + ry * 0.3;
+          beamStrength = Math.max(0, 1 - (normalizedX - 1) / 0.2) * 0.3;
+        }
         
-        for (let x = 0; x < width; x++) {
-          // Distance from shadow center (in pixels)
-          const distFromCenter = Math.abs(x - centerXPixel);
+        // Skip if beam strength is negligible
+        if (beamStrength < 0.01) continue;
+        
+        // Effective alpha for this beam
+        const effectiveAlpha = baseAlpha * (1 + beamNoise) * beamStrength;
+        
+        // ═══ ATTENUATE FROM z_exit TO END OF BEAM ═══
+        let atten = 1.0;
+        for (let depthIdx = 0; depthIdx < numDepthSamples; depthIdx++) {
+          const depthCoords = this.pixelToPhysical(0, depthIdx);
+          const depthCm = depthCoords.depth;
           
-          // Skip if clearly outside shadow zone
-          if (distFromCenter > shadowHalfWidthPixels * 1.5) continue;
+          // Shadow starts EXACTLY at z_exit
+          if (depthCm <= z_exit) continue;
           
-          // ═══ GAUSSIAN LATERAL PROFILE (smooth bell curve) ═══
-          // sigma = shadowHalfWidth so edge is at ~1 sigma
-          const sigma = shadowHalfWidthPixels * 0.7;
-          const gaussianFalloff = Math.exp(-(distFromCenter * distFromCenter) / (2 * sigma * sigma));
+          // Calculate dz (delta depth in cm per pixel)
+          const dz = this.config.depth / numDepthSamples;
           
-          // Per-pixel noise for organic texture (±8%)
-          const pixelNoise = this.noise(x * 13 + y * 7) * 0.16 - 0.08;
+          // Exponential attenuation
+          atten *= Math.exp(-effectiveAlpha * dz);
           
-          // ═══ EXPONENTIAL ATTENUATION WITH DEPTH ═══
-          const effectiveAlpha = baseAlpha * (1 + pixelNoise);
-          const depthAttenuation = Math.exp(-effectiveAlpha * posteriorDepth);
+          // Clamp to minimum (preserve speckle)
+          const shadowFactor = Math.max(0.08, atten);
           
-          // Combine: Gaussian lateral × exponential depth
-          // At center (gaussianFalloff=1): full shadow
-          // At edge (gaussianFalloff→0): no shadow
-          const combinedAttenuation = 1 - (1 - depthAttenuation) * gaussianFalloff;
-          
-          const shadowFactor = Math.max(MIN_INTENSITY, combinedAttenuation);
-          
-          const idx = y * width + x;
-          this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], shadowFactor);
+          const idx = depthIdx * numBeams + beamIdx;
+          rawMask[idx] = Math.min(rawMask[idx], shadowFactor);
         }
       }
     }
     
-    // ═══ STEP 2: Apply additional smoothing pass for ultra-organic edges ═══
-    this.applyLateralGaussianBlur(width, height);
+    // ═══ STEP 3: Apply lateral Gaussian smoothing (across beams) ═══
+    // This transforms rectangular columns into smooth bell-curve profiles
+    this.applyLateralGaussianSmoothing(rawMask, this.linearShadowMap, numBeams, numDepthSamples);
   }
   
   /**
-   * Apply Gaussian blur in the lateral (x) direction for final smoothing
-   * Uses a wider kernel for more organic, diffuse shadow edges
+   * Apply Gaussian smoothing in the lateral (beam/x) direction
+   * Kernel: [0.1, 0.2, 0.4, 0.2, 0.1] - creates smooth bell-curve profile
    */
-  private applyLateralGaussianBlur(
+  private applyLateralGaussianSmoothing(
+    input: Float32Array,
+    output: Float32Array,
     width: number,
     height: number
   ): void {
-    if (!this.linearShadowMap) return;
-    
-    // Create temp buffer
-    const temp = new Float32Array(this.linearShadowMap);
-    
-    // Wider Gaussian kernel for smoother edges
-    // kernel radius = 6 pixels, sigma = 4.0
-    const kernelRadius = 6;
-    const sigma = 4.0;
+    // Gaussian kernel (sigma ≈ 3 pixels)
+    const kernelRadius = 4;
+    const sigma = 3.0;
     const kernel: number[] = [];
     let kernelSum = 0;
     
@@ -864,12 +879,12 @@ export class UnifiedUltrasoundEngine {
       kernelSum += weight;
     }
     
-    // Normalize kernel
+    // Normalize
     for (let i = 0; i < kernel.length; i++) {
       kernel[i] /= kernelSum;
     }
     
-    // Apply horizontal convolution
+    // Apply horizontal convolution (along beams)
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         let sum = 0;
@@ -879,12 +894,12 @@ export class UnifiedUltrasoundEngine {
           const sx = x + k;
           if (sx >= 0 && sx < width) {
             const weight = kernel[k + kernelRadius];
-            sum += temp[y * width + sx] * weight;
+            sum += input[y * width + sx] * weight;
             weightSum += weight;
           }
         }
         
-        this.linearShadowMap[y * width + x] = sum / weightSum;
+        output[y * width + x] = sum / weightSum;
       }
     }
   }

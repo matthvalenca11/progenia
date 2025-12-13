@@ -271,12 +271,20 @@ export class ConvexPolarEngine {
    */
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * ACOUSTIC SHADOW - SYNCHRONIZED MOTION v5 (CONVEX/MICROCONVEX)
+   * ACOUSTIC SHADOW - FIXED COORDINATE SYSTEM v6 (CONVEX/MICROCONVEX)
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * Motion synchronization is CRITICAL:
-   * - The shadow must use the EXACT SAME motion offsets as generatePolarImageWithPhysics
-   * - Motion is computed once per frame and applied consistently
+   * KEY INSIGHT: The image rendering in generatePolarImageWithPhysics applies
+   * motion to the SAMPLING POINT (r, theta), NOT to the inclusion position.
+   * 
+   * getTissueAtPolar() checks inclusion at ORIGINAL position (no motion).
+   * The "motion" effect comes from sampling at displaced coordinates.
+   * 
+   * Therefore, the shadow must ALSO use the ORIGINAL inclusion position,
+   * so both the inclusion AND shadow remain aligned in the same coordinate system.
+   * 
+   * The apparent "motion" of both comes from the displaced sampling, which
+   * shifts the ENTIRE image (inclusion + shadow together).
    */
   private computeAcousticShadowsWithMotion(physicsConfig: PhysicsConfig) {
     if (!this.config.inclusions || this.config.inclusions.length === 0) return;
@@ -286,14 +294,7 @@ export class ConvexPolarEngine {
     
     const MIN_INTENSITY = 0.06;
     
-    // ═══ MOTION PARAMETERS - EXACT SAME AS generatePolarImageWithPhysics ═══
-    // These MUST match exactly for shadow-inclusion synchronization
-    const breathingCycle = Math.sin(this.time * 0.3) * 0.025;
-    const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.015;
-    const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.012;
-    const motionAmplitude = 2.5; // SAME as in generatePolarImageWithPhysics
-    
-    // ═══ PROCESS EACH BEAM (ANGLE) INDEPENDENTLY ═══
+    // ═══ PROCESS EACH BEAM (ANGLE) ═══
     for (let thetaIdx = 0; thetaIdx < numAngleSamples; thetaIdx++) {
       const theta = ((thetaIdx / numAngleSamples) * 2 - 1) * halfFOVRad;
       
@@ -303,60 +304,65 @@ export class ConvexPolarEngine {
       for (const inclusion of this.config.inclusions) {
         if (!inclusion.hasStrongShadow) continue;
         
-        // ═══ COMPUTE MOTION - SAME FORMULA AS IMAGE GENERATION ═══
-        // In generatePolarImageWithPhysics, motion is applied to (y, x) coordinates
-        // y = r * cos(theta), x = r * sin(theta) at inclusion's position
-        const inclR = inclusion.centerDepthCm;
-        const inclTheta = inclusion.centerLateralPos * halfFOVRad * 2;
+        // ═══ USE ORIGINAL INCLUSION POSITION (same as getTissueAtPolar) ═══
+        // NO motion applied here - motion comes from displaced sampling
+        const inclCenterDepth = inclusion.centerDepthCm;
+        const inclLateralNorm = inclusion.centerLateralPos;
         
-        // Original cartesian position
-        const origX = inclR * Math.sin(inclTheta);
-        const origY = inclR * Math.cos(inclTheta);
+        // Map lateral position to angle (same as getTissueAtPolar uses)
+        const maxLateralAtDepth = inclCenterDepth * Math.tan(halfFOVRad);
+        const inclLateralCm = inclLateralNorm * maxLateralAtDepth * 2;
+        const inclTheta = Math.atan2(inclLateralCm, inclCenterDepth);
         
-        // Apply motion (same as physicsCore.applyMotionArtifacts scaled by motionAmplitude)
-        const depthRatio = inclR / maxDepthCm;
-        const motionY = breathingCycle * depthRatio + jitterDepth;
-        const motionX = jitterLateral;
+        // Compute angular radius of inclusion
+        const inclRadius = inclusion.shape === 'circle' 
+          ? (inclusion.sizeCm.width + inclusion.sizeCm.height) / 4 
+          : inclusion.sizeCm.width / 2;
         
-        // Scale by motion amplitude (same as in image generation)
-        const adjustedY = origY + motionY * motionAmplitude;
-        const adjustedX = origX + motionX * motionAmplitude;
+        const inclAngularRadius = Math.atan2(inclRadius, inclCenterDepth);
         
-        // Convert back to polar
-        const adjustedR = Math.sqrt(adjustedX * adjustedX + adjustedY * adjustedY);
-        const adjustedTheta = Math.atan2(adjustedX, adjustedY);
+        // Per-beam noise for organic edges
+        const edgeNoise = this.noise(thetaIdx * 13 + 456) * 0.08 - 0.04;
+        const effectiveAngularRadius = inclAngularRadius * (1 + edgeNoise);
         
-        // Create motion-adjusted inclusion
-        const motionAdjustedInclusion: UltrasoundInclusionConfig = {
-          ...inclusion,
-          centerDepthCm: adjustedR,
-          centerLateralPos: adjustedTheta / (halfFOVRad * 2),
-        };
+        // Angular distance from beam to inclusion center
+        const angleDiff = Math.abs(theta - inclTheta);
         
-        // ═══ CALCULATE RAY-INCLUSION INTERSECTION ═══
-        const intersection = this.computeRadialRayIntersection(
-          theta, 
-          thetaIdx, 
-          motionAdjustedInclusion, 
-          halfFOVRad
-        );
+        // Check if beam hits inclusion
+        if (angleDiff > effectiveAngularRadius * 1.2) continue;
         
-        if (intersection === null) continue;
+        // ═══ COMPUTE z_exit ═══
+        const normalizedDist = Math.min(1.0, angleDiff / effectiveAngularRadius);
+        const inclHalfHeight = inclusion.sizeCm.height / 2;
+        
+        let z_exit: number;
+        let edgeFactor: number;
+        
+        if (normalizedDist <= 1.0) {
+          const exitOffset = inclHalfHeight * Math.sqrt(Math.max(0, 1 - normalizedDist * normalizedDist));
+          z_exit = inclCenterDepth + exitOffset;
+          edgeFactor = Math.pow(1 - normalizedDist, 0.5);
+        } else {
+          z_exit = inclCenterDepth + inclHalfHeight * 0.3;
+          edgeFactor = Math.max(0, 1 - (normalizedDist - 1) / 0.2) * 0.3;
+        }
+        
+        if (edgeFactor < 0.01) continue;
         
         // ═══ COMPUTE ALPHA ═══
         const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
         const materialAttenuation = inclusionMedium.attenuation_dB_per_cm_MHz;
         const baseAlpha = 0.6 + Math.min(0.8, materialAttenuation / 4);
         const alpha = baseAlpha * (1 + alphaVariation);
-        const effectiveAlpha = alpha * intersection.edgeFactor;
+        const effectiveAlpha = alpha * edgeFactor;
         
         // ═══ APPLY ATTENUATION ALONG BEAM ═══
         for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
           const r = (rIdx / numDepthSamples) * maxDepthCm;
           
-          if (r <= intersection.z_exit) continue;
+          if (r <= z_exit) continue;
           
-          const posteriorDepth = r - intersection.z_exit;
+          const posteriorDepth = r - z_exit;
           const attenuation = Math.exp(-effectiveAlpha * posteriorDepth);
           const shadowFactor = Math.max(MIN_INTENSITY, attenuation);
           
