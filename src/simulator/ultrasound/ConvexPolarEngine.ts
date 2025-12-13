@@ -246,16 +246,12 @@ export class ConvexPolarEngine {
 
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * PURE RAY-BASED ACOUSTIC SHADOW - COMPLETE REWRITE
+   * PURE RAY-BASED ACOUSTIC SHADOW - COMPLETE REWRITE v3
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * NO masks, NO polygons, NO gradients, NO blur, NO edge falloff.
+   * CRITICAL: Shadow starts at the EXACT point where each ray EXITS the inclusion.
    * Each ray is processed COMPLETELY INDEPENDENTLY.
-   * 
-   * For each ray (theta):
-   *   1. Check if ray passes through inclusion
-   *   2. If yes, apply: intensity[r] *= exp(-alpha * (r - z_hit))
-   *   3. Alpha varies 5-10% per ray for natural irregularity
+   * NO masks, NO polygons, NO gradients, NO edge falloff.
    */
   private computeAcousticShadowsWithMotion(physicsConfig: PhysicsConfig) {
     if (!this.config.inclusions || this.config.inclusions.length === 0) return;
@@ -263,9 +259,9 @@ export class ConvexPolarEngine {
     const { numDepthSamples, numAngleSamples, maxDepthCm, fovDegrees, transducerRadiusCm } = this.config;
     const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
     
-    // Deterministic noise based on integer seed
+    // Deterministic noise
     const noise = (seed: number): number => {
-      const x = Math.sin(seed * 12.9898) * 43758.5453;
+      const x = Math.sin(seed * 12.9898 + seed * 0.1) * 43758.5453;
       return x - Math.floor(x);
     };
     
@@ -273,67 +269,88 @@ export class ConvexPolarEngine {
     for (let thetaIdx = 0; thetaIdx < numAngleSamples; thetaIdx++) {
       const theta = ((thetaIdx / numAngleSamples) * 2 - 1) * halfFOVRad;
       
-      // Check each inclusion
       for (const inclusion of this.config.inclusions) {
         if (!inclusion.hasStrongShadow) continue;
         
-        // ═══ INCLUSION GEOMETRY ═══
-        const inclCenterDepth = inclusion.centerDepthCm;
-        const inclHalfHeight = inclusion.sizeCm.height / 2;
-        const inclRadius = inclusion.shape === 'circle' 
-          ? (inclusion.sizeCm.width + inclusion.sizeCm.height) / 4 
-          : inclusion.sizeCm.width / 2;
+        // ═══ CALCULATE EXACT RAY-INCLUSION INTERSECTION ═══
+        const exitPoint = this.calculateRayExitPoint(theta, thetaIdx, inclusion, transducerRadiusCm, halfFOVRad, noise);
         
-        // Inclusion position in angular space
-        const inclLateralNorm = inclusion.centerLateralPos;
-        const maxLateralAtDepth = inclCenterDepth * Math.tan(halfFOVRad);
-        const inclCenterLateral = inclLateralNorm * maxLateralAtDepth * 2;
+        if (exitPoint === null) continue;
         
-        // Inclusion's angle as seen from virtual apex
-        const inclAngle = Math.atan2(inclCenterLateral, inclCenterDepth + transducerRadiusCm);
-        const inclAngularRadius = Math.atan(inclRadius / (inclCenterDepth + transducerRadiusCm));
-        
-        // ═══ DOES THIS RAY PASS THROUGH INCLUSION? ═══
-        // Per-ray noise for organic edge (±5%)
-        const rayNoise = noise(thetaIdx * 7 + 123) * 0.1 - 0.05;
-        const effectiveAngularRadius = inclAngularRadius * (1 + rayNoise);
-        
-        const angleDiff = Math.abs(theta - inclAngle);
-        
-        // Ray does not hit inclusion
-        if (angleDiff > effectiveAngularRadius) continue;
-        
-        // ═══ RAY HITS INCLUSION - APPLY ATTENUATION ═══
-        // z_hit: bottom edge of inclusion
-        const z_hit = inclCenterDepth + inclHalfHeight;
-        
-        // Alpha with per-ray variation (5-10%)
+        // ═══ APPLY ATTENUATION ALONG THIS RAY ═══
         const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
         const materialAttenuation = inclusionMedium.attenuation_dB_per_cm_MHz;
-        const baseAlpha = 0.8 + Math.min(0.7, materialAttenuation / 3);
-        const alphaVariation = noise(thetaIdx * 13 + 456) * 0.1;
+        const baseAlpha = 0.7 + Math.min(0.7, materialAttenuation / 3);
+        const alphaVariation = noise(thetaIdx * 13 + 456) * 0.08;
         const alpha = baseAlpha * (1 + alphaVariation);
         
-        // Apply attenuation to all points below z_hit on this ray
         for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
           const r = (rIdx / numDepthSamples) * maxDepthCm;
           
-          // Only shadow below inclusion
-          if (r <= z_hit) continue;
+          // Shadow starts EXACTLY at exit point
+          if (r <= exitPoint.z_exit) continue;
           
-          const posteriorDepth = r - z_hit;
-          
-          // Core formula: intensity *= exp(-alpha * distance)
+          const posteriorDepth = r - exitPoint.z_exit;
           const attenuation = Math.exp(-alpha * posteriorDepth);
-          
-          // Minimum to preserve speckle visibility
-          const shadowFactor = Math.max(0.08, attenuation);
+          const shadowFactor = Math.max(0.06, attenuation);
           
           const idx = rIdx * numAngleSamples + thetaIdx;
           this.shadowMap[idx] = Math.min(this.shadowMap[idx], shadowFactor);
         }
       }
     }
+  }
+  
+  /**
+   * Calculate the EXACT point where a ray exits an inclusion.
+   * For convex transducers, rays diverge from virtual apex.
+   */
+  private calculateRayExitPoint(
+    theta: number,
+    rayIdx: number,
+    inclusion: UltrasoundInclusionConfig,
+    transducerRadiusCm: number,
+    halfFOVRad: number,
+    noise: (seed: number) => number
+  ): { z_exit: number } | null {
+    
+    const inclCenterDepth = inclusion.centerDepthCm;
+    const inclHalfHeight = inclusion.sizeCm.height / 2;
+    const inclRadius = inclusion.shape === 'circle' 
+      ? (inclusion.sizeCm.width + inclusion.sizeCm.height) / 4 
+      : inclusion.sizeCm.width / 2;
+    
+    // Inclusion position in world coordinates
+    const inclLateralNorm = inclusion.centerLateralPos;
+    const maxLateralAtDepth = inclCenterDepth * Math.tan(halfFOVRad);
+    const inclCenterLateral = inclLateralNorm * maxLateralAtDepth * 2;
+    
+    // Inclusion's angle from virtual apex
+    const inclAngle = Math.atan2(inclCenterLateral, inclCenterDepth + transducerRadiusCm);
+    const inclAngularRadius = Math.atan2(inclRadius, inclCenterDepth + transducerRadiusCm);
+    
+    // Per-ray noise for organic edges (±4%)
+    const rayNoise = noise(rayIdx * 7 + 123) * 0.08 - 0.04;
+    const effectiveAngularRadius = inclAngularRadius * (1 + rayNoise);
+    
+    const angleDiff = Math.abs(theta - inclAngle);
+    
+    // Ray doesn't hit inclusion
+    if (angleDiff > effectiveAngularRadius) return null;
+    
+    // ═══ CALCULATE EXACT EXIT POINT ═══
+    // For a circular/elliptical inclusion, the exit point depends on
+    // how far from center the ray passes through.
+    // At center (angleDiff=0): exits at center + halfHeight
+    // At edge (angleDiff=effectiveAngularRadius): exits at center
+    
+    const normalizedDist = angleDiff / effectiveAngularRadius; // 0 to 1
+    
+    // Circle equation: exit offset = halfHeight * sqrt(1 - d^2)
+    const exitOffset = inclHalfHeight * Math.sqrt(Math.max(0, 1 - normalizedDist * normalizedDist));
+    const z_exit = inclCenterDepth + exitOffset;
+    
+    return { z_exit };
   }
 
   /**
