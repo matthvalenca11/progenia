@@ -1326,20 +1326,43 @@ export class UnifiedUltrasoundEngine {
       const normalizedDist = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
       const isInside = normalizedDist <= 1;
       const distFromCenter = Math.sqrt(normalizedDist);
-      return {
-        isInside,
-        distanceFromEdge: isInside ? (1 - distFromCenter) * Math.min(rx, ry) : 0
-      };
+      
+      // ═══ CORRIGIDO: Calcular distância real da borda mesmo quando FORA ═══
+      if (isInside) {
+        // Dentro: distância positiva da borda interna
+        return {
+          isInside: true,
+          distanceFromEdge: (1 - distFromCenter) * Math.min(rx, ry)
+        };
+      } else {
+        // Fora: distância positiva da borda externa
+        // Aproximação: (distFromCenter - 1) * raio médio
+        return {
+          isInside: false,
+          distanceFromEdge: (distFromCenter - 1) * Math.min(rx, ry)
+        };
+      }
     } else { // rectangle
       const halfW = inclusion.sizeCm.width / 2;
       const halfH = inclusion.sizeCm.height / 2;
       const isInside = Math.abs(dx) <= halfW && Math.abs(dy) <= halfH;
-      const distX = halfW - Math.abs(dx);
-      const distY = halfH - Math.abs(dy);
-      return {
-        isInside,
-        distanceFromEdge: Math.min(distX, distY)
-      };
+      
+      if (isInside) {
+        const distX = halfW - Math.abs(dx);
+        const distY = halfH - Math.abs(dy);
+        return {
+          isInside: true,
+          distanceFromEdge: Math.min(distX, distY)
+        };
+      } else {
+        // Fora: calcular distância da borda mais próxima
+        const overlapX = Math.max(0, Math.abs(dx) - halfW);
+        const overlapY = Math.max(0, Math.abs(dy) - halfH);
+        return {
+          isInside: false,
+          distanceFromEdge: Math.sqrt(overlapX * overlapX + overlapY * overlapY)
+        };
+      }
     }
   }
   
