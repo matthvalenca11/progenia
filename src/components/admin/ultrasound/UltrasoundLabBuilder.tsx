@@ -6,6 +6,7 @@ import { SimulationResourcesSection } from "./SimulationResourcesSection";
 import { UltrasoundPreview } from "./UltrasoundPreview";
 import { AcousticLayersEditor } from "../AcousticLayersEditor";
 import { InclusionsEditor } from "../InclusionsEditor";
+import { LabVideoUploader } from "../LabVideoUploader";
 import { useUltrasoundLabStore } from "@/stores/ultrasoundLabStore";
 import { UltrasoundLayerConfig, getAcousticMedium } from "@/types/acousticMedia";
 import { Separator } from "@/components/ui/separator";
@@ -14,7 +15,12 @@ import { Layers, TestTube2, Sparkles, Sliders } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 
-export const UltrasoundLabBuilder = () => {
+interface UltrasoundLabBuilderProps {
+  videoUrl?: string;
+  onVideoChange?: (url: string | undefined) => void;
+}
+
+export const UltrasoundLabBuilder = ({ videoUrl, onVideoChange }: UltrasoundLabBuilderProps) => {
   const { layers, setLayers, acousticLayers, setAcousticLayers, inclusions, setInclusions } = useUltrasoundLabStore();
   
   // Convert AnatomyLayer to UltrasoundLayerConfig for the editor
@@ -71,6 +77,15 @@ export const UltrasoundLabBuilder = () => {
     <div className="grid grid-cols-1 lg:grid-cols-[1fr,600px] gap-6 items-start relative">
       <div className="space-y-6">
         <BasicInfoSection />
+        
+        {/* Video Uploader - integrated in left column */}
+        {onVideoChange && (
+          <LabVideoUploader
+            videoUrl={videoUrl}
+            onVideoChange={onVideoChange}
+          />
+        )}
+        
         <AnatomyPresetSection />
         
         <Separator className="my-6" />

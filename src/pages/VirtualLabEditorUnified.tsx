@@ -205,46 +205,12 @@ export default function VirtualLabEditorUnified() {
           </Button>
         </div>
 
-        {/* Lab Type Selector + Video in grid for ultrasound (since UltrasoundLabBuilder has its own BasicInfo) */}
+        {/* Type-Specific Configuration */}
         {lab.lab_type === "ultrasound" ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Lab Type Card */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Tipo de Laboratório</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Select
-                  value={lab.lab_type}
-                  onValueChange={handleLabTypeChange}
-                  disabled={isEdit}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ultrasound">Ultrassom</SelectItem>
-                    <SelectItem value="tens">TENS (Estimulação Elétrica Transcutânea)</SelectItem>
-                    <SelectItem value="electrotherapy">Eletroterapia (Outros)</SelectItem>
-                    <SelectItem value="thermal">Terapias Térmicas</SelectItem>
-                    <SelectItem value="other">Outro</SelectItem>
-                  </SelectContent>
-                </Select>
-                {isEdit && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    O tipo não pode ser alterado após criar o laboratório
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Video Uploader - Compact */}
-            <LabVideoUploader
-              videoUrl={videoUrl}
-              onVideoChange={setVideoUrl}
-              disabled={loading}
-            />
-          </div>
+          <UltrasoundLabBuilder 
+            videoUrl={videoUrl}
+            onVideoChange={setVideoUrl}
+          />
         ) : (
           <>
             {/* Basic Info for non-ultrasound labs */}
@@ -326,9 +292,7 @@ export default function VirtualLabEditorUnified() {
           </>
         )}
 
-        {/* Type-Specific Configuration */}
-        {lab.lab_type === "ultrasound" && <UltrasoundLabBuilder />}
-        
+        {/* TENS Configuration */}
         {lab.lab_type === "tens" && lab.config_data && (
           <TensLabConfigEditor
             config={lab.config_data}
