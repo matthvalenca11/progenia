@@ -1435,26 +1435,23 @@ export class UnifiedUltrasoundEngine {
   
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * ACOUSTIC SHADOW - COMPLETE REWRITE v4
+   * ACOUSTIC SHADOW - COMPLETE REWRITE v5 (LINEAR)
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * PHYSICAL MODEL:
-   * - Shadow is the consequence of cumulative attenuation along each beam
-   * - Each beam is traced independently from transducer surface to max depth
-   * - When beam intersects an inclusion, energy is absorbed
-   * - Shadow starts EXACTLY at the exit point (z_exit) - NO GAP
-   * - Formula: I(z) = I(z) × exp(-α × (z - z_exit))
+   * PROBLEMA IDENTIFICADO:
+   * O shadowMap pré-computado estava retornando valores muito baixos (0.1-0.3)
+   * quando deveria retornar 0.5-0.8. Isso causava sombra quase preta.
    * 
-   * GEOMETRY:
-   * - LINEAR: Vertical parallel beams → narrow vertical shadows
-   * - CONVEX/MICROCONVEX: Use ConvexPolarEngine instead
+   * NOVA ABORDAGEM:
+   * Calcular a sombra DIRETAMENTE em calculateInclusionEffects, sem shadowMap.
    * 
-   * CRITICAL REQUIREMENTS:
-   * 1. Shadow begins at EXACT exit point (no gap)
-   * 2. Follows beam trajectory (vertical for linear)
-   * 3. Preserves speckle (only reduces amplitude)
-   * 4. Has diffuse edges (beams at edge have partial shadow)
-   * 5. Darker near inclusion, gradually lighter with depth
+   * MODELO FOTOMÉTRICO ALVO:
+   * - Início da sombra (0-5mm abaixo): 0.75-0.85 do tecido (15-25% mais escuro)
+   * - Meio (5-15mm): 0.60-0.75 do tecido (25-40% mais escuro)
+   * - Fundo (>15mm): 0.55-0.65 do tecido (35-45% mais escuro)
+   * - NUNCA menos que 0.50 do tecido
+   * 
+   * RESULTADO ESPERADO: ratio shadow/tissue entre 0.55 e 0.75
    */
   private calculateInclusionEffects(
     x: number,
@@ -1466,63 +1463,78 @@ export class UnifiedUltrasoundEngine {
     let attenuationFactor = 1;
     let reflection = 0;
     
-    // ═══ APLICAR SOMBRA COM TRANSIÇÃO SUAVE NA BORDA ═══
-    // Ao invés de um corte abrupto em !tissue.isInclusion,
-    // usar uma transição baseada na distância da borda da inclusão
-    
     if (this.config.transducerType === 'linear') {
-      // Calcular distância da borda da inclusão mais próxima
-      let minDistFromEdge = Infinity;
-      let isNearInclusion = false;
+      // ═══════════════════════════════════════════════════════════════════════════════
+      // CÁLCULO DIRETO DA SOMBRA (sem shadowMap pré-computado)
+      // ═══════════════════════════════════════════════════════════════════════════════
       
+      // Para cada inclusão, verificar se estamos na zona de sombra
       for (const inclusion of this.config.inclusions) {
-        const distInfo = this.getDistanceFromInclusion(depth, lateral, inclusion);
-        if (distInfo.isInside) {
-          // Dentro da inclusão - não aplicar sombra, mas preparar transição
-          minDistFromEdge = -distInfo.distanceFromEdge; // Negativo = dentro
-          isNearInclusion = true;
-          break;
-        } else {
-          // Fora da inclusão - calcular distância
-          // distanceFromEdge é 0 quando está exatamente na borda
-          const distOutside = distInfo.distanceFromEdge;
-          if (distOutside < minDistFromEdge) {
-            minDistFromEdge = distOutside;
-            isNearInclusion = distOutside < 0.3; // Zona de transição de 0.3cm
+        if (!inclusion.hasStrongShadow) continue;
+        
+        // Posição da inclusão
+        const inclLateral = inclusion.centerLateralPos * 2.5; // -2.5 to +2.5 cm
+        const inclCenterDepth = inclusion.centerDepthCm;
+        const inclBottomDepth = inclCenterDepth + inclusion.sizeCm.height / 2;
+        const inclHalfWidth = inclusion.sizeCm.width / 2;
+        
+        // Verificar se estamos na coluna de sombra (abaixo da inclusão, dentro da largura)
+        const lateralDist = Math.abs(lateral - inclLateral);
+        
+        // Verificar se estamos abaixo da inclusão e dentro da largura
+        const isInShadowColumn = lateralDist <= inclHalfWidth * 1.1; // 10% de margem para bordas difusas
+        const isBelowInclusion = depth > inclBottomDepth;
+        
+        if (isInShadowColumn && isBelowInclusion && !tissue.isInclusion) {
+          // ═══ ESTAMOS NA ZONA DE SOMBRA ═══
+          
+          // Profundidade relativa abaixo da inclusão (em cm)
+          const dzCm = depth - inclBottomDepth;
+          
+          // ═══ FATOR LATERAL: bordas difusas ═══
+          // No centro da sombra: fator = 1.0 (sombra total)
+          // Nas bordas: fator < 1.0 (sombra parcial)
+          const lateralNorm = lateralDist / inclHalfWidth; // 0 = centro, 1 = borda
+          const lateralFactor = 1.0 - Math.pow(Math.max(0, lateralNorm - 0.7) / 0.4, 2); // Suave nas bordas
+          
+          // ═══ FATOR DE PROFUNDIDADE: gradiente suave ═══
+          // dzCm = 0: factor = 0.80 (20% mais escuro que tecido)
+          // dzCm = 2cm: factor = 0.55 (45% mais escuro que tecido)
+          // Nunca abaixo de 0.55
+          const maxFactor = 0.82;  // Logo abaixo da inclusão (18% mais escuro)
+          const minFactor = 0.58;  // Profundidade máxima (42% mais escuro)
+          const decayRate = 1.2;   // Taxa de decaimento (cm^-1)
+          
+          const depthFactor = minFactor + (maxFactor - minFactor) * Math.exp(-decayRate * dzCm);
+          
+          // ═══ RUÍDO ORGÂNICO por pixel ═══
+          const pixelSeed = x * 7919 + y * 104729;
+          const noise = (this.hashNoise(pixelSeed) - 0.5) * 0.08; // ±4% variação
+          
+          // ═══ FATOR FINAL DE SOMBRA ═══
+          // Combina profundidade, lateral, e ruído
+          const shadowFactor = Math.max(0.55, Math.min(0.90, depthFactor + noise)) * lateralFactor + (1 - lateralFactor);
+          
+          // ═══ TRANSIÇÃO SUAVE no início da sombra ═══
+          const transitionCm = 0.15; // 1.5mm de transição
+          let transitionBlend = 1.0;
+          if (dzCm < transitionCm) {
+            const t = dzCm / transitionCm;
+            transitionBlend = t * t * (3 - 2 * t); // smoothstep
           }
-        }
-      }
-      
-      // Aplicar sombra com transição gradual
-      const shadowX = ((lateral + 2.5) / 5.0) * this.canvas.width;
-      const shadowY = (depth / this.config.depth) * this.canvas.height;
-      const rawShadow = this.getLinearShadowFactor(Math.floor(shadowX), Math.floor(shadowY));
-      
-      if (tissue.isInclusion) {
-        // Dentro da inclusão - usar transição suave nas bordas inferiores
-        const distFromEdge = Math.abs(minDistFromEdge);
-        const transitionZone = 0.15; // cm de transição
-        
-        if (distFromEdge < transitionZone) {
-          // Perto da borda - começar a aplicar sombra gradualmente
-          const t = 1.0 - (distFromEdge / transitionZone);
-          const smoothT = t * t; // Quadrático para suavidade
-          // Interpolar entre 1.0 (sem sombra) e rawShadow
-          attenuationFactor *= this.lerp(1.0, rawShadow, smoothT * 0.5);
-        }
-        // Longe da borda interior - não aplica sombra
-      } else {
-        // Fora da inclusão - aplicar sombra com fade-in
-        const transitionZone = 0.1; // cm de transição após sair da inclusão
-        
-        if (minDistFromEdge < transitionZone && isNearInclusion) {
-          // Logo após sair da inclusão - fade-in gradual
-          const t = minDistFromEdge / transitionZone;
-          const smoothT = t * t * (3 - 2 * t); // Smoothstep
-          attenuationFactor *= this.lerp(1.0, rawShadow, smoothT);
-        } else {
-          // Longe da inclusão - aplicar sombra total
-          attenuationFactor *= rawShadow;
+          
+          // ═══ APLICAR SOMBRA COM BLEND ═══
+          // NUNCA multiplicar diretamente - usar lerp para preservar speckle
+          const finalFactor = this.lerp(1.0, shadowFactor, transitionBlend);
+          
+          attenuationFactor *= finalFactor;
+          
+          // DEBUG: Log para verificar valores
+          if (Math.random() < 0.0001) {
+            console.log(`[SHADOW DEBUG] dzCm=${dzCm.toFixed(2)}, depthFactor=${depthFactor.toFixed(3)}, lateralFactor=${lateralFactor.toFixed(3)}, finalFactor=${finalFactor.toFixed(3)}`);
+          }
+          
+          break; // Só aplica sombra de uma inclusão
         }
       }
       
