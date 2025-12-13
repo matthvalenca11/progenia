@@ -13,6 +13,7 @@ import { UltrasoundLabBuilder } from "@/components/admin/ultrasound/UltrasoundLa
 import { TensLabConfigEditor } from "@/components/admin/TensLabConfigEditor";
 import { defaultTensLabConfig } from "@/types/tensLabConfig";
 import TensLabPage from "@/pages/TensLabPage";
+import { useUltrasoundLabStore } from "@/stores/ultrasoundLabStore";
 
 export default function VirtualLabEditorUnified() {
   const navigate = useNavigate();
@@ -30,9 +31,15 @@ export default function VirtualLabEditorUnified() {
     is_published: false,
   });
 
+  // Access Zustand store for ultrasound lab configuration
+  const ultrasoundStore = useUltrasoundLabStore();
+
   useEffect(() => {
     if (isEdit && labId) {
       loadLab();
+    } else {
+      // Reset ultrasound store for new lab
+      ultrasoundStore.resetToDefaults();
     }
   }, [labId, isEdit]);
 
@@ -42,6 +49,16 @@ export default function VirtualLabEditorUnified() {
       const data = await virtualLabService.getById(labId!);
       if (data) {
         setLab(data);
+        
+        // If ultrasound lab, load config into Zustand store
+        if (data.lab_type === "ultrasound" && data.config_data) {
+          ultrasoundStore.loadConfig({
+            labId: data.id,
+            labName: data.name,
+            labDescription: data.description || '',
+            ...data.config_data
+          });
+        }
       }
     } catch (error: any) {
       console.error("Error loading lab:", error);
@@ -71,10 +88,33 @@ export default function VirtualLabEditorUnified() {
       const slug = lab.slug || virtualLabService.generateSlug(lab.name);
       const title = lab.title || lab.name;
       
+      // For ultrasound labs, get config from Zustand store
+      let configData = lab.config_data;
+      if (lab.lab_type === "ultrasound") {
+        const storeState = ultrasoundStore;
+        configData = {
+          presetId: storeState.presetId,
+          layers: storeState.layers,
+          acousticLayers: storeState.acousticLayers,
+          inclusions: storeState.inclusions,
+          transducerType: storeState.transducerType,
+          frequency: storeState.frequency,
+          depth: storeState.depth,
+          focus: storeState.focus,
+          gain: storeState.gain,
+          dynamicRange: storeState.dynamicRange,
+          mode: storeState.mode,
+          simulationFeatures: storeState.simulationFeatures,
+          complexityLevel: storeState.complexityLevel,
+          studentControls: storeState.studentControls,
+        };
+      }
+      
       const labData = {
         ...lab,
         slug,
         title,
+        config_data: configData,
       } as VirtualLab;
       
       if (isEdit && labId) {
