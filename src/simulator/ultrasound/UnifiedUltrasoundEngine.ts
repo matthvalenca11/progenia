@@ -1040,55 +1040,94 @@ export class UnifiedUltrasoundEngine {
           attenuationFactor *= (0.15 + 0.85 * (1 - finalShadowStrength));
         }
       } else {
-        // LINEAR: simpler column-based shadowing (nearly parallel rays)
-        for (const inclusion of this.config.inclusions) {
-          const inclusionBottomDepth = inclusion.centerDepthCm + inclusion.sizeCm.height / 2;
-          const isPosterior = depth >= inclusionBottomDepth;
-          if (!isPosterior) continue;
+        // LINEAR: Ray-based shadowing similar to Convex for realistic diverging shadows
+        // Linear transducers have nearly parallel rays but we still use ray marching
+        // for consistent shadow physics with gradual edges
+        
+        // For linear: rays are nearly parallel (very large virtual radius)
+        const virtualRadius = 50.0; // Large radius = nearly parallel rays
+        const distAtCurrentDepth = virtualRadius + depth;
+        
+        // Calculate ray angle (very small for linear)
+        const rayAngle = Math.asin(Math.max(-1, Math.min(1, lateral / distAtCurrentDepth)));
+        
+        // Ray marching for occlusion detection
+        let isRayShadowed = false;
+        let shadowInclusion: UltrasoundInclusionConfig | null = null;
+        let shadowStartDepth = 0;
+        let shadowExitDepth = 0;
+        
+        const marchSteps = 60;
+        for (let step = 0; step < marchSteps; step++) {
+          const marchDepth = (step / marchSteps) * depth;
+          if (marchDepth >= depth) break;
           
-          const inclLateral = inclusion.centerLateralPos * 2.5;
-          const posteriorDepth = depth - inclusionBottomDepth;
+          // Calculate lateral position of ray at marchDepth
+          const distAtMarchDepth = virtualRadius + marchDepth;
+          const lateralAtMarchDepth = distAtMarchDepth * Math.sin(rayAngle);
           
-          if (this.config.enableAcousticShadow && inclusion.hasStrongShadow) {
-            const inclusionThickness = inclusion.sizeCm.height;
+          // Check if ray hits any inclusion
+          for (const inclusion of this.config.inclusions) {
+            if (!this.config.enableAcousticShadow || !inclusion.hasStrongShadow) continue;
             
-            let effectiveWidth;
-            if (inclusion.shape === 'circle') {
-              effectiveWidth = (inclusion.sizeCm.width + inclusion.sizeCm.height) / 4;
-            } else if (inclusion.shape === 'ellipse') {
-              effectiveWidth = inclusion.sizeCm.width / 2;
-            } else {
-              effectiveWidth = inclusion.sizeCm.width / 2;
-            }
+            const distInfo = this.getDistanceFromInclusion(marchDepth, lateralAtMarchDepth, inclusion);
             
-            const thicknessFactor = Math.min(1, inclusionThickness / 2.0);
-            const baseShadowStrength = 0.25 + thicknessFactor * 0.35;
-            
-            // Linear: minimal spread
-            const shadowSpreadAngle = 0.005;
-            const shadowHalfWidth = effectiveWidth + posteriorDepth * Math.tan(shadowSpreadAngle);
-            const distFromShadowCenter = Math.abs(lateral - inclLateral);
-            
-            if (distFromShadowCenter < shadowHalfWidth * 2) {
-              if (distFromShadowCenter < shadowHalfWidth * 0.85) {
-                const internalTexture = Math.sin(posteriorDepth * 8 + lateral * 6) * 0.03;
-                const shadowCore = baseShadowStrength + internalTexture;
-                const depthDecay = Math.exp(-posteriorDepth * 0.35);
-                const finalShadowStrength = shadowCore * depthDecay;
-                attenuationFactor *= (0.15 + 0.85 * (1 - finalShadowStrength));
-              } else if (distFromShadowCenter < shadowHalfWidth * 1.5) {
-                const edgeDist = (distFromShadowCenter - shadowHalfWidth * 0.85) / (shadowHalfWidth * 0.65);
-                const penumbraStrength = (baseShadowStrength * 0.6) * Math.exp(-edgeDist * edgeDist * 2);
-                const depthDecay = Math.exp(-posteriorDepth * 0.4);
-                attenuationFactor *= (0.45 + 0.55 * (1 - penumbraStrength * depthDecay));
-              } else {
-                const outerDist = (distFromShadowCenter - shadowHalfWidth * 1.5) / (shadowHalfWidth * 0.5);
-                const outerFade = Math.exp(-outerDist * outerDist * 4) * baseShadowStrength * 0.25;
-                const depthDecay = Math.exp(-posteriorDepth * 0.5);
-                attenuationFactor *= (0.7 + 0.3 * (1 - outerFade * depthDecay));
+            if (distInfo.isInside) {
+              if (!isRayShadowed) {
+                isRayShadowed = true;
+                shadowInclusion = inclusion;
+                shadowStartDepth = marchDepth;
               }
+              shadowExitDepth = marchDepth;
             }
           }
+        }
+        
+        // Apply shadow with smooth gradient
+        if (isRayShadowed && shadowInclusion) {
+          const inclusionThickness = shadowExitDepth - shadowStartDepth + shadowInclusion.sizeCm.height * 0.5;
+          const inclusionBottomDepth = shadowStartDepth + inclusionThickness;
+          const posteriorDepth = Math.max(0, depth - inclusionBottomDepth);
+          
+          // Calculate distance from shadow center for edge softening
+          const inclLateral = shadowInclusion.centerLateralPos * 2.5;
+          const distFromCenter = Math.abs(lateral - inclLateral);
+          
+          // Shadow width expands slightly with depth (slight beam divergence)
+          const shadowSpreadAngle = 0.015; // Slightly wider than before for realistic spread
+          let effectiveWidth;
+          if (shadowInclusion.shape === 'circle') {
+            effectiveWidth = (shadowInclusion.sizeCm.width + shadowInclusion.sizeCm.height) / 4;
+          } else {
+            effectiveWidth = shadowInclusion.sizeCm.width / 2;
+          }
+          const shadowHalfWidth = effectiveWidth + posteriorDepth * Math.tan(shadowSpreadAngle);
+          
+          // Shadow intensity based on inclusion thickness
+          const thicknessFactor = Math.min(1, inclusionThickness / 2.0);
+          const baseShadowStrength = 0.25 + thicknessFactor * 0.35;
+          
+          // Smooth Gaussian edge falloff (no hard edges)
+          const normalizedDist = distFromCenter / shadowHalfWidth;
+          
+          // Core shadow (center)
+          if (normalizedDist < 1.0) {
+            // Inside main shadow - Gaussian intensity from center
+            const gaussianCore = Math.exp(-normalizedDist * normalizedDist * 0.8);
+            const internalTexture = Math.sin(posteriorDepth * 8 + lateral * 6) * 0.02;
+            const shadowCore = baseShadowStrength * gaussianCore + internalTexture;
+            const depthDecay = Math.exp(-posteriorDepth * 0.3);
+            const finalShadowStrength = shadowCore * depthDecay;
+            attenuationFactor *= (0.12 + 0.88 * (1 - finalShadowStrength));
+          } else if (normalizedDist < 2.5) {
+            // Penumbra region - smooth Gaussian falloff
+            const penumbraDist = normalizedDist - 1.0;
+            const gaussianFalloff = Math.exp(-penumbraDist * penumbraDist * 1.5);
+            const penumbraStrength = baseShadowStrength * 0.5 * gaussianFalloff;
+            const depthDecay = Math.exp(-posteriorDepth * 0.35);
+            attenuationFactor *= (0.4 + 0.6 * (1 - penumbraStrength * depthDecay));
+          }
+          // Beyond penumbra: no shadow effect (attenuationFactor unchanged)
         }
       }
       
