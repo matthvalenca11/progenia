@@ -977,6 +977,72 @@ export class UnifiedUltrasoundEngine {
         this.linearShadowMap[idx] = shadowColumn[y];
       }
     }
+    
+    // ═══ NOVO: Aplicar blur 2D para suavizar a transição na borda da inclusão ═══
+    this.applyShadowMapBlur(width, height);
+  }
+  
+  /**
+   * Aplica um blur gaussiano 2D ao mapa de sombra para suavizar transições
+   * Foca especialmente na região de transição inclusão → sombra
+   */
+  private applyShadowMapBlur(width: number, height: number): void {
+    if (!this.linearShadowMap) return;
+    
+    // Criar cópia temporária para ler valores originais
+    const original = new Float32Array(this.linearShadowMap);
+    
+    // Parâmetros do blur
+    const blurRadius = 6; // Raio do kernel em pixels
+    const sigma = 2.5; // Desvio padrão do Gaussiano
+    
+    // Pré-computar pesos Gaussianos
+    const weights: number[] = [];
+    let weightSum = 0;
+    for (let i = -blurRadius; i <= blurRadius; i++) {
+      const w = Math.exp(-(i * i) / (2 * sigma * sigma));
+      weights.push(w);
+      weightSum += w;
+    }
+    // Normalizar pesos
+    for (let i = 0; i < weights.length; i++) {
+      weights[i] /= weightSum;
+    }
+    
+    // Primeiro passo: blur horizontal
+    const horizontalBlur = new Float32Array(width * height);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        let sum = 0;
+        let wSum = 0;
+        for (let dx = -blurRadius; dx <= blurRadius; dx++) {
+          const sx = x + dx;
+          if (sx >= 0 && sx < width) {
+            const w = weights[dx + blurRadius];
+            sum += original[y * width + sx] * w;
+            wSum += w;
+          }
+        }
+        horizontalBlur[y * width + x] = sum / wSum;
+      }
+    }
+    
+    // Segundo passo: blur vertical
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        let sum = 0;
+        let wSum = 0;
+        for (let dy = -blurRadius; dy <= blurRadius; dy++) {
+          const sy = y + dy;
+          if (sy >= 0 && sy < height) {
+            const w = weights[dy + blurRadius];
+            sum += horizontalBlur[sy * width + x] * w;
+            wSum += w;
+          }
+        }
+        this.linearShadowMap[y * width + x] = sum / wSum;
+      }
+    }
   }
   /**
    * Hash-based noise for organic variation (deterministic)
