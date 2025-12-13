@@ -971,19 +971,26 @@ export class UnifiedUltrasoundEngine {
   
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * ACOUSTIC SHADOW - SIMPLIFIED RAY-BASED MODEL
+   * ACOUSTIC SHADOW - COMPLETE REWRITE v4
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * Physical model:
-   * 1. For each scanline (beam), detect if it passes through an inclusion
-   * 2. Shadow starts EXACTLY at z_obj (bottom edge of inclusion) - NO GAP
-   * 3. Apply exponential attenuation: I(z) = I(z) * exp(-alpha * (z - z_obj))
-   * 4. Add slight noise variation to alpha to prevent banding
-   * 5. Apply lateral Gaussian smoothing for diffuse edges
+   * PHYSICAL MODEL:
+   * - Shadow is the consequence of cumulative attenuation along each beam
+   * - Each beam is traced independently from transducer surface to max depth
+   * - When beam intersects an inclusion, energy is absorbed
+   * - Shadow starts EXACTLY at the exit point (z_exit) - NO GAP
+   * - Formula: I(z) = I(z) × exp(-α × (z - z_exit))
    * 
-   * Geometry per transducer:
-   * - LINEAR: Parallel vertical beams, shadow is narrow column
-   * - CONVEX/MICROCONVEX: Diverging fan beams, shadow follows angular spread
+   * GEOMETRY:
+   * - LINEAR: Vertical parallel beams → narrow vertical shadows
+   * - CONVEX/MICROCONVEX: Use ConvexPolarEngine instead
+   * 
+   * CRITICAL REQUIREMENTS:
+   * 1. Shadow begins at EXACT exit point (no gap)
+   * 2. Follows beam trajectory (vertical for linear)
+   * 3. Preserves speckle (only reduces amplitude)
+   * 4. Has diffuse edges (beams at edge have partial shadow)
+   * 5. Darker near inclusion, gradually lighter with depth
    */
   private calculateInclusionEffects(
     depth: number,
@@ -994,13 +1001,11 @@ export class UnifiedUltrasoundEngine {
     let reflection = 0;
     
     if (!tissue.isInclusion) {
-      // ═══════════════════════════════════════════════════════════════════════════
-      // APPLY ACOUSTIC SHADOW
-      // ═══════════════════════════════════════════════════════════════════════════
-      const shadowFactor = this.applyAcousticShadow(depth, lateral);
+      // Apply acoustic shadow
+      const shadowFactor = this.applyLinearAcousticShadow(depth, lateral);
       attenuationFactor *= shadowFactor;
       
-      // ═══ POSTERIOR ENHANCEMENT (for cystic/fluid structures) ═══
+      // Posterior enhancement (for cystic/fluid structures)
       if (this.config.enablePosteriorEnhancement) {
         const enhancementFactor = this.applyPosteriorEnhancement(depth, lateral);
         attenuationFactor *= enhancementFactor;
@@ -1011,20 +1016,15 @@ export class UnifiedUltrasoundEngine {
   }
   
   /**
-   * ═══════════════════════════════════════════════════════════════════════════════
-   * PURE RAY-BASED ACOUSTIC SHADOW - COMPLETE REWRITE v3
-   * ═══════════════════════════════════════════════════════════════════════════════
+   * LINEAR ACOUSTIC SHADOW - Pure ray-based vertical beam model
    * 
-   * CRITICAL FIX: Calculate exact exit point of each beam through the inclusion.
-   * Shadow MUST start at the exact point where the beam EXITS the inclusion.
-   * 
-   * Algorithm per beam:
-   * 1. Trace beam path (vertical for linear, radial for convex)
-   * 2. Find intersection with inclusion using ray-geometry math
-   * 3. z_hit = exact depth where beam exits inclusion (NOT center + halfHeight)
-   * 4. For all z > z_hit: intensity *= exp(-alpha * (z - z_hit))
+   * Algorithm:
+   * 1. This pixel is at position (depth, lateral)
+   * 2. Trace a vertical beam at x = lateral from surface to max depth
+   * 3. Find where this beam exits any blocking inclusion
+   * 4. If depth > z_exit: apply exponential attenuation
    */
-  private applyAcousticShadow(depth: number, lateral: number): number {
+  private applyLinearAcousticShadow(depth: number, lateral: number): number {
     if (!this.config.enableAcousticShadow) return 1.0;
     
     let shadowFactor = 1.0;
@@ -1032,37 +1032,42 @@ export class UnifiedUltrasoundEngine {
     for (const inclusion of this.config.inclusions) {
       if (!inclusion.hasStrongShadow) continue;
       
-      // ═══ CALCULATE EXACT RAY-INCLUSION INTERSECTION ═══
-      const exitPoint = this.calculateBeamExitPoint(lateral, inclusion);
+      // Calculate exit point for this vertical beam
+      const exitResult = this.computeVerticalBeamExit(lateral, inclusion);
       
-      // No intersection - this beam doesn't hit the inclusion
-      if (exitPoint === null) continue;
+      if (exitResult === null) continue; // Beam doesn't hit inclusion
       
       // Only apply shadow BELOW the exit point
-      if (depth <= exitPoint.z_exit) continue;
+      if (depth <= exitResult.z_exit) continue;
       
       // ═══ EXPONENTIAL ATTENUATION ═══
-      const posteriorDepth = depth - exitPoint.z_exit;
+      const posteriorDepth = depth - exitResult.z_exit;
       
-      // Alpha based on inclusion material
+      // Alpha based on inclusion material + per-beam variation
       const inclusionMedium = getAcousticMedium(inclusion.mediumInsideId);
       const materialAttenuation = inclusionMedium.attenuation_dB_per_cm_MHz;
       
-      // Base alpha: 0.7-1.4 range
-      const baseAlpha = 0.7 + Math.min(0.7, materialAttenuation / 3);
+      // Base alpha: higher for denser materials (bone: ~15 dB/cm/MHz)
+      const baseAlpha = 0.6 + Math.min(0.8, materialAttenuation / 4);
       
-      // Per-beam alpha variation (5-8%)
-      const beamId = this.getBeamId(lateral);
-      const alphaVariation = this.deterministicNoise(beamId + 777) * 0.08;
-      const alpha = baseAlpha * (1 + alphaVariation);
+      // Per-beam variation (5-8%) for organic look
+      const beamId = Math.floor(lateral * 1000);
+      const alphaVariation = this.noise(beamId * 7 + 123) * 0.08;
+      const alpha = baseAlpha * (1 + alphaVariation - 0.04);
+      
+      // ═══ LATERAL EDGE DIFFUSION ═══
+      // Beams at the edge of inclusion have partial shadow (lateral falloff)
+      const lateralFalloff = exitResult.edgeFactor;
+      const effectiveAlpha = alpha * lateralFalloff;
       
       // Core formula: exponential decay
-      const attenuation = Math.exp(-alpha * posteriorDepth);
+      const attenuation = Math.exp(-effectiveAlpha * posteriorDepth);
       
-      // Preserve some speckle (never fully black)
+      // Preserve speckle (never fully black)
       const minValue = 0.06;
       const thisShadow = Math.max(minValue, attenuation);
       
+      // Multiple inclusions: take darkest shadow
       shadowFactor = Math.min(shadowFactor, thisShadow);
     }
     
@@ -1070,129 +1075,67 @@ export class UnifiedUltrasoundEngine {
   }
   
   /**
-   * Calculate the EXACT point where a beam exits an inclusion.
-   * This ensures shadow starts precisely at the bottom of the inclusion
-   * along that specific beam's path - NO GAP.
+   * Compute where a VERTICAL beam exits an inclusion
+   * 
+   * Returns:
+   * - z_exit: exact depth where beam exits inclusion
+   * - edgeFactor: 1.0 at center, 0.0 at edge (for diffuse edges)
    */
-  private calculateBeamExitPoint(
+  private computeVerticalBeamExit(
     beamLateral: number,
     inclusion: UltrasoundInclusionConfig
-  ): { z_exit: number; beamHits: boolean } | null {
+  ): { z_exit: number; edgeFactor: number } | null {
     
     const inclCenterDepth = inclusion.centerDepthCm;
-    const inclCenterLateral = inclusion.centerLateralPos * 2.5;
+    const inclCenterLateral = inclusion.centerLateralPos * 2.5; // 5cm field: -2.5 to +2.5
     
-    if (this.config.transducerType === 'linear') {
-      // ═══ LINEAR: Beam is a vertical line at x = beamLateral ═══
-      // Calculate intersection with inclusion (circle or ellipse)
+    // Distance from beam to inclusion center (lateral only)
+    const dx = beamLateral - inclCenterLateral;
+    
+    // Per-beam noise for organic edges (±3%)
+    const beamId = Math.floor(beamLateral * 1000);
+    const edgeNoise = this.noise(beamId * 13 + 456) * 0.06 - 0.03;
+    
+    if (inclusion.shape === 'circle') {
+      const r = ((inclusion.sizeCm.width + inclusion.sizeCm.height) / 4) * (1 + edgeNoise);
       
-      const dx = beamLateral - inclCenterLateral;
+      if (Math.abs(dx) > r) return null; // No intersection
       
-      if (inclusion.shape === 'circle') {
-        const r = (inclusion.sizeCm.width + inclusion.sizeCm.height) / 4;
-        
-        // Per-beam noise for organic edges
-        const beamId = this.getBeamId(beamLateral);
-        const noise = this.deterministicNoise(beamId) * 0.08 - 0.04; // ±4%
-        const effectiveR = r * (1 + noise);
-        
-        // Check if vertical line x=beamLateral intersects circle
-        if (Math.abs(dx) > effectiveR) return null; // No intersection
-        
-        // Calculate exit point: circle equation (dx)^2 + (dy)^2 = r^2
-        // dy = sqrt(r^2 - dx^2), exit at center + dy
-        const dy = Math.sqrt(effectiveR * effectiveR - dx * dx);
-        const z_exit = inclCenterDepth + dy;
-        
-        return { z_exit, beamHits: true };
-        
-      } else { // ellipse or rectangle
-        const rx = inclusion.sizeCm.width / 2;
-        const ry = inclusion.sizeCm.height / 2;
-        
-        const beamId = this.getBeamId(beamLateral);
-        const noise = this.deterministicNoise(beamId) * 0.08 - 0.04;
-        const effectiveRx = rx * (1 + noise);
-        
-        if (Math.abs(dx) > effectiveRx) return null;
-        
-        // Ellipse: (dx/rx)^2 + (dy/ry)^2 = 1
-        // dy = ry * sqrt(1 - (dx/rx)^2)
-        const normalizedX = dx / effectiveRx;
-        const dy = ry * Math.sqrt(Math.max(0, 1 - normalizedX * normalizedX));
-        const z_exit = inclCenterDepth + dy;
-        
-        return { z_exit, beamHits: true };
-      }
+      // Circle equation: x² + y² = r²
+      // Vertical beam at x = dx intersects at y = ±sqrt(r² - dx²)
+      // Exit point (bottom) is at center + sqrt(r² - dx²)
+      const dy = Math.sqrt(Math.max(0, r * r - dx * dx));
+      const z_exit = inclCenterDepth + dy;
       
-    } else {
-      // ═══ CONVEX/MICROCONVEX: Beam is a ray from virtual apex ═══
-      const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
+      // Edge factor: 1 at center, 0 at edge
+      const normalizedDist = Math.abs(dx) / r;
+      const edgeFactor = Math.pow(1 - normalizedDist, 0.5); // Smooth falloff
       
-      // This is more complex: we need to find where a radial ray
-      // from (0, -radiusOfCurvature) intersects the inclusion
+      return { z_exit, edgeFactor };
       
-      // For simplicity, we'll use the angular approach but calculate
-      // the correct exit point along the ray
+    } else { // ellipse or rectangle
+      const rx = (inclusion.sizeCm.width / 2) * (1 + edgeNoise);
+      const ry = inclusion.sizeCm.height / 2;
       
-      // Beam angle (from virtual apex)
-      const beamAngle = Math.atan2(beamLateral, radiusOfCurvature);
+      if (Math.abs(dx) > rx) return null;
       
-      // Inclusion's angular extent
-      const inclAngle = Math.atan2(inclCenterLateral, inclCenterDepth + radiusOfCurvature);
+      // Ellipse: (dx/rx)² + (dy/ry)² = 1
+      // dy = ry × sqrt(1 - (dx/rx)²)
+      const normalizedX = dx / rx;
+      const dy = ry * Math.sqrt(Math.max(0, 1 - normalizedX * normalizedX));
+      const z_exit = inclCenterDepth + dy;
       
-      const inclRadius = inclusion.shape === 'circle' 
-        ? (inclusion.sizeCm.width + inclusion.sizeCm.height) / 4 
-        : inclusion.sizeCm.width / 2;
-      const inclAngularRadius = Math.atan2(inclRadius, inclCenterDepth + radiusOfCurvature);
+      // Edge factor
+      const edgeFactor = Math.pow(1 - Math.abs(normalizedX), 0.5);
       
-      // Per-beam noise
-      const beamId = Math.floor(beamAngle * 10000);
-      const noise = this.deterministicNoise(beamId) * 0.08 - 0.04;
-      const effectiveAngularRadius = inclAngularRadius * (1 + noise);
-      
-      const angleDiff = Math.abs(beamAngle - inclAngle);
-      
-      if (angleDiff > effectiveAngularRadius) return null;
-      
-      // Calculate where this ray exits the inclusion
-      // Approximate: find the radial distance along the ray to the exit point
-      // For a circular inclusion, this requires solving ray-circle intersection
-      
-      // Simplified: use the geometry to find exit depth
-      // The ray at angle θ hits the inclusion. The exit point is where
-      // the ray leaves the circle, which we can approximate as:
-      
-      const distFromInclusionAxis = angleDiff / effectiveAngularRadius; // 0 to 1
-      const inclHalfHeight = inclusion.sizeCm.height / 2;
-      
-      // At center of inclusion (distFromAxis = 0), exit at full halfHeight
-      // At edge (distFromAxis = 1), exit at center
-      const exitOffset = inclHalfHeight * Math.sqrt(Math.max(0, 1 - distFromInclusionAxis * distFromInclusionAxis));
-      const z_exit = inclCenterDepth + exitOffset;
-      
-      return { z_exit, beamHits: true };
+      return { z_exit, edgeFactor };
     }
   }
   
   /**
-   * Get a unique identifier for a beam based on its position/angle
+   * Deterministic noise function (0 to 1)
    */
-  private getBeamId(lateral: number): number {
-    if (this.config.transducerType === 'linear') {
-      return Math.floor(lateral * 1000) + 50000;
-    } else {
-      // For convex, use angle-based ID
-      const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
-      const angle = Math.atan2(lateral, radiusOfCurvature);
-      return Math.floor(angle * 10000) + 50000;
-    }
-  }
-  
-  /**
-   * Deterministic noise function based on integer seed
-   */
-  private deterministicNoise(seed: number): number {
+  private noise(seed: number): number {
     const x = Math.sin(seed * 12.9898 + seed * 0.1) * 43758.5453;
     return x - Math.floor(x);
   }
