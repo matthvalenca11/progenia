@@ -353,66 +353,7 @@ export class ConvexPolarEngine {
     return { z_exit };
   }
 
-  /**
-   * Calcula shadow map em coordenadas polares com RAY MARCHING correto (DEPRECATED - usar WithMotion)
-   * A sombra deve seguir os raios que divergem do arco do transdutor
-   */
-  private computeAcousticShadows() {
-    if (!this.config.inclusions || this.config.inclusions.length === 0) return;
-    
-    const { numDepthSamples, numAngleSamples, maxDepthCm, fovDegrees, lateralOffset } = this.config;
-    const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
-    
-    // Para cada raio angular, fazer marching e detectar oclusões
-    for (let thetaIdx = 0; thetaIdx < numAngleSamples; thetaIdx++) {
-      const theta = ((thetaIdx / numAngleSamples) * 2 - 1) * halfFOVRad;
-      
-      // Marchar ao longo deste raio específico
-      let shadowStartDepth = -1;
-      let shadowingInclusion: UltrasoundInclusionConfig | null = null;
-      
-      for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
-        const r = (rIdx / numDepthSamples) * maxDepthCm;
-        
-        // Verificar se este ponto (r, theta) está dentro de alguma inclusão
-        for (const inclusion of this.config.inclusions) {
-          if (!inclusion.hasStrongShadow) continue;
-          
-          // Verificar se ponto está na inclusão
-          const isInside = this.isPointInInclusionPolar(r, theta, inclusion);
-          
-          if (isInside && shadowStartDepth < 0) {
-            // Encontrou início da sombra neste raio
-            shadowStartDepth = r;
-            shadowingInclusion = inclusion;
-            break;
-          }
-        }
-        
-        // Se já encontrou uma inclusão bloqueando este raio, aplicar sombra daqui para baixo
-        if (shadowStartDepth >= 0 && r > shadowStartDepth) {
-          const idx = rIdx * numAngleSamples + thetaIdx;
-          const posteriorDepth = r - shadowStartDepth;
-          
-          // Intensidade da sombra baseada na espessura da inclusão e distância posterior
-          const inclusionThickness = shadowingInclusion?.sizeCm.height || 1.0;
-          const thicknessFactor = Math.min(1, inclusionThickness / 1.5);
-          const baseShadowStrength = 0.15 + thicknessFactor * 0.45; // Sombra mais forte
-          
-          // Decay com profundidade posterior
-          const depthDecay = Math.exp(-posteriorDepth * 0.25);
-          
-          // Textura interna da sombra (speckle degradado)
-          const shadowTexture = Math.sin(r * 15 + theta * 20) * 0.04;
-          
-          const finalShadowStrength = (baseShadowStrength + shadowTexture) * depthDecay;
-          
-          // Aplicar atenuação (valores menores = mais escuro)
-          this.shadowMap[idx] *= Math.max(0.08, 1.0 - finalShadowStrength);
-        }
-      }
-    }
-  }
+  // DEPRECATED function removed - use computeAcousticShadowsWithMotion instead
 
   /**
    * Obtém propriedades do tecido em coordenadas polares
@@ -595,19 +536,34 @@ export class ConvexPolarEngine {
           continue;
         }
         
-        // ═══ SAMPLE DA IMAGEM POLAR ═══
+        // ═══ SAMPLE DA IMAGEM POLAR COM INTERPOLAÇÃO BILINEAR ═══
         const rNorm = physDepthCm / maxDepthCm;
         const thetaNorm = (pixelAngle / halfFOVRad + 1) / 2; // [0, 1]
         
-        let rIdx = Math.floor(rNorm * (numDepthSamples - 1));
-        let thetaIdx = Math.floor(thetaNorm * (numAngleSamples - 1));
+        // Posições contínuas (não inteiras)
+        const rContinuous = rNorm * (numDepthSamples - 1);
+        const thetaContinuous = thetaNorm * (numAngleSamples - 1);
         
-        // Clampar índices
-        rIdx = Math.max(0, Math.min(numDepthSamples - 1, rIdx));
-        thetaIdx = Math.max(0, Math.min(numAngleSamples - 1, thetaIdx));
+        // Índices dos 4 vizinhos para interpolação
+        const r0 = Math.floor(rContinuous);
+        const r1 = Math.min(r0 + 1, numDepthSamples - 1);
+        const t0 = Math.floor(thetaContinuous);
+        const t1 = Math.min(t0 + 1, numAngleSamples - 1);
         
-        const polarIdx = rIdx * numAngleSamples + thetaIdx;
-        let intensity = this.polarImage[polarIdx];
+        // Frações para interpolação
+        const rFrac = rContinuous - r0;
+        const tFrac = thetaContinuous - t0;
+        
+        // Obter os 4 valores vizinhos
+        const v00 = this.polarImage[r0 * numAngleSamples + t0];
+        const v01 = this.polarImage[r0 * numAngleSamples + t1];
+        const v10 = this.polarImage[r1 * numAngleSamples + t0];
+        const v11 = this.polarImage[r1 * numAngleSamples + t1];
+        
+        // Interpolação bilinear
+        const v0 = v00 * (1 - tFrac) + v01 * tFrac;
+        const v1 = v10 * (1 - tFrac) + v11 * tFrac;
+        let intensity = v0 * (1 - rFrac) + v1 * rFrac;
         
         // ═══ RUÍDO TEMPORAL (motor unificado - igual ao linear) ═══
         intensity = this.physicsCore.applyTemporalNoise(x, y, physDepthCm, maxDepthCm, intensity);
