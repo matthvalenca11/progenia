@@ -155,10 +155,10 @@ export function getDefaultInclusionsForPreset(presetId: UltrasoundAnatomyPresetI
     // CARÓTIDA TRANSVERSAL - Artéria e veia jugular interna
     carotid_trans: [
       {
-        id: "carotid_artery_circle",
+        id: "carotid_artery_ellipse",
         type: "vessel",
         label: "Artéria Carótida Comum",
-        shape: "circle",
+        shape: "ellipse",
         centerDepthCm: 1.85,
         centerLateralPos: -0.35,
         sizeCm: { width: 0.72, height: 0.72 },

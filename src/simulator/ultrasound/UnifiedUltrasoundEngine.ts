@@ -482,7 +482,7 @@ export class UnifiedUltrasoundEngine {
       const halfWidth = inclusion.sizeCm.width / 2;
       const halfHeight = inclusion.sizeCm.height / 2;
       
-      if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+      if (inclusion.shape === 'ellipse') {
         const normX = distortedDx / halfWidth;
         const normY = dy / halfHeight;
         const dist = Math.sqrt(normX * normX + normY * normY);
@@ -801,7 +801,7 @@ export class UnifiedUltrasoundEngine {
     const halfW = inclusion.sizeCm.width / 2;
     const halfH = inclusion.sizeCm.height / 2;
     
-    if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+    if (inclusion.shape === 'ellipse') {
       const normX = dx / halfW;
       const normY = dy / halfH;
       return (normX * normX + normY * normY) <= 1.0;
@@ -1193,15 +1193,7 @@ export class UnifiedUltrasoundEngine {
     const dx = lateral - inclLateral;
     const dy = depth - inclusion.centerDepthCm;
     
-    if (inclusion.shape === 'circle') {
-      // For circles, use the average of width and height as radius
-      const r = (inclusion.sizeCm.width + inclusion.sizeCm.height) / 4;
-      const distFromCenter = Math.sqrt(dx * dx + dy * dy);
-      return {
-        isInside: distFromCenter <= r,
-        distanceFromEdge: Math.abs(r - distFromCenter)
-      };
-    } else if (inclusion.shape === 'ellipse') {
+    if (inclusion.shape === 'ellipse') {
       const rx = inclusion.sizeCm.width / 2;
       const ry = inclusion.sizeCm.height / 2;
       const normalizedDist = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
@@ -1209,7 +1201,7 @@ export class UnifiedUltrasoundEngine {
       const distFromCenter = Math.sqrt(normalizedDist);
       return {
         isInside,
-        distanceFromEdge: Math.abs(1 - distFromCenter) * Math.min(rx, ry)
+        distanceFromEdge: isInside ? (1 - distFromCenter) * Math.min(rx, ry) : 0
       };
     } else { // rectangle
       const halfW = inclusion.sizeCm.width / 2;
@@ -1465,7 +1457,7 @@ export class UnifiedUltrasoundEngine {
       let isInside = false;
       let distanceFromEdge = 1.0;
       
-      if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+      if (inclusion.shape === 'ellipse') {
         // Ellipse test with DEPTH-DEPENDENT width
         const normalizedLateral = lateralDiff / effectiveWidthAtCurrentDepth;
         const normalizedDepth = depthDiff / radialHalfHeight;
@@ -1572,7 +1564,7 @@ export class UnifiedUltrasoundEngine {
           const radialHalfHeight = inclusion.sizeCm.height / 2;
           
           let hitInclusion = false;
-          if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+          if (inclusion.shape === 'ellipse') {
             const normLat = lateralDiff / effectiveWidthAtMarch;
             const normDepth = depthDiff / radialHalfHeight;
             const dist = Math.sqrt(normLat * normLat + normDepth * normDepth);
@@ -1865,7 +1857,7 @@ export class UnifiedUltrasoundEngine {
           const radialHalfHeight = inclusion.sizeCm.height / 2;
           
           let hitInclusion = false;
-          if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+          if (inclusion.shape === 'ellipse') {
             const normAngle = angleDiff / angularHalfWidth;
             const normDepth = depthDiff / radialHalfHeight;
             const dist = Math.sqrt(normAngle * normAngle + normDepth * normDepth);
@@ -2007,7 +1999,7 @@ export class UnifiedUltrasoundEngine {
           const halfHeight = inclusion.sizeCm.height / 2;
           
           let hitInclusion = false;
-          if (inclusion.shape === 'circle' || inclusion.shape === 'ellipse') {
+          if (inclusion.shape === 'ellipse') {
             const normX = distortedDx / halfWidth;
             const normY = dy / halfHeight;
             const dist = Math.sqrt(normX * normX + normY * normY);
