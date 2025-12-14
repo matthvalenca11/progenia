@@ -722,42 +722,27 @@ export class UnifiedUltrasoundEngine {
       }
       
       // ═══════════════════════════════════════════════════════════════════════════════
-      // PASSO 4: Homogeneização da sombra (pós-processamento)
-      // Remove diferenças de tom dentro da sombra, mantendo speckle leve
+      // PASSO 4: Pós-processamento LEVE da sombra Linear
+      // - Clareia levemente (~8%) para reduzir força global da sombra
+      // - Smoothing vertical super leve para suavizar paredes, mantendo speckle
       // ═══════════════════════════════════════════════════════════════════════════════
-      const SHADOW_HOMOGENIZE_DEPTH = 60; // Pixels abaixo da inclusão para homogeneizar
-      const MEAN_BLEND = 0.8; // Quanto puxar pro tom médio (0.8 = forte homogeneização)
-      const SMOOTH_BLEND = 0.7; // Força do smoothing vertical
-      
       for (let x = 0; x < width; x++) {
-        // Só processar colunas com sombra
         const zExit = this.linearZExits[x];
         if (zExit < 0) continue;
         
-        const zStart = zExit + 1;
-        const zEnd = Math.min(height - 1, zStart + SHADOW_HOMOGENIZE_DEPTH);
+        const z0 = zExit + 1;
+        const z1 = height - 2;
         
-        if (zStart >= height) continue;
+        if (z0 >= height) continue;
         
-        // Calcular tom médio da sombra nessa coluna
-        let acc = 0;
-        let count = 0;
-        for (let z = zStart; z <= zEnd; z++) {
+        // Clarear levemente a sombra (~8%)
+        for (let z = z0; z <= z1; z++) {
           const idx = z * width + x;
-          acc += image_final[idx];
-          count++;
-        }
-        const meanShadow = acc / Math.max(count, 1);
-        
-        // Blend com tom médio (preserva um pouco de speckle)
-        for (let z = zStart; z <= zEnd; z++) {
-          const idx = z * width + x;
-          const orig = image_final[idx];
-          image_final[idx] = MEAN_BLEND * meanShadow + (1 - MEAN_BLEND) * orig;
+          image_final[idx] = image_final[idx] * 1.08;
         }
         
-        // Smoothing vertical leve para eliminar discretização residual
-        for (let z = zStart + 1; z <= zEnd - 1; z++) {
+        // Smoothing vertical super leve só dentro da sombra
+        for (let z = z0 + 1; z <= z1 - 1; z++) {
           const idxPrev = (z - 1) * width + x;
           const idxCurr = z * width + x;
           const idxNext = (z + 1) * width + x;
@@ -766,9 +751,9 @@ export class UnifiedUltrasoundEngine {
           const b = image_final[idxCurr];
           const c = image_final[idxNext];
           
-          // Kernel [1,2,1]/4 para smoothing suave
           const smooth = (a + 2 * b + c) / 4.0;
-          image_final[idxCurr] = SMOOTH_BLEND * smooth + (1 - SMOOTH_BLEND) * image_final[idxCurr];
+          // Mantém speckle, mas quebra paredes retas
+          image_final[idxCurr] = 0.8 * smooth + 0.2 * b;
         }
       }
       
