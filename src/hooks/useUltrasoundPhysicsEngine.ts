@@ -36,22 +36,35 @@ function isPointInInclusion(
     const distSq = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
     return distSq <= 1.0;
   } else if (inclusion.shape === "capsule") {
-    // Capsule: rectangle with semicircular ends (stadium/pill shape)
+    // Capsule with ROTATION and IRREGULARITY for anatomical realism
     const capsuleRadius = ry;
     const rectHalfWidth = rx - capsuleRadius;
-    
-    // Scale dy back to cm for capsule calculation
     const dyCm = dy * maxDepthCm / 10;
     
-    if (Math.abs(dx) <= rectHalfWidth) {
-      // In rectangular middle section
-      return Math.abs(dyCm) <= capsuleRadius;
+    // === ROTATION TRANSFORM ===
+    const rotationDeg = inclusion.rotationDegrees || 0;
+    const rotationRad = (rotationDeg * Math.PI) / 180;
+    const cosR = Math.cos(rotationRad);
+    const sinR = Math.sin(rotationRad);
+    const dxLocal = dx * cosR + dyCm * sinR;
+    const dyLocal = -dx * sinR + dyCm * cosR;
+    
+    // === WALL IRREGULARITY ===
+    const irregularity = inclusion.wallIrregularity || 0;
+    let radiusMod = 0;
+    if (irregularity > 0) {
+      radiusMod = irregularity * (0.5 * Math.sin(dxLocal * 8.0) + 0.3 * Math.cos(dxLocal * 15.0));
+    }
+    
+    const effectiveRadius = capsuleRadius + radiusMod;
+    
+    if (Math.abs(dxLocal) <= rectHalfWidth) {
+      return Math.abs(dyLocal) <= effectiveRadius;
     } else {
-      // In semicircular ends
-      const endCenterX = Math.sign(dx) * rectHalfWidth;
-      const localDx = dx - endCenterX;
-      const distToEndCenter = Math.sqrt(localDx * localDx + dyCm * dyCm);
-      return distToEndCenter <= capsuleRadius;
+      const endCenterX = Math.sign(dxLocal) * rectHalfWidth;
+      const localDxEnd = dxLocal - endCenterX;
+      const distToEndCenter = Math.sqrt(localDxEnd * localDxEnd + dyLocal * dyLocal);
+      return distToEndCenter <= effectiveRadius;
     }
   } else { // rectangle
     return Math.abs(dx) <= rx && Math.abs(dy * maxDepthCm / 10) <= ry;

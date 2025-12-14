@@ -202,45 +202,67 @@ export function getDefaultInclusionsForPreset(presetId: UltrasoundAnatomyPresetI
     // - Bordas nítidas (parede arterial íntima-média-adventícia)
     // ============================================================
     carotid_long: [
-      // ═══ ARTÉRIA CARÓTIDA COMUM - VISÃO LONGITUDINAL ═══
-      // Lúmen estendido horizontalmente como cápsula/charuto
-      // Extensão: ~3.2cm horizontal, diâmetro: 5.5mm vertical
-      // Profundidade: 1.5cm (centro do lúmen)
+      // ═══════════════════════════════════════════════════════════════════════════════
+      // ARTÉRIA CARÓTIDA COMUM - VISÃO LONGITUDINAL (ULTRA-REALISTA)
+      // ═══════════════════════════════════════════════════════════════════════════════
+      // 
+      // Lúmen estendido horizontalmente como cápsula/charuto ocupando TODA a largura
+      // Extensão: ~5.5cm horizontal (110% da tela de 5cm para sensação de continuidade)
+      // Diâmetro: 5.5mm vertical (6mm típico em adultos)
+      // Profundidade: 1.55cm (centro do lúmen)
+      // 
+      // REALISMO ANATÔMICO:
+      // - Rotação de +4° (artéria ligeiramente ascendente, típico do pescoço)
+      // - Irregularidade de parede 0.025cm (variação natural da IMT)
+      // - Assimetria leve (parede posterior 0.01cm mais espessa que anterior)
+      // ═══════════════════════════════════════════════════════════════════════════════
       {
         id: "carotid_common_longitudinal",
         type: "vessel",
         label: "Artéria Carótida Comum - Lúmen Longitudinal",
-        shape: "capsule", // CAPSULE = retângulo com extremidades arredondadas
-        centerDepthCm: 1.50, // Centro do lúmen a ~1.5cm de profundidade
-        centerLateralPos: 0.0, // Centralizado horizontalmente
+        shape: "capsule",
+        centerDepthCm: 1.55,
+        centerLateralPos: 0.0,
         sizeCm: { 
-          width: 3.2,  // EXTENSÃO HORIZONTAL: 3.2cm (~65% da largura típica)
-          height: 0.55 // DIÂMETRO: 5.5mm (espessura vertical do tubo)
-        },
-        mediumInsideId: "blood", // Anecogênico - lúmen preto sem speckle
-        hasStrongShadow: false, // Vasos NÃO produzem sombra acústica
-        posteriorEnhancement: true, // Reforço posterior típico de estruturas líquidas
-        borderEchogenicity: "sharp", // Paredes arteriais bem definidas (IMT visível)
-      },
-      
-      // ═══ VEIA JUGULAR INTERNA - VISÃO LONGITUDINAL ═══
-      // Paralela à carótida, mais superficial e ligeiramente maior
-      // Também como cápsula horizontal estendida
-      {
-        id: "jugular_vein_longitudinal",
-        type: "vessel",
-        label: "Veia Jugular Interna - Lúmen Longitudinal",
-        shape: "capsule", // Também cápsula horizontal
-        centerDepthCm: 1.0, // Mais superficial que carótida
-        centerLateralPos: 0.0, // Mesmo centro lateral
-        sizeCm: { 
-          width: 2.8,  // Extensão horizontal ligeiramente menor
-          height: 0.65 // Diâmetro maior (veia é mais larga)
+          width: 5.5,   // EXTENSÃO HORIZONTAL: 5.5cm (>100% da tela para continuidade)
+          height: 0.55  // DIÂMETRO: 5.5mm
         },
         mediumInsideId: "blood",
         hasStrongShadow: false,
         posteriorEnhancement: true,
-        borderEchogenicity: "soft", // Parede venosa mais fina e menos ecogênica
+        borderEchogenicity: "sharp",
+        // === REALISMO ANATÔMICO ===
+        rotationDegrees: 4.0,       // Artéria ligeiramente ascendente (+4°)
+        wallIrregularity: 0.025,    // Variação suave da parede (±0.25mm)
+        wallAsymmetry: 0.01,        // Parede posterior 0.1mm mais espessa
+      },
+      
+      // ═══════════════════════════════════════════════════════════════════════════════
+      // VEIA JUGULAR INTERNA - VISÃO LONGITUDINAL
+      // ═══════════════════════════════════════════════════════════════════════════════
+      // 
+      // Paralela à carótida, mais superficial e ligeiramente maior
+      // Rotação oposta (-3°) para variar anatomia
+      // ═══════════════════════════════════════════════════════════════════════════════
+      {
+        id: "jugular_vein_longitudinal",
+        type: "vessel",
+        label: "Veia Jugular Interna - Lúmen Longitudinal",
+        shape: "capsule",
+        centerDepthCm: 0.95,
+        centerLateralPos: 0.0,
+        sizeCm: { 
+          width: 4.8,   // Extensão horizontal (96% da tela)
+          height: 0.70  // Diâmetro maior (veia é mais larga, ~7mm)
+        },
+        mediumInsideId: "blood",
+        hasStrongShadow: false,
+        posteriorEnhancement: true,
+        borderEchogenicity: "soft",
+        // === REALISMO ANATÔMICO ===
+        rotationDegrees: -3.0,      // Veia ligeiramente descendente (-3°)
+        wallIrregularity: 0.02,     // Variação mais suave (parede venosa fina)
+        wallAsymmetry: 0.005,       // Menos assimetria que artéria
       },
     ],
   };

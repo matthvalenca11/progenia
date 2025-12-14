@@ -600,19 +600,43 @@ export class ConvexPolarEngine {
               edgeFactor = Math.max(0.3, 1.0 - dist * 0.7);
             }
           } else if (inclusion.shape === 'capsule') {
-            // Capsule: rectangle with semicircular ends
+            // Capsule with ROTATION and IRREGULARITY for anatomical realism
             const capsuleRadius = halfHeight;
             const rectHalfWidth = halfWidth - capsuleRadius;
             
+            // === ROTATION TRANSFORM ===
+            const rotationDeg = inclusion.rotationDegrees || 0;
+            const rotationRad = (rotationDeg * Math.PI) / 180;
+            const cosR = Math.cos(rotationRad);
+            const sinR = Math.sin(rotationRad);
+            const dxLocal = distortedDx * cosR + dy * sinR;
+            const dyLocal = -distortedDx * sinR + dy * cosR;
+            
+            // === WALL IRREGULARITY ===
+            const irregularity = inclusion.wallIrregularity || 0;
+            let radiusMod = 0;
+            if (irregularity > 0) {
+              radiusMod = irregularity * (
+                0.5 * Math.sin(dxLocal * 8.0) + 
+                0.3 * Math.cos(dxLocal * 15.0) + 
+                0.2 * Math.sin(dxLocal * 23.0)
+              );
+            }
+            
+            // === WALL ASYMMETRY ===
+            const asymmetry = inclusion.wallAsymmetry || 0;
+            const asymmetryOffset = dyLocal > 0 ? asymmetry : -asymmetry;
+            const effectiveRadius = capsuleRadius + radiusMod + asymmetryOffset;
+            
             let dist: number;
-            if (Math.abs(distortedDx) <= rectHalfWidth) {
-              dist = Math.abs(dy) / capsuleRadius;
+            if (Math.abs(dxLocal) <= rectHalfWidth) {
+              dist = Math.abs(dyLocal) / effectiveRadius;
               isInside = dist <= 1.0;
             } else {
-              const endCenterX = Math.sign(distortedDx) * rectHalfWidth;
-              const localDx = distortedDx - endCenterX;
-              const distToEndCenter = Math.sqrt(localDx * localDx + dy * dy);
-              dist = distToEndCenter / capsuleRadius;
+              const endCenterX = Math.sign(dxLocal) * rectHalfWidth;
+              const localDxEnd = dxLocal - endCenterX;
+              const distToEndCenter = Math.sqrt(localDxEnd * localDxEnd + dyLocal * dyLocal);
+              dist = distToEndCenter / effectiveRadius;
               isInside = dist <= 1.0;
             }
             if (isInside) {
@@ -809,17 +833,41 @@ export class ConvexPolarEngine {
           const normY = dy / halfHeight;
           isInside = (normX * normX + normY * normY) <= 1.0;
         } else if (inclusion.shape === 'capsule') {
-          // Capsule: rectangle with semicircular ends
+          // Capsule with ROTATION and IRREGULARITY for anatomical realism
           const capsuleRadius = halfHeight;
           const rectHalfWidth = halfWidth - capsuleRadius;
           
-          if (Math.abs(distortedDx) <= rectHalfWidth) {
-            isInside = Math.abs(dy) <= capsuleRadius;
+          // === ROTATION TRANSFORM ===
+          const rotationDeg = inclusion.rotationDegrees || 0;
+          const rotationRad = (rotationDeg * Math.PI) / 180;
+          const cosR = Math.cos(rotationRad);
+          const sinR = Math.sin(rotationRad);
+          const dxLocal = distortedDx * cosR + dy * sinR;
+          const dyLocal = -distortedDx * sinR + dy * cosR;
+          
+          // === WALL IRREGULARITY ===
+          const irregularity = inclusion.wallIrregularity || 0;
+          let radiusMod = 0;
+          if (irregularity > 0) {
+            radiusMod = irregularity * (
+              0.5 * Math.sin(dxLocal * 8.0) + 
+              0.3 * Math.cos(dxLocal * 15.0) + 
+              0.2 * Math.sin(dxLocal * 23.0)
+            );
+          }
+          
+          // === WALL ASYMMETRY ===
+          const asymmetry = inclusion.wallAsymmetry || 0;
+          const asymmetryOffset = dyLocal > 0 ? asymmetry : -asymmetry;
+          const effectiveRadius = capsuleRadius + radiusMod + asymmetryOffset;
+          
+          if (Math.abs(dxLocal) <= rectHalfWidth) {
+            isInside = Math.abs(dyLocal) <= effectiveRadius;
           } else {
-            const endCenterX = Math.sign(distortedDx) * rectHalfWidth;
-            const localDx = distortedDx - endCenterX;
-            const distToEndCenter = Math.sqrt(localDx * localDx + dy * dy);
-            isInside = distToEndCenter <= capsuleRadius;
+            const endCenterX = Math.sign(dxLocal) * rectHalfWidth;
+            const localDxEnd = dxLocal - endCenterX;
+            const distToEndCenter = Math.sqrt(localDxEnd * localDxEnd + dyLocal * dyLocal);
+            isInside = distToEndCenter <= effectiveRadius;
           }
         } else {
           isInside = Math.abs(distortedDx) <= halfWidth && Math.abs(dy) <= halfHeight;

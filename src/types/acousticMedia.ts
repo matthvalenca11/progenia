@@ -198,6 +198,11 @@ export type UltrasoundInclusionConfig = {
   hasStrongShadow?: boolean;         // e.g., bone, calcification
   posteriorEnhancement?: boolean;    // e.g., cyst
   borderEchogenicity?: "sharp" | "soft";
+  
+  // === ANATOMICAL REALISM (for longitudinal vessels) ===
+  rotationDegrees?: number;          // Slight rotation for realism (-10 to +10 degrees)
+  wallIrregularity?: number;         // Wall thickness variation (0-0.05 cm amplitude)
+  wallAsymmetry?: number;            // Anterior vs posterior wall difference (0-0.02 cm)
 };
 
 /**
