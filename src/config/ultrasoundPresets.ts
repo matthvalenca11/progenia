@@ -47,7 +47,6 @@ export function getDefaultLayersForPreset(presetId: UltrasoundAnatomyPresetId): 
       { id: "subcut", mediumId: "fat", name: "Tecido Subcutâneo", thicknessCm: 0.58, noiseScale: 0.68, reflectivityBias: -0.20 },
       { id: "platysma", mediumId: "muscle", name: "Platisma", thicknessCm: 0.16, noiseScale: 1.12, reflectivityBias: -0.03 },
       { id: "scm_lateral", mediumId: "muscle", name: "ECM (Lateral)", thicknessCm: 0.85, noiseScale: 1.1, reflectivityBias: 0.02 },
-      { id: "carotid_sheath", mediumId: "fat", name: "Bainha Carotídea", thicknessCm: 0.22, noiseScale: 0.62, reflectivityBias: -0.16 },
       { id: "prevertebral_deep", mediumId: "muscle", name: "Músculos Profundos", thicknessCm: 2.0, noiseScale: 1.08, reflectivityBias: 0.0 },
     ],
     
