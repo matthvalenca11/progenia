@@ -901,17 +901,23 @@ export class UnifiedUltrasoundEngine {
     //
     // ═══════════════════════════════════════════════════════════════════════════════
     
-    const SHADOW_DARKEST = 0.12;     // Sombra máxima no centro (12% da intensidade original)
-    const SHADOW_LIGHTEST = 0.65;    // Sombra mínima nas bordas (65% = ainda visível nas bordas)
-    const RECOVERY_RATE = 0.20;      // Taxa de recuperação mais lenta (por cm)
+    const SHADOW_DARKEST = 0.40;     // Sombra máxima no centro (40% = mais realista)
+    const SHADOW_LIGHTEST = 0.88;    // Sombra mínima nas bordas (88% = sutil nas bordas)
+    const RECOVERY_RATE = 0.25;      // Taxa de recuperação (por cm)
+    
+    // ═══ CALCULAR MOTION OFFSET (mesmo do rendering) ═══
+    const breathingCycle = Math.sin(this.time * 0.3) * 0.015;
+    const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008;
+    const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
     
     // ═══ PASSO 1: CALCULAR SOMBRA POR COLUNA ═══
     for (let x = 0; x < width; x++) {
       const lateralCm = ((x / width) - 0.5) * 5.0; // -2.5 a +2.5 cm
       
       for (const inclusion of shadowInclusions) {
-        const inclLateral = inclusion.centerLateralPos * 2.5;
-        const inclCenterDepth = inclusion.centerDepthCm;
+        // ═══ APLICAR MOTION À POSIÇÃO DA INCLUSÃO ═══
+        const inclLateral = inclusion.centerLateralPos * 2.5 + jitterLateral;
+        const inclCenterDepth = inclusion.centerDepthCm + jitterDepth + breathingCycle * (inclusion.centerDepthCm / this.config.depth);
         const halfW = inclusion.sizeCm.width / 2;
         const halfH = inclusion.sizeCm.height / 2;
         
@@ -922,16 +928,13 @@ export class UnifiedUltrasoundEngine {
         if (Math.abs(normX) > 1.0) continue;
         
         // ═══ CÁLCULO ANALÍTICO DO Z_EXIT ═══
-        // sqrtTerm: 1.0 no centro, 0 nas bordas laterais
         const sqrtTerm = Math.sqrt(Math.max(0, 1.0 - normX * normX));
         
         let z_exit_cm: number;
-        let pathFactor: number; // Fração do caminho através da inclusão
+        let pathFactor: number;
         
         if (inclusion.shape === 'ellipse') {
-          // z_exit = centro + semi-eixo_vertical * sqrt(1 - normX²)
           z_exit_cm = inclCenterDepth + halfH * sqrtTerm;
-          // pathFactor = quanto do material o feixe atravessou (1 = atravessou todo, 0 = tangente)
           pathFactor = sqrtTerm;
         } else {
           if (Math.abs(dx) > halfW) continue;
@@ -941,34 +944,23 @@ export class UnifiedUltrasoundEngine {
         
         const z_exit_pixel = Math.floor((z_exit_cm / this.config.depth) * height);
         
-        // Guardar para compatibilidade
         if (this.linearZExits[x] < z_exit_pixel) {
           this.linearZExits[x] = z_exit_pixel;
         }
         
-        // ═══ INTENSIDADE INICIAL DA SOMBRA ═══
-        // Mais material atravessado = sombra mais escura
-        // Centro (pathFactor=1): initialShadow = SHADOW_DARKEST (muito escuro)
-        // Borda (pathFactor=0): initialShadow = SHADOW_LIGHTEST (quase sem sombra)
+        // ═══ INTENSIDADE INICIAL DA SOMBRA (mais sutil) ═══
         const initialShadow = SHADOW_LIGHTEST - (SHADOW_LIGHTEST - SHADOW_DARKEST) * pathFactor;
         
-        // Ruído por feixe para variação orgânica
-        const beamNoise = 1.0 + (this.hashNoise(x * 17 + 42) - 0.5) * 0.1;
+        const beamNoise = 1.0 + (this.hashNoise(x * 17 + 42) - 0.5) * 0.08;
         
         // ═══ APLICAR SOMBRA ABAIXO DE z_exit ═══
         for (let y = z_exit_pixel; y < height; y++) {
           const depthCm = (y / height) * this.config.depth;
           const posteriorDepth = Math.max(0, depthCm - z_exit_cm);
           
-          // ═══ MODELO DE RECUPERAÇÃO ═══
-          // Sombra começa em initialShadow e RECUPERA para 1.0 com a profundidade
-          // recovery: 0 logo após inclusão, aproxima-se de 1 com profundidade
           const recovery = 1.0 - Math.exp(-RECOVERY_RATE * beamNoise * posteriorDepth);
-          
-          // Blend: de initialShadow para 1.0 conforme recovery aumenta
           const shadowFactor = initialShadow + (1.0 - initialShadow) * recovery;
           
-          // Aplicar ao mapa (mínimo para múltiplas inclusões)
           const idx = y * width + x;
           this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], shadowFactor);
         }
