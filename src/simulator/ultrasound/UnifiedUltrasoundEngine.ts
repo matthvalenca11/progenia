@@ -69,9 +69,10 @@ export class UnifiedUltrasoundEngine {
   private rayleighCache: Float32Array;
   private perlinCache: Float32Array;
   
-  // LINEAR MODE: Shadow data per column (ultra-simple model)
+  // LINEAR MODE: Shadow data
   private linearShadowFactors: Float32Array | null = null;
   private linearZExits: Int32Array | null = null;
+  private linearShadowMap: Float32Array | null = null; // Mapa 2D de sombra
   
   // Motor polar para convexo
   private convexEngine: ConvexPolarEngine | null = null;
@@ -670,23 +671,15 @@ export class UnifiedUltrasoundEngine {
         }
       }
       
-      // PASSO 2: Clonar para image_with_shadow e aplicar APENAS a sombra
+      // PASSO 2: Clonar para image_with_shadow e aplicar sombra do mapa 2D
       for (let i = 0; i < image_base.length; i++) {
         image_with_shadow[i] = image_base[i];
       }
       
-      // Aplicar sombra por coluna
-      for (let x = 0; x < width; x++) {
-        const zExit = this.getLinearZExit(x);
-        if (zExit < 0) continue;
-        
-        const shadowFactor = this.getLinearShadowFactor(x);
-        
-        // Aplicar sombra APENAS abaixo da elipse
-        for (let y = zExit + 1; y < height; y++) {
-          const idx = y * width + x;
-          // Multiplicação direta (sem blending para debug puro)
-          image_with_shadow[idx] = image_base[idx] * shadowFactor;
+      // Aplicar sombra do mapa 2D (modelo ray-tracing exponencial)
+      if (this.linearShadowMap && this.linearShadowMap.length === width * height) {
+        for (let i = 0; i < image_base.length; i++) {
+          image_with_shadow[i] = image_base[i] * this.linearShadowMap[i];
         }
       }
       
@@ -890,25 +883,39 @@ export class UnifiedUltrasoundEngine {
   
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * LINEAR SHADOW - MODELO ULTRA-SIMPLES BASEADO NO COMPRIMENTO DO CAMINHO
+   * LINEAR SHADOW - MODELO IDÊNTICO AO CONVEX (Ray-Tracing por Coluna)
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * Para cada coluna X:
-   * 1. Encontrar zEnter[x] e zExit[x] (primeiro e último pixel dentro da elipse)
-   * 2. Calcular thickness[x] = zExit - zEnter + 1
-   * 3. Normalizar: shadowStrength[x] = thickness[x] / maxThickness
-   * 4. Calcular shadowFactor[x] = lerp(0.95, 0.80, shadowStrength[x])
-   * 5. Aplicar: para z > zExit[x], intensity *= shadowFactor[x]
+   * FÍSICO: Cada coluna X é um feixe PARALELO (não fan-shaped).
+   * O feixe viaja reto para baixo e sofre atenuação ao atravessar a inclusão.
+   * 
+   * MESMO MODELO que o Convex:
+   * 1. Para cada coluna, traçar ray de cima para baixo
+   * 2. Encontrar z_exit (onde o feixe sai da inclusão)
+   * 3. A partir de z_exit, aplicar atenuação EXPONENCIAL: exp(-alpha * depth)
+   * 4. edgeFactor no centro vs bordas para sombra mais suave nas pontas
+   * 
+   * RESULTADO: Sombra orgânica que segue a geometria da elipse
    */
   private computeLinearShadow(): void {
     const { width, height } = this.canvas;
     
+    // Alocar mapa de sombra 2D (width x height)
+    if (!this.linearShadowMap) {
+      this.linearShadowMap = new Float32Array(width * height);
+    }
+    if (this.linearShadowMap.length !== width * height) {
+      this.linearShadowMap = new Float32Array(width * height);
+    }
+    
+    // Inicializar com 1.0 (sem sombra)
+    this.linearShadowMap.fill(1.0);
+    
+    // Manter arrays antigos para compatibilidade com getLinearZExit
     if (!this.linearShadowFactors || this.linearShadowFactors.length !== width) {
       this.linearShadowFactors = new Float32Array(width);
       this.linearZExits = new Int32Array(width);
     }
-    
-    // Inicializar
     this.linearShadowFactors.fill(1.0);
     this.linearZExits.fill(-1);
     
@@ -916,74 +923,105 @@ export class UnifiedUltrasoundEngine {
     const shadowInclusions = this.config.inclusions.filter(inc => inc.hasStrongShadow);
     if (shadowInclusions.length === 0) return;
     
-    // Arrays temporários para calcular thickness
-    const thickness = new Float32Array(width);
-    let maxThickness = 0;
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // PARÂMETROS UNIFICADOS (mesmos valores que Convex)
+    // ═══════════════════════════════════════════════════════════════════════════════
+    const SHADOW_ALPHA_BASE = 0.35;    // Atenuação base
+    const SHADOW_STRENGTH = 0.60;      // Intensidade máxima da sombra
+    const SHADOW_MIN_INTENSITY = 0.18; // Nunca totalmente preto
+    const TRANSITION_DEPTH_CM = 0.12;  // Zona de transição suave
     
-    // ═══ PASSO 1: Para cada coluna, encontrar zEnter e zExit ═══
+    // ═══ PARA CADA COLUNA (FEIXE VERTICAL PARALELO) ═══
     for (let x = 0; x < width; x++) {
       const lateralCm = ((x / width) - 0.5) * 5.0; // -2.5 a +2.5 cm
       
-      let zEnter = -1;
-      let zExit = -1;
-      
-      // Escanear a coluna verticalmente
-      for (let y = 0; y < height; y++) {
-        const depthCm = (y / height) * this.config.depth;
-        let isInside = false;
+      for (const inclusion of shadowInclusions) {
+        const inclLateral = inclusion.centerLateralPos * 2.5;
+        const inclCenterDepth = inclusion.centerDepthCm;
+        const halfW = inclusion.sizeCm.width / 2;
+        const halfH = inclusion.sizeCm.height / 2;
         
-        // Verificar se está dentro de alguma inclusão com sombra
-        for (const inclusion of shadowInclusions) {
-          const inclLateral = inclusion.centerLateralPos * 2.5;
-          const inclCenterDepth = inclusion.centerDepthCm;
-          const halfW = inclusion.sizeCm.width / 2;
-          const halfH = inclusion.sizeCm.height / 2;
+        // ═══ TRAÇAR RAY VERTICAL PARA ENCONTRAR INTERSEÇÃO EXATA ═══
+        let z_exit_cm = -1;
+        let wasInside = false;
+        let edgeFactor = 1.0;
+        
+        for (let y = 0; y < height; y++) {
+          const depthCm = (y / height) * this.config.depth;
           
           const dx = lateralCm - inclLateral;
           const dy = depthCm - inclCenterDepth;
           
+          let isInside = false;
+          let normalizedDist = 0;
+          
           if (inclusion.shape === 'ellipse') {
             const normX = dx / halfW;
             const normY = dy / halfH;
-            if (normX * normX + normY * normY <= 1.0) {
-              isInside = true;
-              break;
+            normalizedDist = Math.sqrt(normX * normX + normY * normY);
+            isInside = normalizedDist <= 1.0;
+            if (isInside) {
+              // edgeFactor: 1.0 no centro, menor nas bordas
+              edgeFactor = Math.max(0.3, 1.0 - normalizedDist * 0.7);
             }
           } else {
-            if (Math.abs(dx) <= halfW && Math.abs(dy) <= halfH) {
-              isInside = true;
-              break;
+            const normDist = Math.max(Math.abs(dx) / halfW, Math.abs(dy) / halfH);
+            isInside = normDist <= 1.0;
+            if (isInside) {
+              edgeFactor = Math.max(0.3, 1.0 - normDist * 0.7);
             }
+          }
+          
+          if (isInside) {
+            wasInside = true;
+            z_exit_cm = depthCm;
+          } else if (wasInside && !isInside) {
+            // Saiu da inclusão
+            break;
           }
         }
         
-        if (isInside) {
-          if (zEnter < 0) zEnter = y;
-          zExit = y;
-        }
-      }
-      
-      // Guardar zExit
-      this.linearZExits[x] = zExit;
-      
-      // Calcular thickness
-      if (zEnter >= 0 && zExit >= 0) {
-        thickness[x] = zExit - zEnter + 1;
-        if (thickness[x] > maxThickness) {
-          maxThickness = thickness[x];
-        }
-      }
-    }
-    
-    // ═══ PASSO 2: Calcular shadowFactor por coluna ═══
-    if (maxThickness > 0) {
-      for (let x = 0; x < width; x++) {
-        const shadowStrength = thickness[x] / maxThickness; // 0 nas pontas, 1 no centro
+        // Se não interceptou, continuar para próxima inclusão
+        if (z_exit_cm < 0) continue;
         
-        // lerp(0.95, 0.80, shadowStrength)
-        // No centro (shadowStrength=1): 0.80 → 20% mais escuro
-        // Nas pontas (shadowStrength≈0): 0.95 → quase sem sombra
-        this.linearShadowFactors[x] = 0.95 - (0.95 - 0.80) * shadowStrength;
+        // Guardar z_exit para esta coluna
+        const z_exit_pixel = Math.floor((z_exit_cm / this.config.depth) * height);
+        if (this.linearZExits[x] < z_exit_pixel) {
+          this.linearZExits[x] = z_exit_pixel;
+        }
+        
+        // ═══ CALCULAR ALPHA COM VARIAÇÃO POR FEIXE ═══
+        const beamNoise = 1.0 + (this.hashNoise(x * 17 + 42) - 0.5) * 0.12;
+        const alpha = SHADOW_ALPHA_BASE * beamNoise;
+        
+        // ═══ APLICAR ATENUAÇÃO EXPONENCIAL ABAIXO DE z_exit ═══
+        for (let y = z_exit_pixel + 1; y < height; y++) {
+          const depthCm = (y / height) * this.config.depth;
+          const posteriorDepth = depthCm - z_exit_cm;
+          
+          if (posteriorDepth <= 0) continue;
+          
+          // Atenuação exponencial (mesmo modelo que Convex)
+          const attenuation = Math.exp(-alpha * posteriorDepth);
+          
+          // Calcular shadow factor com edgeFactor
+          const rawShadow = 1.0 - SHADOW_STRENGTH * edgeFactor * (1.0 - attenuation);
+          const shadowFactor = Math.max(SHADOW_MIN_INTENSITY, rawShadow);
+          
+          // ═══ SMOOTH TRANSITION no início da sombra ═══
+          let transitionBlend = 1.0;
+          if (posteriorDepth < TRANSITION_DEPTH_CM) {
+            const t = posteriorDepth / TRANSITION_DEPTH_CM;
+            transitionBlend = t * t * (3 - 2 * t); // smoothstep
+          }
+          
+          // Blend: lerp(1.0, shadowFactor, transitionBlend)
+          const finalShadow = 1.0 * (1 - transitionBlend) + shadowFactor * transitionBlend;
+          
+          // Aplicar no mapa de sombra (mínimo para múltiplas inclusões)
+          const idx = y * width + x;
+          this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], finalShadow);
+        }
       }
     }
   }
@@ -1455,19 +1493,19 @@ export class UnifiedUltrasoundEngine {
     if (this.config.transducerType === 'linear') {
       
       // ═══════════════════════════════════════════════════════════════════════════════
-      // MODELO ULTRA-SIMPLES: Sombra aplicada por coluna, constante em profundidade
+      // LINEAR: Usar mapa de sombra 2D (mesmo modelo ray-tracing do Convex)
       // ═══════════════════════════════════════════════════════════════════════════════
-      const zExit = this.getLinearZExit(x);
-      
-      // Só aplicar sombra ABAIXO da inclusão (z > zExit)
-      if (zExit >= 0 && y > zExit) {
-        const shadowFactor = this.getLinearShadowFactor(x);
-        
-        // Blending leve: 70% original + 30% com sombra (preserva speckle)
-        const blendStrength = 0.30;
-        const blendedFactor = (1.0 - blendStrength) + shadowFactor * blendStrength;
-        
-        attenuationFactor *= blendedFactor;
+      if (this.linearShadowMap && this.linearShadowMap.length === this.canvas.width * this.canvas.height) {
+        const idx = Math.floor(y) * this.canvas.width + Math.floor(x);
+        if (idx >= 0 && idx < this.linearShadowMap.length) {
+          const shadowFactor = this.linearShadowMap[idx];
+          
+          // Blending leve: preserva speckle
+          const blendStrength = 0.70; // Aumentado para sombra mais visível
+          const blendedFactor = (1.0 - blendStrength) + shadowFactor * blendStrength;
+          
+          attenuationFactor *= blendedFactor;
+        }
       }
       
       // Posterior enhancement
