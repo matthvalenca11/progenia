@@ -1017,8 +1017,8 @@ export class UnifiedUltrasoundEngine {
     // ═══════════════════════════════════════════════════════════════════════════════
     
     // Shadow parameters - BALANCED across all transducer types
-    // MAX_DROP = 0.25 means center of shadow is ~25% darker than surrounding tissue
-    const MAX_DROP = 0.25; // ~25% darker at center (reduced for Linear)
+    // MAX_DROP = 0.18 means center of shadow is ~18% darker than surrounding tissue
+    const MAX_DROP = 0.18; // ~18% darker at center (subtle)
     const NOISE_SCALE_X = 0.05;
     const NOISE_SCALE_Z = 0.05;
     const NOISE_AMP = 0.025; // ±2.5% organic jitter
