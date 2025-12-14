@@ -909,8 +909,8 @@ export class UnifiedUltrasoundEngine {
     const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
     
     // Parameters
-    const SHADOW_DARKEST = 0.82;  // Maximum shadow (at center/max thickness)
-    const FADE_DEPTH_PX = 12;     // Vertical fade-in depth in pixels
+    const SHADOW_LIGHTEST = 0.95; // Edge columns (thin path)
+    const SHADOW_DARKEST = 0.80;  // Center columns (thick path)
     
     // Process each column
     for (let x = 0; x < width; x++) {
@@ -979,43 +979,56 @@ export class UnifiedUltrasoundEngine {
     
     // ═══════════════════════════════════════════════════════════════════════════════
     // STEP 3: Compute shadowFactor per column based on relative thickness
+    // ONLY columns that actually cross the inclusion get shadow
     // ═══════════════════════════════════════════════════════════════════════════════
     const columnShadowFactor = new Float32Array(width);
-    columnShadowFactor.fill(1.0);
+    columnShadowFactor.fill(1.0); // Default: no shadow
     
     for (let x = 0; x < width; x++) {
-      if (thicknessArray[x] > 0 && zExitArray[x] >= 0) {
-        const relativeThickness = thicknessArray[x] / maxThickness;
-        // lerp(1.00, SHADOW_DARKEST, relativeThickness)
-        // Center has thickness ~ 1.0 → shadowFactor = SHADOW_DARKEST
-        // Edges have thickness ~ 0.0 → shadowFactor = 1.0
-        columnShadowFactor[x] = 1.0 - (1.0 - SHADOW_DARKEST) * relativeThickness;
-        this.linearShadowFactors[x] = columnShadowFactor[x];
+      // CRITICAL: Column must have BOTH valid zEnter AND zExit AND positive thickness
+      if (zEnterArray[x] < 0 || zExitArray[x] < 0 || thicknessArray[x] <= 0) {
+        // This column does NOT cross inclusion → NO shadow
+        columnShadowFactor[x] = 1.0;
+        this.linearShadowFactors[x] = 1.0;
+        continue;
       }
+      
+      // Column crosses inclusion → compute shadow based on thickness
+      const relativeThickness = thicknessArray[x] / maxThickness;
+      // lerp(0.95, 0.80, relativeThickness)
+      // Center has thickness ~ 1.0 → shadowFactor = 0.80 (darkest)
+      // Edges have thickness ~ 0.0 → shadowFactor = 0.95 (lightest)
+      columnShadowFactor[x] = 0.95 - (0.95 - 0.80) * relativeThickness;
+      this.linearShadowFactors[x] = columnShadowFactor[x];
     }
     
     // ═══════════════════════════════════════════════════════════════════════════════
-    // STEP 4: Apply shadow ONLY BELOW zExit with vertical fade
+    // STEP 4: Apply shadow ONLY BELOW zExit[x] + 1 (colada na inclusão)
+    // Each column uses its OWN zExit - never a global value
     // ═══════════════════════════════════════════════════════════════════════════════
+    const FADE_SAMPLES = 4; // Very short ramp to avoid hard edge
+    
     for (let x = 0; x < width; x++) {
-      const zExit = zExitArray[x];
-      if (zExit < 0) continue; // No inclusion in this column
+      // Skip columns without inclusion (shadowFactor = 1.0 means no shadow)
+      if (columnShadowFactor[x] === 1.0) continue;
       
-      const baseShadowFactor = columnShadowFactor[x];
+      const z0 = zExitArray[x]; // Last pixel inside inclusion
+      if (z0 < 0) continue;
       
-      for (let y = zExit; y < height; y++) {
-        const pixelsBelowExit = y - zExit;
+      const baseFactor = columnShadowFactor[x];
+      
+      // Shadow starts at z0 + 1 (immediately below inclusion)
+      for (let z = z0 + 1; z < height; z++) {
+        const dz = z - (z0 + 1);
         
-        // Vertical fade ramp: t goes from 0 (at zExit) to 1 (at zExit + FADE_DEPTH_PX)
-        const t = Math.min(1.0, pixelsBelowExit / FADE_DEPTH_PX);
+        // Short fade ramp
+        const t = dz < FADE_SAMPLES ? dz / FADE_SAMPLES : 1.0;
         
-        // finalShadow = lerp(1.0, baseShadowFactor, t)
-        // At zExit (t=0): shadow = 1.0 (no shadow yet)
-        // At zExit + FADE_DEPTH_PX (t=1): shadow = baseShadowFactor (full shadow)
-        const finalShadow = 1.0 - (1.0 - baseShadowFactor) * t;
+        // factor goes from 1.0 (at z0+1) to baseFactor (after FADE_SAMPLES)
+        const factor = 1.0 * (1.0 - t) + baseFactor * t;
         
-        const idx = y * width + x;
-        this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], finalShadow);
+        const idx = z * width + x;
+        this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], factor);
       }
     }
     
