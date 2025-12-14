@@ -722,60 +722,53 @@ export class UnifiedUltrasoundEngine {
       }
       
       // ═══════════════════════════════════════════════════════════════════════════════
-      // PASSO 4: Envelope suave + gradiente vertical na sombra (pós-processamento)
-      // - Estima envelope vertical suave (média ±4 pixels)
-      // - Aplica gradiente (0.92 → 0.78)
-      // - Mistura com speckle original (70% envelope, 30% original)
+      // PASSO 4: Homogeneização da sombra (pós-processamento)
+      // Remove diferenças de tom dentro da sombra, mantendo speckle leve
       // ═══════════════════════════════════════════════════════════════════════════════
-      const START_FACTOR = 0.92; // ~8% mais escuro logo abaixo da inclusão
-      const END_FACTOR = 0.78;   // ~22% mais escuro no fundo
-      const ENVELOPE_BLEND = 0.7; // 70% envelope suave, 30% speckle original
-      const ENVELOPE_RADIUS = 4; // ±4 pixels para média vertical
+      const SHADOW_HOMOGENIZE_DEPTH = 60; // Pixels abaixo da inclusão para homogeneizar
+      const MEAN_BLEND = 0.8; // Quanto puxar pro tom médio (0.8 = forte homogeneização)
+      const SMOOTH_BLEND = 0.7; // Força do smoothing vertical
       
       for (let x = 0; x < width; x++) {
         // Só processar colunas com sombra
         const zExit = this.linearZExits[x];
         if (zExit < 0) continue;
         
-        const z0 = zExit + 1;           // início da sombra
-        const z1 = height - 2;          // fundo da imagem (margem de 1px)
+        const zStart = zExit + 1;
+        const zEnd = Math.min(height - 1, zStart + SHADOW_HOMOGENIZE_DEPTH);
         
-        if (z0 >= z1) continue;
+        if (zStart >= height) continue;
         
-        const depthShadow = z1 - z0;
-        
-        // PASSO 4.1: Calcular envelope vertical suave (média local ±ENVELOPE_RADIUS)
-        const meanCol = new Float32Array(height);
-        for (let z = z0; z <= z1; z++) {
-          let acc = 0;
-          let cnt = 0;
-          for (let dz = -ENVELOPE_RADIUS; dz <= ENVELOPE_RADIUS; dz++) {
-            const zz = z + dz;
-            if (zz < z0 || zz > z1) continue;
-            acc += image_final[zz * width + x];
-            cnt++;
-          }
-          meanCol[z] = acc / Math.max(1, cnt);
+        // Calcular tom médio da sombra nessa coluna
+        let acc = 0;
+        let count = 0;
+        for (let z = zStart; z <= zEnd; z++) {
+          const idx = z * width + x;
+          acc += image_final[idx];
+          count++;
         }
+        const meanShadow = acc / Math.max(count, 1);
         
-        // PASSO 4.2: Aplicar gradiente + blend com speckle original
-        for (let z = z0; z <= z1; z++) {
-          // t: 0 no início da sombra, 1 no fundo
-          const t = (z - z0) / depthShadow;
-          
-          // Smoothstep para curva suave
-          const s = t * t * (3 - 2 * t);
-          
-          // Fator de gradiente: START_FACTOR → END_FACTOR
-          const gradFactor = START_FACTOR + (END_FACTOR - START_FACTOR) * s;
-          
-          // Envelope suave com gradiente aplicado
-          const envelope = meanCol[z] * gradFactor;
-          
-          // Misturar envelope com speckle original
+        // Blend com tom médio (preserva um pouco de speckle)
+        for (let z = zStart; z <= zEnd; z++) {
           const idx = z * width + x;
           const orig = image_final[idx];
-          image_final[idx] = envelope * ENVELOPE_BLEND + orig * (1.0 - ENVELOPE_BLEND);
+          image_final[idx] = MEAN_BLEND * meanShadow + (1 - MEAN_BLEND) * orig;
+        }
+        
+        // Smoothing vertical leve para eliminar discretização residual
+        for (let z = zStart + 1; z <= zEnd - 1; z++) {
+          const idxPrev = (z - 1) * width + x;
+          const idxCurr = z * width + x;
+          const idxNext = (z + 1) * width + x;
+          
+          const a = image_final[idxPrev];
+          const b = image_final[idxCurr];
+          const c = image_final[idxNext];
+          
+          // Kernel [1,2,1]/4 para smoothing suave
+          const smooth = (a + 2 * b + c) / 4.0;
+          image_final[idxCurr] = SMOOTH_BLEND * smooth + (1 - SMOOTH_BLEND) * image_final[idxCurr];
         }
       }
       
