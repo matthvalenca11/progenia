@@ -6,8 +6,6 @@
 export type UltrasoundAnatomyPresetId = 
   | "custom"
   | "msk_tendon_upper_limb"
-  | "shoulder_supraspinatus_long"
-  | "carotid_long"
   | "carotid_trans"
   | "muscle_generic"
   | "liver_standard"
