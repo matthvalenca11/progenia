@@ -1005,8 +1005,9 @@ export class UnifiedUltrasoundEngine {
     // ═══════════════════════════════════════════════════════════════════════════════
     // STEP 4: Apply shadow ONLY BELOW zExit[x] + 1 (colada na inclusão)
     // Each column uses its OWN zExit - never a global value
+    // Using smoothstep for fade transition to avoid visible line
     // ═══════════════════════════════════════════════════════════════════════════════
-    const FADE_SAMPLES = 4; // Very short ramp to avoid hard edge
+    const FADE_SAMPLES = 3; // Very short fade with smoothstep
     
     for (let x = 0; x < width; x++) {
       // Skip columns without inclusion (shadowFactor = 1.0 means no shadow)
@@ -1021,11 +1022,16 @@ export class UnifiedUltrasoundEngine {
       for (let z = z0 + 1; z < height; z++) {
         const dz = z - (z0 + 1);
         
-        // Short fade ramp
-        const t = dz < FADE_SAMPLES ? dz / FADE_SAMPLES : 1.0;
-        
-        // factor goes from 1.0 (at z0+1) to baseFactor (after FADE_SAMPLES)
-        const factor = 1.0 * (1.0 - t) + baseFactor * t;
+        let factor: number;
+        if (dz <= 0) {
+          factor = 1.0; // Immediately below, no shadow yet
+        } else if (dz < FADE_SAMPLES) {
+          const u = dz / FADE_SAMPLES; // 0 → 1
+          const s = u * u * (3 - 2 * u); // smoothstep
+          factor = 1.0 * (1.0 - s) + baseFactor * s;
+        } else {
+          factor = baseFactor; // CONSTANT from here on
+        }
         
         const idx = z * width + x;
         this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], factor);
@@ -1033,9 +1039,56 @@ export class UnifiedUltrasoundEngine {
     }
     
     // ═══════════════════════════════════════════════════════════════════════════════
-    // STEP 5: Apply FINAL 3×3 blur for edge smoothing
+    // STEP 5: Vertical blur ONLY within shadow region to eliminate transition line
+    // ═══════════════════════════════════════════════════════════════════════════════
+    this.applyVerticalShadowBlur(width, height, zExitArray, columnShadowFactor);
+    
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // STEP 6: Apply FINAL 3×3 blur for edge smoothing
     // ═══════════════════════════════════════════════════════════════════════════════
     this.apply3x3Blur(width, height);
+  }
+  
+  /**
+   * Apply vertical blur ONLY within shadow region to eliminate transition line
+   * Uses [1,2,1]/4 kernel - light, only in shadowed columns
+   */
+  private applyVerticalShadowBlur(
+    width: number, 
+    height: number, 
+    zExitArray: Int32Array,
+    columnShadowFactor: Float32Array
+  ): void {
+    if (!this.linearShadowMap) return;
+    
+    // Buffer for smoothed values
+    const temp = new Float32Array(this.linearShadowMap.length);
+    temp.set(this.linearShadowMap);
+    
+    for (let x = 0; x < width; x++) {
+      // Skip columns without shadow
+      if (columnShadowFactor[x] === 1.0) continue;
+      
+      const z0 = zExitArray[x];
+      if (z0 < 0) continue;
+      
+      // Apply vertical blur only in shadow region (z0+1 to height-1)
+      for (let z = z0 + 2; z < height - 1; z++) {
+        const idxPrev = (z - 1) * width + x;
+        const idxCurr = z * width + x;
+        const idxNext = (z + 1) * width + x;
+        
+        const a = this.linearShadowMap[idxPrev];
+        const b = this.linearShadowMap[idxCurr];
+        const c = this.linearShadowMap[idxNext];
+        
+        // [1,2,1]/4 kernel for gentle smoothing
+        temp[idxCurr] = (a + 2 * b + c) / 4.0;
+      }
+    }
+    
+    // Copy result back
+    this.linearShadowMap.set(temp);
   }
   
   /**
