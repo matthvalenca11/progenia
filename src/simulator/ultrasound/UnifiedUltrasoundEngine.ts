@@ -179,23 +179,30 @@ export class UnifiedUltrasoundEngine {
     const f = this.config.frequency;
     const fRef = 7.5; // Reference frequency in MHz
     
-    // Base PSF sigmas at reference frequency (in pixels)
-    // These are tuned for visible but realistic effect
-    const kAxial = 1.2;    // Axial blur base (vertical)
-    const kLateral = 1.5;  // Lateral blur base (horizontal)
-    const kSpeckle = 1.0;  // Speckle scale base
+    // Very subtle effect - only visible at extreme low frequencies
+    const kAxial = 0.3;    // Reduced significantly
+    const kLateral = 0.4;  // Reduced significantly
     
-    // Scale inversely with frequency
     const frequencyRatio = fRef / f;
     
-    // Clamp to reasonable range (0.5x to 2.5x effect)
-    const clampedRatio = Math.max(0.5, Math.min(2.5, frequencyRatio));
+    // Only apply blur when frequency is significantly below reference
+    // Threshold at ratio > 1.5 means blur only below ~5 MHz for linear
+    const blurThreshold = 1.5;
     
-    return {
-      sigmaAxial: kAxial * clampedRatio,
-      sigmaLateral: kLateral * clampedRatio,
-      speckleScale: kSpeckle * clampedRatio
-    };
+    let sigmaAxial = 0;
+    let sigmaLateral = 0;
+    
+    if (frequencyRatio > blurThreshold) {
+      // Gradual blur only for very low frequencies
+      const excessRatio = frequencyRatio - blurThreshold;
+      sigmaAxial = kAxial * excessRatio;
+      sigmaLateral = kLateral * excessRatio;
+    }
+    
+    // Speckle: very subtle scaling (10% effect per MHz deviation)
+    const speckleScale = 1.0 + (frequencyRatio - 1.0) * 0.1;
+    
+    return { sigmaAxial, sigmaLateral, speckleScale };
   }
   
   /**
