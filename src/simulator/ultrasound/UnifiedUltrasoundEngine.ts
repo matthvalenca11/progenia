@@ -1525,22 +1525,20 @@ export class UnifiedUltrasoundEngine {
         );
         
         // ═══════════════════════════════════════════════════════════════════════════════
-        // VERIFICAR SE ESTAMOS NA REGIÃO DE SOMBRA (ABAIXO DA ELIPSE)
-        // A sombra só existe abaixo da elipse, não nas laterais
+        // VERIFICAR SE ESTAMOS NA REGIÃO DE SOMBRA
+        // A sombra segue a CURVATURA da elipse, não uma linha horizontal
         // ═══════════════════════════════════════════════════════════════════════════════
         
-        // Calcular onde a elipse termina nesta coluna lateral
-        let ellipseBottomY: number;
-        if (Math.abs(nx) <= 1.0) {
-          // Dentro da largura da elipse
-          ellipseBottomY = inclCenterDepth + inclHalfHeight * Math.sqrt(1 - nx * nx);
-        } else {
-          // Fora da largura - sem sombra direta
+        // Verificar se o ponto mais próximo na superfície está na metade INFERIOR da elipse
+        // surfaceNy > 0 significa que está na metade inferior
+        if (surfaceNy < 0.3) {
+          // O ponto mais próximo está na metade superior ou lateral - sem sombra
           continue;
         }
         
-        // Só aplicar sombra se estamos abaixo da borda inferior da elipse nesta coluna
-        if (depth < ellipseBottomY) continue;
+        // A sombra só existe se estamos ABAIXO do ponto de superfície
+        // Isso garante que a sombra segue a curvatura da elipse
+        if (depth < surfaceY) continue;
         
         // ═══════════════════════════════════════════════════════════════════════════════
         // MODELO DE SOMBRA: TRANSIÇÃO ULTRA-SUAVE
