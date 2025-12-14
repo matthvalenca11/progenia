@@ -1658,7 +1658,7 @@ export class UnifiedUltrasoundEngine {
     
     return {
       echogenicity: layer.echogenicity,
-      attenuation: layer.attenuationCoeff || 0.15, // Reduced for much better depth penetration
+      attenuation: layer.attenuationCoeff || 0.06, // Very low for visible depth at high frequencies
       reflectivity: layer.reflectivity,
       impedance: 1.63,
       isInclusion: false
@@ -1679,7 +1679,7 @@ export class UnifiedUltrasoundEngine {
       reflectivity: 0.5,
       echogenicity: 'isoechoic',
       texture: 'homogeneous',
-      attenuationCoeff: 0.15 // Reduced for much better depth penetration
+      attenuationCoeff: 0.06 // Very low for visible depth at high frequencies
     };
   }
   
