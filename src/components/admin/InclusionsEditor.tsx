@@ -204,7 +204,7 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
                             })
                           }
                           min={0.1}
-                          max={3.0}
+                          max={8.0}
                           step={0.1}
                           className="mt-2"
                         />
