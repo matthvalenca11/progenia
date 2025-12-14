@@ -215,6 +215,9 @@ export function getDefaultInclusionsForPreset(presetId: UltrasoundAnatomyPresetI
         hasStrongShadow: false,
         posteriorEnhancement: true,
         borderEchogenicity: "sharp",
+        rotationDegrees: 4.0,
+        wallIrregularity: 0.025,
+        wallAsymmetry: 0.01,
       },
       // Veia Jugular Interna - Lúmen Longitudinal
       {
@@ -229,6 +232,9 @@ export function getDefaultInclusionsForPreset(presetId: UltrasoundAnatomyPresetI
         hasStrongShadow: false,
         posteriorEnhancement: true,
         borderEchogenicity: "soft",
+        rotationDegrees: -3.0,
+        wallIrregularity: 0.02,
+        wallAsymmetry: 0.005,
       },
     ],
   };
