@@ -1017,9 +1017,9 @@ export class UnifiedUltrasoundEngine {
     // ═══════════════════════════════════════════════════════════════════════════════
     
     // Shadow parameters
-    // MAX_DROP = 0.30 means center of shadow is ~30% darker than surrounding tissue
-    // This creates subtle but visible shadows (lighter than the inclusion itself)
-    const MAX_DROP = 0.30; // ~30% darker at center (subtle shadow)
+    // MAX_DROP = 0.22 means center of shadow is ~22% darker than surrounding tissue
+    // This creates a subtle, realistic shadow without being overpowering
+    const MAX_DROP = 0.22; // ~22% darker at center (subtle shadow)
     const NOISE_SCALE_X = 0.05;
     const NOISE_SCALE_Z = 0.05;
     const NOISE_AMP = 0.025; // ±2.5% organic jitter
