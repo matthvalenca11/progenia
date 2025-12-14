@@ -182,51 +182,61 @@ export function getDefaultInclusionsForPreset(presetId: UltrasoundAnatomyPresetI
     // ============================================================
     // CARÓTIDA LONGITUDINAL (ULTRA-REALISTA)
     // 
-    // FÍSICA CORRETA:
-    // - Lúmen: TOTALMENTE ANECOGÊNICO (blood medium = anechoic)
-    // - Posterior enhancement: ATIVO (reforço posterior típico)
-    // - Sombra acústica: DESATIVADA (vasos NÃO causam sombra)
-    // - Bordas: NÍTIDAS (interface íntima-lúmen bem definida)
+    // VISÃO LONGITUDINAL = CORTE LONGO EIXO:
+    // - O vaso aparece como um TUBO HORIZONTAL estendido
+    // - Paredes PARALELAS superior e inferior (não círculos!)
+    // - Lúmen anecogênico contínuo da esquerda à direita
+    // - Extensão horizontal: 60-80% da largura da imagem
     // 
-    // ANATOMIA:
-    // - Carótida comum: diâmetro 5-7mm, profundidade ~1.5-2.0cm
-    // - Veia jugular interna: maior, mais superficial, colapsável
-    // - Shape: ELLIPSE para correta interação com physics engine
-    //   (mesmo em corte longitudinal, a fatia ultrassônica é circular)
+    // DIFERENÇA CRÍTICA vs TRANSVERSAL:
+    // - Transversal: shape=ellipse com width≈height (círculo)
+    // - Longitudinal: shape=rectangle com width >> height (tubo)
+    // 
+    // FÍSICA:
+    // - Lúmen: anecogênico (blood), posterior enhancement
+    // - Sem sombra acústica (hasStrongShadow: false)
+    // - Bordas nítidas (parede arterial íntima-média-adventícia)
     // ============================================================
     carotid_long: [
-      // ═══ ARTÉRIA CARÓTIDA COMUM ═══
-      // Lúmen central anecogênico com parede hiperecogênica
-      // Diâmetro: 6-7mm (0.65cm), profundidade: 1.6cm
+      // ═══ ARTÉRIA CARÓTIDA COMUM - VISÃO LONGITUDINAL ═══
+      // Lúmen estendido horizontalmente como um tubo
+      // Extensão: ~3.5cm horizontal, diâmetro: 6mm vertical
+      // Profundidade: 1.5cm (centro do lúmen)
       {
-        id: "carotid_common_lumen",
+        id: "carotid_common_longitudinal",
         type: "vessel",
-        label: "Artéria Carótida Comum - Lúmen",
-        shape: "ellipse", // CRÍTICO: ellipse para física correta
-        centerDepthCm: 1.65,
-        centerLateralPos: 0.0, // Centralizado no campo de visão
-        sizeCm: { width: 0.60, height: 0.60 }, // Diâmetro 6mm (circular em corte)
-        mediumInsideId: "blood", // Anecogênico (atenuação 0.18 dB/cm/MHz)
-        hasStrongShadow: false, // CRÍTICO: vasos NÃO produzem sombra
-        posteriorEnhancement: true, // CRÍTICO: reforço posterior real
-        borderEchogenicity: "sharp", // Parede arterial bem definida (IMT)
+        label: "Artéria Carótida Comum - Lúmen Longitudinal",
+        shape: "rectangle", // CRÍTICO: rectangle para visão longitudinal (tubo)
+        centerDepthCm: 1.55, // Centro do lúmen a ~1.5cm de profundidade
+        centerLateralPos: 0.0, // Centralizado horizontalmente
+        sizeCm: { 
+          width: 3.5,  // EXTENSÃO HORIZONTAL: 3.5cm (~70% da largura típica)
+          height: 0.55 // DIÂMETRO: 5.5mm (espessura vertical do tubo)
+        },
+        mediumInsideId: "blood", // Anecogênico - lúmen preto sem speckle
+        hasStrongShadow: false, // Vasos NÃO produzem sombra acústica
+        posteriorEnhancement: true, // Reforço posterior típico de estruturas líquidas
+        borderEchogenicity: "sharp", // Paredes arteriais bem definidas (IMT visível)
       },
       
-      // ═══ VEIA JUGULAR INTERNA ═══
-      // Maior que a carótida, mais superficial, parede mais fina
-      // Formato levemente oval (compressível)
+      // ═══ VEIA JUGULAR INTERNA - VISÃO LONGITUDINAL ═══
+      // Paralela à carótida, mais superficial e ligeiramente maior
+      // Também como tubo horizontal estendido
       {
-        id: "jugular_vein_lumen",
+        id: "jugular_vein_longitudinal",
         type: "vessel",
-        label: "Veia Jugular Interna - Lúmen",
-        shape: "ellipse",
-        centerDepthCm: 1.25, // Mais superficial que carótida
-        centerLateralPos: 0.35, // Lateralmente à carótida
-        sizeCm: { width: 0.90, height: 0.70 }, // Oval, maior que carótida
+        label: "Veia Jugular Interna - Lúmen Longitudinal",
+        shape: "rectangle", // Também tubo horizontal
+        centerDepthCm: 1.05, // Mais superficial que carótida
+        centerLateralPos: 0.0, // Mesmo centro lateral (sobreposta em planos diferentes)
+        sizeCm: { 
+          width: 3.0,  // Extensão horizontal ligeiramente menor
+          height: 0.70 // Diâmetro maior (veia é mais larga)
+        },
         mediumInsideId: "blood",
         hasStrongShadow: false,
         posteriorEnhancement: true,
-        borderEchogenicity: "soft", // Parede venosa mais fina
+        borderEchogenicity: "soft", // Parede venosa mais fina e menos ecogênica
       },
     ],
   };
