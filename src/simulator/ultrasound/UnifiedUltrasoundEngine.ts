@@ -1437,43 +1437,56 @@ export class UnifiedUltrasoundEngine {
   
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * LINEAR CONVOLUTION SHADOW - ALGORITMO BASEADO EM CONVOLUÇÃO 2D
+   * LINEAR PATH-LENGTH SHADOW - BASEADO NO COMPRIMENTO DO CAMINHO NA ELIPSE
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * Abordagem completamente nova:
-   * 1. Construir inclusionMask 2D binário
-   * 2. Aplicar kernel anisotrópico que espalha influência para baixo
-   * 3. Converter resultado em shadowMask suave (0.6-1.0)
-   * 4. Multiplicar imagem base por shadowMask
+   * Física correta:
+   * - No centro da elipse, o feixe atravessa mais material → mais atenuação
+   * - Nas pontas, o feixe atravessa menos → menos atenuação
+   * - A sombra é proporcional ao COMPRIMENTO DO CAMINHO dentro da elipse
    */
   
-  // Flag para ativar o modo de sombra por convolução no Linear
+  // Flag para ativar o modo de sombra por path-length no Linear
   private USE_LINEAR_CONV_SHADOW = true;
   
-  // Cache do shadow mask por convolução
+  // Cache do shadow mask
   private linearConvShadowMask: Float32Array | null = null;
   
   /**
-   * Computa o shadow mask por convolução 2D
-   * Deve ser chamado uma vez por frame, antes do loop de renderização
+   * Computa o shadow mask baseado no comprimento do caminho dentro da elipse
    */
   private computeLinearConvShadowMask(): void {
     const width = this.canvas.width;
     const height = this.canvas.height;
+    const depthStep = this.config.depth / height; // cm por pixel
     
     // ═══════════════════════════════════════════════════════════════════════════════
-    // PASSO 1: Construir inclusionMask 2D binário
+    // PASSO 1: Para cada coluna, medir o caminho dentro de cada inclusão
     // ═══════════════════════════════════════════════════════════════════════════════
-    const inclusionMask = new Float32Array(width * height);
     
-    for (let y = 0; y < height; y++) {
-      const depthCm = (y / height) * this.config.depth;
+    // Estrutura para armazenar info por coluna
+    interface ColumnShadowInfo {
+      hasInclusion: boolean;
+      z_enter: number;
+      z_exit: number;
+      pathLength: number; // L em pixels
+    }
+    
+    const columnInfo: ColumnShadowInfo[] = [];
+    let L_max = 0; // Maior caminho encontrado
+    
+    for (let x = 0; x < width; x++) {
+      const lateralCm = ((x / width) - 0.5) * 5.0; // -2.5 a +2.5 cm
       
-      for (let x = 0; x < width; x++) {
-        const lateralCm = ((x / width) - 0.5) * 5.0; // -2.5 a +2.5 cm
+      let z_enter = -1;
+      let z_exit = -1;
+      
+      // Escanear a coluna verticalmente
+      for (let y = 0; y < height; y++) {
+        const depthCm = (y / height) * this.config.depth;
+        let isInside = false;
         
-        let isInsideInclusion = false;
-        
+        // Verificar se está dentro de alguma inclusão com sombra
         for (const inclusion of this.config.inclusions) {
           if (!inclusion.hasStrongShadow) continue;
           
@@ -1489,110 +1502,104 @@ export class UnifiedUltrasoundEngine {
             const normX = dx / halfW;
             const normY = dy / halfH;
             if (normX * normX + normY * normY <= 1.0) {
-              isInsideInclusion = true;
+              isInside = true;
               break;
             }
           } else {
             if (Math.abs(dx) <= halfW && Math.abs(dy) <= halfH) {
-              isInsideInclusion = true;
+              isInside = true;
               break;
             }
           }
         }
         
-        inclusionMask[y * width + x] = isInsideInclusion ? 1.0 : 0.0;
-      }
-    }
-    
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // PASSO 2: Definir kernel anisotrópico para espalhar sombra para baixo
-    // ═══════════════════════════════════════════════════════════════════════════════
-    const KZ = 50;  // profundidade (quantos pixels para baixo)
-    const KX = 9;   // largura lateral (feixes vizinhos)
-    const halfKX = Math.floor(KX / 2);
-    
-    const kernel: number[][] = [];
-    let kernelSum = 0;
-    
-    for (let dz = 0; dz < KZ; dz++) {
-      kernel[dz] = [];
-      for (let dx = -halfKX; dx <= halfKX; dx++) {
-        const vx = dx / halfKX;           // -1 a 1
-        const vz = dz / (KZ - 1);         // 0 a 1
-        
-        // Peso decai com lateral (gaussiano) e profundidade (exponencial)
-        const lateral = Math.exp(-(vx * vx) * 2.5);      // gaussiano em x
-        const depth = Math.exp(-vz * 2.5);               // decai com profundidade
-        const weight = lateral * depth;
-        
-        kernel[dz][dx + halfKX] = weight;
-        kernelSum += weight;
-      }
-    }
-    
-    // Normalizar kernel
-    for (let dz = 0; dz < KZ; dz++) {
-      for (let dx = 0; dx < KX; dx++) {
-        kernel[dz][dx] /= kernelSum;
-      }
-    }
-    
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // PASSO 3: Convolução - gerar mapa de "força de sombra" 2D
-    // ═══════════════════════════════════════════════════════════════════════════════
-    const shadowScore = new Float32Array(width * height);
-    
-    for (let y0 = 0; y0 < height; y0++) {
-      for (let x0 = 0; x0 < width; x0++) {
-        // Só propagar sombra a partir de pixels dentro da inclusão
-        if (inclusionMask[y0 * width + x0] < 0.5) continue;
-        
-        // Aplicar kernel para espalhar influência para baixo
-        for (let dz = 0; dz < KZ; dz++) {
-          const y = y0 + dz;
-          if (y >= height) break;
-          
-          for (let dx = -halfKX; dx <= halfKX; dx++) {
-            const x = x0 + dx;
-            if (x < 0 || x >= width) continue;
-            
-            shadowScore[y * width + x] += kernel[dz][dx + halfKX];
-          }
+        if (isInside) {
+          if (z_enter < 0) z_enter = y;
+          z_exit = y;
         }
       }
-    }
-    
-    // Encontrar valor máximo para normalização
-    let maxScore = 0;
-    for (let i = 0; i < shadowScore.length; i++) {
-      if (shadowScore[i] > maxScore) maxScore = shadowScore[i];
-    }
-    
-    // Normalizar para [0, 1]
-    if (maxScore > 0) {
-      for (let i = 0; i < shadowScore.length; i++) {
-        shadowScore[i] /= maxScore;
+      
+      // Calcular comprimento do caminho
+      const hasInclusion = z_enter >= 0 && z_exit >= 0;
+      const pathLength = hasInclusion ? (z_exit - z_enter + 1) : 0;
+      
+      if (pathLength > L_max) {
+        L_max = pathLength;
       }
+      
+      columnInfo[x] = {
+        hasInclusion,
+        z_enter,
+        z_exit,
+        pathLength
+      };
     }
     
     // ═══════════════════════════════════════════════════════════════════════════════
-    // PASSO 4: Converter shadowScore em shadowMask suave (0.6-1.0)
+    // PASSO 2: Gerar shadowMask baseado em thicknessFactor e gradiente de profundidade
     // ═══════════════════════════════════════════════════════════════════════════════
-    const MAX_SHADOW_DROP = 0.35;  // no máximo 35% mais escuro
-    const MIN_FACTOR = 1.0 - MAX_SHADOW_DROP; // 0.65
+    
+    const MAX_DROP = 0.40;           // no centro, pode escurecer até ~40%
+    const MIN_FACTOR = 0.60;         // nunca mais escuro que 60%
+    const EXTRA_DROP_FRAC = 0.25;    // 25% a mais lá no fundo
+    const maxDepthDown = height * 0.6; // profundidade máxima de efeito (em pixels)
     
     this.linearConvShadowMask = new Float32Array(width * height);
+    this.linearConvShadowMask.fill(1.0); // Inicializar sem sombra
     
-    for (let i = 0; i < shadowScore.length; i++) {
-      const s = Math.max(0, Math.min(1, shadowScore[i]));
+    for (let x = 0; x < width; x++) {
+      const info = columnInfo[x];
       
-      // Dentro da inclusão: sem sombra (factor = 1.0)
-      if (inclusionMask[i] > 0.5) {
-        this.linearConvShadowMask[i] = 1.0;
-      } else {
-        // factor varia de 1.0 (sem sombra) a MIN_FACTOR (sombra máxima)
-        this.linearConvShadowMask[i] = 1.0 - MAX_SHADOW_DROP * s;
+      if (!info.hasInclusion || L_max === 0) continue;
+      
+      // ═══ Calcular thicknessFactor para esta coluna ═══
+      const thicknessFactor = info.pathLength / L_max; // 0 nas pontas, 1 no centro
+      
+      // ═══ Força inicial da sombra baseada no thicknessFactor ═══
+      const baseDrop = MAX_DROP * thicknessFactor;
+      let startFactor = 1.0 - baseDrop;
+      startFactor = Math.max(startFactor, MIN_FACTOR); // Clamp
+      
+      // ═══ Aplicar gradiente com profundidade a partir de z_exit ═══
+      for (let y = info.z_exit + 1; y < height; y++) {
+        const depthDown = y - info.z_exit; // pixels abaixo da elipse
+        const t = Math.min(1.0, depthDown / maxDepthDown); // 0 na borda, 1 lá embaixo
+        
+        // A sombra fica um pouco mais forte com a profundidade
+        let factor = startFactor * (1.0 - EXTRA_DROP_FRAC * t);
+        factor = Math.max(factor, MIN_FACTOR); // Nunca abaixo de MIN_FACTOR
+        
+        this.linearConvShadowMask[y * width + x] = factor;
       }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // PASSO 3: Suavização lateral (bordas difusas entre colunas)
+    // ═══════════════════════════════════════════════════════════════════════════════
+    const blurRadius = 3;
+    const tempMask = new Float32Array(width * height);
+    
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        let sum = 0;
+        let count = 0;
+        
+        for (let dx = -blurRadius; dx <= blurRadius; dx++) {
+          const nx = x + dx;
+          if (nx >= 0 && nx < width) {
+            const weight = 1.0 - Math.abs(dx) / (blurRadius + 1);
+            sum += this.linearConvShadowMask[y * width + nx] * weight;
+            count += weight;
+          }
+        }
+        
+        tempMask[y * width + x] = count > 0 ? sum / count : 1.0;
+      }
+    }
+    
+    // Copiar de volta
+    for (let i = 0; i < tempMask.length; i++) {
+      this.linearConvShadowMask[i] = tempMask[i];
     }
   }
   
