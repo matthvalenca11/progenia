@@ -671,25 +671,23 @@ export class UnifiedUltrasoundEngine {
         }
       }
       
-      // PASSO 2: Clonar para image_with_shadow e aplicar sombra do mapa 2D
+      // PASSO 2: Clonar image_base para image_with_shadow
+      // NOTA: NÃO aplicamos o linearShadowMap aqui para Linear mode!
+      // O shadow será aplicado via função contínua no PASSO 4.
+      // Isso elimina a descontinuidade piecewise que causava a linha horizontal.
       for (let i = 0; i < image_base.length; i++) {
         image_with_shadow[i] = image_base[i];
       }
       
-      // Aplicar sombra do mapa 2D (modelo ray-tracing)
-      if (this.linearShadowMap && this.linearShadowMap.length === width * height) {
-        for (let i = 0; i < image_base.length; i++) {
-          image_with_shadow[i] = image_base[i] * this.linearShadowMap[i];
-        }
-      }
-      
       // PASSO 3: Gerar image_final (adiciona noise temporal e pós-processamento)
+      // Partimos de image_base (SEM shadow map piecewise)
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
           const idx = y * width + x;
           const physCoords = this.pixelToPhysical(x, y);
           
-          let intensity = image_with_shadow[idx];
+          // Start from BASE image (no shadow yet - will apply continuous shadow in PASSO 4)
+          let intensity = image_base[idx];
           
           // Temporal "live" noise (chuvisco)
           const depthRatio = physCoords.depth / this.config.depth;
@@ -722,79 +720,46 @@ export class UnifiedUltrasoundEngine {
       }
       
       // ═══════════════════════════════════════════════════════════════════════════════
-      // PASSO 4: C1 CONTINUITY BRIDGING - Remove descontinuidade multiplicativa em zExit
+      // PASSO 4: CONTINUOUS DEPTH SHADOW FUNCTION
       // 
-      // O problema: acima de zExit temos I_base, abaixo temos I_base * shadowFactor
-      // Isso cria uma descontinuidade matemática (linha horizontal)
+      // The piecewise "if z > zExit then apply shadow" creates a mathematical 
+      // discontinuity (horizontal line artifact). Solution: use a SINGLE continuous
+      // function of depth that applies to ALL z in each column.
+      //
+      // For z ≤ zExit: dz = 0 → factorShadow = 1.0 (no shadow, continuous)
+      // For z > zExit: dz > 0 → factorShadow smoothly decreases with depth
       // 
-      // Solução: "bridge" entre as duas funções para continuidade C1
+      // This eliminates any discrete switching point.
       // ═══════════════════════════════════════════════════════════════════════════════
-      const BRIDGE_TRANSITION_PIXELS = 8;
+      const SHADOW_DEPTH_D = 100;  // Shadow influence depth in pixels (80-120 range)
+      const MAX_DROP = 0.20;       // Maximum intensity drop (20%)
       
       for (let x = 0; x < width; x++) {
         const zExit = this.linearZExits[x];
-        if (zExit < 0 || zExit >= height - 1) continue;
         
-        // Obter o shadowFactor desta coluna no ponto imediatamente após zExit
-        const shadowMapIdx = (zExit + 1) * width + x;
-        if (!this.linearShadowMap || shadowMapIdx >= this.linearShadowMap.length) continue;
-        
-        const shadowFactor = this.linearShadowMap[shadowMapIdx];
-        if (shadowFactor >= 0.999) continue; // Sem sombra nesta coluna
-        
-        // Valor do último pixel NÃO sombreado (zExit)
-        const idxLastUnshadowed = zExit * width + x;
-        const I_lastUnshadowed = image_final[idxLastUnshadowed];
-        
-        // Valor "bridge" = intensidade que a região sombreada DEVERIA ter para continuidade
-        const bridge = I_lastUnshadowed * shadowFactor;
-        
-        // PASSO 4a: Primeiro pixel após zExit - atribuição direta do bridge
-        const idxFirstShadowed = (zExit + 1) * width + x;
-        image_final[idxFirstShadowed] = bridge;
-        
-        // PASSO 4b: Transição suave nos próximos 8 pixels (zExit+2 até zExit+9)
-        const transitionEnd = Math.min(height - 1, zExit + 1 + BRIDGE_TRANSITION_PIXELS);
-        
-        for (let z = zExit + 2; z <= transitionEnd; z++) {
-          const idx = z * width + x;
-          
-          // t varia de 0 (início da transição) até 1 (fim da transição)
-          const t = (z - (zExit + 1)) / BRIDGE_TRANSITION_PIXELS;
-          
-          // target = intensidade normal sombreada que o pixel teria
-          const target = image_final[idx]; // Já foi processado com shadow no PASSO 2-3
-          
-          // Interpolação linear do bridge para o target
-          image_final[idx] = (1.0 - t) * bridge + t * target;
-        }
-      }
-      
-      // ═══════════════════════════════════════════════════════════════════════════════
-      // PASSO 5: Smoothing vertical leve dentro da sombra (mantém speckle)
-      // ═══════════════════════════════════════════════════════════════════════════════
-      for (let x = 0; x < width; x++) {
-        const zExit = this.linearZExits[x];
+        // Skip columns without inclusions (zExit < 0 means no inclusion)
         if (zExit < 0) continue;
         
-        // Começar APÓS a região de transição do bridge
-        const z0 = zExit + BRIDGE_TRANSITION_PIXELS + 2;
-        const z1 = height - 2;
-        
-        if (z0 >= z1) continue;
-        
-        for (let z = z0; z <= z1; z++) {
-          const idxPrev = (z - 1) * width + x;
-          const idxCurr = z * width + x;
-          const idxNext = (z + 1) * width + x;
+        // Apply continuous shadow function to EVERY pixel in this column
+        for (let z = 0; z < height; z++) {
+          const idx = z * width + x;
           
-          const a = image_final[idxPrev];
-          const b = image_final[idxCurr];
-          const c = image_final[idxNext];
+          // Continuous depth-based shadow factor
+          // dz = 0 for z ≤ zExit, grows with depth for z > zExit
+          const dz = Math.max(0, z - zExit);
           
-          const smooth = (a + 2 * b + c) / 4.0;
-          // Mantém 80% speckle, 20% smoothed
-          image_final[idxCurr] = 0.8 * b + 0.2 * smooth;
+          // Normalize to [0, 1] over D pixels
+          const t = Math.min(1, dz / SHADOW_DEPTH_D);
+          
+          // Smoothstep for smooth curve: s(t) = t² * (3 - 2t)
+          // At t=0: s=0, at t=1: s=1, with smooth transitions
+          const s = t * t * (3 - 2 * t);
+          
+          // Shadow factor: 1.0 (no shadow) at boundary, decreases smoothly with depth
+          const factorShadow = 1.0 - MAX_DROP * s;
+          
+          // Apply multiplicatively to final image
+          image_final[idx] *= factorShadow;
         }
       }
       
