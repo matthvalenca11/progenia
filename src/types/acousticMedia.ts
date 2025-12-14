@@ -159,8 +159,11 @@ export type UltrasoundLayerConfig = {
 
 /**
  * Inclusion shapes
+ * - ellipse: circular/oval cross-sections (transverse view)
+ * - rectangle: box shape with sharp corners
+ * - capsule: stadium/pill shape = rectangle with semicircular ends (longitudinal vessels)
  */
-export type UltrasoundInclusionShape = "ellipse" | "rectangle";
+export type UltrasoundInclusionShape = "ellipse" | "rectangle" | "capsule";
 
 /**
  * Inclusion types

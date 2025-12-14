@@ -35,6 +35,24 @@ function isPointInInclusion(
   if (inclusion.shape === "ellipse") {
     const distSq = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
     return distSq <= 1.0;
+  } else if (inclusion.shape === "capsule") {
+    // Capsule: rectangle with semicircular ends (stadium/pill shape)
+    const capsuleRadius = ry;
+    const rectHalfWidth = rx - capsuleRadius;
+    
+    // Scale dy back to cm for capsule calculation
+    const dyCm = dy * maxDepthCm / 10;
+    
+    if (Math.abs(dx) <= rectHalfWidth) {
+      // In rectangular middle section
+      return Math.abs(dyCm) <= capsuleRadius;
+    } else {
+      // In semicircular ends
+      const endCenterX = Math.sign(dx) * rectHalfWidth;
+      const localDx = dx - endCenterX;
+      const distToEndCenter = Math.sqrt(localDx * localDx + dyCm * dyCm);
+      return distToEndCenter <= capsuleRadius;
+    }
   } else { // rectangle
     return Math.abs(dx) <= rx && Math.abs(dy * maxDepthCm / 10) <= ry;
   }
