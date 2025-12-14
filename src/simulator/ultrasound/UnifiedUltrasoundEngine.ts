@@ -671,73 +671,15 @@ export class UnifiedUltrasoundEngine {
         }
       }
       
-      // ═══════════════════════════════════════════════════════════════════════════════
-      // PASSO 1.5: Garantir continuidade vertical na borda inferior da inclusão
-      // Blend suave entre zExit[x] e zExit[x]+1 para eliminar degrau horizontal
-      // ═══════════════════════════════════════════════════════════════════════════════
-      if (this.linearZExits) {
-        for (let x = 0; x < width; x++) {
-          const zBorda = this.linearZExits[x];
-          if (zBorda < 0) continue; // Coluna sem inclusão
-          
-          const zAbaixo = zBorda + 1;
-          if (zAbaixo >= height) continue;
-          
-          const idxBorda = zBorda * width + x;
-          const idxAbaixo = zAbaixo * width + x;
-          
-          const valAbove = image_base[idxBorda];
-          const valBelow = image_base[idxAbaixo];
-          
-          // Força continuidade suave na transição
-          const blendedAbove = 0.5 * valAbove + 0.5 * valBelow;
-          const blendedBelow = blendedAbove;
-          
-          image_base[idxBorda] = blendedAbove;
-          image_base[idxAbaixo] = blendedBelow;
-        }
-      }
-      
       // PASSO 2: Clonar para image_with_shadow e aplicar sombra do mapa 2D
       for (let i = 0; i < image_base.length; i++) {
         image_with_shadow[i] = image_base[i];
       }
       
-      // Aplicar sombra do mapa 2D (modelo ray-tracing exponencial)
+      // Aplicar sombra do mapa 2D (modelo ray-tracing)
       if (this.linearShadowMap && this.linearShadowMap.length === width * height) {
         for (let i = 0; i < image_base.length; i++) {
           image_with_shadow[i] = image_base[i] * this.linearShadowMap[i];
-        }
-      }
-      
-      // ═══════════════════════════════════════════════════════════════════════════════
-      // PASSO 2.5: Micro-smoothing localizado logo abaixo da inclusão
-      // Suaviza apenas 4-5 pixels abaixo de zExit para eliminar artefato horizontal
-      // ═══════════════════════════════════════════════════════════════════════════════
-      if (this.linearZExits) {
-        for (let x = 0; x < width; x++) {
-          const zBorda = this.linearZExits[x];
-          if (zBorda < 0) continue; // Coluna sem inclusão
-          
-          const z0 = zBorda + 1;
-          const z1 = Math.min(height - 2, z0 + 4); // Apenas 4-5 pixels
-          
-          for (let z = z0; z <= z1; z++) {
-            if (z < 1 || z >= height - 1) continue;
-            
-            const idxPrev = (z - 1) * width + x;
-            const idxCurr = z * width + x;
-            const idxNext = (z + 1) * width + x;
-            
-            const a = image_with_shadow[idxPrev];
-            const b = image_with_shadow[idxCurr];
-            const c = image_with_shadow[idxNext];
-            
-            // Kernel [1,2,1]/4 com blend parcial
-            const smooth = (a + 2 * b + c) / 4.0;
-            const blend = 0.4;
-            image_with_shadow[idxCurr] = b * (1.0 - blend) + smooth * blend;
-          }
         }
       }
       
@@ -950,8 +892,8 @@ export class UnifiedUltrasoundEngine {
     if (shadowInclusions.length === 0) return;
     
     // ═══════════════════════════════════════════════════════════════════════════════
-    // STEP 1: Compute zEnter, zExit, thickness per column
-    // Also store inclusion geometry (centerX, radiusX) for form factor
+    // STEP 1: TRUE RAY-TRACING per column (like Convex/Microconvex)
+    // Scan sample-by-sample to find EXACT zEnter and zExit for each column
     // ═══════════════════════════════════════════════════════════════════════════════
     
     const zEnterArray = new Int32Array(width);
@@ -973,85 +915,95 @@ export class UnifiedUltrasoundEngine {
     const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008;
     const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
     
-    // Parameters
-    const SHADOW_LIGHTEST = 0.95; // Edge columns (thin path)
-    const SHADOW_DARKEST = 0.80;  // Center columns (thick path)
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // VERTICAL RAY-TRACING: For each X column, scan from y=0 to y=height
+    // Detect when ray ENTERS inclusion (first inside) and EXITS (first outside after inside)
+    // This follows the TRUE ellipse contour, eliminating horizontal artifacts
+    // ═══════════════════════════════════════════════════════════════════════════════
     
-    // Process each column
     for (let x = 0; x < width; x++) {
+      // Convert pixel X to physical lateral position (cm)
       const lateralCm = ((x / width) - 0.5) * 5.0;
+      // Apply motion compensation (inverted for shadow synchronization)
+      const lateralCmAdjusted = lateralCm + jitterLateral;
       
-      for (const inclusion of shadowInclusions) {
-        // Motion-adjusted inclusion position
-        const inclLateral = inclusion.centerLateralPos * 2.5 - jitterLateral;
-        const inclCenterDepth = inclusion.centerDepthCm - jitterDepth - breathingCycle * (inclusion.centerDepthCm / this.config.depth);
-        const halfW = inclusion.sizeCm.width / 2;
-        const halfH = inclusion.sizeCm.height / 2;
+      let columnZEnter = -1;
+      let columnZExit = -1;
+      let wasInside = false;
+      let currentInclusion: typeof shadowInclusions[0] | null = null;
+      
+      // Scan vertically through this column (ray-tracing)
+      for (let y = 0; y < height; y++) {
+        // Convert pixel Y to physical depth (cm)
+        const depthCm = (y / height) * this.config.depth;
+        // Apply motion compensation
+        const depthCmAdjusted = depthCm + jitterDepth + breathingCycle * (depthCm / this.config.depth);
         
-        const dx = lateralCm - inclLateral;
-        const normX = dx / halfW;
+        // Check if this sample is inside ANY shadow-producing inclusion
+        let isInsideAny = false;
+        let foundInclusion: typeof shadowInclusions[0] | null = null;
         
-        // Skip if column is outside inclusion lateral bounds
-        if (Math.abs(normX) > 1.0) continue;
-        
-        // ═══════════════════════════════════════════════════════════════════════════
-        // ELLIPSE INTERSECTION: Exact geometric calculation
-        // 
-        // Ellipse equation: (x - cx)²/rx² + (z - cz)²/ry² = 1
-        // Solving for z: dz = ry * sqrt(1 - dx²) where dx = (x - cx) / rx
-        // zEnter = cz - dz (top of ellipse at this column)
-        // zExit = cz + dz (bottom of ellipse at this column)
-        // ═══════════════════════════════════════════════════════════════════════════
-        
-        let z_enter_cm: number;
-        let z_exit_cm: number;
-        
-        if (inclusion.shape === 'ellipse') {
-          // dx is already normalized: normX = (lateralCm - inclLateral) / halfW
-          // This is equivalent to (x - cx) / rx in the ellipse equation
-          const dx_squared = normX * normX;
+        for (const inclusion of shadowInclusions) {
+          // Motion-adjusted inclusion center
+          const inclLateral = inclusion.centerLateralPos * 2.5;
+          const inclCenterDepth = inclusion.centerDepthCm;
+          const halfW = inclusion.sizeCm.width / 2;
+          const halfH = inclusion.sizeCm.height / 2;
           
-          // Ensure we're inside the ellipse (|normX| <= 1)
-          if (dx_squared > 1.0) continue;
+          // Check if point is inside this inclusion
+          const dx = lateralCmAdjusted - inclLateral;
+          const dy = depthCmAdjusted - inclCenterDepth;
           
-          // Exact ellipse intersection: dz = ry * sqrt(1 - dx²)
-          const dz = halfH * Math.sqrt(1.0 - dx_squared);
+          let isInside = false;
+          if (inclusion.shape === 'ellipse') {
+            // Ellipse equation: (dx/rx)² + (dy/ry)² <= 1
+            const normalizedDist = (dx * dx) / (halfW * halfW) + (dy * dy) / (halfH * halfH);
+            isInside = normalizedDist <= 1.0;
+          } else {
+            // Rectangle
+            isInside = Math.abs(dx) <= halfW && Math.abs(dy) <= halfH;
+          }
           
-          z_enter_cm = inclCenterDepth - dz; // Top of ellipse at this column
-          z_exit_cm = inclCenterDepth + dz;  // Bottom of ellipse at this column
-        } else {
-          // Rectangle: simple bounds
-          if (Math.abs(dx) > halfW) continue;
-          z_enter_cm = inclCenterDepth - halfH;
-          z_exit_cm = inclCenterDepth + halfH;
+          if (isInside) {
+            isInsideAny = true;
+            foundInclusion = inclusion;
+            break; // Found one, no need to check others
+          }
         }
         
-        // Convert to pixels
-        // CRITICAL: Use floor for zEnter (top) but CEIL for zExit (bottom)
-        // This ensures shadow starts immediately at the geometric boundary
-        const z_enter_pixel = Math.floor((z_enter_cm / this.config.depth) * height);
-        const z_exit_pixel = Math.ceil((z_exit_cm / this.config.depth) * height);
-        
-        // Store for this column
-        if (zEnterArray[x] < 0 || z_enter_pixel < zEnterArray[x]) {
-          zEnterArray[x] = z_enter_pixel;
+        // Ray-tracing state machine: detect enter/exit transitions
+        if (isInsideAny && !wasInside) {
+          // Transition: outside → inside (ray ENTERS inclusion)
+          columnZEnter = y;
+          currentInclusion = foundInclusion;
+        } else if (!isInsideAny && wasInside) {
+          // Transition: inside → outside (ray EXITS inclusion)
+          columnZExit = y - 1; // Last pixel that was inside
         }
-        if (z_exit_pixel > zExitArray[x]) {
-          zExitArray[x] = z_exit_pixel;
-          this.linearZExits[x] = z_exit_pixel;
-          
-          // Store inclusion geometry for form factor (in pixels)
-          const centerXcm = inclLateral;
-          const centerXpx = (centerXcm / 5.0 + 0.5) * width;
+        
+        wasInside = isInsideAny;
+      }
+      
+      // Handle case where ray never exits (inclusion extends to bottom)
+      if (wasInside && columnZExit < 0 && columnZEnter >= 0) {
+        columnZExit = height - 1;
+      }
+      
+      // Store results for this column
+      if (columnZEnter >= 0 && columnZExit >= 0) {
+        zEnterArray[x] = columnZEnter;
+        zExitArray[x] = columnZExit;
+        this.linearZExits[x] = columnZExit;
+        thicknessArray[x] = columnZExit - columnZEnter + 1;
+        
+        // Store inclusion geometry for form factor (in pixels)
+        if (currentInclusion) {
+          const inclLateral = currentInclusion.centerLateralPos * 2.5;
+          const halfW = currentInclusion.sizeCm.width / 2;
+          const centerXpx = (inclLateral / 5.0 + 0.5) * width;
           const radiusXpx = (halfW / 5.0) * width;
           inclusionCenterX[x] = centerXpx;
           inclusionRadiusX[x] = radiusXpx;
-        }
-        
-        // Thickness in pixels
-        const thickness = z_exit_pixel - zEnterArray[x];
-        if (thickness > thicknessArray[x]) {
-          thicknessArray[x] = thickness;
         }
       }
     }
