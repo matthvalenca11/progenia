@@ -221,48 +221,36 @@ export function getDefaultInclusionsForPreset(presetId: UltrasoundAnatomyPresetI
         type: "vessel",
         label: "Artéria Carótida Comum - Lúmen Longitudinal",
         shape: "capsule",
-        centerDepthCm: 1.55,
+        centerDepthCm: 1.9,
         centerLateralPos: 0.0,
         sizeCm: { 
-          width: 5.5,   // EXTENSÃO HORIZONTAL: 5.5cm (>100% da tela para continuidade)
-          height: 0.55  // DIÂMETRO: 5.5mm
+          width: 8.0,   // EXTENSÃO HORIZONTAL: 8.0cm (largura total da imagem)
+          height: 0.5   // DIÂMETRO: 5mm
         },
         mediumInsideId: "blood",
         hasStrongShadow: false,
         posteriorEnhancement: true,
         borderEchogenicity: "sharp",
-        // === REALISMO ANATÔMICO ===
-        rotationDegrees: 4.0,       // Artéria ligeiramente ascendente (+4°)
-        wallIrregularity: 0.025,    // Variação suave da parede (±0.25mm)
-        wallAsymmetry: 0.01,        // Parede posterior 0.1mm mais espessa
       },
       
       // ═══════════════════════════════════════════════════════════════════════════════
       // VEIA JUGULAR INTERNA - VISÃO LONGITUDINAL
-      // ═══════════════════════════════════════════════════════════════════════════════
-      // 
-      // Paralela à carótida, mais superficial e ligeiramente maior
-      // Rotação oposta (-3°) para variar anatomia
       // ═══════════════════════════════════════════════════════════════════════════════
       {
         id: "jugular_vein_longitudinal",
         type: "vessel",
         label: "Veia Jugular Interna - Lúmen Longitudinal",
         shape: "capsule",
-        centerDepthCm: 0.95,
+        centerDepthCm: 2.4,
         centerLateralPos: 0.0,
         sizeCm: { 
-          width: 4.8,   // Extensão horizontal (96% da tela)
-          height: 0.70  // Diâmetro maior (veia é mais larga, ~7mm)
+          width: 8.0,   // EXTENSÃO HORIZONTAL: 8.0cm (largura total da imagem)
+          height: 0.5   // DIÂMETRO: 5mm
         },
         mediumInsideId: "blood",
         hasStrongShadow: false,
         posteriorEnhancement: true,
         borderEchogenicity: "soft",
-        // === REALISMO ANATÔMICO ===
-        rotationDegrees: -3.0,      // Veia ligeiramente descendente (-3°)
-        wallIrregularity: 0.02,     // Variação mais suave (parede venosa fina)
-        wallAsymmetry: 0.005,       // Menos assimetria que artéria
       },
     ],
   };
