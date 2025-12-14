@@ -671,6 +671,33 @@ export class UnifiedUltrasoundEngine {
         }
       }
       
+      // ═══════════════════════════════════════════════════════════════════════════════
+      // PASSO 1.5: Garantir continuidade vertical na borda inferior da inclusão
+      // Blend suave entre zExit[x] e zExit[x]+1 para eliminar degrau horizontal
+      // ═══════════════════════════════════════════════════════════════════════════════
+      if (this.linearZExits) {
+        for (let x = 0; x < width; x++) {
+          const zBorda = this.linearZExits[x];
+          if (zBorda < 0) continue; // Coluna sem inclusão
+          
+          const zAbaixo = zBorda + 1;
+          if (zAbaixo >= height) continue;
+          
+          const idxBorda = zBorda * width + x;
+          const idxAbaixo = zAbaixo * width + x;
+          
+          const valAbove = image_base[idxBorda];
+          const valBelow = image_base[idxAbaixo];
+          
+          // Força continuidade suave na transição
+          const blendedAbove = 0.5 * valAbove + 0.5 * valBelow;
+          const blendedBelow = blendedAbove;
+          
+          image_base[idxBorda] = blendedAbove;
+          image_base[idxAbaixo] = blendedBelow;
+        }
+      }
+      
       // PASSO 2: Clonar para image_with_shadow e aplicar sombra do mapa 2D
       for (let i = 0; i < image_base.length; i++) {
         image_with_shadow[i] = image_base[i];
@@ -680,6 +707,37 @@ export class UnifiedUltrasoundEngine {
       if (this.linearShadowMap && this.linearShadowMap.length === width * height) {
         for (let i = 0; i < image_base.length; i++) {
           image_with_shadow[i] = image_base[i] * this.linearShadowMap[i];
+        }
+      }
+      
+      // ═══════════════════════════════════════════════════════════════════════════════
+      // PASSO 2.5: Micro-smoothing localizado logo abaixo da inclusão
+      // Suaviza apenas 4-5 pixels abaixo de zExit para eliminar artefato horizontal
+      // ═══════════════════════════════════════════════════════════════════════════════
+      if (this.linearZExits) {
+        for (let x = 0; x < width; x++) {
+          const zBorda = this.linearZExits[x];
+          if (zBorda < 0) continue; // Coluna sem inclusão
+          
+          const z0 = zBorda + 1;
+          const z1 = Math.min(height - 2, z0 + 4); // Apenas 4-5 pixels
+          
+          for (let z = z0; z <= z1; z++) {
+            if (z < 1 || z >= height - 1) continue;
+            
+            const idxPrev = (z - 1) * width + x;
+            const idxCurr = z * width + x;
+            const idxNext = (z + 1) * width + x;
+            
+            const a = image_with_shadow[idxPrev];
+            const b = image_with_shadow[idxCurr];
+            const c = image_with_shadow[idxNext];
+            
+            // Kernel [1,2,1]/4 com blend parcial
+            const smooth = (a + 2 * b + c) / 4.0;
+            const blend = 0.4;
+            image_with_shadow[idxCurr] = b * (1.0 - blend) + smooth * blend;
+          }
         }
       }
       
