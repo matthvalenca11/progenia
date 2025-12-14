@@ -974,37 +974,47 @@ export class UnifiedUltrasoundEngine {
       const thickness = columnZExit - columnZEnter + 1;
       
       // ═══════════════════════════════════════════════════════════════════════════
-      // STEP 2: Apply CONTINUOUS path-length attenuation for ALL z in this column
-      // Shadow factor is a FUNCTION of z, not a column constant
+      // STEP 2: Apply CONTINUOUS depth-dependent attenuation for ALL z in this column
+      // Shadow factor CONTINUES TO VARY with depth even AFTER exiting the inclusion
+      // This eliminates the plateau/horizontal band at zExit
       // ═══════════════════════════════════════════════════════════════════════════
       
+      // Post-exit continuation slope (very small to avoid visible change, but non-zero)
+      const k = 0.006;
+      
+      // Maximum effective attenuation = inclusion thickness + continuation to bottom
+      const maxEff = thickness + height * k;
+      
       for (let z = 0; z < height; z++) {
-        // Compute normalized path fraction t(z)
-        let t: number;
+        // Skip pixels above inclusion entry (no shadow yet)
+        if (z <= columnZEnter) continue;
         
-        if (z <= columnZEnter) {
-          // Beam has not entered inclusion yet - no shadow
-          t = 0.0;
-        } else if (z <= columnZExit) {
-          // Beam is partially through the inclusion
-          // t goes from 0 at zEnter to 1 at zExit (smooth progress)
-          t = (z - columnZEnter) / thickness;
-        } else {
-          // Beam has fully traversed the inclusion - maximum shadow
-          t = 1.0;
-        }
+        // ═══════════════════════════════════════════════════════════════════════
+        // CONTINUOUS PATH-LENGTH MODEL:
+        // - Inside inclusion: attenuation builds up based on path traveled
+        // - After exit: attenuation CONTINUES to increase with small slope k
+        // - This ensures factorShadow(z) has non-zero derivative at zExit
+        // ═══════════════════════════════════════════════════════════════════════
         
-        // Only apply shadow where t > 0
-        if (t <= 0) continue;
+        // Normalized in-inclusion path fraction (clamped 0-1)
+        const baseT = Math.min(1.0, Math.max(0, (z - columnZEnter) / thickness));
+        
+        // Distance traveled after exiting inclusion
+        const post = Math.max(0, z - columnZExit);
+        
+        // Effective attenuation = inclusion contribution + post-exit continuation
+        const effective = thickness * baseT + post * k;
+        
+        // Normalize to [0, 1] range
+        const t = Math.min(1.0, Math.max(0, effective / maxEff));
         
         // ═══════════════════════════════════════════════════════════════════════
         // SMOOTHSTEP for C¹ continuity: s(t) = t² * (3 - 2t)
-        // At t=0: s=0, s'=0 (no discontinuity at entry)
-        // At t=1: s=1, s'=0 (no discontinuity at exit)
+        // Ensures smooth curve with zero slope at endpoints
         // ═══════════════════════════════════════════════════════════════════════
         const s = t * t * (3 - 2 * t);
         
-        // Shadow factor: 1.0 (no shadow) → (1 - MAX_DROP) at full traversal
+        // Shadow factor: 1.0 (no shadow) → (1 - MAX_DROP) at maximum attenuation
         let factorShadow = 1.0 - MAX_DROP * s;
         
         // ═══════════════════════════════════════════════════════════════════════
@@ -1022,7 +1032,7 @@ export class UnifiedUltrasoundEngine {
         this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], factorShadow);
       }
       
-      // Store final column factor for compatibility (at full traversal)
+      // Store final column factor for compatibility
       this.linearShadowFactors[x] = 1.0 - MAX_DROP;
     }
     
