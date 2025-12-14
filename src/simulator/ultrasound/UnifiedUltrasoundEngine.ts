@@ -853,21 +853,16 @@ export class UnifiedUltrasoundEngine {
   
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * LINEAR SHADOW - THICKNESS-BASED PIPELINE (CORRECT PHYSICS)
+   * LINEAR SHADOW - CONTINUOUS PATH-LENGTH ATTENUATION MODEL
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * REQUIRED PHYSICAL PIPELINE for LINEAR mode:
-   * 1. For each column X, find zEnter[x] and zExit[x] (where beam enters/exits inclusion)
-   * 2. thickness[x] = zExit[x] – zEnter[x]
-   * 3. maxThickness = max(thickness[])
-   * 4. relativeThickness = thickness[x] / maxThickness
-   * 5. shadowFactor[x] = lerp(1.00, 0.82, relativeThickness)
-   *    (no blur, no exp, no alpha during this phase)
-   * 6. Apply shadow ONLY BELOW zExit[x]
-   * 7. Apply vertical fade (soft ramp) at shadow start
-   * 8. Apply FINAL 3×3 blur for edge smoothing
+   * PHYSICAL MODEL:
+   * - Each X column is treated as a vertical ultrasound beam
+   * - For every depth z, compute how much path has been traveled inside the inclusion
+   * - Shadow factor is a CONTINUOUS FUNCTION of z (not column-constant)
+   * - Uses smoothstep for C¹ continuity at enter/exit points
    * 
-   * RESULT: Center darker (more thickness), sides lighter, no rectangular blocks
+   * RESULT: No horizontal bands, no discontinuities, physically plausible darkening
    */
   private computeLinearShadow(): void {
     const { width, height } = this.canvas;
@@ -891,289 +886,152 @@ export class UnifiedUltrasoundEngine {
     const shadowInclusions = this.config.inclusions.filter(inc => inc.hasStrongShadow);
     if (shadowInclusions.length === 0) return;
     
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // STEP 1: TRUE RAY-TRACING per column (like Convex/Microconvex)
-    // Scan sample-by-sample to find EXACT zEnter and zExit for each column
-    // ═══════════════════════════════════════════════════════════════════════════════
-    
-    const zEnterArray = new Int32Array(width);
-    const zExitArray = new Int32Array(width);
-    const thicknessArray = new Float32Array(width);
-    
-    // Store inclusion center and radius in pixels for form factor calculation
-    const inclusionCenterX = new Float32Array(width);
-    const inclusionRadiusX = new Float32Array(width);
-    
-    zEnterArray.fill(-1);
-    zExitArray.fill(-1);
-    thicknessArray.fill(0);
-    inclusionCenterX.fill(-1);
-    inclusionRadiusX.fill(0);
-    
     // Motion compensation (inverted from rendering for synchronization)
     const breathingCycle = Math.sin(this.time * 0.3) * 0.015;
     const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008;
     const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
     
     // ═══════════════════════════════════════════════════════════════════════════════
-    // VERTICAL RAY-TRACING: For each X column, scan from y=0 to y=height
-    // Detect when ray ENTERS inclusion (first inside) and EXITS (first outside after inside)
-    // This follows the TRUE ellipse contour, eliminating horizontal artifacts
+    // CONTINUOUS PATH-LENGTH MODEL: For each (x, z), compute shadow factor
+    // based on how much path length inside inclusion has been traversed
     // ═══════════════════════════════════════════════════════════════════════════════
+    
+    // Shadow parameters
+    const MAX_DROP = 0.20; // Up to ~20% darker at full path traversal
+    const NOISE_SCALE_X = 0.05;
+    const NOISE_SCALE_Z = 0.05;
+    const NOISE_AMP = 0.025; // ±2.5% organic jitter
     
     for (let x = 0; x < width; x++) {
       // Convert pixel X to physical lateral position (cm)
       const lateralCm = ((x / width) - 0.5) * 5.0;
-      // Apply motion compensation (inverted for shadow synchronization)
       const lateralCmAdjusted = lateralCm + jitterLateral;
       
+      // ═══════════════════════════════════════════════════════════════════════════
+      // STEP 1: Find zEnter and zExit for this column via ray-tracing
+      // ═══════════════════════════════════════════════════════════════════════════
       let columnZEnter = -1;
       let columnZExit = -1;
       let wasInside = false;
-      let currentInclusion: typeof shadowInclusions[0] | null = null;
+      
+      // For analytical intersection with ellipse (more precise)
+      let activeInclusion: typeof shadowInclusions[0] | null = null;
       
       // Scan vertically through this column (ray-tracing)
       for (let y = 0; y < height; y++) {
-        // Convert pixel Y to physical depth (cm)
         const depthCm = (y / height) * this.config.depth;
-        // Apply motion compensation
         const depthCmAdjusted = depthCm + jitterDepth + breathingCycle * (depthCm / this.config.depth);
         
         // Check if this sample is inside ANY shadow-producing inclusion
         let isInsideAny = false;
-        let foundInclusion: typeof shadowInclusions[0] | null = null;
         
         for (const inclusion of shadowInclusions) {
-          // Motion-adjusted inclusion center
           const inclLateral = inclusion.centerLateralPos * 2.5;
           const inclCenterDepth = inclusion.centerDepthCm;
           const halfW = inclusion.sizeCm.width / 2;
           const halfH = inclusion.sizeCm.height / 2;
           
-          // Check if point is inside this inclusion
           const dx = lateralCmAdjusted - inclLateral;
           const dy = depthCmAdjusted - inclCenterDepth;
           
           let isInside = false;
           if (inclusion.shape === 'ellipse') {
-            // Ellipse equation: (dx/rx)² + (dy/ry)² <= 1
             const normalizedDist = (dx * dx) / (halfW * halfW) + (dy * dy) / (halfH * halfH);
             isInside = normalizedDist <= 1.0;
           } else {
-            // Rectangle
             isInside = Math.abs(dx) <= halfW && Math.abs(dy) <= halfH;
           }
           
           if (isInside) {
             isInsideAny = true;
-            foundInclusion = inclusion;
-            break; // Found one, no need to check others
+            activeInclusion = inclusion;
+            break;
           }
         }
         
-        // Ray-tracing state machine: detect enter/exit transitions
+        // State machine for enter/exit detection
         if (isInsideAny && !wasInside) {
-          // Transition: outside → inside (ray ENTERS inclusion)
           columnZEnter = y;
-          currentInclusion = foundInclusion;
         } else if (!isInsideAny && wasInside) {
-          // Transition: inside → outside (ray EXITS inclusion)
-          columnZExit = y - 1; // Last pixel that was inside
+          columnZExit = y - 1;
         }
         
         wasInside = isInsideAny;
       }
       
-      // Handle case where ray never exits (inclusion extends to bottom)
+      // Handle case where ray never exits
       if (wasInside && columnZExit < 0 && columnZEnter >= 0) {
         columnZExit = height - 1;
       }
       
-      // Store results for this column
-      if (columnZEnter >= 0 && columnZExit >= 0) {
-        zEnterArray[x] = columnZEnter;
-        zExitArray[x] = columnZExit;
-        this.linearZExits[x] = columnZExit;
-        thicknessArray[x] = columnZExit - columnZEnter + 1;
-        
-        // Store inclusion geometry for form factor (in pixels)
-        if (currentInclusion) {
-          const inclLateral = currentInclusion.centerLateralPos * 2.5;
-          const halfW = currentInclusion.sizeCm.width / 2;
-          const centerXpx = (inclLateral / 5.0 + 0.5) * width;
-          const radiusXpx = (halfW / 5.0) * width;
-          inclusionCenterX[x] = centerXpx;
-          inclusionRadiusX[x] = radiusXpx;
-        }
-      }
-    }
-    
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // STEP 2: Find maximum thickness
-    // ═══════════════════════════════════════════════════════════════════════════════
-    let maxThickness = 0;
-    for (let x = 0; x < width; x++) {
-      if (thicknessArray[x] > maxThickness) {
-        maxThickness = thicknessArray[x];
-      }
-    }
-    
-    if (maxThickness === 0) return; // No shadow to apply
-    
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // STEP 3: Compute shadowFactor per column based on relative thickness
-    // ONLY columns that actually cross the inclusion get shadow
-    // ═══════════════════════════════════════════════════════════════════════════════
-    const columnShadowFactor = new Float32Array(width);
-    columnShadowFactor.fill(1.0); // Default: no shadow
-    
-    for (let x = 0; x < width; x++) {
-      // CRITICAL: Column must have BOTH valid zEnter AND zExit AND positive thickness
-      if (zEnterArray[x] < 0 || zExitArray[x] < 0 || thicknessArray[x] <= 0) {
-        // This column does NOT cross inclusion → NO shadow
-        columnShadowFactor[x] = 1.0;
-        this.linearShadowFactors[x] = 1.0;
+      // Skip columns that don't cross any inclusion
+      if (columnZEnter < 0 || columnZExit < 0 || columnZExit <= columnZEnter) {
         continue;
       }
       
-      // Column crosses inclusion → compute shadow based on thickness
-      const relativeThickness = thicknessArray[x] / maxThickness;
-      // lerp(0.95, 0.80, relativeThickness)
-      // Center has thickness ~ 1.0 → shadowFactor = 0.80 (darkest)
-      // Edges have thickness ~ 0.0 → shadowFactor = 0.95 (lightest)
-      columnShadowFactor[x] = 0.95 - (0.95 - 0.80) * relativeThickness;
-      this.linearShadowFactors[x] = columnShadowFactor[x];
-    }
-    
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // STEP 4: Apply shadow ONLY BELOW zExit[x] + 1 (colada na inclusão)
-    // Each column uses its OWN zExit - never a global value
-    // Now with VERTICAL DECAY, HORIZONTAL FORM FACTOR, and ORGANIC NOISE
-    // ═══════════════════════════════════════════════════════════════════════════════
-    const FADE_SAMPLES = 3; // Very short fade with smoothstep
-    const VERTICAL_DECAY_RANGE = 200; // Pixels for full decay range
-    const VERTICAL_DECAY_AMOUNT = 0.10; // 10% decay over full range
-    const FORM_FACTOR_AMOUNT = 0.12; // 12% parabolic form factor
-    
-    // Organic noise parameters to break any remaining uniformity/banding
-    const NOISE_SCALE_X = 0.05;
-    const NOISE_SCALE_Z = 0.05;
-    const NOISE_AMP = 0.03; // ±3% jitter
-    
-    for (let x = 0; x < width; x++) {
-      // Skip columns without inclusion (shadowFactor = 1.0 means no shadow)
-      if (columnShadowFactor[x] === 1.0) continue;
+      // Store for compatibility
+      this.linearZExits[x] = columnZExit;
+      const thickness = columnZExit - columnZEnter + 1;
       
-      const z0 = zExitArray[x]; // Last pixel inside inclusion
-      if (z0 < 0) continue;
+      // ═══════════════════════════════════════════════════════════════════════════
+      // STEP 2: Apply CONTINUOUS path-length attenuation for ALL z in this column
+      // Shadow factor is a FUNCTION of z, not a column constant
+      // ═══════════════════════════════════════════════════════════════════════════
       
-      const baseFactor = columnShadowFactor[x];
-      
-      // Get inclusion geometry for form factor
-      const centerX = inclusionCenterX[x];
-      const radiusX = inclusionRadiusX[x];
-      
-      // Horizontal form factor: parabolic curve following ellipse shape
-      // Center of inclusion has slightly more form effect than edges
-      let formFactor = 1.0;
-      if (centerX >= 0 && radiusX > 0) {
-        const centerDist = Math.abs(x - centerX);
-        const normDist = Math.min(1, centerDist / radiusX);
-        // Parabolic: center gets slightly darker, edges lighter
-        formFactor = 1.0 - FORM_FACTOR_AMOUNT * (1 - normDist * normDist);
-      }
-      
-      // Shadow starts at z0 + 1 (immediately below inclusion)
-      for (let z = z0 + 1; z < height; z++) {
-        const dz = z - (z0 + 1);
+      for (let z = 0; z < height; z++) {
+        // Compute normalized path fraction t(z)
+        let t: number;
         
-        // FADE phase (smoothstep at shadow start)
-        let fadeFactor: number;
-        if (dz <= 0) {
-          fadeFactor = 1.0; // Immediately below, no shadow yet
-        } else if (dz < FADE_SAMPLES) {
-          const u = dz / FADE_SAMPLES; // 0 → 1
-          const s = u * u * (3 - 2 * u); // smoothstep
-          fadeFactor = 1.0 * (1.0 - s) + baseFactor * s;
+        if (z <= columnZEnter) {
+          // Beam has not entered inclusion yet - no shadow
+          t = 0.0;
+        } else if (z <= columnZExit) {
+          // Beam is partially through the inclusion
+          // t goes from 0 at zEnter to 1 at zExit (smooth progress)
+          t = (z - columnZEnter) / thickness;
         } else {
-          fadeFactor = baseFactor; // Base shadow after fade
+          // Beam has fully traversed the inclusion - maximum shadow
+          t = 1.0;
         }
         
-        // VERTICAL DECAY: subtle decay with depth to break uniformity
-        const depthFromExit = z - z0;
-        const depthNorm = Math.min(1, depthFromExit / VERTICAL_DECAY_RANGE);
-        const verticalDecay = 1.0 - VERTICAL_DECAY_AMOUNT * depthNorm;
+        // Only apply shadow where t > 0
+        if (t <= 0) continue;
         
-        // Base factor combines: fade * vertical decay * form factor
-        const baseFactorCombined = fadeFactor * verticalDecay * formFactor;
+        // ═══════════════════════════════════════════════════════════════════════
+        // SMOOTHSTEP for C¹ continuity: s(t) = t² * (3 - 2t)
+        // At t=0: s=0, s'=0 (no discontinuity at entry)
+        // At t=1: s=1, s'=0 (no discontinuity at exit)
+        // ═══════════════════════════════════════════════════════════════════════
+        const s = t * t * (3 - 2 * t);
         
-        // ORGANIC NOISE: correlated 2D noise to break banding artifacts
-        // Uses smoothNoise for smooth, continuous variation (no periodic patterns)
+        // Shadow factor: 1.0 (no shadow) → (1 - MAX_DROP) at full traversal
+        let factorShadow = 1.0 - MAX_DROP * s;
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // ORGANIC NOISE to break uniformity (very subtle)
+        // ═══════════════════════════════════════════════════════════════════════
         const nx = x * NOISE_SCALE_X;
         const nz = z * NOISE_SCALE_Z;
-        const noiseValue = this.smoothNoise(nx, nz, 42); // value in [-1, 1]
+        const noiseValue = this.smoothNoise(nx, nz, 42);
         const jitter = 1.0 + NOISE_AMP * noiseValue;
         
-        // Final factor with organic jitter
-        const finalFactor = baseFactorCombined * jitter;
+        factorShadow *= jitter;
         
+        // Store in shadow map
         const idx = z * width + x;
-        this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], finalFactor);
+        this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], factorShadow);
       }
+      
+      // Store final column factor for compatibility (at full traversal)
+      this.linearShadowFactors[x] = 1.0 - MAX_DROP;
     }
     
     // ═══════════════════════════════════════════════════════════════════════════════
-    // STEP 5: Vertical blur ONLY within shadow region to eliminate transition line
-    // ═══════════════════════════════════════════════════════════════════════════════
-    this.applyVerticalShadowBlur(width, height, zExitArray, columnShadowFactor);
-    
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // STEP 6: Apply FINAL 3×3 blur for edge smoothing
+    // STEP 3: Apply gentle 3×3 blur for lateral smoothing
     // ═══════════════════════════════════════════════════════════════════════════════
     this.apply3x3Blur(width, height);
   }
   
-  /**
-   * Apply vertical blur ONLY within shadow region to eliminate transition line
-   * Uses [1,2,1]/4 kernel - light, only in shadowed columns
-   */
-  private applyVerticalShadowBlur(
-    width: number, 
-    height: number, 
-    zExitArray: Int32Array,
-    columnShadowFactor: Float32Array
-  ): void {
-    if (!this.linearShadowMap) return;
-    
-    // Buffer for smoothed values
-    const temp = new Float32Array(this.linearShadowMap.length);
-    temp.set(this.linearShadowMap);
-    
-    for (let x = 0; x < width; x++) {
-      // Skip columns without shadow
-      if (columnShadowFactor[x] === 1.0) continue;
-      
-      const z0 = zExitArray[x];
-      if (z0 < 0) continue;
-      
-      // Apply vertical blur only in shadow region (z0+1 to height-1)
-      for (let z = z0 + 2; z < height - 1; z++) {
-        const idxPrev = (z - 1) * width + x;
-        const idxCurr = z * width + x;
-        const idxNext = (z + 1) * width + x;
-        
-        const a = this.linearShadowMap[idxPrev];
-        const b = this.linearShadowMap[idxCurr];
-        const c = this.linearShadowMap[idxNext];
-        
-        // [1,2,1]/4 kernel for gentle smoothing
-        temp[idxCurr] = (a + 2 * b + c) / 4.0;
-      }
-    }
-    
-    // Copy result back
-    this.linearShadowMap.set(temp);
-  }
   
   /**
    * Apply final 3×3 Gaussian blur to shadow map for smooth edges
