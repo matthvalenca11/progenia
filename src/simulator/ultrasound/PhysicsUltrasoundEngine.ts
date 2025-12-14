@@ -317,16 +317,37 @@ export class PhysicsUltrasoundEngine {
   }
 
   private isPointInInclusion(depthCm: number, lateralCm: number, inclusion: UltrasoundInclusionConfig): boolean {
-    const dx = lateralCm - inclusion.centerLateralPos * 2; // Convert -1 to +1 range to cm
+    const dx = lateralCm - inclusion.centerLateralPos * 2;
     const dy = depthCm - inclusion.centerDepthCm;
+    const rx = inclusion.sizeCm.width / 2;
+    const ry = inclusion.sizeCm.height / 2;
 
     if (inclusion.shape === 'ellipse') {
-      const rx = inclusion.sizeCm.width / 2;
-      const ry = inclusion.sizeCm.height / 2;
       return (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) <= 1;
+    } else if (inclusion.shape === 'capsule') {
+      // Capsule with rotation and irregularity
+      const capsuleRadius = ry;
+      const rectHalfWidth = rx - capsuleRadius;
+      
+      const rotationRad = ((inclusion.rotationDegrees || 0) * Math.PI) / 180;
+      const cosR = Math.cos(rotationRad);
+      const sinR = Math.sin(rotationRad);
+      const dxLocal = dx * cosR + dy * sinR;
+      const dyLocal = -dx * sinR + dy * cosR;
+      
+      const irregularity = inclusion.wallIrregularity || 0;
+      const radiusMod = irregularity > 0 ? irregularity * Math.sin(dxLocal * 8.0) * 0.5 : 0;
+      const effectiveRadius = capsuleRadius + radiusMod;
+      
+      if (Math.abs(dxLocal) <= rectHalfWidth) {
+        return Math.abs(dyLocal) <= effectiveRadius;
+      } else {
+        const endCenterX = Math.sign(dxLocal) * rectHalfWidth;
+        const localDxEnd = dxLocal - endCenterX;
+        return Math.sqrt(localDxEnd * localDxEnd + dyLocal * dyLocal) <= effectiveRadius;
+      }
     } else if (inclusion.shape === 'rectangle') {
-      return Math.abs(dx) <= inclusion.sizeCm.width / 2 && 
-             Math.abs(dy) <= inclusion.sizeCm.height / 2;
+      return Math.abs(dx) <= rx && Math.abs(dy) <= ry;
     }
 
     return false;

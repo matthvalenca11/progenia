@@ -1188,18 +1188,46 @@ export class UnifiedUltrasoundEngine {
             isInside = normalizedDist <= 1.0;
           } else if (inclusion.shape === 'capsule') {
             // Capsule: rectangle with semicircular ends
+            // WITH ROTATION AND IRREGULARITY for anatomical realism
             const capsuleRadius = halfH;
             const rectHalfWidth = halfW - capsuleRadius;
             
-            if (Math.abs(dx) <= rectHalfWidth) {
+            // === ROTATION TRANSFORM ===
+            const rotationDeg = inclusion.rotationDegrees || 0;
+            const rotationRad = (rotationDeg * Math.PI) / 180;
+            const cosR = Math.cos(rotationRad);
+            const sinR = Math.sin(rotationRad);
+            
+            // Rotate into capsule's local coordinate system
+            const dxLocal = dx * cosR + dy * sinR;
+            const dyLocal = -dx * sinR + dy * cosR;
+            
+            // === WALL IRREGULARITY (subtle oscillation) ===
+            const irregularity = inclusion.wallIrregularity || 0;
+            let radiusMod = 0;
+            if (irregularity > 0) {
+              radiusMod = irregularity * (
+                0.5 * Math.sin(dxLocal * 8.0) + 
+                0.3 * Math.cos(dxLocal * 15.0) + 
+                0.2 * Math.sin(dxLocal * 23.0)
+              );
+            }
+            
+            // === WALL ASYMMETRY ===
+            const asymmetry = inclusion.wallAsymmetry || 0;
+            const asymmetryOffset = dyLocal > 0 ? asymmetry : -asymmetry;
+            
+            const effectiveRadius = capsuleRadius + radiusMod + asymmetryOffset;
+            
+            if (Math.abs(dxLocal) <= rectHalfWidth) {
               // In rectangular middle
-              isInside = Math.abs(dy) <= capsuleRadius;
+              isInside = Math.abs(dyLocal) <= effectiveRadius;
             } else {
               // In semicircular ends
-              const endCenterX = Math.sign(dx) * rectHalfWidth;
-              const localDx = dx - endCenterX;
-              const distToEndCenter = Math.sqrt(localDx * localDx + dy * dy);
-              isInside = distToEndCenter <= capsuleRadius;
+              const endCenterX = Math.sign(dxLocal) * rectHalfWidth;
+              const localDxEnd = dxLocal - endCenterX;
+              const distToEndCenter = Math.sqrt(localDxEnd * localDxEnd + dyLocal * dyLocal);
+              isInside = distToEndCenter <= effectiveRadius;
             }
           } else {
             // Rectangle
@@ -1774,28 +1802,61 @@ export class UnifiedUltrasoundEngine {
       // CAPSULE SHAPE (Stadium/Pill) - Rectangle with semicircular ends
       // Perfect for longitudinal vessel visualization
       // 
-      // Geometry: Two semicircles connected by a rectangle
-      // - Total length = width (horizontal)
-      // - Height = diameter of the semicircles (vertical)
-      // - Radius of ends = height / 2
+      // ANATOMICAL REALISM FEATURES:
+      // - Rotation: slight angle to simulate vessel path (±10°)
+      // - Wall irregularity: subtle amplitude variation using sin/cos
+      // - Wall asymmetry: anterior vs posterior wall thickness difference
       // ═══════════════════════════════════════════════════════════════════════════════
       const halfWidth = inclusion.sizeCm.width / 2;
       const halfHeight = inclusion.sizeCm.height / 2;
-      const capsuleRadius = halfHeight; // Semicircle radius = half of vertical dimension
-      const rectHalfWidth = halfWidth - capsuleRadius; // Length of rectangular middle section
+      const capsuleRadius = halfHeight;
+      const rectHalfWidth = halfWidth - capsuleRadius;
       
-      // Signed distance to capsule (SDF)
+      // === ROTATION TRANSFORM ===
+      const rotationDeg = inclusion.rotationDegrees || 0;
+      const rotationRad = (rotationDeg * Math.PI) / 180;
+      const cosR = Math.cos(rotationRad);
+      const sinR = Math.sin(rotationRad);
+      
+      // Rotate (dx, dy) into capsule's local coordinate system
+      const dxLocal = dx * cosR + dy * sinR;
+      const dyLocal = -dx * sinR + dy * cosR;
+      
+      // === WALL IRREGULARITY (subtle oscillation along length) ===
+      const irregularity = inclusion.wallIrregularity || 0;
+      let radiusModulation = 0;
+      if (irregularity > 0) {
+        // Multi-frequency sinusoidal variation along the capsule length
+        const phase1 = dxLocal * 8.0; // Primary frequency
+        const phase2 = dxLocal * 15.0; // Secondary frequency
+        const phase3 = dxLocal * 23.0; // Tertiary frequency (breaks periodicity)
+        radiusModulation = irregularity * (
+          0.5 * Math.sin(phase1) + 
+          0.3 * Math.cos(phase2) + 
+          0.2 * Math.sin(phase3)
+        );
+      }
+      
+      // === WALL ASYMMETRY (posterior slightly thicker) ===
+      const asymmetry = inclusion.wallAsymmetry || 0;
+      // dyLocal > 0 means posterior (below center), < 0 means anterior (above center)
+      const asymmetryOffset = dyLocal > 0 ? asymmetry : -asymmetry;
+      
+      // Effective radius with modulation and asymmetry
+      const effectiveRadius = capsuleRadius + radiusModulation + asymmetryOffset;
+      
+      // Signed distance to capsule (SDF) with modified radius
       let dist: number;
       
-      if (Math.abs(dx) <= rectHalfWidth) {
+      if (Math.abs(dxLocal) <= rectHalfWidth) {
         // In the rectangular middle section - distance is just vertical
-        dist = Math.abs(dy) - capsuleRadius;
+        dist = Math.abs(dyLocal) - effectiveRadius;
       } else {
         // In one of the semicircular ends
-        const endCenterX = Math.sign(dx) * rectHalfWidth;
-        const localDx = dx - endCenterX;
-        const distToEndCenter = Math.sqrt(localDx * localDx + dy * dy);
-        dist = distToEndCenter - capsuleRadius;
+        const endCenterX = Math.sign(dxLocal) * rectHalfWidth;
+        const localDxEnd = dxLocal - endCenterX;
+        const distToEndCenter = Math.sqrt(localDxEnd * localDxEnd + dyLocal * dyLocal);
+        dist = distToEndCenter - effectiveRadius;
       }
       
       const isInside = dist <= 0;
@@ -1900,13 +1961,20 @@ export class UnifiedUltrasoundEngine {
   }
   
   /**
-   * POSTERIOR ENHANCEMENT - Increased brightness behind fluid-filled structures
+   * POSTERIOR ENHANCEMENT - Realistic brightness increase behind anechoic structures
+   * 
+   * For longitudinal vessels (capsule shape):
+   * - Enhancement follows the vessel contour (uses rotation)
+   * - Smooth transition with Gaussian lateral falloff
+   * - Gradual depth decay using quadratic smoothstep
+   * - No horizontal bands or discontinuities
    */
   private applyPosteriorEnhancement(depth: number, lateral: number): number {
     let enhancementFactor = 1.0;
     
     for (const inclusion of this.config.inclusions) {
       // Only fluid-filled structures cause enhancement
+      if (!inclusion.posteriorEnhancement) continue;
       if (inclusion.mediumInsideId !== 'cyst_fluid' && 
           inclusion.mediumInsideId !== 'blood' && 
           inclusion.mediumInsideId !== 'water') continue;
@@ -1914,21 +1982,86 @@ export class UnifiedUltrasoundEngine {
       const inclCenterLateral = inclusion.centerLateralPos * 2.5;
       const inclHalfWidth = inclusion.sizeCm.width / 2;
       const inclHalfHeight = inclusion.sizeCm.height / 2;
-      const inclusionBottomDepth = inclusion.centerDepthCm + inclHalfHeight;
       
-      // Only apply below inclusion
-      if (depth <= inclusionBottomDepth) continue;
+      // === HANDLE ROTATION FOR CAPSULE SHAPE ===
+      const rotationDeg = inclusion.rotationDegrees || 0;
+      const rotationRad = (rotationDeg * Math.PI) / 180;
+      const cosR = Math.cos(rotationRad);
+      const sinR = Math.sin(rotationRad);
       
-      const posteriorDepth = depth - inclusionBottomDepth;
-      const lateralDist = Math.abs(lateral - inclCenterLateral);
+      // Transform point into inclusion's local coordinate system
+      const dx = lateral - inclCenterLateral;
+      const dy = depth - inclusion.centerDepthCm;
+      const dxLocal = dx * cosR + dy * sinR;
+      const dyLocal = -dx * sinR + dy * cosR;
       
-      // Check if in enhancement zone
-      if (lateralDist < inclHalfWidth && posteriorDepth < 2.0) {
-        // Enhancement decays with depth
-        const enhancement = 0.35 * Math.exp(-posteriorDepth * 0.6);
-        const lateralFalloff = 1 - (lateralDist / inclHalfWidth) * 0.3;
-        enhancementFactor *= (1 + enhancement * lateralFalloff);
+      // === CALCULATE POSTERIOR BOUNDARY (zExit) FOR THIS LATERAL POSITION ===
+      let zExitLocal: number;
+      
+      if (inclusion.shape === 'capsule') {
+        const capsuleRadius = inclHalfHeight;
+        const rectHalfWidth = inclHalfWidth - capsuleRadius;
+        
+        if (Math.abs(dxLocal) <= rectHalfWidth) {
+          // In rectangular middle - zExit is constant
+          zExitLocal = capsuleRadius;
+        } else {
+          // In semicircular ends - zExit varies with lateral position
+          const endCenterX = Math.sign(dxLocal) * rectHalfWidth;
+          const distFromEndCenter = Math.abs(dxLocal - endCenterX);
+          if (distFromEndCenter >= capsuleRadius) {
+            continue; // Outside vessel laterally
+          }
+          zExitLocal = Math.sqrt(capsuleRadius * capsuleRadius - distFromEndCenter * distFromEndCenter);
+        }
+      } else {
+        // Ellipse or rectangle - use simple bottom depth
+        zExitLocal = inclHalfHeight;
       }
+      
+      // Check if we're below the vessel (in local coords)
+      if (dyLocal <= zExitLocal) continue;
+      
+      // === POSTERIOR ENHANCEMENT CALCULATION ===
+      const posteriorDepth = dyLocal - zExitLocal; // Distance below vessel bottom
+      const enhancementDepthCm = 0.8; // Depth of enhancement effect (cm)
+      
+      // Only apply within enhancement zone
+      if (posteriorDepth > enhancementDepthCm) continue;
+      
+      // Smooth depth falloff using quadratic curve (starts strong, fades smoothly)
+      const t = Math.min(1.0, posteriorDepth / enhancementDepthCm);
+      const tSmooth = t * t; // Quadratic for smooth start
+      const depthFactor = 1.0 - tSmooth;
+      
+      // === LATERAL GAUSSIAN FALLOFF ===
+      // Follows vessel width - strongest at center, fades at edges
+      let lateralWeight: number;
+      if (inclusion.shape === 'capsule') {
+        const capsuleRadius = inclHalfHeight;
+        const rectHalfWidth = inclHalfWidth - capsuleRadius;
+        
+        // Calculate lateral distance from vessel center
+        let normalizedLateral: number;
+        if (Math.abs(dxLocal) <= rectHalfWidth) {
+          normalizedLateral = 0; // In middle, full strength
+        } else {
+          normalizedLateral = (Math.abs(dxLocal) - rectHalfWidth) / capsuleRadius;
+        }
+        // Gaussian falloff
+        lateralWeight = Math.exp(-normalizedLateral * normalizedLateral * 2.0);
+      } else {
+        lateralWeight = 1.0 - Math.pow(Math.abs(dxLocal) / inclHalfWidth, 2);
+      }
+      
+      lateralWeight = Math.max(0, lateralWeight);
+      
+      // === FINAL ENHANCEMENT ===
+      // Max enhancement: ~12% brighter at center, fading smoothly
+      const maxEnhancement = 0.12;
+      const enhancement = maxEnhancement * depthFactor * lateralWeight;
+      
+      enhancementFactor *= (1.0 + enhancement);
     }
     
     return enhancementFactor;
