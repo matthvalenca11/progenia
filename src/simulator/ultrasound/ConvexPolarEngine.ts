@@ -60,20 +60,23 @@ export class ConvexPolarEngine {
    */
   private getFrequencyDependentPSF(): { sigmaAxial: number; sigmaLateral: number; speckleScale: number } {
     const f = this.config.frequency;
-    const fRef = 6.0; // Reference for convex
+    const fRef = 6.0; // Reference = max frequency for convex
     
-    // Ultra-subtle blur constants
-    const kAxial = 0.12;
-    const kLateral = 0.15;
+    // Stronger blur constants for visible resolution effect
+    const kAxial = 0.6;   // Increased from 0.12
+    const kLateral = 0.8; // Increased from 0.15
     
     const frequencyRatio = fRef / f;
     
-    // Smooth, gradual scaling - no hard threshold
+    // Gradual scaling from high to low frequency
+    // At 6 MHz: ratio=1.0, sigma=0 (sharpest)
+    // At 3 MHz: ratio=2.0, sigmaAxial=0.6, sigmaLateral=0.8
+    // At 2 MHz: ratio=3.0, sigmaAxial=1.2, sigmaLateral=1.6
     const sigmaAxial = kAxial * Math.max(0, frequencyRatio - 1.0);
     const sigmaLateral = kLateral * Math.max(0, frequencyRatio - 1.0);
     
-    // Speckle: extremely subtle
-    const speckleScale = 1.0 + (frequencyRatio - 1.0) * 0.04;
+    // Speckle grain: more noticeable scaling (15% effect)
+    const speckleScale = 1.0 + (frequencyRatio - 1.0) * 0.15;
     
     return { sigmaAxial, sigmaLateral, speckleScale };
   }
