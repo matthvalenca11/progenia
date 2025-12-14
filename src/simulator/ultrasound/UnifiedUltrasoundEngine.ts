@@ -853,32 +853,34 @@ export class UnifiedUltrasoundEngine {
   
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * LINEAR SHADOW - MODELO IDÊNTICO AO CONVEX (Ray-Tracing por Coluna)
+   * LINEAR SHADOW - THICKNESS-BASED PIPELINE (CORRECT PHYSICS)
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * FÍSICO: Cada coluna X é um feixe PARALELO (não fan-shaped).
-   * O feixe viaja reto para baixo e sofre atenuação ao atravessar a inclusão.
+   * REQUIRED PHYSICAL PIPELINE for LINEAR mode:
+   * 1. For each column X, find zEnter[x] and zExit[x] (where beam enters/exits inclusion)
+   * 2. thickness[x] = zExit[x] – zEnter[x]
+   * 3. maxThickness = max(thickness[])
+   * 4. relativeThickness = thickness[x] / maxThickness
+   * 5. shadowFactor[x] = lerp(1.00, 0.82, relativeThickness)
+   *    (no blur, no exp, no alpha during this phase)
+   * 6. Apply shadow ONLY BELOW zExit[x]
+   * 7. Apply vertical fade (soft ramp) at shadow start
+   * 8. Apply FINAL 3×3 blur for edge smoothing
    * 
-   * MESMO MODELO que o Convex:
-   * 1. Para cada coluna, traçar ray de cima para baixo
-   * 2. Encontrar z_exit (onde o feixe sai da inclusão)
-   * 3. A partir de z_exit, aplicar atenuação EXPONENCIAL: exp(-alpha * depth)
-   * 4. edgeFactor no centro vs bordas para sombra mais suave nas pontas
-   * 
-   * RESULTADO: Sombra orgânica que segue a geometria da elipse
+   * RESULT: Center darker (more thickness), sides lighter, no rectangular blocks
    */
   private computeLinearShadow(): void {
     const { width, height } = this.canvas;
     
-    // Alocar mapa de sombra 2D (width x height)
+    // Allocate 2D shadow map
     if (!this.linearShadowMap || this.linearShadowMap.length !== width * height) {
       this.linearShadowMap = new Float32Array(width * height);
     }
     
-    // Inicializar com 1.0 (sem sombra)
+    // Initialize with 1.0 (no shadow)
     this.linearShadowMap.fill(1.0);
     
-    // Manter arrays antigos para compatibilidade
+    // Keep old arrays for compatibility
     if (!this.linearShadowFactors || this.linearShadowFactors.length !== width) {
       this.linearShadowFactors = new Float32Array(width);
       this.linearZExits = new Int32Array(width);
@@ -890,30 +892,32 @@ export class UnifiedUltrasoundEngine {
     if (shadowInclusions.length === 0) return;
     
     // ═══════════════════════════════════════════════════════════════════════════════
-    // MODELO FÍSICO CORRETO DE SOMBRA ACÚSTICA
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // 
-    // Física real:
-    // 1. Sombra é MAIS ESCURA imediatamente após a inclusão
-    // 2. Sombra RECUPERA gradualmente com a profundidade (TGC, scatter)
-    // 3. Intensidade inicial depende do PATH LENGTH atravessado (mais material = mais escuro)
-    // 4. Sombra começa EXATAMENTE no ponto onde o feixe sai da inclusão
-    //
+    // STEP 1: Compute zEnter, zExit, thickness per column
     // ═══════════════════════════════════════════════════════════════════════════════
     
-    // Sombra uniforme sem transição - evita bandas visíveis
-    const SHADOW_INTENSITY = 0.82;   // Sombra bem sutil (82%)
+    const zEnterArray = new Int32Array(width);
+    const zExitArray = new Int32Array(width);
+    const thicknessArray = new Float32Array(width);
     
-    // ═══ CALCULAR MOTION OFFSET (INVERSO do rendering para sincronizar) ═══
+    zEnterArray.fill(-1);
+    zExitArray.fill(-1);
+    thicknessArray.fill(0);
+    
+    // Motion compensation (inverted from rendering for synchronization)
     const breathingCycle = Math.sin(this.time * 0.3) * 0.015;
     const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008;
     const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
     
-    // ═══ PASSO 1: CALCULAR SOMBRA POR COLUNA ═══
+    // Parameters
+    const SHADOW_DARKEST = 0.82;  // Maximum shadow (at center/max thickness)
+    const FADE_DEPTH_PX = 12;     // Vertical fade-in depth in pixels
+    
+    // Process each column
     for (let x = 0; x < width; x++) {
       const lateralCm = ((x / width) - 0.5) * 5.0;
       
       for (const inclusion of shadowInclusions) {
+        // Motion-adjusted inclusion position
         const inclLateral = inclusion.centerLateralPos * 2.5 - jitterLateral;
         const inclCenterDepth = inclusion.centerDepthCm - jitterDepth - breathingCycle * (inclusion.centerDepthCm / this.config.depth);
         const halfW = inclusion.sizeCm.width / 2;
@@ -922,80 +926,140 @@ export class UnifiedUltrasoundEngine {
         const dx = lateralCm - inclLateral;
         const normX = dx / halfW;
         
+        // Skip if column is outside inclusion lateral bounds
         if (Math.abs(normX) > 1.0) continue;
         
-        const sqrtTerm = Math.sqrt(Math.max(0, 1.0 - normX * normX));
-        
+        // For ellipse: calculate entry and exit points
+        let z_enter_cm: number;
         let z_exit_cm: number;
+        
         if (inclusion.shape === 'ellipse') {
+          const sqrtTerm = Math.sqrt(Math.max(0, 1.0 - normX * normX));
+          z_enter_cm = inclCenterDepth - halfH * sqrtTerm;
           z_exit_cm = inclCenterDepth + halfH * sqrtTerm;
         } else {
+          // Rectangle
           if (Math.abs(dx) > halfW) continue;
+          z_enter_cm = inclCenterDepth - halfH;
           z_exit_cm = inclCenterDepth + halfH;
         }
         
+        // Convert to pixels
+        const z_enter_pixel = Math.floor((z_enter_cm / this.config.depth) * height);
         const z_exit_pixel = Math.floor((z_exit_cm / this.config.depth) * height);
         
-        if (this.linearZExits[x] < z_exit_pixel) {
+        // Store for this column
+        if (zEnterArray[x] < 0 || z_enter_pixel < zEnterArray[x]) {
+          zEnterArray[x] = z_enter_pixel;
+        }
+        if (z_exit_pixel > zExitArray[x]) {
+          zExitArray[x] = z_exit_pixel;
           this.linearZExits[x] = z_exit_pixel;
         }
         
-        // Variação sutil por feixe para textura natural
-        const beamNoise = 1.0 + (this.hashNoise(x * 17 + 42) - 0.5) * 0.03;
-        
-        // ═══ SOMBRA 100% UNIFORME - SEM FADE, SEM TRANSIÇÃO ═══
-        const shadowFactor = SHADOW_INTENSITY * beamNoise;
-        
-        for (let y = z_exit_pixel; y < height; y++) {
-          const idx = y * width + x;
-          this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], shadowFactor);
+        // Thickness in pixels
+        const thickness = z_exit_pixel - zEnterArray[x];
+        if (thickness > thicknessArray[x]) {
+          thicknessArray[x] = thickness;
         }
       }
     }
     
-    // ═══ PASSO 2: SUAVIZAR LATERALMENTE ═══
-    // Aplicar blur gaussiano lateral para bordas naturais
-    this.applyLateralGaussianBlur(width, height);
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // STEP 2: Find maximum thickness
+    // ═══════════════════════════════════════════════════════════════════════════════
+    let maxThickness = 0;
+    for (let x = 0; x < width; x++) {
+      if (thicknessArray[x] > maxThickness) {
+        maxThickness = thicknessArray[x];
+      }
+    }
+    
+    if (maxThickness === 0) return; // No shadow to apply
+    
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // STEP 3: Compute shadowFactor per column based on relative thickness
+    // ═══════════════════════════════════════════════════════════════════════════════
+    const columnShadowFactor = new Float32Array(width);
+    columnShadowFactor.fill(1.0);
+    
+    for (let x = 0; x < width; x++) {
+      if (thicknessArray[x] > 0 && zExitArray[x] >= 0) {
+        const relativeThickness = thicknessArray[x] / maxThickness;
+        // lerp(1.00, SHADOW_DARKEST, relativeThickness)
+        // Center has thickness ~ 1.0 → shadowFactor = SHADOW_DARKEST
+        // Edges have thickness ~ 0.0 → shadowFactor = 1.0
+        columnShadowFactor[x] = 1.0 - (1.0 - SHADOW_DARKEST) * relativeThickness;
+        this.linearShadowFactors[x] = columnShadowFactor[x];
+      }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // STEP 4: Apply shadow ONLY BELOW zExit with vertical fade
+    // ═══════════════════════════════════════════════════════════════════════════════
+    for (let x = 0; x < width; x++) {
+      const zExit = zExitArray[x];
+      if (zExit < 0) continue; // No inclusion in this column
+      
+      const baseShadowFactor = columnShadowFactor[x];
+      
+      for (let y = zExit; y < height; y++) {
+        const pixelsBelowExit = y - zExit;
+        
+        // Vertical fade ramp: t goes from 0 (at zExit) to 1 (at zExit + FADE_DEPTH_PX)
+        const t = Math.min(1.0, pixelsBelowExit / FADE_DEPTH_PX);
+        
+        // finalShadow = lerp(1.0, baseShadowFactor, t)
+        // At zExit (t=0): shadow = 1.0 (no shadow yet)
+        // At zExit + FADE_DEPTH_PX (t=1): shadow = baseShadowFactor (full shadow)
+        const finalShadow = 1.0 - (1.0 - baseShadowFactor) * t;
+        
+        const idx = y * width + x;
+        this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], finalShadow);
+      }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // STEP 5: Apply FINAL 3×3 blur for edge smoothing
+    // ═══════════════════════════════════════════════════════════════════════════════
+    this.apply3x3Blur(width, height);
   }
   
   /**
-   * Aplica blur gaussiano lateral ao mapa de sombra para bordas suaves
+   * Apply final 3×3 Gaussian blur to shadow map for smooth edges
+   * Only blur AFTER all shadow is applied - never before
    */
-  private applyLateralGaussianBlur(width: number, height: number): void {
+  private apply3x3Blur(width: number, height: number): void {
     if (!this.linearShadowMap) return;
     
-    const radius = 2;
-    const sigma = 1.2;
+    // 3×3 Gaussian kernel
+    const kernel = [
+      1/16, 2/16, 1/16,
+      2/16, 4/16, 2/16,
+      1/16, 2/16, 1/16
+    ];
     
-    // Calcular kernel gaussiano
-    const kernel: number[] = [];
-    let kernelSum = 0;
-    for (let i = -radius; i <= radius; i++) {
-      const weight = Math.exp(-(i * i) / (2 * sigma * sigma));
-      kernel.push(weight);
-      kernelSum += weight;
-    }
-    // Normalizar
-    for (let i = 0; i < kernel.length; i++) {
-      kernel[i] /= kernelSum;
-    }
-    
-    // Buffer temporário
+    // Buffer for blurred result
     const temp = new Float32Array(this.linearShadowMap.length);
+    temp.set(this.linearShadowMap); // Copy original
     
-    // Aplicar blur horizontal
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
+    // Apply 3×3 convolution
+    for (let y = 1; y < height - 1; y++) {
+      for (let x = 1; x < width - 1; x++) {
         let sum = 0;
-        for (let k = -radius; k <= radius; k++) {
-          const sampleX = Math.max(0, Math.min(width - 1, x + k));
-          sum += this.linearShadowMap[y * width + sampleX] * kernel[k + radius];
+        let ki = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const idx = (y + dy) * width + (x + dx);
+            sum += this.linearShadowMap[idx] * kernel[ki];
+            ki++;
+          }
         }
         temp[y * width + x] = sum;
       }
     }
     
-    // Copiar de volta
+    // Copy result back
     this.linearShadowMap.set(temp);
   }
   
