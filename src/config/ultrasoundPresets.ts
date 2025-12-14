@@ -327,7 +327,7 @@ export const ULTRASOUND_PRESETS: Record<UltrasoundAnatomyPresetId, UltrasoundAna
   // ===========================
   carotid_long: {
     id: "carotid_long",
-    label: "Carótida - Longitudinal (ULTRA)",
+    label: "Carótida Longitudinal",
     shortDescription: "Artéria carótida em corte longitudinal - visualização IMT",
     clinicalTagline: "Medição IMT, avaliação de placas, fluxo Doppler - padrão ouro vascular",
     transducerType: "linear",
