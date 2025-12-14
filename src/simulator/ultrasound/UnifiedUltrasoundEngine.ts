@@ -160,6 +160,125 @@ export class UnifiedUltrasoundEngine {
     return (n - Math.floor(n)) * 2 - 1;
   }
   
+  /**
+   * ═══════════════════════════════════════════════════════════════════════════════
+   * FREQUENCY-DEPENDENT RESOLUTION (PSF) PARAMETERS
+   * ═══════════════════════════════════════════════════════════════════════════════
+   * 
+   * Physical model:
+   * - Axial resolution ∝ λ/2 = c/(2f), so higher f → better axial resolution
+   * - Lateral resolution ∝ λ × F# = c × F# / f, so higher f → better lateral resolution
+   * - Speckle grain size scales similarly
+   * 
+   * We model this as blur sigma inversely proportional to frequency:
+   *   sigma(f) = k × (f_ref / f)
+   * 
+   * where f_ref = 7.5 MHz is our reference frequency
+   */
+  private getFrequencyDependentPSF(): { sigmaAxial: number; sigmaLateral: number; speckleScale: number } {
+    const f = this.config.frequency;
+    const fRef = 7.5; // Reference frequency in MHz
+    
+    // Base PSF sigmas at reference frequency (in pixels)
+    // These are tuned for visible but realistic effect
+    const kAxial = 1.2;    // Axial blur base (vertical)
+    const kLateral = 1.5;  // Lateral blur base (horizontal)
+    const kSpeckle = 1.0;  // Speckle scale base
+    
+    // Scale inversely with frequency
+    const frequencyRatio = fRef / f;
+    
+    // Clamp to reasonable range (0.5x to 2.5x effect)
+    const clampedRatio = Math.max(0.5, Math.min(2.5, frequencyRatio));
+    
+    return {
+      sigmaAxial: kAxial * clampedRatio,
+      sigmaLateral: kLateral * clampedRatio,
+      speckleScale: kSpeckle * clampedRatio
+    };
+  }
+  
+  /**
+   * Apply separable Gaussian blur to a Float32Array image buffer
+   * Uses frequency-dependent sigma for PSF simulation
+   */
+  private applyFrequencyDependentBlur(buffer: Float32Array, width: number, height: number): void {
+    const psf = this.getFrequencyDependentPSF();
+    
+    // Skip blur if sigmas are too small (high frequency = sharp image)
+    if (psf.sigmaAxial < 0.8 && psf.sigmaLateral < 0.8) {
+      return;
+    }
+    
+    // Temporary buffer for separable convolution
+    const temp = new Float32Array(buffer.length);
+    
+    // ═══ HORIZONTAL BLUR (Lateral PSF) ═══
+    const radiusH = Math.ceil(psf.sigmaLateral * 2);
+    if (radiusH >= 1) {
+      const kernelH = this.createGaussianKernel1D(psf.sigmaLateral, radiusH);
+      
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          let sum = 0;
+          let weightSum = 0;
+          
+          for (let k = -radiusH; k <= radiusH; k++) {
+            const sx = Math.max(0, Math.min(width - 1, x + k));
+            const weight = kernelH[k + radiusH];
+            sum += buffer[y * width + sx] * weight;
+            weightSum += weight;
+          }
+          
+          temp[y * width + x] = sum / weightSum;
+        }
+      }
+      
+      // Copy back
+      buffer.set(temp);
+    }
+    
+    // ═══ VERTICAL BLUR (Axial PSF) ═══
+    const radiusV = Math.ceil(psf.sigmaAxial * 2);
+    if (radiusV >= 1) {
+      const kernelV = this.createGaussianKernel1D(psf.sigmaAxial, radiusV);
+      
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          let sum = 0;
+          let weightSum = 0;
+          
+          for (let k = -radiusV; k <= radiusV; k++) {
+            const sy = Math.max(0, Math.min(height - 1, y + k));
+            const weight = kernelV[k + radiusV];
+            sum += buffer[sy * width + x] * weight;
+            weightSum += weight;
+          }
+          
+          temp[y * width + x] = sum / weightSum;
+        }
+      }
+      
+      // Copy back
+      buffer.set(temp);
+    }
+  }
+  
+  /**
+   * Create 1D Gaussian kernel
+   */
+  private createGaussianKernel1D(sigma: number, radius: number): Float32Array {
+    const size = radius * 2 + 1;
+    const kernel = new Float32Array(size);
+    const sigma2 = sigma * sigma * 2;
+    
+    for (let i = 0; i < size; i++) {
+      const x = i - radius;
+      kernel[i] = Math.exp(-(x * x) / sigma2);
+    }
+    
+    return kernel;
+  }
   
   public updateConfig(updates: Partial<UnifiedEngineConfig>): void {
     const oldType = this.config.transducerType;
@@ -843,6 +962,14 @@ export class UnifiedUltrasoundEngine {
         }
       }
       
+      // ═══════════════════════════════════════════════════════════════════════════════
+      // PASSO 6: FREQUENCY-DEPENDENT PSF BLUR
+      // 
+      // Lower frequency → larger PSF → blurrier image (worse resolution)
+      // Higher frequency → smaller PSF → sharper image (better resolution)
+      // ═══════════════════════════════════════════════════════════════════════════════
+      this.applyFrequencyDependentBlur(image_final, width, height);
+      
       // ═══ RENDERIZAR O BUFFER SELECIONADO ═══
       let renderBuffer: Float32Array;
       switch (debugView) {
@@ -1417,22 +1544,30 @@ export class UnifiedUltrasoundEngine {
     }
     
     // ═══════════════════════════════════════════════════════════════════════════════
-    // 11. SPECKLE - MULTIPLICATIVE ONLY (NO ADDITIVE NOISE)
+    // 11. SPECKLE - FREQUENCY-DEPENDENT GRAIN SIZE
     // ═══════════════════════════════════════════════════════════════════════════════
     // CRITICAL: Speckle must be purely multiplicative per-pixel.
-    // NO additive noise (+=), NO row-wise averaging.
-    // Formula: intensity *= (1 + k * random_per_pixel)
+    // Speckle grain size scales with 1/frequency (lower freq = coarser grains)
     if (this.config.enableSpeckle) {
-      const speckleIdx = y * this.canvas.width + x;
-      const rayleigh = Math.abs(this.rayleighCache[speckleIdx % this.rayleighCache.length]);
-      const perlin = this.perlinCache[speckleIdx % this.perlinCache.length];
+      // Get frequency-dependent scaling
+      const psf = this.getFrequencyDependentPSF();
+      const speckleScale = psf.speckleScale;
+      
+      // Scale sampling coordinates inversely with frequency
+      // Lower frequency → larger speckleScale → coarser sampling → bigger grains
+      const scaledX = x / speckleScale;
+      const scaledY = y / speckleScale;
+      
+      const speckleIdx = Math.floor(scaledY) * this.canvas.width + Math.floor(scaledX);
+      const rayleigh = Math.abs(this.rayleighCache[Math.abs(speckleIdx) % this.rayleighCache.length]);
+      const perlin = this.perlinCache[Math.abs(speckleIdx) % this.perlinCache.length];
       
       // Depth-dependent speckle size (deeper = coarser speckle)
       const depthFactor = 1 + (depth / this.config.depth) * 0.25;
       
-      // Per-pixel granular noise (hash-based, not periodic sin/cos)
-      const px = x * 0.1 + this.time * 0.5;
-      const py = y * 0.1;
+      // Per-pixel granular noise with frequency scaling
+      const px = scaledX * 0.1 + this.time * 0.5;
+      const py = scaledY * 0.1;
       const hashNoise = this.noise(px * 12.9898 + py * 78.233) * 2 - 1; // -1 to 1
       const fineHash = this.noise((px + 100) * 45.123 + (py + 50) * 91.456) * 2 - 1;
       

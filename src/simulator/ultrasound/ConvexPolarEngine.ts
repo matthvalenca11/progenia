@@ -55,6 +55,28 @@ export class ConvexPolarEngine {
   }
 
   /**
+   * Get frequency-dependent PSF parameters
+   * Higher frequency = sharper image, Lower frequency = blurrier
+   */
+  private getFrequencyDependentPSF(): { sigmaAxial: number; sigmaLateral: number; speckleScale: number } {
+    const f = this.config.frequency;
+    const fRef = 5.0; // Reference frequency for convex (typically lower than linear)
+    
+    const kAxial = 1.0;
+    const kLateral = 1.2;
+    const kSpeckle = 1.0;
+    
+    const frequencyRatio = fRef / f;
+    const clampedRatio = Math.max(0.5, Math.min(2.5, frequencyRatio));
+    
+    return {
+      sigmaAxial: kAxial * clampedRatio,
+      sigmaLateral: kLateral * clampedRatio,
+      speckleScale: kSpeckle * clampedRatio
+    };
+  }
+
+  /**
    * Atualiza configuração
    */
   updateConfig(config: Partial<ConvexPolarConfig>) {
@@ -215,37 +237,44 @@ export class ConvexPolarEngine {
         }
         
         // ═══════════════════════════════════════════════════════════════════════════════
-        // 10. SPECKLE - IDENTICAL TO LINEAR MODE
+        // 10. SPECKLE - FREQUENCY-DEPENDENT GRAIN SIZE
         // ═══════════════════════════════════════════════════════════════════════════════
-        // CRITICAL: Same density, distribution, randomness, blending as Linear
+        // Speckle grain size scales with 1/frequency (lower freq = coarser grains)
         
-        // Get cached values (simulated with pixel mapping)
-        const speckleIdx = (pixelY * this.config.canvasWidth + pixelX) % (this.config.canvasWidth * this.config.canvasHeight);
+        // Get frequency-dependent scaling
+        const psf = this.getFrequencyDependentPSF();
+        const speckleScale = psf.speckleScale;
         
-        // Use hash-based Rayleigh approximation (identical to Linear)
-        const rayleighSeed = speckleIdx * 12.9898 + 78.233;
+        // Scale sampling coordinates inversely with frequency
+        const scaledX = pixelX / speckleScale;
+        const scaledY = pixelY / speckleScale;
+        
+        const speckleIdx = Math.floor(scaledY) * this.config.canvasWidth + Math.floor(scaledX);
+        
+        // Use hash-based Rayleigh approximation
+        const rayleighSeed = Math.abs(speckleIdx) * 12.9898 + 78.233;
         const rayleigh = Math.abs(Math.sqrt(-2 * Math.log(Math.max(0.001, this.noise(rayleighSeed)))) * 
                                   Math.cos(2 * Math.PI * this.noise(rayleighSeed + 1000)));
         
-        // Perlin-style noise (identical to Linear)
-        const perlin = this.multiOctaveNoiseLinear(pixelX, pixelY, 6);
+        // Perlin-style noise with frequency scaling
+        const perlin = this.multiOctaveNoiseLinear(scaledX, scaledY, 6);
         
-        // Depth-dependent speckle size - IDENTICAL TO LINEAR: 0.25 coefficient
+        // Depth-dependent speckle size
         const depthFactor = 1 + (r / maxDepthCm) * 0.25;
         
-        // Per-pixel granular noise - IDENTICAL TO LINEAR coefficients
-        const px = pixelX * 0.1 + this.time * 0.5;
-        const py = pixelY * 0.1;
+        // Per-pixel granular noise with frequency scaling
+        const px = scaledX * 0.1 + this.time * 0.5;
+        const py = scaledY * 0.1;
         const hashNoise = this.noise(px * 12.9898 + py * 78.233) * 2 - 1;
         const fineHash = this.noise((px + 100) * 45.123 + (py + 50) * 91.456) * 2 - 1;
         
-        // IDENTICAL TO LINEAR: rayleigh * 0.5 + perlin * 0.5
+        // Base speckle from Rayleigh/Perlin
         const baseSpeckle = (rayleigh * 0.5 + (perlin * 0.5 + 0.5) * 0.5) * depthFactor;
         
-        // IDENTICAL TO LINEAR: pixelVariation with 0.15 and 0.1 coefficients
+        // Pixel variation
         const pixelVariation = 1.0 + hashNoise * 0.15 + fineHash * 0.1;
         
-        // IDENTICAL TO LINEAR: 0.5 + baseSpeckle * 0.5
+        // Combined speckle multiplier
         const speckleMultiplier = (0.5 + baseSpeckle * 0.5) * pixelVariation;
         
         // Blood flow modulation (if applicable) - IDENTICAL TO LINEAR
@@ -282,6 +311,69 @@ export class ConvexPolarEngine {
         // ═══ 12. FINAL CLAMP ═══
         this.polarImage[idx] = Math.max(0, Math.min(1, intensity));
       }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // STEP 13: FREQUENCY-DEPENDENT PSF BLUR (on polar image)
+    // Lower frequency → larger PSF → blurrier image
+    // ═══════════════════════════════════════════════════════════════════════════════
+    this.applyFrequencyDependentBlurToPolar();
+  }
+  
+  /**
+   * Apply frequency-dependent Gaussian blur to the polar image buffer
+   */
+  private applyFrequencyDependentBlurToPolar(): void {
+    const psf = this.getFrequencyDependentPSF();
+    const { numDepthSamples, numAngleSamples } = this.config;
+    
+    // Skip blur if sigmas are too small (high frequency = sharp image)
+    if (psf.sigmaAxial < 0.8 && psf.sigmaLateral < 0.8) {
+      return;
+    }
+    
+    const temp = new Float32Array(this.polarImage.length);
+    
+    // Horizontal blur (angular direction = lateral PSF)
+    const radiusH = Math.ceil(psf.sigmaLateral * 2);
+    if (radiusH >= 1) {
+      for (let r = 0; r < numDepthSamples; r++) {
+        for (let t = 0; t < numAngleSamples; t++) {
+          let sum = 0;
+          let weightSum = 0;
+          
+          for (let k = -radiusH; k <= radiusH; k++) {
+            const st = Math.max(0, Math.min(numAngleSamples - 1, t + k));
+            const weight = Math.exp(-(k * k) / (2 * psf.sigmaLateral * psf.sigmaLateral));
+            sum += this.polarImage[r * numAngleSamples + st] * weight;
+            weightSum += weight;
+          }
+          
+          temp[r * numAngleSamples + t] = sum / weightSum;
+        }
+      }
+      this.polarImage.set(temp);
+    }
+    
+    // Vertical blur (radial direction = axial PSF)
+    const radiusV = Math.ceil(psf.sigmaAxial * 2);
+    if (radiusV >= 1) {
+      for (let r = 0; r < numDepthSamples; r++) {
+        for (let t = 0; t < numAngleSamples; t++) {
+          let sum = 0;
+          let weightSum = 0;
+          
+          for (let k = -radiusV; k <= radiusV; k++) {
+            const sr = Math.max(0, Math.min(numDepthSamples - 1, r + k));
+            const weight = Math.exp(-(k * k) / (2 * psf.sigmaAxial * psf.sigmaAxial));
+            sum += this.polarImage[sr * numAngleSamples + t] * weight;
+            weightSum += weight;
+          }
+          
+          temp[r * numAngleSamples + t] = sum / weightSum;
+        }
+      }
+      this.polarImage.set(temp);
     }
   }
   
