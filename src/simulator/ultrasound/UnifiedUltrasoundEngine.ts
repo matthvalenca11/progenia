@@ -3114,9 +3114,9 @@ export class UnifiedUltrasoundEngine {
   }
   
   /**
-   * Apply Doppler color V2 - Consistent vessel coloring
-   * Each vessel maintains its color throughout (no color flipping)
-   * Pulsation only affects INTENSITY, not color type
+   * Apply Doppler color V2 - REALISTIC with aliasing effect
+   * During systole (high velocity), center of artery shows ALIASING (blue/cyan)
+   * This is the real clinical Doppler appearance
    */
   private applyDopplerColorToPixelV2(
     data: Uint8ClampedArray,
@@ -3128,96 +3128,152 @@ export class UnifiedUltrasoundEngine {
     isArterial: boolean
   ): void {
     // ═══════════════════════════════════════════════════════════════════════════════
-    // REALISTIC CAROTID DOPPLER - CONSISTENT VESSEL COLORS
+    // ULTRA-REALISTIC CAROTID DOPPLER WITH ALIASING
     // 
-    // Each vessel has ONE color (red for artery, blue for vein)
-    // Pulsation affects:
-    // - Color INTENSITY (brighter during systole)
-    // - Slight color SHIFT within same family (dark red → bright orange)
-    // - NOT color TYPE (never flips between red and blue)
+    // Real clinical behavior:
+    // - Diastole (low velocity): uniform red for artery
+    // - Systole (high velocity): CENTER shows ALIASING (wraps to blue/cyan)
+    // - This creates the characteristic "mosaic" pattern during peak flow
+    // - Edge always stays red (lower velocity at edges)
     // ═══════════════════════════════════════════════════════════════════════════════
     
     // Parabolic velocity profile (Poiseuille laminar flow)
+    // Center = 1.0, Edge = 0.0
     const normalizedRadius = Math.min(1.0, distFromCenter);
-    const laminarProfile = Math.pow(1.0 - normalizedRadius * normalizedRadius, 0.7);
+    const laminarProfile = Math.pow(1.0 - normalizedRadius * normalizedRadius, 0.6);
     
-    // === CARDIAC CYCLE ===
+    // === CARDIAC CYCLE - Strong pulsation ===
     const cardiacPhase = (this.time * 1.2) % 1.0;
-    const systolicPeak = Math.pow(Math.sin(cardiacPhase * Math.PI), 2);
+    // Systolic peak: sharp rise, gradual fall (realistic waveform)
+    const systolicWave = Math.pow(Math.sin(cardiacPhase * Math.PI), 1.5);
+    const diastolicBase = 0.25;
+    const systolicPeak = diastolicBase + (1 - diastolicBase) * systolicWave;
     
-    // === MOTION-SYNCHRONIZED FLOW VARIATION ===
-    const motionPhase = this.time * 3.5;
-    const flowWave = Math.sin(px * 0.025 + py * 0.015 + motionPhase) * 0.12;
-    const spatialNoise = this.dopplerNoise(px * 0.04 + motionPhase, py * 0.04, this.time) * 0.08;
+    // === MOTION-SYNCHRONIZED FLOW TURBULENCE ===
+    const motionPhase = this.time * 4.0;
+    const turbulence = this.dopplerNoise(px * 0.03 + motionPhase, py * 0.03, this.time) * 0.15;
+    const flowWave = Math.sin(px * 0.02 + py * 0.01 + motionPhase * 1.3) * 0.1;
     
-    // === VELOCITY (affects intensity, not color type) ===
-    const baseVelocity = laminarProfile * (0.6 + flowWave + spatialNoise);
-    const pulsatileVelocity = Math.max(0, baseVelocity * (0.4 + 0.6 * systolicPeak * pulse));
+    // === VELOCITY CALCULATION ===
+    // Base velocity from laminar profile (higher in center)
+    const baseVelocity = laminarProfile * (0.7 + turbulence + flowWave);
     
-    // Edge fade factor
-    const edgeFade = Math.pow(laminarProfile, 0.5);
-    const intensity = pulsatileVelocity * edgeFade;
+    // Pulsatile velocity - STRONG variation with cardiac cycle
+    const pulsatileVelocity = baseVelocity * systolicPeak * pulse;
     
-    if (intensity < 0.08) return;
+    // Edge fade for color saturation
+    const edgeFade = Math.pow(laminarProfile, 0.4);
+    const intensity = Math.max(0, pulsatileVelocity) * edgeFade;
+    
+    if (intensity < 0.06) return;
     
     const idx = (py * width + px) * 4;
     const gray = data[idx];
     
-    // Velocity normalized for color mapping (0 to 1)
-    const v = Math.min(1.0, Math.max(0, pulsatileVelocity));
-    
     let r: number, g: number, b: number;
     
     if (isArterial) {
-      // ═══ ARTERIAL (RED FAMILY ONLY) ═══
-      // Dark red → Bright red → Orange → Yellow-orange at peak
-      // NEVER becomes blue
+      // ═══ ARTERIAL FLOW WITH ALIASING ═══
+      // 
+      // Velocity mapping to color:
+      // 0.0-0.4: Dark red (diastole, low flow)
+      // 0.4-0.7: Bright red/orange (systole rising)
+      // 0.7-0.85: Yellow/orange (peak systole)
+      // 0.85-1.0+: ALIASING → Blue/Cyan (velocity exceeds Nyquist)
       
-      // Base red that varies with velocity
-      const redBase = 120 + v * 135;
-      const greenBase = 10 + v * 90;
-      const blueBase = 5 + v * 20;
+      const v = pulsatileVelocity;
       
-      // Systolic boost (colors get brighter/more orange during systole)
-      const systolicR = systolicPeak * 30;
-      const systolicG = systolicPeak * 50 * v; // More orange shift at high velocity
+      // Aliasing threshold - affected by position (center aliases first)
+      const aliasingThreshold = 0.75 - laminarProfile * 0.15; // Center aliases at ~0.6, edge at ~0.75
       
-      r = Math.floor(Math.min(255, redBase + systolicR));
-      g = Math.floor(Math.min(180, greenBase + systolicG));
-      b = Math.floor(Math.min(40, blueBase));
+      if (v > aliasingThreshold) {
+        // === ALIASING ZONE (High velocity → wraps to blue) ===
+        const aliasAmount = Math.min(1.0, (v - aliasingThreshold) / 0.35);
+        const aliasIntensity = Math.pow(aliasAmount, 0.7);
+        
+        // Transition: Yellow → Cyan → Blue
+        if (aliasAmount < 0.5) {
+          // Yellow → Cyan transition
+          const t = aliasAmount * 2;
+          r = Math.floor(255 - 200 * t);
+          g = Math.floor(180 + 40 * t);
+          b = Math.floor(30 + 180 * t);
+        } else {
+          // Cyan → Blue transition  
+          const t = (aliasAmount - 0.5) * 2;
+          r = Math.floor(55 - 40 * t);
+          g = Math.floor(220 - 80 * t);
+          b = Math.floor(210 + 45 * t);
+        }
+        
+        // Add turbulent variation in aliasing zone
+        const aliasTurbulence = this.dopplerNoise(px * 0.08 + this.time * 5, py * 0.08, this.time * 6) * 30;
+        r = Math.floor(Math.max(0, Math.min(255, r + aliasTurbulence * 0.3)));
+        g = Math.floor(Math.max(0, Math.min(255, g + aliasTurbulence * 0.5)));
+        b = Math.floor(Math.max(0, Math.min(255, b + aliasTurbulence)));
+        
+      } else {
+        // === NORMAL FLOW (Red family) ===
+        const normalizedV = v / aliasingThreshold; // 0 to 1 within non-aliasing range
+        
+        if (normalizedV < 0.4) {
+          // Dark red (diastole)
+          const t = normalizedV / 0.4;
+          r = Math.floor(80 + 100 * t);
+          g = Math.floor(5 + 25 * t);
+          b = Math.floor(5 + 10 * t);
+        } else if (normalizedV < 0.7) {
+          // Bright red/orange (rising systole)
+          const t = (normalizedV - 0.4) / 0.3;
+          r = Math.floor(180 + 60 * t);
+          g = Math.floor(30 + 70 * t);
+          b = Math.floor(15 - 10 * t);
+        } else {
+          // Yellow/orange (approaching peak)
+          const t = (normalizedV - 0.7) / 0.3;
+          r = Math.floor(240 + 15 * t);
+          g = Math.floor(100 + 80 * t);
+          b = Math.floor(5 + 25 * t);
+        }
+      }
       
     } else {
-      // ═══ VENOUS (BLUE FAMILY ONLY) ═══
-      // Dark blue → Medium blue → Bright blue → Cyan at peak
-      // NEVER becomes red
+      // ═══ VENOUS FLOW (Blue family, less pulsatile) ═══
+      const v = Math.min(1.0, pulsatileVelocity * 0.7); // Venous flow is slower
       
-      // Base blue that varies with velocity
-      const redBase = 5 + v * 30;
-      const greenBase = 20 + v * 80;
-      const blueBase = 100 + v * 155;
-      
-      // Steady venous flow (less pulsatile)
-      const venousBoost = 0.3 + 0.7 * v;
-      
-      r = Math.floor(Math.min(70, redBase * venousBoost));
-      g = Math.floor(Math.min(180, greenBase * venousBoost));
-      b = Math.floor(Math.min(255, blueBase));
+      if (v < 0.3) {
+        const t = v / 0.3;
+        r = Math.floor(5 + 10 * t);
+        g = Math.floor(15 + 40 * t);
+        b = Math.floor(80 + 70 * t);
+      } else if (v < 0.6) {
+        const t = (v - 0.3) / 0.3;
+        r = Math.floor(15 - 5 * t);
+        g = Math.floor(55 + 50 * t);
+        b = Math.floor(150 + 50 * t);
+      } else {
+        const t = (v - 0.6) / 0.4;
+        r = Math.floor(10 + 30 * t);
+        g = Math.floor(105 + 60 * t);
+        b = Math.floor(200 + 55 * t);
+      }
     }
     
-    // Apply edge fade (darker at edges)
-    r = Math.floor(r * (0.5 + 0.5 * edgeFade));
-    g = Math.floor(g * (0.5 + 0.5 * edgeFade));
-    b = Math.floor(b * (0.5 + 0.5 * edgeFade));
+    // Apply edge fade (darker at vessel edges)
+    r = Math.floor(r * (0.45 + 0.55 * edgeFade));
+    g = Math.floor(g * (0.45 + 0.55 * edgeFade));
+    b = Math.floor(b * (0.45 + 0.55 * edgeFade));
     
     // Blend with underlying B-mode
-    const alpha = 0.82 + 0.15 * intensity;
+    const alpha = 0.80 + 0.18 * intensity;
     const invAlpha = 1 - alpha;
     
-    // Subtle shimmer synchronized with flow
-    const shimmer = this.dopplerNoise(px * 0.12 + this.time * 3, py * 0.12, this.time * 4) * 8;
+    // Motion-synchronized shimmer
+    const shimmer = this.dopplerNoise(px * 0.1 + this.time * 3.5, py * 0.1, this.time * 4.5) * 12;
     
-    data[idx] = Math.min(255, Math.max(0, Math.floor(r * alpha + gray * invAlpha + shimmer * (isArterial ? 1 : 0.3))));
+    data[idx] = Math.min(255, Math.max(0, Math.floor(r * alpha + gray * invAlpha + shimmer * 0.6)));
     data[idx + 1] = Math.min(255, Math.max(0, Math.floor(g * alpha + gray * invAlpha + shimmer * 0.4)));
+    data[idx + 2] = Math.min(255, Math.max(0, Math.floor(b * alpha + gray * invAlpha + shimmer * 0.8)));
     data[idx + 2] = Math.min(255, Math.max(0, Math.floor(b * alpha + gray * invAlpha + shimmer * (isArterial ? 0.2 : 1))));
   }
   
