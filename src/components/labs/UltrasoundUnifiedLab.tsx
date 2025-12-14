@@ -73,14 +73,25 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
       dynamicRange: config?.dynamicRange || 60,
       tgc: [],
       mode: config?.mode || 'b-mode',
+      // Core imaging
+      showStructuralBMode: config?.simulationFeatures?.showStructuralBMode ?? true,
+      // Artifacts
       enablePosteriorEnhancement: config?.simulationFeatures?.enablePosteriorEnhancement ?? true,
       enableAcousticShadow: config?.simulationFeatures?.enableAcousticShadow ?? true,
-      enableReverberation: config?.simulationFeatures?.enableReverberation ?? true,
+      enableReverberation: config?.simulationFeatures?.enableReverberation ?? false,
+      enableNearFieldClutter: config?.simulationFeatures?.enableNearFieldClutter ?? false,
       enableSpeckle: true,
+      // Visual overlays
       showBeamLines: config?.simulationFeatures?.showBeamOverlay ?? false,
       showDepthScale: config?.simulationFeatures?.showDepthScale ?? true,
       showFocusMarker: config?.simulationFeatures?.showFocusMarker ?? true,
-      showLabels: config?.simulationFeatures?.showAnatomyLabels ?? false,
+      // Didactic overlays
+      showFieldLines: config?.simulationFeatures?.showFieldLines ?? false,
+      showAttenuationMap: config?.simulationFeatures?.showAttenuationMap ?? false,
+      showAnatomyLabels: config?.simulationFeatures?.showAnatomyLabels ?? false,
+      // Advanced features
+      showPhysicsPanel: config?.simulationFeatures?.showPhysicsPanel ?? false,
+      enableColorDoppler: config?.simulationFeatures?.enableColorDoppler ?? false,
     });
     
     engineRef.current = engine;
@@ -139,13 +150,24 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
       lateralOffset: transducerPosition,
       dynamicRange: config?.dynamicRange || 60,
       mode: config?.mode || 'b-mode',
+      // Core imaging
+      showStructuralBMode: config?.simulationFeatures?.showStructuralBMode ?? true,
+      // Artifacts
       enablePosteriorEnhancement: config?.simulationFeatures?.enablePosteriorEnhancement ?? true,
       enableAcousticShadow: config?.simulationFeatures?.enableAcousticShadow ?? true,
-      enableReverberation: config?.simulationFeatures?.enableReverberation ?? true,
+      enableReverberation: config?.simulationFeatures?.enableReverberation ?? false,
+      enableNearFieldClutter: config?.simulationFeatures?.enableNearFieldClutter ?? false,
+      // Visual overlays
       showBeamLines: config?.simulationFeatures?.showBeamOverlay ?? false,
       showDepthScale: config?.simulationFeatures?.showDepthScale ?? true,
       showFocusMarker: config?.simulationFeatures?.showFocusMarker ?? true,
-      showLabels: config?.simulationFeatures?.showAnatomyLabels ?? false,
+      // Didactic overlays
+      showFieldLines: config?.simulationFeatures?.showFieldLines ?? false,
+      showAttenuationMap: config?.simulationFeatures?.showAttenuationMap ?? false,
+      showAnatomyLabels: config?.simulationFeatures?.showAnatomyLabels ?? false,
+      // Advanced features
+      showPhysicsPanel: config?.simulationFeatures?.showPhysicsPanel ?? false,
+      enableColorDoppler: config?.simulationFeatures?.enableColorDoppler ?? false,
       // DEBUG: Passa o modo de debug para Linear
       linearDebugView: transducerType === 'linear' ? linearDebugView : undefined,
     });
