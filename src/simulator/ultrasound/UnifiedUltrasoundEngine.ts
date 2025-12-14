@@ -2525,43 +2525,88 @@ export class UnifiedUltrasoundEngine {
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
    * COLOR DOPPLER OVERLAY - Realistic per-pixel flow visualization for blood vessels
-   * Uses proper geometry detection to align Doppler color exactly with inclusions
+   * Uses EXACT same coordinate mapping as main rendering engine for pixel-perfect alignment
    * ═══════════════════════════════════════════════════════════════════════════════
    */
   private renderDopplerOverlay(): void {
-    const { width, height } = this.canvas;
-    
-    // Get existing image data to blend Doppler on top
-    const imageData = this.ctx.getImageData(0, 0, width, height);
-    const data = imageData.data;
-    
-    // Find blood/vessel inclusions
-    const vesselInclusions = this.config.inclusions.filter(
-      inc => inc.mediumInsideId === 'blood' || inc.mediumInsideId === 'water'
+    // Filter inclusions that represent blood vessels or water (anechoic flowing structures)
+    const vesselInclusions = this.config.inclusions.filter(inc => 
+      inc.mediumInsideId === 'blood' || inc.mediumInsideId === 'water'
     );
     
     if (vesselInclusions.length === 0) return;
     
-    // Pulsatile flow parameters (simulates cardiac cycle)
-    const heartRate = 1.2; // Hz (~72 bpm)
-    const pulse = 0.5 + 0.5 * Math.sin(this.time * heartRate * 2 * Math.PI);
+    const { width, height } = this.canvas;
+    const imageData = this.ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
     
-    // Process each pixel
-    for (let py = 0; py < height; py++) {
-      for (let px = 0; px < width; px++) {
-        // Convert pixel to physical coordinates based on transducer type
-        let depth: number;
-        let lateral: number;
+    // Cardiac cycle for pulsatile flow
+    const heartRate = 1.2; // ~72 bpm
+    const cardiacPhase = (this.time * heartRate) % 1.0;
+    const pulse = 0.6 + 0.4 * Math.sin(cardiacPhase * Math.PI * 2);
+    
+    // FIXED_LATERAL_SCALE must match isPointInInclusion exactly (5.0 cm = -2.5 to +2.5)
+    const FIXED_LATERAL_SCALE = 5.0;
+    
+    if (this.config.transducerType === 'linear') {
+      // ═══ LINEAR MODE ═══
+      // Use exact same coordinate system as renderLinearModeOptimized & isPointInInclusion
+      
+      for (let py = 0; py < height; py++) {
+        const depth = (py / height) * this.config.depth;
         
-        if (this.config.transducerType === 'linear') {
-          // Linear: direct mapping
-          depth = (py / height) * this.config.depth;
-          lateral = ((px / width) - 0.5) * 4.0; // Assume 4cm lateral width
-        } else {
-          // Convex/Microconvex: polar to Cartesian transformation
-          const sectorAngle = this.config.transducerType === 'convex' ? 80 : 60;
-          const halfAngle = (sectorAngle / 2) * Math.PI / 180;
+        for (let px = 0; px < width; px++) {
+          // EXACT same lateral calculation as isPointInInclusion
+          const lateralNormalized = (px / width) - 0.5; // -0.5 to +0.5
+          const lateralCm = lateralNormalized * FIXED_LATERAL_SCALE; // -2.5 to +2.5 cm
           
+          // Check each vessel inclusion using SAME logic as main engine
+          for (const inclusion of vesselInclusions) {
+            // Inclusion center - EXACT same calculation as isPointInInclusion
+            // centerLateralPos is -0.5 to +0.5, multiply by FIXED_LATERAL_SCALE/2 to get cm
+            const inclLateralCm = inclusion.centerLateralPos * (FIXED_LATERAL_SCALE / 2); // -2.5 to +2.5
+            const inclDepthCm = inclusion.centerDepthCm;
+            
+            const halfWidth = inclusion.sizeCm.width / 2;
+            const halfHeight = inclusion.sizeCm.height / 2;
+            
+            // Distance from inclusion center
+            const dx = lateralCm - inclLateralCm;
+            const dy = depth - inclDepthCm;
+            
+            // Ellipse test (normalized)
+            let isInside = false;
+            let distFromCenter = 1.0;
+            
+            if (inclusion.shape === 'ellipse') {
+              const normX = dx / halfWidth;
+              const normY = dy / halfHeight;
+              distFromCenter = Math.sqrt(normX * normX + normY * normY);
+              isInside = distFromCenter <= 1.0;
+            } else {
+              // Rectangle
+              isInside = Math.abs(dx) <= halfWidth && Math.abs(dy) <= halfHeight;
+              distFromCenter = Math.max(Math.abs(dx) / halfWidth, Math.abs(dy) / halfHeight);
+            }
+            
+            if (isInside) {
+              this.applyDopplerColorToPixel(data, px, py, width, distFromCenter, pulse, depth, lateralCm, inclLateralCm);
+              break;
+            }
+          }
+        }
+      }
+    } else {
+      // ═══ CONVEX/MICROCONVEX MODE ═══
+      // Use polar coordinates matching getConvexTissue exactly
+      const sectorAngle = this.config.transducerType === 'convex' ? 80 : 60;
+      const halfAngle = (sectorAngle / 2) * Math.PI / 180;
+      const virtualApexDepth = -2.5;
+      const maxLateralExtent = this.config.depth * Math.tan(halfAngle);
+      
+      for (let py = 0; py < height; py++) {
+        for (let px = 0; px < width; px++) {
+          // Polar coordinate transformation (same as main engine)
           const centerX = width / 2;
           const normalizedR = py / height;
           const normalizedTheta = (px - centerX) / (width / 2);
@@ -2569,86 +2614,115 @@ export class UnifiedUltrasoundEngine {
           const theta = normalizedTheta * halfAngle;
           const r = normalizedR * this.config.depth;
           
-          depth = r * Math.cos(theta);
-          lateral = r * Math.sin(theta);
-        }
-        
-        // Check if this point is inside any vessel inclusion
-        for (const inclusion of vesselInclusions) {
-          const incCenterX = inclusion.centerLateralPos * 2.5; // Convert normalized to cm
-          const incCenterY = inclusion.centerDepthCm;
-          const incRadiusX = inclusion.sizeCm.width / 2;
-          const incRadiusY = inclusion.sizeCm.height / 2;
+          // Convert to physical coordinates (same as getConvexTissue)
+          const physicalX = r * Math.sin(theta);
+          const physicalY = r * Math.cos(theta) - virtualApexDepth;
           
-          // Ellipse inclusion test
-          const dx = (lateral - incCenterX) / incRadiusX;
-          const dy = (depth - incCenterY) / incRadiusY;
-          const distSquared = dx * dx + dy * dy;
-          
-          if (distSquared <= 1.0) {
-            // Point is inside vessel - calculate Doppler color
-            const radialPos = Math.sqrt(distSquared);
+          // Check each vessel inclusion
+          for (const inclusion of vesselInclusions) {
+            // Inclusion center in physical space (same as getConvexTissue)
+            const inclNormLat = inclusion.centerLateralPos;
+            const inclDepth = inclusion.centerDepthCm;
+            const inclX = inclNormLat * maxLateralExtent;
+            const inclY = inclDepth;
             
-            // Parabolic flow profile (faster in center, slower at edges)
-            const flowProfile = 1.0 - radialPos * radialPos;
+            // Distance from inclusion center
+            const dx = physicalX - inclX;
+            const dy = physicalY - inclY;
             
-            // Flow velocity with turbulence
-            const turbulence = Math.sin(this.time * 15 + depth * 20 + lateral * 10) * 0.1;
-            const velocity = flowProfile * (0.8 + turbulence);
+            // Radial distortion factor (same as getConvexTissue)
+            const depthFactor = 1.0 + (r / this.config.depth) * 0.3;
+            const distortedDx = dx / depthFactor;
             
-            // Flow direction: alternate with time, but not uniform (creates realism)
-            // Use lateral position to create slight flow angle variation
-            const flowAngle = Math.atan2(lateral - incCenterX, 1) * 0.3;
-            const baseDirection = Math.sin(this.time * 0.8 + flowAngle);
-            const flowDirection = baseDirection > 0 ? 1 : -1;
+            const halfWidth = inclusion.sizeCm.width / 2;
+            const halfHeight = inclusion.sizeCm.height / 2;
             
-            // Color intensity based on velocity and pulse
-            const colorIntensity = velocity * pulse * 0.7;
+            let isInside = false;
+            let distFromCenter = 1.0;
             
-            if (colorIntensity > 0.05) {
-              const idx = (py * width + px) * 4;
-              
-              // Get current grayscale value for blending
-              const gray = data[idx]; // R=G=B in grayscale image
-              
-              // Doppler color: Red = towards probe, Blue = away
-              let r: number, g: number, b: number;
-              
-              if (flowDirection > 0) {
-                // Towards probe - Red to Yellow gradient based on velocity
-                r = Math.min(255, gray + Math.floor(200 * colorIntensity));
-                g = Math.floor(80 * colorIntensity * (1 - radialPos)); // Yellow tint in center
-                b = Math.floor(gray * (1 - colorIntensity * 0.8));
-              } else {
-                // Away from probe - Blue to Cyan gradient
-                r = Math.floor(gray * (1 - colorIntensity * 0.8));
-                g = Math.floor(80 * colorIntensity * (1 - radialPos)); // Cyan tint in center
-                b = Math.min(255, gray + Math.floor(200 * colorIntensity));
-              }
-              
-              // Blend with aliasing zone (high velocity creates color aliasing)
-              if (velocity > 0.85) {
-                // Aliasing effect - mix of both colors (common in real Doppler)
-                const aliasStrength = (velocity - 0.85) * 6.67; // 0-1 in aliasing zone
-                if (flowDirection > 0) {
-                  b = Math.floor(b + (255 - b) * aliasStrength * 0.5);
-                } else {
-                  r = Math.floor(r + (255 - r) * aliasStrength * 0.5);
-                }
-              }
-              
-              data[idx] = Math.min(255, Math.max(0, r));
-              data[idx + 1] = Math.min(255, Math.max(0, g));
-              data[idx + 2] = Math.min(255, Math.max(0, b));
+            if (inclusion.shape === 'ellipse') {
+              const normX = distortedDx / halfWidth;
+              const normY = dy / halfHeight;
+              distFromCenter = Math.sqrt(normX * normX + normY * normY);
+              isInside = distFromCenter <= 1.0;
+            } else {
+              isInside = Math.abs(distortedDx) <= halfWidth && Math.abs(dy) <= halfHeight;
+              distFromCenter = Math.max(Math.abs(distortedDx) / halfWidth, Math.abs(dy) / halfHeight);
             }
             
-            break; // Don't check other inclusions for this pixel
+            if (isInside) {
+              this.applyDopplerColorToPixel(data, px, py, width, distFromCenter, pulse, r, physicalX, inclX);
+              break;
+            }
           }
         }
       }
     }
     
     this.ctx.putImageData(imageData, 0, 0);
+  }
+  
+  /**
+   * Apply Doppler color to a single pixel with realistic flow visualization
+   */
+  private applyDopplerColorToPixel(
+    data: Uint8ClampedArray,
+    px: number,
+    py: number,
+    width: number,
+    distFromCenter: number,
+    pulse: number,
+    depth: number,
+    lateral: number,
+    incCenterX: number
+  ): void {
+    // Parabolic flow profile (faster in center, slower at edges) - Poiseuille flow
+    const flowProfile = 1.0 - distFromCenter * distFromCenter;
+    
+    // Flow velocity with turbulence for realism
+    const turbulence = Math.sin(this.time * 15 + depth * 20 + lateral * 10) * 0.1;
+    const velocity = flowProfile * (0.8 + turbulence);
+    
+    // Flow direction based on position and time (simulates arterial/venous flow)
+    const flowAngle = Math.atan2(lateral - incCenterX, 1) * 0.3;
+    const baseDirection = Math.sin(this.time * 0.8 + flowAngle);
+    const flowDirection = baseDirection > 0 ? 1 : -1;
+    
+    // Color intensity based on velocity and cardiac pulse
+    const colorIntensity = velocity * pulse * 0.85;
+    
+    if (colorIntensity > 0.05) {
+      const idx = (py * width + px) * 4;
+      const gray = data[idx];
+      
+      let r: number, g: number, b: number;
+      
+      if (flowDirection > 0) {
+        // Towards probe - Red/Yellow gradient (arterial)
+        r = Math.min(255, gray + Math.floor(220 * colorIntensity));
+        g = Math.floor(60 * colorIntensity * (1 - distFromCenter));
+        b = Math.floor(gray * (1 - colorIntensity * 0.9));
+      } else {
+        // Away from probe - Blue/Cyan gradient (venous)
+        r = Math.floor(gray * (1 - colorIntensity * 0.9));
+        g = Math.floor(60 * colorIntensity * (1 - distFromCenter));
+        b = Math.min(255, gray + Math.floor(220 * colorIntensity));
+      }
+      
+      // Aliasing at high velocity (Nyquist limit simulation)
+      if (velocity > 0.85) {
+        const aliasStrength = (velocity - 0.85) * 6.67;
+        if (flowDirection > 0) {
+          b = Math.floor(b + (255 - b) * aliasStrength * 0.5);
+        } else {
+          r = Math.floor(r + (255 - r) * aliasStrength * 0.5);
+        }
+      }
+      
+      data[idx] = Math.min(255, Math.max(0, r));
+      data[idx + 1] = Math.min(255, Math.max(0, g));
+      data[idx + 2] = Math.min(255, Math.max(0, b));
+    }
   }
   
   private renderOverlays(): void {
