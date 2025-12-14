@@ -901,9 +901,9 @@ export class UnifiedUltrasoundEngine {
     //
     // ═══════════════════════════════════════════════════════════════════════════════
     
-    const SHADOW_DARKEST = 0.40;     // Sombra máxima no centro (40% = mais realista)
-    const SHADOW_LIGHTEST = 0.88;    // Sombra mínima nas bordas (88% = sutil nas bordas)
-    const RECOVERY_RATE = 0.25;      // Taxa de recuperação (por cm)
+    const SHADOW_DARKEST = 0.55;     // Sombra mais sutil no centro (55%)
+    const SHADOW_LIGHTEST = 0.92;    // Sombra mínima nas bordas (92% = bem sutil)
+    const RECOVERY_RATE = 0.30;      // Recuperação um pouco mais rápida
     
     // ═══ CALCULAR MOTION OFFSET (INVERSO do rendering para sincronizar) ═══
     // No rendering, motion é adicionado às coordenadas de amostragem,
