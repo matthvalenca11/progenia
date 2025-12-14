@@ -52,22 +52,51 @@ export function getDefaultLayersForPreset(presetId: UltrasoundAnatomyPresetId): 
     
     // ============================================================
     // CARÓTIDA LONGITUDINAL (ULTRA-REALISTA)
-    // Visualização longitudinal da artéria carótida comum com anatomia
-    // completa do pescoço: pele, subcutâneo, ECM, fáscias, carótida
-    // estendida (3-5cm), veia jugular, e músculos profundos.
-    // Parâmetros clínicos: IMT ~0.6-0.8mm, diâmetro 5-7mm
+    // 
+    // FÍSICA APLICADA:
+    // - Usa EXATAMENTE o mesmo pipeline de sombra/speckle do simulador
+    // - Camadas anatômicas com atenuação, scattering e reflexão reais
+    // - Lúmen anecogênico real (zero speckle, posterior enhancement)
+    // - Paredes vasculares hiperecogênicas (interface nítida)
+    // - Músculo ECM com textura fibrilar anisotrópica
+    // - Fáscias como linhas hiperecogênicas finas
+    // - SEM sombra acústica (vasos normais não produzem sombra)
+    // 
+    // Parâmetros clínicos reais:
+    // - Diâmetro carótida comum: 5-7mm
+    // - IMT (intima-media thickness): 0.6-0.8mm
+    // - Profundidade típica: 1.5-2.5cm
     // ============================================================
     carotid_long: [
-      { id: "skin", mediumId: "skin", name: "Pele", thicknessCm: 0.15, noiseScale: 1.4, reflectivityBias: 0.12 },
-      { id: "subcut", mediumId: "fat", name: "Tecido Subcutâneo", thicknessCm: 0.4, noiseScale: 0.65, reflectivityBias: -0.18 },
-      { id: "platysma", mediumId: "muscle", name: "Platisma", thicknessCm: 0.12, noiseScale: 1.15, reflectivityBias: 0.0 },
-      { id: "superficial_fascia", mediumId: "fascia", name: "Fáscia Cervical Superficial", thicknessCm: 0.03, noiseScale: 2.4, reflectivityBias: 0.55 },
-      { id: "scm", mediumId: "muscle", name: "M. Esternocleidomastóideo", thicknessCm: 0.6, noiseScale: 1.12, reflectivityBias: 0.02 },
-      { id: "carotid_sheath_fascia", mediumId: "fascia", name: "Bainha Carotídea", thicknessCm: 0.02, noiseScale: 2.3, reflectivityBias: 0.52 },
-      { id: "periarterial_tissue", mediumId: "fat", name: "Tecido Periarterial", thicknessCm: 0.25, noiseScale: 0.7, reflectivityBias: -0.12 },
-      { id: "prevertebral_fascia", mediumId: "fascia", name: "Fáscia Pré-vertebral", thicknessCm: 0.03, noiseScale: 2.2, reflectivityBias: 0.50 },
-      { id: "longus_colli", mediumId: "muscle", name: "M. Longo do Pescoço", thicknessCm: 1.0, noiseScale: 1.05, reflectivityBias: 0.0 },
-      { id: "deep_cervical", mediumId: "muscle", name: "Músculos Cervicais Profundos", thicknessCm: 1.5, noiseScale: 1.0, reflectivityBias: -0.02 },
+      // CAMADA 1: Pele (0.12-0.15cm) - isoecogênica, interface superficial
+      { id: "skin", mediumId: "skin", name: "Pele", thicknessCm: 0.12, noiseScale: 1.35, reflectivityBias: 0.10 },
+      
+      // CAMADA 2: Subcutâneo (0.3-0.5cm) - hipoecogênico, gordura subcutânea
+      { id: "subcut", mediumId: "fat", name: "Tecido Subcutâneo", thicknessCm: 0.35, noiseScale: 0.62, reflectivityBias: -0.20 },
+      
+      // CAMADA 3: Platisma (0.08-0.12cm) - músculo fino superficial
+      { id: "platysma", mediumId: "muscle", name: "Platisma", thicknessCm: 0.08, noiseScale: 1.18, reflectivityBias: 0.02 },
+      
+      // CAMADA 4: Fáscia cervical superficial - linha hiperecogênica
+      { id: "superficial_fascia", mediumId: "fascia", name: "Fáscia Cervical Superficial", thicknessCm: 0.02, noiseScale: 2.5, reflectivityBias: 0.58 },
+      
+      // CAMADA 5: M. Esternocleidomastóideo (0.5-0.8cm) - textura fibrilar oblíqua
+      { id: "scm", mediumId: "muscle", name: "M. Esternocleidomastóideo", thicknessCm: 0.55, noiseScale: 1.15, reflectivityBias: 0.03 },
+      
+      // CAMADA 6: Bainha carotídea (fáscia) - linha hiperecogênica fina
+      { id: "carotid_sheath", mediumId: "fascia", name: "Bainha Carotídea", thicknessCm: 0.02, noiseScale: 2.4, reflectivityBias: 0.55 },
+      
+      // CAMADA 7: Tecido periarterial - gordura/conectivo ao redor dos vasos
+      { id: "periarterial", mediumId: "fat", name: "Tecido Periarterial", thicknessCm: 0.20, noiseScale: 0.68, reflectivityBias: -0.15 },
+      
+      // CAMADA 8: Fáscia pré-vertebral - interface posterior
+      { id: "prevertebral_fascia", mediumId: "fascia", name: "Fáscia Pré-vertebral", thicknessCm: 0.02, noiseScale: 2.3, reflectivityBias: 0.52 },
+      
+      // CAMADA 9: M. Longus colli - músculo profundo posterior
+      { id: "longus_colli", mediumId: "muscle", name: "M. Longo do Pescoço", thicknessCm: 0.8, noiseScale: 1.08, reflectivityBias: 0.0 },
+      
+      // CAMADA 10: Músculos cervicais profundos
+      { id: "deep_cervical", mediumId: "muscle", name: "Músculos Cervicais Profundos", thicknessCm: 1.2, noiseScale: 1.02, reflectivityBias: -0.02 },
     ],
     
     // ============================================================
@@ -150,36 +179,54 @@ export function getDefaultInclusionsForPreset(presetId: UltrasoundAnatomyPresetI
       },
     ],
     
+    // ============================================================
     // CARÓTIDA LONGITUDINAL (ULTRA-REALISTA)
-    // Artéria estendida horizontalmente (3-4cm) com parede vascular detalhada
-    // Lúmen anecogênico, parede com dupla interface (íntima-média-adventícia)
-    // Veia jugular paralela, ligeiramente acima
+    // 
+    // FÍSICA CORRETA:
+    // - Lúmen: TOTALMENTE ANECOGÊNICO (blood medium = anechoic)
+    // - Posterior enhancement: ATIVO (reforço posterior típico)
+    // - Sombra acústica: DESATIVADA (vasos NÃO causam sombra)
+    // - Bordas: NÍTIDAS (interface íntima-lúmen bem definida)
+    // 
+    // ANATOMIA:
+    // - Carótida comum: diâmetro 5-7mm, profundidade ~1.5-2.0cm
+    // - Veia jugular interna: maior, mais superficial, colapsável
+    // - Shape: ELLIPSE para correta interação com physics engine
+    //   (mesmo em corte longitudinal, a fatia ultrassônica é circular)
+    // ============================================================
     carotid_long: [
+      // ═══ ARTÉRIA CARÓTIDA COMUM ═══
+      // Lúmen central anecogênico com parede hiperecogênica
+      // Diâmetro: 6-7mm (0.65cm), profundidade: 1.6cm
       {
-        id: "carotid_common_longitudinal",
+        id: "carotid_common_lumen",
         type: "vessel",
-        label: "Artéria Carótida Comum (Longitudinal)",
-        shape: "rectangle", // Retângulo estendido para visão longitudinal
-        centerDepthCm: 1.8,
-        centerLateralPos: 0.0, // Centralizado
-        sizeCm: { width: 4.0, height: 0.65 }, // 4cm extensão, 6.5mm diâmetro
-        mediumInsideId: "blood",
-        hasStrongShadow: false,
-        posteriorEnhancement: true, // Reforço posterior típico de vasos
-        borderEchogenicity: "sharp", // Parede bem definida
+        label: "Artéria Carótida Comum - Lúmen",
+        shape: "ellipse", // CRÍTICO: ellipse para física correta
+        centerDepthCm: 1.65,
+        centerLateralPos: 0.0, // Centralizado no campo de visão
+        sizeCm: { width: 0.60, height: 0.60 }, // Diâmetro 6mm (circular em corte)
+        mediumInsideId: "blood", // Anecogênico (atenuação 0.18 dB/cm/MHz)
+        hasStrongShadow: false, // CRÍTICO: vasos NÃO produzem sombra
+        posteriorEnhancement: true, // CRÍTICO: reforço posterior real
+        borderEchogenicity: "sharp", // Parede arterial bem definida (IMT)
       },
+      
+      // ═══ VEIA JUGULAR INTERNA ═══
+      // Maior que a carótida, mais superficial, parede mais fina
+      // Formato levemente oval (compressível)
       {
-        id: "jugular_vein_longitudinal",
+        id: "jugular_vein_lumen",
         type: "vessel",
-        label: "Veia Jugular Interna (Longitudinal)",
-        shape: "rectangle",
-        centerDepthCm: 1.35,
-        centerLateralPos: 0.0,
-        sizeCm: { width: 3.5, height: 0.85 }, // Veia mais larga e superficial
+        label: "Veia Jugular Interna - Lúmen",
+        shape: "ellipse",
+        centerDepthCm: 1.25, // Mais superficial que carótida
+        centerLateralPos: 0.35, // Lateralmente à carótida
+        sizeCm: { width: 0.90, height: 0.70 }, // Oval, maior que carótida
         mediumInsideId: "blood",
         hasStrongShadow: false,
         posteriorEnhancement: true,
-        borderEchogenicity: "soft", // Parede mais fina
+        borderEchogenicity: "soft", // Parede venosa mais fina
       },
     ],
   };
@@ -257,8 +304,18 @@ export const ULTRASOUND_PRESETS: Record<UltrasoundAnatomyPresetId, UltrasoundAna
   
   // ===========================
   // CARÓTIDA LONGITUDINAL ULTRA-REALISTA
-  // Preset clínico para visualização longitudinal da carótida
-  // Adaptação automática por transdutor implementada
+  // 
+  // FÍSICA IMPLEMENTADA:
+  // - Pipeline idêntico ao modo de inclusões (shadow, speckle, attenuation)
+  // - Ellipses para interação correta com physics engine
+  // - Lúmen anecogênico real (mediumId: blood)
+  // - Posterior enhancement ativo
+  // - Sem sombra acústica (hasStrongShadow: false)
+  // 
+  // PARÂMETROS OTIMIZADOS PARA:
+  // - Linear: superficial, alta resolução, speckle fino
+  // - Convex: profundidade maior, menor resolução
+  // - Microconvex: intermediário
   // ===========================
   carotid_long: {
     id: "carotid_long",
@@ -266,17 +323,18 @@ export const ULTRASOUND_PRESETS: Record<UltrasoundAnatomyPresetId, UltrasoundAna
     shortDescription: "Artéria carótida em corte longitudinal - visualização IMT",
     clinicalTagline: "Medição IMT, avaliação de placas, fluxo Doppler - padrão ouro vascular",
     transducerType: "linear",
-    recommendedFrequencyMHz: 9.0,
-    recommendedDepthCm: 3.5,
-    recommendedFocusCm: 1.8,
-    recommendedGain: 52,
+    recommendedFrequencyMHz: 10.0, // Alta frequência para resolução superficial
+    recommendedDepthCm: 3.0, // Profundidade adequada para pescoço
+    recommendedFocusCm: 1.6, // Foco na profundidade da carótida
+    recommendedGain: 50, // Ganho neutro
     tissueProfile: "vascular",
     vesselCount: 2,
     hasBoneInterface: false,
-    hasStrongShadow: false,
+    hasStrongShadow: false, // CRÍTICO: vasos normais não causam sombra
     noiseSeed: 888,
-    speckleIntensity: 0.72, // Baixo speckle para melhor visualização vascular
-    layerBrightness: [0.90, 0.55, 0.88, 2.0, 0.85, 2.0, 0.52, 2.0, 0.90, 0.88],
+    speckleIntensity: 0.75, // Speckle moderado para textura realista
+    // Brightness por camada: pele, subcut, platisma, fascia, ECM, bainha, periarterial, fascia, longus, deep
+    layerBrightness: [0.88, 0.52, 0.85, 1.8, 0.90, 1.8, 0.50, 1.8, 0.88, 0.85],
   },
   
   muscle_generic: {
