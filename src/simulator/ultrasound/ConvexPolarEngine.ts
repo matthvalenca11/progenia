@@ -431,11 +431,11 @@ export class ConvexPolarEngine {
     const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
     
     // ═══════════════════════════════════════════════════════════════════════════════
-    // UNIFIED SHADOW PARAMETERS - Balanced with Linear mode (~35% max darkening)
+    // UNIFIED SHADOW PARAMETERS - Increased for stronger Convex/Microconvex shadows
     // ═══════════════════════════════════════════════════════════════════════════════
-    const SHADOW_ALPHA_BASE = 0.55;    // Increased for stronger attenuation
-    const SHADOW_STRENGTH = 0.35;      // ~35% max darkening (balanced with Linear)
-    const SHADOW_MIN_INTENSITY = 0.25; // Higher floor to keep it balanced
+    const SHADOW_ALPHA_BASE = 0.70;    // Increased for stronger attenuation
+    const SHADOW_STRENGTH = 0.50;      // ~50% max darkening (stronger for Convex)
+    const SHADOW_MIN_INTENSITY = 0.20; // Lower floor for more visible shadow
     
     // Apply same lateral offset as getTissueAtPolar
     const clampedOffset = Math.max(-0.3, Math.min(0.3, lateralOffset || 0));
