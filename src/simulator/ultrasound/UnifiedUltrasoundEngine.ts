@@ -893,15 +893,22 @@ export class UnifiedUltrasoundEngine {
     
     // ═══════════════════════════════════════════════════════════════════════════════
     // STEP 1: Compute zEnter, zExit, thickness per column
+    // Also store inclusion geometry (centerX, radiusX) for form factor
     // ═══════════════════════════════════════════════════════════════════════════════
     
     const zEnterArray = new Int32Array(width);
     const zExitArray = new Int32Array(width);
     const thicknessArray = new Float32Array(width);
     
+    // Store inclusion center and radius in pixels for form factor calculation
+    const inclusionCenterX = new Float32Array(width);
+    const inclusionRadiusX = new Float32Array(width);
+    
     zEnterArray.fill(-1);
     zExitArray.fill(-1);
     thicknessArray.fill(0);
+    inclusionCenterX.fill(-1);
+    inclusionRadiusX.fill(0);
     
     // Motion compensation (inverted from rendering for synchronization)
     const breathingCycle = Math.sin(this.time * 0.3) * 0.015;
@@ -955,6 +962,13 @@ export class UnifiedUltrasoundEngine {
         if (z_exit_pixel > zExitArray[x]) {
           zExitArray[x] = z_exit_pixel;
           this.linearZExits[x] = z_exit_pixel;
+          
+          // Store inclusion geometry for form factor (in pixels)
+          const centerXcm = inclLateral;
+          const centerXpx = (centerXcm / 5.0 + 0.5) * width;
+          const radiusXpx = (halfW / 5.0) * width;
+          inclusionCenterX[x] = centerXpx;
+          inclusionRadiusX[x] = radiusXpx;
         }
         
         // Thickness in pixels
@@ -1005,9 +1019,12 @@ export class UnifiedUltrasoundEngine {
     // ═══════════════════════════════════════════════════════════════════════════════
     // STEP 4: Apply shadow ONLY BELOW zExit[x] + 1 (colada na inclusão)
     // Each column uses its OWN zExit - never a global value
-    // Using smoothstep for fade transition to avoid visible line
+    // Now with VERTICAL DECAY and HORIZONTAL FORM FACTOR to break uniformity
     // ═══════════════════════════════════════════════════════════════════════════════
     const FADE_SAMPLES = 3; // Very short fade with smoothstep
+    const VERTICAL_DECAY_RANGE = 200; // Pixels for full decay range
+    const VERTICAL_DECAY_AMOUNT = 0.10; // 10% decay over full range
+    const FORM_FACTOR_AMOUNT = 0.12; // 12% parabolic form factor
     
     for (let x = 0; x < width; x++) {
       // Skip columns without inclusion (shadowFactor = 1.0 means no shadow)
@@ -1018,23 +1035,46 @@ export class UnifiedUltrasoundEngine {
       
       const baseFactor = columnShadowFactor[x];
       
+      // Get inclusion geometry for form factor
+      const centerX = inclusionCenterX[x];
+      const radiusX = inclusionRadiusX[x];
+      
+      // Horizontal form factor: parabolic curve following ellipse shape
+      // Center of inclusion has slightly more form effect than edges
+      let formFactor = 1.0;
+      if (centerX >= 0 && radiusX > 0) {
+        const centerDist = Math.abs(x - centerX);
+        const normDist = Math.min(1, centerDist / radiusX);
+        // Parabolic: center gets slightly darker, edges lighter
+        formFactor = 1.0 - FORM_FACTOR_AMOUNT * (1 - normDist * normDist);
+      }
+      
       // Shadow starts at z0 + 1 (immediately below inclusion)
       for (let z = z0 + 1; z < height; z++) {
         const dz = z - (z0 + 1);
         
-        let factor: number;
+        // FADE phase (smoothstep at shadow start)
+        let fadeFactor: number;
         if (dz <= 0) {
-          factor = 1.0; // Immediately below, no shadow yet
+          fadeFactor = 1.0; // Immediately below, no shadow yet
         } else if (dz < FADE_SAMPLES) {
           const u = dz / FADE_SAMPLES; // 0 → 1
           const s = u * u * (3 - 2 * u); // smoothstep
-          factor = 1.0 * (1.0 - s) + baseFactor * s;
+          fadeFactor = 1.0 * (1.0 - s) + baseFactor * s;
         } else {
-          factor = baseFactor; // CONSTANT from here on
+          fadeFactor = baseFactor; // Base shadow after fade
         }
         
+        // VERTICAL DECAY: subtle decay with depth to break uniformity
+        const depthFromExit = z - z0;
+        const depthNorm = Math.min(1, depthFromExit / VERTICAL_DECAY_RANGE);
+        const verticalDecay = 1.0 - VERTICAL_DECAY_AMOUNT * depthNorm;
+        
+        // Final factor combines: fade * vertical decay * form factor
+        const finalFactor = fadeFactor * verticalDecay * formFactor;
+        
         const idx = z * width + x;
-        this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], factor);
+        this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], finalFactor);
       }
     }
     
