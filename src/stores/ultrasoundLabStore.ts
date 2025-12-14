@@ -96,7 +96,7 @@ const DEFAULT_SIMULATION_FEATURES: UltrasoundSimulationFeatures = {
   showDepthScale: true,
   showFocusMarker: true,
   showPhysicsPanel: false,
-  enablePosteriorEnhancement: true,
+  enablePosteriorEnhancement: false, // OFF by default - causes artifacts with acoustic shadow
   enableAcousticShadow: true,
   enableReverberation: false,
   enableNearFieldClutter: false,
@@ -188,7 +188,7 @@ export const useUltrasoundLabStore = create<UltrasoundLabState>((set, get) => ({
         showDepthScale: true,
         showFocusMarker: true,
         showPhysicsPanel: true,
-        enablePosteriorEnhancement: true,
+        enablePosteriorEnhancement: false, // OFF - causes artifacts with acoustic shadow
         enableAcousticShadow: true,
         enableReverberation: false,
         enableNearFieldClutter: false,
@@ -204,7 +204,7 @@ export const useUltrasoundLabStore = create<UltrasoundLabState>((set, get) => ({
         showDepthScale: true,
         showFocusMarker: true,
         showPhysicsPanel: true,
-        enablePosteriorEnhancement: true,
+        enablePosteriorEnhancement: false, // OFF - causes artifacts with acoustic shadow
         enableAcousticShadow: true,
         enableReverberation: true,
         enableNearFieldClutter: true,
