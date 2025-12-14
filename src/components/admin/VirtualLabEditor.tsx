@@ -559,7 +559,6 @@ export default function VirtualLabEditor() {
                   <div className="space-y-3">
                     <h4 className="text-sm font-semibold">Artefatos de Imagem</h4>
                     {[
-                      { key: "enablePosteriorEnhancement", label: "Reforço posterior acústico" },
                       { key: "enableAcousticShadow", label: "Sombra acústica (ossos, calcificações)" },
                       { key: "enableReverberation", label: "Reverberações" },
                       { key: "enableNearFieldClutter", label: "Ruído de campo próximo" },

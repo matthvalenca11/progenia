@@ -85,21 +85,6 @@ export function SimulationResourcesSection() {
         <div className="space-y-3">
           <h4 className="font-medium text-sm">Artefatos de Imagem</h4>
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <Label htmlFor="posterior-enhancement">Reforço posterior (posterior enhancement)</Label>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Aumento de brilho posterior a estruturas anecoicas (cistos)
-                </p>
-              </div>
-              <Switch
-                id="posterior-enhancement"
-                checked={simulationFeatures.enablePosteriorEnhancement}
-                onCheckedChange={(checked) => 
-                  setSimulationFeatures({ enablePosteriorEnhancement: checked })
-                }
-              />
-            </div>
 
             <div className="flex items-center justify-between">
               <div className="flex-1">
