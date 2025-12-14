@@ -3036,7 +3036,8 @@ export class UnifiedUltrasoundEngine {
   }
   
   /**
-   * Apply Doppler color to a single pixel with realistic flow visualization
+   * Apply Doppler color to a single pixel with realistic carotid flow visualization
+   * Based on real clinical Color Doppler appearance
    */
   private applyDopplerColorToPixel(
     data: Uint8ClampedArray,
@@ -3049,53 +3050,129 @@ export class UnifiedUltrasoundEngine {
     lateral: number,
     incCenterX: number
   ): void {
-    // Parabolic flow profile (faster in center, slower at edges) - Poiseuille flow
-    const flowProfile = 1.0 - distFromCenter * distFromCenter;
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // REALISTIC CAROTID DOPPLER COLOR FLOW
+    // 
+    // Real Doppler characteristics:
+    // - Laminar flow: parabolic velocity profile (fastest at center)
+    // - Pulsatile: systolic peak with diastolic baseline
+    // - Color map: Red-Orange-Yellow (toward) / Blue-Cyan (away)
+    // - Aliasing: color wrap at Nyquist limit
+    // - Noise/variance: subtle color fluctuation
+    // ═══════════════════════════════════════════════════════════════════════════════
     
-    // Flow velocity with turbulence for realism
-    const turbulence = Math.sin(this.time * 15 + depth * 20 + lateral * 10) * 0.1;
-    const velocity = flowProfile * (0.8 + turbulence);
+    // Parabolic velocity profile (Poiseuille laminar flow)
+    // Center = 1.0, Edge = 0.0
+    const normalizedRadius = Math.min(1.0, distFromCenter);
+    const laminarProfile = 1.0 - normalizedRadius * normalizedRadius;
     
-    // Flow direction based on position and time (simulates arterial/venous flow)
-    const flowAngle = Math.atan2(lateral - incCenterX, 1) * 0.3;
-    const baseDirection = Math.sin(this.time * 0.8 + flowAngle);
-    const flowDirection = baseDirection > 0 ? 1 : -1;
+    // Velocity with realistic micro-turbulence
+    const spatialNoise = this.dopplerNoise(px * 0.1, py * 0.1, this.time * 2) * 0.08;
+    const velocity = Math.max(0, laminarProfile * (0.85 + spatialNoise));
     
-    // Color intensity based on velocity and cardiac pulse
-    const colorIntensity = velocity * pulse * 0.85;
+    // Pulsatile modulation (systolic peak)
+    const systolicBoost = pulse > 0.7 ? (pulse - 0.7) * 1.5 : 0;
+    const pulsatileVelocity = velocity * (0.6 + 0.4 * pulse + systolicBoost * 0.3);
     
-    if (colorIntensity > 0.05) {
-      const idx = (py * width + px) * 4;
-      const gray = data[idx];
+    // Flow direction - carotid typically flows toward probe (red)
+    // Jugular typically flows away from probe (blue)
+    // Use lateral position relative to vessel center to determine
+    const flowBias = lateral - incCenterX;
+    const isArterial = flowBias < 0.1; // Carotid usually medial
+    
+    // Color intensity (0-1)
+    const baseIntensity = pulsatileVelocity * 0.9;
+    
+    if (baseIntensity < 0.08) return; // Below threshold
+    
+    const idx = (py * width + px) * 4;
+    const gray = data[idx];
+    
+    // ═══ REALISTIC DOPPLER COLOR MAP ═══
+    // Based on clinical ultrasound color scales
+    
+    let r: number, g: number, b: number;
+    
+    if (isArterial) {
+      // ═══ ARTERIAL FLOW (toward probe) ═══
+      // Low velocity: dark red
+      // Medium velocity: bright red/orange
+      // High velocity: yellow/white
+      // Matches real carotid Doppler appearance
       
-      let r: number, g: number, b: number;
-      
-      if (flowDirection > 0) {
-        // Towards probe - Red/Yellow gradient (arterial)
-        r = Math.min(255, gray + Math.floor(220 * colorIntensity));
-        g = Math.floor(60 * colorIntensity * (1 - distFromCenter));
-        b = Math.floor(gray * (1 - colorIntensity * 0.9));
+      if (pulsatileVelocity < 0.4) {
+        // Low velocity: dark red
+        const t = pulsatileVelocity / 0.4;
+        r = Math.floor(80 + 120 * t);
+        g = Math.floor(10 * t);
+        b = 0;
+      } else if (pulsatileVelocity < 0.7) {
+        // Medium velocity: red to orange
+        const t = (pulsatileVelocity - 0.4) / 0.3;
+        r = Math.floor(200 + 55 * t);
+        g = Math.floor(10 + 100 * t);
+        b = 0;
       } else {
-        // Away from probe - Blue/Cyan gradient (venous)
-        r = Math.floor(gray * (1 - colorIntensity * 0.9));
-        g = Math.floor(60 * colorIntensity * (1 - distFromCenter));
-        b = Math.min(255, gray + Math.floor(220 * colorIntensity));
+        // High velocity: orange to yellow
+        const t = Math.min(1.0, (pulsatileVelocity - 0.7) / 0.3);
+        r = 255;
+        g = Math.floor(110 + 145 * t);
+        b = Math.floor(50 * t);
       }
       
-      // Aliasing at high velocity (Nyquist limit simulation)
-      if (velocity > 0.85) {
-        const aliasStrength = (velocity - 0.85) * 6.67;
-        if (flowDirection > 0) {
-          b = Math.floor(b + (255 - b) * aliasStrength * 0.5);
-        } else {
-          r = Math.floor(r + (255 - r) * aliasStrength * 0.5);
-        }
+      // Aliasing at very high velocity (Nyquist wrap)
+      if (pulsatileVelocity > 0.9) {
+        const aliasT = (pulsatileVelocity - 0.9) / 0.1;
+        // Wrap to cyan/turquoise (aliasing artifact)
+        b = Math.floor(b + (180 - b) * aliasT * 0.6);
+        g = Math.floor(g + (255 - g) * aliasT * 0.3);
       }
       
-      data[idx] = Math.min(255, Math.max(0, r));
-      data[idx + 1] = Math.min(255, Math.max(0, g));
-      data[idx + 2] = Math.min(255, Math.max(0, b));
+    } else {
+      // ═══ VENOUS FLOW (away from probe) ═══
+      // Low velocity: dark blue
+      // Medium velocity: bright blue
+      // High velocity: cyan/turquoise
+      
+      if (pulsatileVelocity < 0.4) {
+        // Low velocity: dark blue
+        const t = pulsatileVelocity / 0.4;
+        r = 0;
+        g = Math.floor(10 * t);
+        b = Math.floor(60 + 100 * t);
+      } else if (pulsatileVelocity < 0.7) {
+        // Medium velocity: blue to cyan
+        const t = (pulsatileVelocity - 0.4) / 0.3;
+        r = 0;
+        g = Math.floor(10 + 120 * t);
+        b = Math.floor(160 + 70 * t);
+      } else {
+        // High velocity: bright cyan
+        const t = Math.min(1.0, (pulsatileVelocity - 0.7) / 0.3);
+        r = Math.floor(40 * t);
+        g = Math.floor(130 + 100 * t);
+        b = Math.floor(230 + 25 * t);
+      }
     }
+    
+    // Blend with underlying B-mode (semi-transparent overlay)
+    const alpha = 0.75 + 0.15 * baseIntensity; // More opaque at high velocity
+    const invAlpha = 1 - alpha;
+    
+    // Add subtle color variance for texture
+    const colorNoise = this.dopplerNoise(px * 0.3, py * 0.3, this.time * 5) * 15;
+    
+    data[idx] = Math.min(255, Math.max(0, Math.floor(r * alpha + gray * invAlpha + colorNoise)));
+    data[idx + 1] = Math.min(255, Math.max(0, Math.floor(g * alpha + gray * invAlpha + colorNoise * 0.5)));
+    data[idx + 2] = Math.min(255, Math.max(0, Math.floor(b * alpha + gray * invAlpha + colorNoise * 0.3)));
+  }
+  
+  /**
+   * 3-parameter hash noise for Doppler color variation
+   */
+  private dopplerNoise(x: number, y: number, t: number): number {
+    const n = Math.sin(x * 12.9898 + y * 78.233 + t * 43.8912) * 43758.5453;
+    return n - Math.floor(n);
   }
   
   private renderOverlays(): void {
