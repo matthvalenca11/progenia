@@ -1019,12 +1019,17 @@ export class UnifiedUltrasoundEngine {
     // ═══════════════════════════════════════════════════════════════════════════════
     // STEP 4: Apply shadow ONLY BELOW zExit[x] + 1 (colada na inclusão)
     // Each column uses its OWN zExit - never a global value
-    // Now with VERTICAL DECAY and HORIZONTAL FORM FACTOR to break uniformity
+    // Now with VERTICAL DECAY, HORIZONTAL FORM FACTOR, and ORGANIC NOISE
     // ═══════════════════════════════════════════════════════════════════════════════
     const FADE_SAMPLES = 3; // Very short fade with smoothstep
     const VERTICAL_DECAY_RANGE = 200; // Pixels for full decay range
     const VERTICAL_DECAY_AMOUNT = 0.10; // 10% decay over full range
     const FORM_FACTOR_AMOUNT = 0.12; // 12% parabolic form factor
+    
+    // Organic noise parameters to break any remaining uniformity/banding
+    const NOISE_SCALE_X = 0.05;
+    const NOISE_SCALE_Z = 0.05;
+    const NOISE_AMP = 0.03; // ±3% jitter
     
     for (let x = 0; x < width; x++) {
       // Skip columns without inclusion (shadowFactor = 1.0 means no shadow)
@@ -1070,8 +1075,18 @@ export class UnifiedUltrasoundEngine {
         const depthNorm = Math.min(1, depthFromExit / VERTICAL_DECAY_RANGE);
         const verticalDecay = 1.0 - VERTICAL_DECAY_AMOUNT * depthNorm;
         
-        // Final factor combines: fade * vertical decay * form factor
-        const finalFactor = fadeFactor * verticalDecay * formFactor;
+        // Base factor combines: fade * vertical decay * form factor
+        const baseFactorCombined = fadeFactor * verticalDecay * formFactor;
+        
+        // ORGANIC NOISE: correlated 2D noise to break banding artifacts
+        // Uses smoothNoise for smooth, continuous variation (no periodic patterns)
+        const nx = x * NOISE_SCALE_X;
+        const nz = z * NOISE_SCALE_Z;
+        const noiseValue = this.smoothNoise(nx, nz, 42); // value in [-1, 1]
+        const jitter = 1.0 + NOISE_AMP * noiseValue;
+        
+        // Final factor with organic jitter
+        const finalFactor = baseFactorCombined * jitter;
         
         const idx = z * width + x;
         this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], finalFactor);
