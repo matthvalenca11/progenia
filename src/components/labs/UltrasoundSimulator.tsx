@@ -34,7 +34,7 @@ export const UltrasoundSimulator = ({
   const physicalParams = useMemo(() => {
     const intensity = 0.1 + (gainPercent / 100) * 2.4; // 0.1-2.5 W/cm²
     const depthCm = 2 + (depthPercent / 100) * 8; // 2-10 cm
-    const frequencyMHz = 2 + (freqPercent / 100) * 13; // 2-15 MHz
+    const frequencyMHz = 2 + (freqPercent / 100) * 9; // 2-11 MHz
     const focusCm = 1 + (focusPercent / 100) * (depthCm - 1); // 1 to depth
 
     const eraCm2 = 5;

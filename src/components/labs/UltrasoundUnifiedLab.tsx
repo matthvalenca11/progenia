@@ -337,7 +337,7 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
                 value={[frequency]}
                 onValueChange={([v]) => setFrequency(v)}
                 min={2}
-                max={15}
+                max={11}
                 step={0.5}
                 disabled={config?.studentControls?.lockFrequency || !config?.studentControls?.showFrequency}
               />
@@ -369,7 +369,7 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
                 onClick={() => setTransducerType('linear')}
                 className="w-full"
               >
-                Linear (5-15 MHz)
+                Linear (2-11 MHz)
               </Button>
               <Button
                 variant={transducerType === 'convex' ? 'default' : 'outline'}
