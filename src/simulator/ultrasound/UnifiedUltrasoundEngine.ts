@@ -901,8 +901,8 @@ export class UnifiedUltrasoundEngine {
     //
     // ═══════════════════════════════════════════════════════════════════════════════
     
-    const SHADOW_INTENSITY = 0.72;   // Intensidade uniforme da sombra (72% = sutil)
-    const FADE_IN_DEPTH_CM = 0.3;    // Zona de transição suave no início (cm)
+    const SHADOW_INTENSITY = 0.78;   // Sombra mais sutil (78%)
+    const FADE_IN_DEPTH_CM = 0.5;    // Transição mais longa e gradual (cm)
     
     // ═══ CALCULAR MOTION OFFSET (INVERSO do rendering para sincronizar) ═══
     const breathingCycle = Math.sin(this.time * 0.3) * 0.015;
