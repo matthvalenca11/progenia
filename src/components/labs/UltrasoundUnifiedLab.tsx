@@ -9,8 +9,9 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { UnifiedUltrasoundEngine } from '@/simulator/ultrasound/UnifiedUltrasoundEngine';
-import { Play, Pause, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { UnifiedUltrasoundEngine, LinearDebugView } from '@/simulator/ultrasound/UnifiedUltrasoundEngine';
+import { Play, Pause, RotateCcw, ChevronLeft, ChevronRight, Bug } from 'lucide-react';
 
 interface UltrasoundUnifiedLabProps {
   config?: any;
@@ -32,6 +33,9 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
   
   // Transducer movement state
   const [transducerPosition, setTransducerPosition] = useState(0); // -0.5 to +0.5
+  
+  // DEBUG: View mode for Linear shadow debugging
+  const [linearDebugView, setLinearDebugView] = useState<LinearDebugView>('final');
   
   // Initialize engine ONCE
   useEffect(() => {
@@ -142,8 +146,10 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
       showDepthScale: config?.simulationFeatures?.showDepthScale ?? true,
       showFocusMarker: config?.simulationFeatures?.showFocusMarker ?? true,
       showLabels: config?.simulationFeatures?.showAnatomyLabels ?? false,
+      // DEBUG: Passa o modo de debug para Linear
+      linearDebugView: transducerType === 'linear' ? linearDebugView : undefined,
     });
-  }, [gain, depth, frequency, focus, transducerType, transducerPosition, config]);
+  }, [gain, depth, frequency, focus, transducerType, transducerPosition, config, linearDebugView]);
   
   const handlePlayPause = () => {
     if (!engineRef.current) return;
@@ -241,6 +247,24 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
                   Resetar
                 </Button>
               </div>
+              
+              {/* DEBUG: Seletor de view para Linear */}
+              {transducerType === 'linear' && (
+                <div className="flex items-center gap-2 ml-4 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded">
+                  <Bug className="h-4 w-4 text-yellow-500" />
+                  <span className="text-xs text-yellow-500 font-medium">DEBUG:</span>
+                  <Select value={linearDebugView} onValueChange={(v) => setLinearDebugView(v as LinearDebugView)}>
+                    <SelectTrigger className="h-7 w-[140px] text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="base">BASE (sem sombra)</SelectItem>
+                      <SelectItem value="base_shadow">BASE + SHADOW</SelectItem>
+                      <SelectItem value="final">FINAL</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               
               <Badge variant="outline">{transducerType.toUpperCase()}</Badge>
             </div>

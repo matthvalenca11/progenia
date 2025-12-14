@@ -13,6 +13,8 @@ import {
 } from '@/types/acousticMedia';
 import { ConvexPolarEngine } from './ConvexPolarEngine';
 
+export type LinearDebugView = 'base' | 'base_shadow' | 'final';
+
 export interface UnifiedEngineConfig {
   // Anatomical structure
   layers: AnatomyLayer[];
@@ -45,6 +47,9 @@ export interface UnifiedEngineConfig {
   showDepthScale: boolean;
   showFocusMarker: boolean;
   showLabels: boolean;
+  
+  // DEBUG: Linear shadow debug view mode
+  linearDebugView?: LinearDebugView;
 }
 
 export class UnifiedUltrasoundEngine {
@@ -631,32 +636,194 @@ export class UnifiedUltrasoundEngine {
     const imageData = this.ctx.createImageData(width, height);
     const data = imageData.data;
     
-    // ═══ LINEAR MODE: Compute ultra-simple path-length shadow ═══
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // LINEAR MODE: DEBUG com 3 buffers separados
+    // ═══════════════════════════════════════════════════════════════════════════════
     if (this.config.transducerType === 'linear') {
+      // Compute shadow data
       this.computeLinearShadow();
+      
+      // Debug view mode
+      const debugView = this.config.linearDebugView || 'final';
+      
+      // ═══ BUFFER 1: image_base (SEM sombra) ═══
+      // ═══ BUFFER 2: image_with_shadow (base + shadow only) ═══
+      // ═══ BUFFER 3: image_final (com todo pós-processamento) ═══
+      const image_base = new Float32Array(width * height);
+      const image_with_shadow = new Float32Array(width * height);
+      const image_final = new Float32Array(width * height);
+      
+      // PASSO 1: Gerar image_base (intensidade SEM sombra)
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const idx = y * width + x;
+          const physCoords = this.pixelToPhysical(x, y);
+          
+          if (physCoords.depth > this.config.depth) {
+            image_base[idx] = 0;
+            continue;
+          }
+          
+          // Calcular intensidade BASE (sem sombra, sem noise temporal)
+          const baseIntensity = this.calculatePixelIntensityNoShadow(x, y, physCoords);
+          image_base[idx] = baseIntensity;
+        }
+      }
+      
+      // PASSO 2: Clonar para image_with_shadow e aplicar APENAS a sombra
+      for (let i = 0; i < image_base.length; i++) {
+        image_with_shadow[i] = image_base[i];
+      }
+      
+      // Aplicar sombra por coluna
+      for (let x = 0; x < width; x++) {
+        const zExit = this.getLinearZExit(x);
+        if (zExit < 0) continue;
+        
+        const shadowFactor = this.getLinearShadowFactor(x);
+        
+        // Aplicar sombra APENAS abaixo da elipse
+        for (let y = zExit + 1; y < height; y++) {
+          const idx = y * width + x;
+          // Multiplicação direta (sem blending para debug puro)
+          image_with_shadow[idx] = image_base[idx] * shadowFactor;
+        }
+      }
+      
+      // PASSO 3: Gerar image_final (adiciona noise temporal e pós-processamento)
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const idx = y * width + x;
+          const physCoords = this.pixelToPhysical(x, y);
+          
+          let intensity = image_with_shadow[idx];
+          
+          // Temporal "live" noise (chuvisco)
+          const depthRatio = physCoords.depth / this.config.depth;
+          const temporalSeed = this.time * 2.5;
+          
+          const highFreqNoise = Math.sin(x * 0.3 + y * 0.2 + temporalSeed * 12) * 0.012;
+          const midFreqNoise = Math.sin(x * 0.08 + y * 0.1 + temporalSeed * 4) * 0.018;
+          const lowFreqNoise = Math.sin(temporalSeed * 1.5) * 0.008;
+          const frameNoise = (Math.random() - 0.5) * 0.025 * (1 + depthRatio * 0.5);
+          
+          const totalLiveNoise = (highFreqNoise + midFreqNoise + lowFreqNoise + frameNoise) * (1 + depthRatio * 0.8);
+          intensity *= (1 + totalLiveNoise);
+          
+          const scanlinePos = (temporalSeed * 50) % height;
+          const scanlineDistance = Math.abs(y - scanlinePos);
+          const scanlineEffect = Math.exp(-scanlineDistance * 0.3) * 0.015 * Math.sin(temporalSeed * 15);
+          intensity *= (1 + scanlineEffect);
+          
+          const bandingNoise = Math.sin(x * 0.15 + temporalSeed * 2) * 0.006;
+          intensity *= (1 + bandingNoise);
+          
+          // Apply gain and compression
+          const gainLinear = Math.pow(10, (this.config.gain - 50) / 20);
+          const drFactor = this.config.dynamicRange / 60;
+          intensity *= gainLinear;
+          intensity = Math.pow(Math.max(0, intensity), drFactor);
+          
+          image_final[idx] = intensity;
+        }
+      }
+      
+      // ═══ DEBUG LOG: Uma linha logo abaixo da elipse ═══
+      if (this.frameCount % 60 === 0) { // Log a cada ~2 segundos
+        const x_center = Math.floor(width / 2);
+        const z_exit_center = this.getLinearZExit(x_center);
+        
+        if (z_exit_center >= 0) {
+          const z_debug = Math.min(height - 1, z_exit_center + 5);
+          
+          // Extrair linha z_debug de cada buffer
+          const baseRow: number[] = [];
+          const shadowRow: number[] = [];
+          const finalRow: number[] = [];
+          
+          // Amostra a cada 20 pixels para não poluir o console
+          for (let x = 0; x < width; x += 20) {
+            const idx = z_debug * width + x;
+            baseRow.push(Math.round(image_base[idx] * 1000) / 1000);
+            shadowRow.push(Math.round(image_with_shadow[idx] * 1000) / 1000);
+            finalRow.push(Math.round(image_final[idx] * 1000) / 1000);
+          }
+          
+          console.log('DEBUG_LINEAR_ROW', {
+            z_debug,
+            z_exit_center,
+            shadowFactor_center: Math.round(this.getLinearShadowFactor(x_center) * 1000) / 1000,
+            base: baseRow,
+            shadow: shadowRow,
+            final: finalRow,
+          });
+        }
+      }
+      
+      // ═══ RENDERIZAR O BUFFER SELECIONADO ═══
+      let renderBuffer: Float32Array;
+      switch (debugView) {
+        case 'base':
+          renderBuffer = image_base;
+          break;
+        case 'base_shadow':
+          renderBuffer = image_with_shadow;
+          break;
+        case 'final':
+        default:
+          renderBuffer = image_final;
+      }
+      
+      // Aplicar gain/compression apenas para base e base_shadow (final já tem)
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const idx = y * width + x;
+          const pixelIdx = idx * 4;
+          
+          let intensity = renderBuffer[idx];
+          
+          // Para base e base_shadow, aplicar gain/compression agora
+          if (debugView !== 'final') {
+            const gainLinear = Math.pow(10, (this.config.gain - 50) / 20);
+            const drFactor = this.config.dynamicRange / 60;
+            intensity *= gainLinear;
+            intensity = Math.pow(Math.max(0, intensity), drFactor);
+          }
+          
+          const gray = Math.max(0, Math.min(255, intensity * 255));
+          data[pixelIdx] = gray;
+          data[pixelIdx + 1] = gray;
+          data[pixelIdx + 2] = gray;
+          data[pixelIdx + 3] = 255;
+        }
+      }
+      
+      this.ctx.putImageData(imageData, 0, 0);
+      return;
     }
     
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // CONVEX/MICROCONVEX MODE: Pipeline normal (sem debug)
+    // ═══════════════════════════════════════════════════════════════════════════════
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const idx = (y * width + x) * 4;
         const physCoords = this.pixelToPhysical(x, y);
         
-        // Máscara para convexo/microconvexo (mantida)
-        if (this.config.transducerType === 'convex' || this.config.transducerType === 'microconvex') {
-          const maxAngle = this.config.transducerType === 'convex' ? 0.61 : 0.52;
-          const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
-          const depth = (y / height) * this.config.depth;
-          const distanceFromCenter = radiusOfCurvature + depth;
-          const maxLateralCm = distanceFromCenter * Math.sin(maxAngle);
-          const xCenter = width / 2;
-          const fieldOfView = 15;
-          const maxXOffsetPixels = (maxLateralCm / fieldOfView) * width;
-          
-          if (Math.abs(x - xCenter) > maxXOffsetPixels) {
-            data[idx] = data[idx + 1] = data[idx + 2] = 0;
-            data[idx + 3] = 255;
-            continue;
-          }
+        // Máscara para convexo/microconvexo
+        const maxAngle = this.config.transducerType === 'convex' ? 0.61 : 0.52;
+        const radiusOfCurvature = this.config.transducerType === 'convex' ? 5.0 : 4.0;
+        const depth = (y / height) * this.config.depth;
+        const distanceFromCenter = radiusOfCurvature + depth;
+        const maxLateralCm = distanceFromCenter * Math.sin(maxAngle);
+        const xCenter = width / 2;
+        const fieldOfView = 15;
+        const maxXOffsetPixels = (maxLateralCm / fieldOfView) * width;
+        
+        if (Math.abs(x - xCenter) > maxXOffsetPixels) {
+          data[idx] = data[idx + 1] = data[idx + 2] = 0;
+          data[idx + 3] = 255;
+          continue;
         }
         
         if (physCoords.depth > this.config.depth) {
@@ -668,10 +835,9 @@ export class UnifiedUltrasoundEngine {
         // Calculate intensity with all physics
         let intensity = this.calculatePixelIntensity(x, y, physCoords);
         
-        // Temporal "live" noise (chuvisco) - igual ao Linear
+        // Temporal "live" noise
         const depthRatio = physCoords.depth / this.config.depth;
         const temporalSeed = this.time * 2.5;
-        const framePhase = Math.sin(this.time * 8) * 0.5 + 0.5;
         
         const highFreqNoise = Math.sin(x * 0.3 + y * 0.2 + temporalSeed * 12) * 0.012;
         const midFreqNoise = Math.sin(x * 0.08 + y * 0.1 + temporalSeed * 4) * 0.018;
@@ -848,6 +1014,110 @@ export class UnifiedUltrasoundEngine {
     return x - Math.floor(x);
   }
   
+  /**
+   * Calcula intensidade do pixel SEM sombra (para debug)
+   * Inclui: tissue, attenuation, TGC, focal gain, beam falloff, speckle, log compression
+   * NÃO inclui: shadow, noise temporal
+   */
+  private calculatePixelIntensityNoShadow(
+    x: number, 
+    y: number, 
+    coords: { depth: number; lateral: number }
+  ): number {
+    let { depth, lateral } = coords;
+    
+    // Motion artifacts (mantidos para consistência visual)
+    const breathingCycle = Math.sin(this.time * 0.3) * 0.015;
+    const breathingDepthEffect = depth / this.config.depth;
+    depth += breathingCycle * breathingDepthEffect;
+    
+    const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008;
+    const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
+    lateral += jitterLateral;
+    depth += jitterDepth;
+    
+    const tissueTremor = Math.sin(x * 0.02 + this.time * 5) * Math.cos(y * 0.015 + this.time * 4) * 0.003;
+    depth += tissueTremor;
+    
+    // 1. Get tissue properties at this location
+    const tissue = this.getTissueAtPosition(depth, lateral);
+    
+    // 2. Base echogenicity
+    let intensity = this.getBaseEchogenicity(tissue.echogenicity);
+    
+    // 3. Frequency-dependent attenuation
+    const attenuation = this.calculateAttenuation(depth, tissue);
+    intensity *= attenuation;
+    
+    // 4. Focal zone enhancement
+    const focalGain = this.calculateFocalGain(depth);
+    intensity *= focalGain;
+    
+    // 5. Time Gain Compensation (TGC)
+    const tgc = this.getTGC(depth);
+    intensity *= tgc;
+    
+    // 6. Interface reflections
+    const reflection = this.calculateInterfaceReflection(depth, lateral);
+    intensity *= (1 + reflection * 0.3);
+    
+    // 7. Beam geometry
+    const beamFalloff = this.calculateBeamFalloff(depth, lateral);
+    intensity *= beamFalloff;
+    
+    // 8. ═══ SEM SHADOW ═══ (diferença principal)
+    // Apenas posterior enhancement se habilitado
+    if (this.config.enablePosteriorEnhancement) {
+      const enhancementFactor = this.applyPosteriorEnhancement(depth, lateral);
+      intensity *= enhancementFactor;
+    }
+    
+    // 9. Reverberation artifacts
+    if (this.config.enableReverberation) {
+      const reverb = this.calculateReverberation(depth);
+      intensity *= (1 + reverb * 0.2);
+    }
+    
+    // 10. SPECKLE
+    if (this.config.enableSpeckle) {
+      const speckleIdx = y * this.canvas.width + x;
+      const rayleigh = Math.abs(this.rayleighCache[speckleIdx % this.rayleighCache.length]);
+      const perlin = this.perlinCache[speckleIdx % this.perlinCache.length];
+      
+      const depthFactor = 1 + (depth / this.config.depth) * 0.25;
+      const px = x * 0.1 + this.time * 0.5;
+      const py = y * 0.1;
+      const hashNoise = this.noise(px * 12.9898 + py * 78.233) * 2 - 1;
+      const fineHash = this.noise((px + 100) * 45.123 + (py + 50) * 91.456) * 2 - 1;
+      
+      const baseSpeckle = (rayleigh * 0.5 + (perlin * 0.5 + 0.5) * 0.5) * depthFactor;
+      const pixelVariation = 1.0 + hashNoise * 0.15 + fineHash * 0.1;
+      const speckleMultiplier = (0.5 + baseSpeckle * 0.5) * pixelVariation;
+      
+      // Blood flow modulation
+      let flowMultiplier = 1.0;
+      if (tissue.isInclusion && tissue.inclusion?.mediumInsideId === 'blood') {
+        const inclLateral = tissue.inclusion.centerLateralPos * 2.5;
+        const dx = lateral - inclLateral;
+        const dy = depth - tissue.inclusion.centerDepthCm;
+        const radialPos = Math.sqrt(dx * dx + dy * dy) / (tissue.inclusion.sizeCm.width / 2);
+        const flowSpeed = Math.max(0, 1 - radialPos * radialPos) * 0.8;
+        const flowPhase = this.time * flowSpeed * 25;
+        const pulse = 0.5 + 0.5 * Math.sin(this.time * 1.2 * 2 * Math.PI);
+        flowMultiplier = 1.0 + Math.sin(flowPhase + depth * 8 + lateral * 6) * 0.2 * pulse;
+      }
+      
+      intensity *= speckleMultiplier * flowMultiplier;
+    }
+    
+    // 11. LOG COMPRESSION
+    const gainLinear = Math.pow(10, (this.config.gain - 50) / 20);
+    intensity *= gainLinear;
+    intensity = Math.log(1 + intensity * 10) / Math.log(11);
+    
+    return intensity;
+  }
+
   private calculatePixelIntensity(
     x: number, 
     y: number, 
