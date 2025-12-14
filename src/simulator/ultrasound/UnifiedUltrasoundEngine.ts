@@ -941,51 +941,44 @@ export class UnifiedUltrasoundEngine {
         const halfW = inclusion.sizeCm.width / 2;
         const halfH = inclusion.sizeCm.height / 2;
         
-        // ═══ TRAÇAR RAY VERTICAL PARA ENCONTRAR INTERSEÇÃO EXATA ═══
-        let z_exit_cm = -1;
-        let wasInside = false;
-        let edgeFactor = 1.0;
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // CÁLCULO ANALÍTICO DO Z_EXIT (sem dependência de resolução de pixels)
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // Para um feixe vertical na posição lateralCm, calcular onde ele sai da elipse
+        // 
+        // Equação da elipse: (dx/halfW)² + (dy/halfH)² = 1
+        // Para dx fixo (lateral do feixe), resolver para dy:
+        // dy = ±halfH * sqrt(1 - (dx/halfW)²)
+        // z_exit = inclCenterDepth + halfH * sqrt(1 - (dx/halfW)²)
         
-        for (let y = 0; y < height; y++) {
-          const depthCm = (y / height) * this.config.depth;
+        const dx = lateralCm - inclLateral;
+        const normX = dx / halfW;
+        
+        // Verificar se o feixe intercepta a elipse
+        if (Math.abs(normX) > 1.0) continue; // Feixe fora da elipse
+        
+        // Calcular z_exit ANALITICAMENTE
+        let z_exit_cm: number;
+        let edgeFactor: number;
+        
+        if (inclusion.shape === 'ellipse') {
+          // z_exit = centro + semi-eixo * sqrt(1 - normX²)
+          const sqrtTerm = Math.sqrt(1.0 - normX * normX);
+          z_exit_cm = inclCenterDepth + halfH * sqrtTerm;
           
-          const dx = lateralCm - inclLateral;
-          const dy = depthCm - inclCenterDepth;
-          
-          let isInside = false;
-          let normalizedDist = 0;
-          
-          if (inclusion.shape === 'ellipse') {
-            const normX = dx / halfW;
-            const normY = dy / halfH;
-            normalizedDist = Math.sqrt(normX * normX + normY * normY);
-            isInside = normalizedDist <= 1.0;
-            if (isInside) {
-              // edgeFactor: 1.0 no centro, menor nas bordas
-              edgeFactor = Math.max(0.3, 1.0 - normalizedDist * 0.7);
-            }
-          } else {
-            const normDist = Math.max(Math.abs(dx) / halfW, Math.abs(dy) / halfH);
-            isInside = normDist <= 1.0;
-            if (isInside) {
-              edgeFactor = Math.max(0.3, 1.0 - normDist * 0.7);
-            }
-          }
-          
-          if (isInside) {
-            wasInside = true;
-            z_exit_cm = depthCm;
-          } else if (wasInside && !isInside) {
-            // Saiu da inclusão
-            break;
-          }
+          // edgeFactor: 1.0 no centro (normX=0), menor nas bordas (normX→±1)
+          edgeFactor = Math.max(0.2, sqrtTerm);
+        } else {
+          // Retângulo: z_exit = centro + halfH (constante dentro do retângulo)
+          if (Math.abs(dx) > halfW) continue;
+          z_exit_cm = inclCenterDepth + halfH;
+          edgeFactor = 1.0 - Math.abs(dx) / halfW * 0.5;
         }
         
-        // Se não interceptou, continuar para próxima inclusão
-        if (z_exit_cm < 0) continue;
-        
-        // Guardar z_exit para esta coluna
+        // Converter para pixels
         const z_exit_pixel = Math.floor((z_exit_cm / this.config.depth) * height);
+        
+        // Guardar para compatibilidade
         if (this.linearZExits[x] < z_exit_pixel) {
           this.linearZExits[x] = z_exit_pixel;
         }
