@@ -177,30 +177,23 @@ export class UnifiedUltrasoundEngine {
    */
   private getFrequencyDependentPSF(): { sigmaAxial: number; sigmaLateral: number; speckleScale: number } {
     const f = this.config.frequency;
-    const fRef = 7.5; // Reference frequency in MHz
+    const fRef = 10.0; // High reference = most frequencies get some effect
     
-    // Very subtle effect - only visible at extreme low frequencies
-    const kAxial = 0.3;    // Reduced significantly
-    const kLateral = 0.4;  // Reduced significantly
+    // Ultra-subtle blur constants
+    const kAxial = 0.15;
+    const kLateral = 0.2;
     
     const frequencyRatio = fRef / f;
     
-    // Only apply blur when frequency is significantly below reference
-    // Threshold at ratio > 1.5 means blur only below ~5 MHz for linear
-    const blurThreshold = 1.5;
+    // Smooth, gradual scaling - no hard threshold
+    // At 10 MHz: ratio=1.0, sigma=0
+    // At 5 MHz: ratio=2.0, sigmaAxial=0.15, sigmaLateral=0.2
+    // At 3 MHz: ratio=3.3, sigmaAxial=0.35, sigmaLateral=0.46
+    const sigmaAxial = kAxial * Math.max(0, frequencyRatio - 1.0);
+    const sigmaLateral = kLateral * Math.max(0, frequencyRatio - 1.0);
     
-    let sigmaAxial = 0;
-    let sigmaLateral = 0;
-    
-    if (frequencyRatio > blurThreshold) {
-      // Gradual blur only for very low frequencies
-      const excessRatio = frequencyRatio - blurThreshold;
-      sigmaAxial = kAxial * excessRatio;
-      sigmaLateral = kLateral * excessRatio;
-    }
-    
-    // Speckle: very subtle scaling (10% effect per MHz deviation)
-    const speckleScale = 1.0 + (frequencyRatio - 1.0) * 0.1;
+    // Speckle: extremely subtle (5% effect)
+    const speckleScale = 1.0 + (frequencyRatio - 1.0) * 0.05;
     
     return { sigmaAxial, sigmaLateral, speckleScale };
   }
