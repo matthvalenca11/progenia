@@ -722,12 +722,15 @@ export class UnifiedUltrasoundEngine {
       }
       
       // ═══════════════════════════════════════════════════════════════════════════════
-      // PASSO 4: Gradiente vertical da sombra (pós-processamento)
-      // Sombra começa ~5% mais escura e vai até ~22% mais escura no fundo
-      // Preserva speckle multiplicando, não substituindo
+      // PASSO 4: Envelope suave + gradiente vertical na sombra (pós-processamento)
+      // - Estima envelope vertical suave (média ±4 pixels)
+      // - Aplica gradiente (0.92 → 0.78)
+      // - Mistura com speckle original (70% envelope, 30% original)
       // ═══════════════════════════════════════════════════════════════════════════════
-      const START_DROP = 0.05; // ~5% mais escuro logo abaixo da inclusão
-      const END_DROP = 0.22;   // ~22% mais escuro no fundo da imagem
+      const START_FACTOR = 0.92; // ~8% mais escuro logo abaixo da inclusão
+      const END_FACTOR = 0.78;   // ~22% mais escuro no fundo
+      const ENVELOPE_BLEND = 0.7; // 70% envelope suave, 30% speckle original
+      const ENVELOPE_RADIUS = 4; // ±4 pixels para média vertical
       
       for (let x = 0; x < width; x++) {
         // Só processar colunas com sombra
@@ -735,28 +738,44 @@ export class UnifiedUltrasoundEngine {
         if (zExit < 0) continue;
         
         const z0 = zExit + 1;           // início da sombra
-        const z1 = height - 1;          // fundo da imagem
-        const depthShadow = z1 - z0;    // extensão total da sombra
+        const z1 = height - 2;          // fundo da imagem (margem de 1px)
         
-        if (z0 >= height || depthShadow <= 0) continue;
+        if (z0 >= z1) continue;
         
-        // Aplicar gradiente vertical em toda a extensão da sombra
+        const depthShadow = z1 - z0;
+        
+        // PASSO 4.1: Calcular envelope vertical suave (média local ±ENVELOPE_RADIUS)
+        const meanCol = new Float32Array(height);
+        for (let z = z0; z <= z1; z++) {
+          let acc = 0;
+          let cnt = 0;
+          for (let dz = -ENVELOPE_RADIUS; dz <= ENVELOPE_RADIUS; dz++) {
+            const zz = z + dz;
+            if (zz < z0 || zz > z1) continue;
+            acc += image_final[zz * width + x];
+            cnt++;
+          }
+          meanCol[z] = acc / Math.max(1, cnt);
+        }
+        
+        // PASSO 4.2: Aplicar gradiente + blend com speckle original
         for (let z = z0; z <= z1; z++) {
           // t: 0 no início da sombra, 1 no fundo
-          const t = Math.max(0, Math.min(1, (z - z0) / depthShadow));
+          const t = (z - z0) / depthShadow;
           
-          // Smoothstep para transição suave
+          // Smoothstep para curva suave
           const s = t * t * (3 - 2 * t);
           
-          // Drop interpolado: START_DROP → END_DROP
-          const drop = START_DROP + (END_DROP - START_DROP) * s;
+          // Fator de gradiente: START_FACTOR → END_FACTOR
+          const gradFactor = START_FACTOR + (END_FACTOR - START_FACTOR) * s;
           
-          // Factor de sombra: 0.95 (pouco escuro) → 0.78 (mais escuro)
-          const factorShadow = 1.0 - drop;
+          // Envelope suave com gradiente aplicado
+          const envelope = meanCol[z] * gradFactor;
           
-          // Multiplica na intensidade final (preserva speckle)
+          // Misturar envelope com speckle original
           const idx = z * width + x;
-          image_final[idx] *= factorShadow;
+          const orig = image_final[idx];
+          image_final[idx] = envelope * ENVELOPE_BLEND + orig * (1.0 - ENVELOPE_BLEND);
         }
       }
       
