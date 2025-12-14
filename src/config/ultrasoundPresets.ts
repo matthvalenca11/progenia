@@ -202,67 +202,33 @@ export function getDefaultInclusionsForPreset(presetId: UltrasoundAnatomyPresetI
     // - Bordas nítidas (parede arterial íntima-média-adventícia)
     // ============================================================
     carotid_long: [
-      // ═══════════════════════════════════════════════════════════════════════════════
-      // ARTÉRIA CARÓTIDA COMUM - VISÃO LONGITUDINAL (ULTRA-REALISTA)
-      // ═══════════════════════════════════════════════════════════════════════════════
-      // 
-      // Lúmen estendido horizontalmente como cápsula/charuto ocupando TODA a largura
-      // Extensão: ~5.5cm horizontal (110% da tela de 5cm para sensação de continuidade)
-      // Diâmetro: 5.5mm vertical (6mm típico em adultos)
-      // Profundidade: 1.55cm (centro do lúmen)
-      // 
-      // REALISMO ANATÔMICO:
-      // - Rotação de +4° (artéria ligeiramente ascendente, típico do pescoço)
-      // - Irregularidade de parede 0.025cm (variação natural da IMT)
-      // - Assimetria leve (parede posterior 0.01cm mais espessa que anterior)
-      // ═══════════════════════════════════════════════════════════════════════════════
+      // Artéria Carótida Comum - Lúmen Longitudinal
       {
         id: "carotid_common_longitudinal",
         type: "vessel",
         label: "Artéria Carótida Comum - Lúmen Longitudinal",
         shape: "capsule",
-        centerDepthCm: 1.55,
-        centerLateralPos: 0.0,
-        sizeCm: { 
-          width: 5.5,   // EXTENSÃO HORIZONTAL: 5.5cm (>100% da tela para continuidade)
-          height: 0.55  // DIÂMETRO: 5.5mm
-        },
+        centerDepthCm: 1.9,
+        centerLateralPos: -0.45,
+        sizeCm: { width: 8.0, height: 0.4 },
         mediumInsideId: "blood",
         hasStrongShadow: false,
         posteriorEnhancement: true,
         borderEchogenicity: "sharp",
-        // === REALISMO ANATÔMICO ===
-        rotationDegrees: 4.0,       // Artéria ligeiramente ascendente (+4°)
-        wallIrregularity: 0.025,    // Variação suave da parede (±0.25mm)
-        wallAsymmetry: 0.01,        // Parede posterior 0.1mm mais espessa
       },
-      
-      // ═══════════════════════════════════════════════════════════════════════════════
-      // VEIA JUGULAR INTERNA - VISÃO LONGITUDINAL
-      // ═══════════════════════════════════════════════════════════════════════════════
-      // 
-      // Paralela à carótida, mais superficial e ligeiramente maior
-      // Rotação oposta (-3°) para variar anatomia
-      // ═══════════════════════════════════════════════════════════════════════════════
+      // Veia Jugular Interna - Lúmen Longitudinal
       {
         id: "jugular_vein_longitudinal",
         type: "vessel",
         label: "Veia Jugular Interna - Lúmen Longitudinal",
         shape: "capsule",
-        centerDepthCm: 0.95,
+        centerDepthCm: 2.3,
         centerLateralPos: 0.0,
-        sizeCm: { 
-          width: 4.8,   // Extensão horizontal (96% da tela)
-          height: 0.70  // Diâmetro maior (veia é mais larga, ~7mm)
-        },
+        sizeCm: { width: 8.0, height: 0.4 },
         mediumInsideId: "blood",
         hasStrongShadow: false,
         posteriorEnhancement: true,
         borderEchogenicity: "soft",
-        // === REALISMO ANATÔMICO ===
-        rotationDegrees: -3.0,      // Veia ligeiramente descendente (-3°)
-        wallIrregularity: 0.02,     // Variação mais suave (parede venosa fina)
-        wallAsymmetry: 0.005,       // Menos assimetria que artéria
       },
     ],
   };
@@ -359,17 +325,16 @@ export const ULTRASOUND_PRESETS: Record<UltrasoundAnatomyPresetId, UltrasoundAna
     shortDescription: "Artéria carótida em corte longitudinal - visualização IMT",
     clinicalTagline: "Medição IMT, avaliação de placas, fluxo Doppler - padrão ouro vascular",
     transducerType: "linear",
-    recommendedFrequencyMHz: 10.0, // Alta frequência para resolução superficial
-    recommendedDepthCm: 3.0, // Profundidade adequada para pescoço
-    recommendedFocusCm: 1.6, // Foco na profundidade da carótida
-    recommendedGain: 50, // Ganho neutro
+    recommendedFrequencyMHz: 7.0,
+    recommendedDepthCm: 3.0,
+    recommendedFocusCm: 1.9,
+    recommendedGain: 51,
     tissueProfile: "vascular",
     vesselCount: 2,
     hasBoneInterface: false,
-    hasStrongShadow: false, // CRÍTICO: vasos normais não causam sombra
+    hasStrongShadow: false,
     noiseSeed: 888,
-    speckleIntensity: 0.75, // Speckle moderado para textura realista
-    // Brightness por camada: pele, subcut, platisma, fascia, ECM, bainha, periarterial, fascia, longus, deep
+    speckleIntensity: 0.75,
     layerBrightness: [0.88, 0.52, 0.85, 1.8, 0.90, 1.8, 0.50, 1.8, 0.88, 0.85],
   },
   
