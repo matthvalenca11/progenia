@@ -1543,23 +1543,20 @@ export class UnifiedUltrasoundEngine {
         if (depth < ellipseBottomY) continue;
         
         // ═══════════════════════════════════════════════════════════════════════════════
-        // MODELO DE SOMBRA: FUNÇÃO CONTÍNUA DA DISTÂNCIA
+        // MODELO DE SOMBRA: TRANSIÇÃO ULTRA-SUAVE
         // ═══════════════════════════════════════════════════════════════════════════════
         
-        // distToSurface varia de 0 (na superfície) até vários cm (profundo)
-        // Queremos uma atenuação suave:
-        // - Muito perto da superfície (0-0.1cm): sombra quase imperceptível
-        // - Médio (0.1-0.5cm): sombra gradual
-        // - Longe (>0.5cm): sombra máxima (mas nunca muito escura)
+        // Parâmetros para transição muito mais gradual
+        const maxFactor = 0.95;  // Quase sem sombra na superfície
+        const minFactor = 0.65;  // Sombra máxima (nunca muito escura)
         
-        const maxFactor = 0.90;  // Muito perto da superfície (quase sem sombra)
-        const minFactor = 0.60;  // Profundidade máxima
-        
-        // Função de atenuação: começa suave, depois estabiliza
-        // Usando tangente hiperbólica para transição super suave
-        const transitionScale = 0.3; // cm - escala da transição
+        // Escala de transição MUITO maior para eliminar a linha visível
+        const transitionScale = 0.8; // cm - escala grande = transição lenta
         const normalizedDist = distToSurface / transitionScale;
-        const shadowStrength = Math.tanh(normalizedDist); // 0 a 1, muito suave no início
+        
+        // Função de atenuação ainda mais suave: x² ao invés de tanh para início mais gradual
+        // tanh começa com derivada=1, mas x²/(1+x²) começa com derivada=0
+        const shadowStrength = (normalizedDist * normalizedDist) / (1 + normalizedDist * normalizedDist);
         
         // Fator de sombra: interpolação entre maxFactor e minFactor
         let shadowFactor = maxFactor - (maxFactor - minFactor) * shadowStrength;
@@ -1569,16 +1566,16 @@ export class UnifiedUltrasoundEngine {
         // ═══════════════════════════════════════════════════════════════════════════════
         
         const absNx = Math.abs(nx);
-        if (absNx > 0.7) {
-          // Suavizar nas bordas laterais
-          const edgeFade = 1.0 - Math.pow((absNx - 0.7) / 0.6, 2);
+        if (absNx > 0.5) {
+          // Suavizar nas bordas laterais - começa mais cedo
+          const edgeFade = 1.0 - Math.pow((absNx - 0.5) / 0.8, 2);
           shadowFactor = shadowFactor + (1.0 - shadowFactor) * (1.0 - Math.max(0, edgeFade));
         }
         
-        // Ruído orgânico por pixel (±3%)
+        // Ruído orgânico por pixel (±2%)
         const pixelSeed = x * 7919 + y * 104729;
-        const noise = (this.hashNoise(pixelSeed) - 0.5) * 0.06;
-        shadowFactor = Math.max(0.55, Math.min(0.95, shadowFactor + noise));
+        const noise = (this.hashNoise(pixelSeed) - 0.5) * 0.04;
+        shadowFactor = Math.max(0.60, Math.min(0.98, shadowFactor + noise));
         
         attenuationFactor *= shadowFactor;
       }
