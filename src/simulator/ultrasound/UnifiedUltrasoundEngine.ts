@@ -64,10 +64,9 @@ export class UnifiedUltrasoundEngine {
   private rayleighCache: Float32Array;
   private perlinCache: Float32Array;
   
-  // LINEAR MODE: Pre-computed shadow attenuation map (smoothed)
-  private linearShadowMap: Float32Array | null = null;
-  private linearShadowMapWidth: number = 0;
-  private linearShadowMapHeight: number = 0;
+  // LINEAR MODE: Shadow data per column (ultra-simple model)
+  private linearShadowFactors: Float32Array | null = null;
+  private linearZExits: Int32Array | null = null;
   
   // Motor polar para convexo
   private convexEngine: ConvexPolarEngine | null = null;
@@ -89,10 +88,9 @@ export class UnifiedUltrasoundEngine {
     this.perlinCache = new Float32Array(cacheSize);
     this.generateCaches();
     
-    // Initialize linear shadow map
-    this.linearShadowMapWidth = canvas.width;
-    this.linearShadowMapHeight = canvas.height;
-    this.linearShadowMap = new Float32Array(canvas.width * canvas.height);
+    // Initialize linear shadow arrays
+    this.linearShadowFactors = new Float32Array(canvas.width);
+    this.linearZExits = new Int32Array(canvas.width);
     
     // Inicializar motor polar para convexo/microconvexo
     if (config.transducerType === 'convex' || config.transducerType === 'microconvex') {
@@ -633,11 +631,9 @@ export class UnifiedUltrasoundEngine {
     const imageData = this.ctx.createImageData(width, height);
     const data = imageData.data;
     
-    // ═══ LINEAR MODE: Compute convolution-based shadow mask ═══
-    if (this.config.transducerType === 'linear' && this.USE_LINEAR_CONV_SHADOW) {
-      this.computeLinearConvShadowMask();
-    } else if (this.config.transducerType === 'linear') {
-      this.computeLinearShadowMap();
+    // ═══ LINEAR MODE: Compute ultra-simple path-length shadow ═══
+    if (this.config.transducerType === 'linear') {
+      this.computeLinearShadow();
     }
     
     for (let y = 0; y < height; y++) {
@@ -728,387 +724,128 @@ export class UnifiedUltrasoundEngine {
   
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * LINEAR SHADOW - MODELO FOTOMÉTRICO BASEADO EM I_REF (TECIDO VIZINHO)
+   * LINEAR SHADOW - MODELO ULTRA-SIMPLES BASEADO NO COMPRIMENTO DO CAMINHO
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * DIAGNÓSTICO DO PROBLEMA:
-   * ──────────────────────────────────────────────────────────────────────────────
-   * Antes: a sombra usava exp(-alpha * dz) direto, resultando em valores ~0.1-0.3
-   *        → ratio shadow/tissue ficava muito baixo (< 0.3) = cilindro preto
-   * 
-   * MODELO CORRETO (baseado em Convexo):
-   * ──────────────────────────────────────────────────────────────────────────────
-   * 1. Para cada coluna na sombra, definir I_target = I_ref * targetShadowFactor(dz)
-   * 2. targetShadowFactor varia de 0.75 (perto da inclusão) a 0.50 (fundo)
-   * 3. Resultado: sombra é apenas 25-50% mais escura que o tecido, não cilindro preto
-   * 4. Blend com intensidade atual para preservar speckle
-   * 
-   * CURVA ALVO:
-   *   início (0-5mm): 0.70-0.80 do tecido vizinho (20-30% mais escuro)
-   *   meio (5-20mm):  0.55-0.70 do tecido vizinho (30-45% mais escuro)
-   *   fundo (>20mm):  0.50-0.55 do tecido vizinho (45-50% mais escuro, nunca preto)
-   * ──────────────────────────────────────────────────────────────────────────────
+   * Para cada coluna X:
+   * 1. Encontrar zEnter[x] e zExit[x] (primeiro e último pixel dentro da elipse)
+   * 2. Calcular thickness[x] = zExit - zEnter + 1
+   * 3. Normalizar: shadowStrength[x] = thickness[x] / maxThickness
+   * 4. Calcular shadowFactor[x] = lerp(0.95, 0.80, shadowStrength[x])
+   * 5. Aplicar: para z > zExit[x], intensity *= shadowFactor[x]
    */
-  
-  /**
-   * Calcula o fator de sombra alvo em função da profundidade relativa
-   * Retorna valor entre 0.50 e 0.80 (nunca próximo de zero!)
-   */
-  private targetShadowFactor(dzNormalized: number): number {
-    // dzNormalized: 0 = logo abaixo da inclusão, 1 = profundidade máxima da sombra
-    const dzClamped = Math.max(0, Math.min(1, dzNormalized));
-    
-    // No início: ~0.78 (22% mais escuro que tecido)
-    // No fundo: ~0.52 (48% mais escuro que tecido)
-    const maxFactor = 0.78;  // Logo abaixo da inclusão
-    const minFactor = 0.52;  // Na profundidade máxima
-    
-    // Curva exponencial suave
-    const factor = maxFactor - (maxFactor - minFactor) * (1 - Math.exp(-2.5 * dzClamped));
-    
-    return factor;
-  }
-  
-  private applyLinearShadowColumnWithReference(
-    shadowColumn: Float32Array,
-    insideMask: boolean[],
-    referenceColumn: Float32Array | null,
-    depthScale: number,
-    columnX: number = 0
-  ): void {
-    const n = shadowColumn.length;
-    let exitIndex = -1;
-
-    // 1) Encontrar último índice dentro da inclusão
-    for (let z = 0; z < n; z++) {
-      if (insideMask[z]) {
-        exitIndex = z;
-      }
-    }
-    
-    if (exitIndex < 0) return;
-
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // PARÂMETROS DO MODELO FOTOMÉTRICO
-    // ═══════════════════════════════════════════════════════════════════════════════
-    const dzMax = 150; // Pixels até profundidade máxima do efeito de sombra
-    const TRANSITION_PIXELS = 8; // Zona de transição suave no início
-    
-    // 2) Aplicar sombra como FATOR MULTIPLICATIVO (não como intensidade absoluta)
-    // O shadowColumn vai conter valores entre 0.50 e 1.0
-    // Esses valores serão usados diretamente como multiplicadores em calculateInclusionEffects
-    for (let z = exitIndex + 1; z < n; z++) {
-      const dz = z - exitIndex; // Distância em pixels do ponto de saída
-      const dzNormalized = dz / dzMax;
-      
-      // ═══ RUÍDO POR PIXEL para variação orgânica (±5%) ═══
-      const pixelSeed = columnX * 7919 + z * 104729;
-      const noise = (this.hashNoise(pixelSeed) - 0.5) * 0.10; // -0.05 a +0.05
-      
-      // ═══ FATOR DE SOMBRA ALVO (0.50 a 0.80) ═══
-      const baseFactor = this.targetShadowFactor(dzNormalized);
-      const factor = Math.max(0.50, Math.min(0.85, baseFactor + noise));
-      
-      // ═══ TRANSIÇÃO SUAVE NO INÍCIO DA SOMBRA ═══
-      let transitionBlend = 1.0;
-      if (dz < TRANSITION_PIXELS) {
-        const t = dz / TRANSITION_PIXELS;
-        transitionBlend = t * t * (3.0 - 2.0 * t); // smoothstep
-      }
-      
-      // ═══ FATOR FINAL (lerp entre 1.0 e factor baseado na transição) ═══
-      // No início da sombra: valor mais próximo de 1.0 (sem sombra)
-      // Com profundidade: valor vai para o factor alvo (0.50-0.80)
-      const finalFactor = this.lerp(1.0, factor, transitionBlend);
-      
-      // Guardar fator multiplicativo (NÃO intensidade!)
-      shadowColumn[z] = finalFactor;
-    }
-  }
-  
-  /**
-   * Verifica se um ponto (depthCm, lateralCm) está dentro de uma inclusão
-   */
-  private isPointInsideInclusionForShadow(
-    depthCm: number,
-    lateralCm: number,
-    inclusion: UltrasoundInclusionConfig
-  ): boolean {
-    const inclLateral = inclusion.centerLateralPos * 2.5; // -2.5 to +2.5 cm
-    const dx = lateralCm - inclLateral;
-    const dy = depthCm - inclusion.centerDepthCm;
-    
-    const halfW = inclusion.sizeCm.width / 2;
-    const halfH = inclusion.sizeCm.height / 2;
-    
-    if (inclusion.shape === 'ellipse') {
-      const normX = dx / halfW;
-      const normY = dy / halfH;
-      return (normX * normX + normY * normY) <= 1.0;
-    } else {
-      return Math.abs(dx) <= halfW && Math.abs(dy) <= halfH;
-    }
-  }
-  
-  /**
-   * Encontra uma coluna de referência próxima que NÃO passa por inclusões
-   */
-  private findReferenceColumn(
-    targetX: number,
-    width: number,
-    height: number,
-    shadowInclusions: UltrasoundInclusionConfig[]
-  ): Float32Array | null {
-    // Tentar colunas vizinhas em ordem crescente de distância
-    const offsets = [3, -3, 6, -6, 10, -10, 15, -15];
-    
-    for (const offset of offsets) {
-      const refX = targetX + offset;
-      if (refX < 0 || refX >= width) continue;
-      
-      const lateralCm = ((refX / width) - 0.5) * 5.0;
-      let passesInclusion = false;
-      
-      // Verificar se esta coluna passa por alguma inclusão
-      for (let y = 0; y < height && !passesInclusion; y++) {
-        const depthCm = (y / height) * this.config.depth;
-        for (const inclusion of shadowInclusions) {
-          if (this.isPointInsideInclusionForShadow(depthCm, lateralCm, inclusion)) {
-            passesInclusion = true;
-            break;
-          }
-        }
-      }
-      
-      // Se não passa por inclusão, usar como referência
-      if (!passesInclusion) {
-        // Criar coluna de referência com valores base (1.0)
-        const refColumn = new Float32Array(height);
-        refColumn.fill(1.0);
-        return refColumn;
-      }
-    }
-    
-    return null; // Não encontrou coluna livre
-  }
-  
-  /**
-   * ═══════════════════════════════════════════════════════════════════════════════
-   * LINEAR SHADOW MAP - COM REFERÊNCIA DE TECIDO VIZINHO
-   * ═══════════════════════════════════════════════════════════════════════════════
-   * 
-   * Pipeline:
-   * 1. Para cada coluna (feixe), construir insideMask
-   * 2. Encontrar coluna vizinha de referência
-   * 3. Aplicar sombra relativa ao tecido vizinho
-   */
-  private computeLinearShadowMap(): void {
+  private computeLinearShadow(): void {
     const { width, height } = this.canvas;
     
-    // Ensure shadow map is allocated
-    if (!this.linearShadowMap || this.linearShadowMap.length !== width * height) {
-      this.linearShadowMap = new Float32Array(width * height);
-      this.linearShadowMapWidth = width;
-      this.linearShadowMapHeight = height;
+    if (!this.linearShadowFactors || this.linearShadowFactors.length !== width) {
+      this.linearShadowFactors = new Float32Array(width);
+      this.linearZExits = new Int32Array(width);
     }
     
-    // Initialize to no shadow (1.0 = full intensity)
-    this.linearShadowMap.fill(1.0);
+    // Inicializar
+    this.linearShadowFactors.fill(1.0);
+    this.linearZExits.fill(-1);
     
-    if (!this.config.enableAcousticShadow) {
-      return;
-    }
-    
-    // Filtrar apenas inclusões com sombra forte
+    // Filtrar inclusões com sombra
     const shadowInclusions = this.config.inclusions.filter(inc => inc.hasStrongShadow);
     if (shadowInclusions.length === 0) return;
     
-    // Escala de profundidade: converte pixels para unidades normalizadas
-    // Valor baixo = sombra cresce mais lentamente com a profundidade
-    const depthScale = 0.08;
+    // Arrays temporários para calcular thickness
+    const thickness = new Float32Array(width);
+    let maxThickness = 0;
     
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // PARA CADA COLUNA (FEIXE VERTICAL)
-    // ═══════════════════════════════════════════════════════════════════════════════
+    // ═══ PASSO 1: Para cada coluna, encontrar zEnter e zExit ═══
     for (let x = 0; x < width; x++) {
-      // Criar coluna de shadow e máscara para esta coluna
-      const shadowColumn = new Float32Array(height);
-      shadowColumn.fill(1.0);
+      const lateralCm = ((x / width) - 0.5) * 5.0; // -2.5 a +2.5 cm
       
-      const insideMask: boolean[] = new Array(height).fill(false);
+      let zEnter = -1;
+      let zExit = -1;
       
-      // Posição lateral em CM para esta coluna
-      const lateralCm = ((x / width) - 0.5) * 5.0;
-      
-      // Construir máscara: para cada sample de profundidade
-      let hasInclusion = false;
+      // Escanear a coluna verticalmente
       for (let y = 0; y < height; y++) {
         const depthCm = (y / height) * this.config.depth;
+        let isInside = false;
         
+        // Verificar se está dentro de alguma inclusão com sombra
         for (const inclusion of shadowInclusions) {
-          if (this.isPointInsideInclusionForShadow(depthCm, lateralCm, inclusion)) {
-            insideMask[y] = true;
-            hasInclusion = true;
-            break;
+          const inclLateral = inclusion.centerLateralPos * 2.5;
+          const inclCenterDepth = inclusion.centerDepthCm;
+          const halfW = inclusion.sizeCm.width / 2;
+          const halfH = inclusion.sizeCm.height / 2;
+          
+          const dx = lateralCm - inclLateral;
+          const dy = depthCm - inclCenterDepth;
+          
+          if (inclusion.shape === 'ellipse') {
+            const normX = dx / halfW;
+            const normY = dy / halfH;
+            if (normX * normX + normY * normY <= 1.0) {
+              isInside = true;
+              break;
+            }
+          } else {
+            if (Math.abs(dx) <= halfW && Math.abs(dy) <= halfH) {
+              isInside = true;
+              break;
+            }
           }
+        }
+        
+        if (isInside) {
+          if (zEnter < 0) zEnter = y;
+          zExit = y;
         }
       }
       
-      // Se esta coluna não passa por inclusão, pular
-      if (!hasInclusion) continue;
+      // Guardar zExit
+      this.linearZExits[x] = zExit;
       
-      // Encontrar coluna de referência (tecido vizinho sem sombra)
-      const referenceColumn = this.findReferenceColumn(x, width, height, shadowInclusions);
-      
-      // Aplicar sombra 1D nesta coluna com referência + posição X para variação 2D
-      this.applyLinearShadowColumnWithReference(shadowColumn, insideMask, referenceColumn, depthScale, x);
-      
-      // Copiar resultado para o mapa 2D
-      for (let y = 0; y < height; y++) {
-        const idx = y * width + x;
-        this.linearShadowMap[idx] = shadowColumn[y];
+      // Calcular thickness
+      if (zEnter >= 0 && zExit >= 0) {
+        thickness[x] = zExit - zEnter + 1;
+        if (thickness[x] > maxThickness) {
+          maxThickness = thickness[x];
+        }
       }
     }
     
-    // ═══ BLUR REDUZIDO - blur excessivo estava removendo o speckle ═══
-    this.applyShadowMapBlur(width, height);
-    
-    // ═══ DEBUG: Medir ratio shadow/tissue ═══
-    this.debugShadowRatio(width, height, shadowInclusions);
-  }
-  
-  /**
-   * DEBUG: Mede a razão intensidade_sombra / intensidade_tecido
-   * Alvo: ratio entre 0.5 e 0.7
-   */
-  private debugShadowRatio(width: number, height: number, shadowInclusions: UltrasoundInclusionConfig[]): void {
-    if (!this.linearShadowMap || shadowInclusions.length === 0) return;
-    
-    const inclusion = shadowInclusions[0];
-    const inclCenterX = Math.floor((0.5 + inclusion.centerLateralPos * 0.5) * width);
-    const inclBottomY = Math.floor(((inclusion.centerDepthCm + inclusion.sizeCm.height / 2) / this.config.depth) * height);
-    
-    // ROI_shadow: coluna central, de 5% a 20% abaixo da inclusão
-    const shadowStartY = inclBottomY + Math.floor(height * 0.02);
-    const shadowEndY = Math.min(height - 1, inclBottomY + Math.floor(height * 0.15));
-    
-    // ROI_tissue: mesma faixa de profundidade, 20% à direita da inclusão
-    const tissueX = Math.min(width - 1, inclCenterX + Math.floor(width * 0.15));
-    
-    let sumShadow = 0;
-    let sumTissue = 0;
-    let count = 0;
-    
-    for (let y = shadowStartY; y <= shadowEndY; y++) {
-      const shadowVal = this.linearShadowMap[y * width + inclCenterX];
-      const tissueVal = this.linearShadowMap[y * width + tissueX];
-      sumShadow += shadowVal;
-      sumTissue += tissueVal;
-      count++;
-    }
-    
-    if (count > 0) {
-      const meanShadow = sumShadow / count;
-      const meanTissue = sumTissue / count;
-      const ratio = meanTissue > 0 ? meanShadow / meanTissue : 0;
-      
-      // Log apenas a cada ~60 frames para não poluir o console
-      if (Math.random() < 0.017) { // ~1x por segundo a 60fps
-        console.log(`[LINEAR SHADOW DEBUG] mean_shadow=${meanShadow.toFixed(3)}, mean_tissue=${meanTissue.toFixed(3)}, ratio=${ratio.toFixed(3)} (alvo: 0.5-0.7)`);
+    // ═══ PASSO 2: Calcular shadowFactor por coluna ═══
+    if (maxThickness > 0) {
+      for (let x = 0; x < width; x++) {
+        const shadowStrength = thickness[x] / maxThickness; // 0 nas pontas, 1 no centro
+        
+        // lerp(0.95, 0.80, shadowStrength)
+        // No centro (shadowStrength=1): 0.80 → 20% mais escuro
+        // Nas pontas (shadowStrength≈0): 0.95 → quase sem sombra
+        this.linearShadowFactors[x] = 0.95 - (0.95 - 0.80) * shadowStrength;
       }
     }
   }
   
   /**
-   * Aplica um blur gaussiano 2D ao mapa de sombra para suavizar transições
-   * REDUZIDO: blur excessivo estava homogeneizando o speckle
+   * Obtém o shadowFactor para uma coluna específica
    */
-  private applyShadowMapBlur(width: number, height: number): void {
-    if (!this.linearShadowMap) return;
-    
-    // Criar cópia temporária para ler valores originais
-    const original = new Float32Array(this.linearShadowMap);
-    
-    // Parâmetros do blur - REDUZIDOS para preservar speckle
-    const blurRadiusX = 4;  // Reduzido de 12 para 4
-    const blurRadiusY = 6;  // Reduzido de 16 para 6
-    const sigmaX = 2.0;     // Reduzido de 5.0 para 2.0
-    const sigmaY = 3.0;     // Reduzido de 7.0 para 3.0
-    
-    // Pré-computar pesos Gaussianos horizontais
-    const weightsX: number[] = [];
-    let weightSumX = 0;
-    for (let i = -blurRadiusX; i <= blurRadiusX; i++) {
-      const w = Math.exp(-(i * i) / (2 * sigmaX * sigmaX));
-      weightsX.push(w);
-      weightSumX += w;
-    }
-    for (let i = 0; i < weightsX.length; i++) {
-      weightsX[i] /= weightSumX;
-    }
-    
-    // Pré-computar pesos Gaussianos verticais
-    const weightsY: number[] = [];
-    let weightSumY = 0;
-    for (let i = -blurRadiusY; i <= blurRadiusY; i++) {
-      const w = Math.exp(-(i * i) / (2 * sigmaY * sigmaY));
-      weightsY.push(w);
-      weightSumY += w;
-    }
-    for (let i = 0; i < weightsY.length; i++) {
-      weightsY[i] /= weightSumY;
-    }
-    
-    // Primeiro passo: blur horizontal
-    const horizontalBlur = new Float32Array(width * height);
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        let sum = 0;
-        let wSum = 0;
-        for (let dx = -blurRadiusX; dx <= blurRadiusX; dx++) {
-          const sx = x + dx;
-          if (sx >= 0 && sx < width) {
-            const w = weightsX[dx + blurRadiusX];
-            sum += original[y * width + sx] * w;
-            wSum += w;
-          }
-        }
-        horizontalBlur[y * width + x] = sum / wSum;
-      }
-    }
-    
-    // Segundo passo: blur vertical (mais forte)
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        let sum = 0;
-        let wSum = 0;
-        for (let dy = -blurRadiusY; dy <= blurRadiusY; dy++) {
-          const sy = y + dy;
-          if (sy >= 0 && sy < height) {
-            const w = weightsY[dy + blurRadiusY];
-            sum += horizontalBlur[sy * width + x] * w;
-            wSum += w;
-          }
-        }
-        this.linearShadowMap[y * width + x] = sum / wSum;
-      }
-    }
+  private getLinearShadowFactor(x: number): number {
+    if (!this.linearShadowFactors) return 1.0;
+    if (x < 0 || x >= this.linearShadowFactors.length) return 1.0;
+    return this.linearShadowFactors[Math.floor(x)];
   }
+  
+  /**
+   * Obtém o zExit para uma coluna específica
+   */
+  private getLinearZExit(x: number): number {
+    if (!this.linearZExits) return -1;
+    if (x < 0 || x >= this.linearZExits.length) return -1;
+    return this.linearZExits[Math.floor(x)];
+  }
+  
   /**
    * Hash-based noise for organic variation (deterministic)
    */
   private hashNoise(seed: number): number {
     const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
     return x - Math.floor(x);
-  }
-  
-  /**
-   * Get shadow factor from pre-computed linear shadow map
-   */
-  private getLinearShadowFactor(x: number, y: number): number {
-    if (!this.linearShadowMap) return 1.0;
-    if (x < 0 || x >= this.linearShadowMapWidth || y < 0 || y >= this.linearShadowMapHeight) return 1.0;
-    return this.linearShadowMap[y * this.linearShadowMapWidth + x];
   }
   
   private calculatePixelIntensity(
@@ -1435,194 +1172,6 @@ export class UnifiedUltrasoundEngine {
     return reflection * 0.6;
   }
   
-  /**
-   * ═══════════════════════════════════════════════════════════════════════════════
-   * LINEAR PATH-LENGTH SHADOW - BASEADO NO COMPRIMENTO DO CAMINHO NA ELIPSE
-   * ═══════════════════════════════════════════════════════════════════════════════
-   * 
-   * Física correta:
-   * - No centro da elipse, o feixe atravessa mais material → mais atenuação
-   * - Nas pontas, o feixe atravessa menos → menos atenuação
-   * - A sombra é proporcional ao COMPRIMENTO DO CAMINHO dentro da elipse
-   */
-  
-  // Flag para ativar o modo de sombra por path-length no Linear
-  private USE_LINEAR_CONV_SHADOW = true;
-  
-  // Cache do shadow mask
-  private linearConvShadowMask: Float32Array | null = null;
-  
-  /**
-   * Computa o shadow mask baseado no comprimento do caminho dentro da elipse
-   */
-  private computeLinearConvShadowMask(): void {
-    const width = this.canvas.width;
-    const height = this.canvas.height;
-    const depthStep = this.config.depth / height; // cm por pixel
-    
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // PASSO 1: Para cada coluna, medir o caminho dentro de cada inclusão
-    // ═══════════════════════════════════════════════════════════════════════════════
-    
-    // Estrutura para armazenar info por coluna
-    interface ColumnShadowInfo {
-      hasInclusion: boolean;
-      z_enter: number;
-      z_exit: number;
-      pathLength: number; // L em pixels
-    }
-    
-    const columnInfo: ColumnShadowInfo[] = [];
-    let L_max = 0; // Maior caminho encontrado
-    
-    for (let x = 0; x < width; x++) {
-      const lateralCm = ((x / width) - 0.5) * 5.0; // -2.5 a +2.5 cm
-      
-      let z_enter = -1;
-      let z_exit = -1;
-      
-      // Escanear a coluna verticalmente
-      for (let y = 0; y < height; y++) {
-        const depthCm = (y / height) * this.config.depth;
-        let isInside = false;
-        
-        // Verificar se está dentro de alguma inclusão com sombra
-        for (const inclusion of this.config.inclusions) {
-          if (!inclusion.hasStrongShadow) continue;
-          
-          const inclLateral = inclusion.centerLateralPos * 2.5;
-          const inclCenterDepth = inclusion.centerDepthCm;
-          const halfW = inclusion.sizeCm.width / 2;
-          const halfH = inclusion.sizeCm.height / 2;
-          
-          const dx = lateralCm - inclLateral;
-          const dy = depthCm - inclCenterDepth;
-          
-          if (inclusion.shape === 'ellipse') {
-            const normX = dx / halfW;
-            const normY = dy / halfH;
-            if (normX * normX + normY * normY <= 1.0) {
-              isInside = true;
-              break;
-            }
-          } else {
-            if (Math.abs(dx) <= halfW && Math.abs(dy) <= halfH) {
-              isInside = true;
-              break;
-            }
-          }
-        }
-        
-        if (isInside) {
-          if (z_enter < 0) z_enter = y;
-          z_exit = y;
-        }
-      }
-      
-      // Calcular comprimento do caminho
-      const hasInclusion = z_enter >= 0 && z_exit >= 0;
-      const pathLength = hasInclusion ? (z_exit - z_enter + 1) : 0;
-      
-      if (pathLength > L_max) {
-        L_max = pathLength;
-      }
-      
-      columnInfo[x] = {
-        hasInclusion,
-        z_enter,
-        z_exit,
-        pathLength
-      };
-    }
-    
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // PASSO 2: MODELO FÍSICO CORRETO - Sombra constante em profundidade
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // 
-    // Física: após sair da inclusão, o feixe volta ao meio de fundo.
-    // A razão sombra/tecido deve ser CONSTANTE com a profundidade.
-    // A força da sombra depende APENAS do comprimento do caminho L(x) dentro da elipse.
-    //
-    // beamShadowFactor é um ESCALAR por feixe X, aplicado em TODA a coluna abaixo.
-    // ═══════════════════════════════════════════════════════════════════════════════
-    
-    // Parâmetros de contraste da sombra
-    const minFactor = 0.65;  // Centro da elipse: pixel fica com ~65% da intensidade (35% mais escuro)
-    const maxFactor = 0.95;  // Pontas da elipse: ~95% (quase sem sombra)
-    const fadeSamples = 4;   // Fade curtíssimo só nos primeiros pixels
-    
-    this.linearConvShadowMask = new Float32Array(width * height);
-    this.linearConvShadowMask.fill(1.0); // Inicializar sem sombra
-    
-    for (let x = 0; x < width; x++) {
-      const info = columnInfo[x];
-      
-      if (!info.hasInclusion || L_max === 0) continue;
-      
-      // ═══ thicknessFactor: 0 nas pontas, 1 no centro ═══
-      const thicknessFactor = info.pathLength / L_max;
-      
-      // ═══ beamShadowFactor: ESCALAR constante para este feixe ═══
-      // thicknessFactor = 1 (centro) → 0.65
-      // thicknessFactor ≈ 0 (pontas) → 0.95
-      const beamShadowFactor = maxFactor - (maxFactor - minFactor) * thicknessFactor;
-      
-      // ═══ Aplicar sombra CONSTANTE abaixo da elipse ═══
-      const z0 = info.z_exit;
-      
-      for (let z = z0 + 1; z < height; z++) {
-        // Fade curtíssimo só nos primeiros poucos pixels
-        const dz = z - (z0 + 1);
-        const w = dz < fadeSamples ? dz / fadeSamples : 1.0;
-        
-        // Começa em 1.0 logo abaixo, converge rápido para beamShadowFactor e depois fica CONSTANTE
-        const factor = 1.0 * (1.0 - w) + beamShadowFactor * w;
-        
-        this.linearConvShadowMask[z * width + x] = factor;
-      }
-    }
-    
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // PASSO 3: Suavização lateral para bordas menos abruptas
-    // ═══════════════════════════════════════════════════════════════════════════════
-    const blurRadius = 3;
-    const tempMask = new Float32Array(width * height);
-    
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        let sum = 0;
-        let count = 0;
-        
-        for (let dx = -blurRadius; dx <= blurRadius; dx++) {
-          const nx = x + dx;
-          if (nx >= 0 && nx < width) {
-            const weight = 1.0 - Math.abs(dx) / (blurRadius + 1);
-            sum += this.linearConvShadowMask[y * width + nx] * weight;
-            count += weight;
-          }
-        }
-        
-        tempMask[y * width + x] = count > 0 ? sum / count : 1.0;
-      }
-    }
-    
-    // Copiar de volta
-    for (let i = 0; i < tempMask.length; i++) {
-      this.linearConvShadowMask[i] = tempMask[i];
-    }
-  }
-  
-  /**
-   * Obtém o fator de sombra por convolução para um pixel específico
-   */
-  private getLinearConvShadowFactor(x: number, y: number): number {
-    if (!this.linearConvShadowMask) return 1.0;
-    const width = this.canvas.width;
-    const height = this.canvas.height;
-    if (x < 0 || x >= width || y < 0 || y >= height) return 1.0;
-    return this.linearConvShadowMask[Math.floor(y) * width + Math.floor(x)];
-  }
-  
   private calculateInclusionEffects(
     x: number,
     y: number,
@@ -1636,14 +1185,16 @@ export class UnifiedUltrasoundEngine {
     if (this.config.transducerType === 'linear') {
       
       // ═══════════════════════════════════════════════════════════════════════════════
-      // MODELO FÍSICO: Sombra constante em profundidade, baseada em path length
+      // MODELO ULTRA-SIMPLES: Sombra aplicada por coluna, constante em profundidade
       // ═══════════════════════════════════════════════════════════════════════════════
-      if (this.USE_LINEAR_CONV_SHADOW) {
-        // Buscar fator de sombra do mask pré-computado
-        const shadowFactor = this.getLinearConvShadowFactor(x, y);
+      const zExit = this.getLinearZExit(x);
+      
+      // Só aplicar sombra ABAIXO da inclusão (z > zExit)
+      if (zExit >= 0 && y > zExit) {
+        const shadowFactor = this.getLinearShadowFactor(x);
         
-        // Blending para preservar speckle: 40% original + 60% com sombra
-        const blendStrength = 0.60;
+        // Blending leve: 70% original + 30% com sombra (preserva speckle)
+        const blendStrength = 0.30;
         const blendedFactor = (1.0 - blendStrength) + shadowFactor * blendStrength;
         
         attenuationFactor *= blendedFactor;
@@ -1665,9 +1216,6 @@ export class UnifiedUltrasoundEngine {
     
     return { attenuationFactor, reflection };
   }
-  
-  // NOTE: applyLinearAcousticShadow and computeVerticalBeamExitWithMotion removed
-  // Shadow is now computed via pre-calculated smoothed shadow map in computeLinearShadowMap()
   
   /**
    * Deterministic noise function (0 to 1)
