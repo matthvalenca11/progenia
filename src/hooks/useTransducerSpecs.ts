@@ -9,7 +9,7 @@ export function useTransducerSpecs(): Record<TransducerType, TransducerSpec> {
     linear: {
       name: 'Linear',
       type: 'linear',
-      frequencyRange: [5, 15],
+      frequencyRange: [2, 11],
       depthRange: [1, 6],
       geometryType: 'linear',
       aperture: 40,

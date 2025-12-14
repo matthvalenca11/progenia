@@ -268,7 +268,7 @@ export const UltrasoundPreview = () => {
                 setFrequency(v);
               }}
               min={2}
-              max={15}
+              max={11}
               step={0.5}
               className="w-full"
             />
