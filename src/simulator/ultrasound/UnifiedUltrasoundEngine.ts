@@ -757,6 +757,39 @@ export class UnifiedUltrasoundEngine {
         }
       }
       
+      // ═══════════════════════════════════════════════════════════════════════════════
+      // PASSO 5: Smoothing de junção na transição zExit (banda de 8 pixels)
+      // Remove a linha horizontal de descontinuidade entre base e sombra
+      // ═══════════════════════════════════════════════════════════════════════════════
+      for (let x = 0; x < width; x++) {
+        const zExit = this.linearZExits[x];
+        if (zExit < 0) continue;
+        
+        const junctionZ0 = zExit;
+        const junctionZ1 = Math.min(height - 2, zExit + 8);
+        
+        if (junctionZ0 < 1 || junctionZ0 >= height - 1) continue;
+        
+        // Smoothing com kernel (1, 4, 1)/6 para manter 80-90% do speckle
+        for (let z = junctionZ0; z <= junctionZ1; z++) {
+          if (z < 1 || z >= height - 1) continue;
+          
+          const idxPrev = (z - 1) * width + x;
+          const idxCurr = z * width + x;
+          const idxNext = (z + 1) * width + x;
+          
+          const a = image_final[idxPrev];
+          const b = image_final[idxCurr];
+          const c = image_final[idxNext];
+          
+          // Kernel (1, 4, 1)/6 preserva mais do valor central
+          const smoothed = (a + 4 * b + c) / 6.0;
+          
+          // Blend 85% original + 15% smoothed para quebrar a linha sem perder speckle
+          image_final[idxCurr] = 0.85 * image_final[idxCurr] + 0.15 * smoothed;
+        }
+      }
+      
       // ═══ RENDERIZAR O BUFFER SELECIONADO ═══
       let renderBuffer: Float32Array;
       switch (debugView) {
