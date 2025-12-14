@@ -51,6 +51,26 @@ export function getDefaultLayersForPreset(presetId: UltrasoundAnatomyPresetId): 
     ],
     
     // ============================================================
+    // CARÓTIDA LONGITUDINAL (ULTRA-REALISTA)
+    // Visualização longitudinal da artéria carótida comum com anatomia
+    // completa do pescoço: pele, subcutâneo, ECM, fáscias, carótida
+    // estendida (3-5cm), veia jugular, e músculos profundos.
+    // Parâmetros clínicos: IMT ~0.6-0.8mm, diâmetro 5-7mm
+    // ============================================================
+    carotid_long: [
+      { id: "skin", mediumId: "skin", name: "Pele", thicknessCm: 0.15, noiseScale: 1.4, reflectivityBias: 0.12 },
+      { id: "subcut", mediumId: "fat", name: "Tecido Subcutâneo", thicknessCm: 0.4, noiseScale: 0.65, reflectivityBias: -0.18 },
+      { id: "platysma", mediumId: "muscle", name: "Platisma", thicknessCm: 0.12, noiseScale: 1.15, reflectivityBias: 0.0 },
+      { id: "superficial_fascia", mediumId: "fascia", name: "Fáscia Cervical Superficial", thicknessCm: 0.03, noiseScale: 2.4, reflectivityBias: 0.55 },
+      { id: "scm", mediumId: "muscle", name: "M. Esternocleidomastóideo", thicknessCm: 0.6, noiseScale: 1.12, reflectivityBias: 0.02 },
+      { id: "carotid_sheath_fascia", mediumId: "fascia", name: "Bainha Carotídea", thicknessCm: 0.02, noiseScale: 2.3, reflectivityBias: 0.52 },
+      { id: "periarterial_tissue", mediumId: "fat", name: "Tecido Periarterial", thicknessCm: 0.25, noiseScale: 0.7, reflectivityBias: -0.12 },
+      { id: "prevertebral_fascia", mediumId: "fascia", name: "Fáscia Pré-vertebral", thicknessCm: 0.03, noiseScale: 2.2, reflectivityBias: 0.50 },
+      { id: "longus_colli", mediumId: "muscle", name: "M. Longo do Pescoço", thicknessCm: 1.0, noiseScale: 1.05, reflectivityBias: 0.0 },
+      { id: "deep_cervical", mediumId: "muscle", name: "Músculos Cervicais Profundos", thicknessCm: 1.5, noiseScale: 1.0, reflectivityBias: -0.02 },
+    ],
+    
+    // ============================================================
     // MÚSCULO GENÉRICO - Padrão fibrilar com septos brilhantes
     // ============================================================
     muscle_generic: [
@@ -129,6 +149,39 @@ export function getDefaultInclusionsForPreset(presetId: UltrasoundAnatomyPresetI
         borderEchogenicity: "soft",
       },
     ],
+    
+    // CARÓTIDA LONGITUDINAL (ULTRA-REALISTA)
+    // Artéria estendida horizontalmente (3-4cm) com parede vascular detalhada
+    // Lúmen anecogênico, parede com dupla interface (íntima-média-adventícia)
+    // Veia jugular paralela, ligeiramente acima
+    carotid_long: [
+      {
+        id: "carotid_common_longitudinal",
+        type: "vessel",
+        label: "Artéria Carótida Comum (Longitudinal)",
+        shape: "rectangle", // Retângulo estendido para visão longitudinal
+        centerDepthCm: 1.8,
+        centerLateralPos: 0.0, // Centralizado
+        sizeCm: { width: 4.0, height: 0.65 }, // 4cm extensão, 6.5mm diâmetro
+        mediumInsideId: "blood",
+        hasStrongShadow: false,
+        posteriorEnhancement: true, // Reforço posterior típico de vasos
+        borderEchogenicity: "sharp", // Parede bem definida
+      },
+      {
+        id: "jugular_vein_longitudinal",
+        type: "vessel",
+        label: "Veia Jugular Interna (Longitudinal)",
+        shape: "rectangle",
+        centerDepthCm: 1.35,
+        centerLateralPos: 0.0,
+        sizeCm: { width: 3.5, height: 0.85 }, // Veia mais larga e superficial
+        mediumInsideId: "blood",
+        hasStrongShadow: false,
+        posteriorEnhancement: true,
+        borderEchogenicity: "soft", // Parede mais fina
+      },
+    ],
   };
   
   return inclusionSets[presetId] || [];
@@ -200,6 +253,30 @@ export const ULTRASOUND_PRESETS: Record<UltrasoundAnatomyPresetId, UltrasoundAna
     noiseSeed: 444,
     speckleIntensity: 0.78,
     layerBrightness: [0.88, 0.58, 0.85, 0.90, 0.62, 0.95],
+  },
+  
+  // ===========================
+  // CARÓTIDA LONGITUDINAL ULTRA-REALISTA
+  // Preset clínico para visualização longitudinal da carótida
+  // Adaptação automática por transdutor implementada
+  // ===========================
+  carotid_long: {
+    id: "carotid_long",
+    label: "Carótida - Longitudinal (ULTRA)",
+    shortDescription: "Artéria carótida em corte longitudinal - visualização IMT",
+    clinicalTagline: "Medição IMT, avaliação de placas, fluxo Doppler - padrão ouro vascular",
+    transducerType: "linear",
+    recommendedFrequencyMHz: 9.0,
+    recommendedDepthCm: 3.5,
+    recommendedFocusCm: 1.8,
+    recommendedGain: 52,
+    tissueProfile: "vascular",
+    vesselCount: 2,
+    hasBoneInterface: false,
+    hasStrongShadow: false,
+    noiseSeed: 888,
+    speckleIntensity: 0.72, // Baixo speckle para melhor visualização vascular
+    layerBrightness: [0.90, 0.55, 0.88, 2.0, 0.85, 2.0, 0.52, 2.0, 0.90, 0.88],
   },
   
   muscle_generic: {
