@@ -1186,7 +1186,23 @@ export class UnifiedUltrasoundEngine {
           if (inclusion.shape === 'ellipse') {
             const normalizedDist = (dx * dx) / (halfW * halfW) + (dy * dy) / (halfH * halfH);
             isInside = normalizedDist <= 1.0;
+          } else if (inclusion.shape === 'capsule') {
+            // Capsule: rectangle with semicircular ends
+            const capsuleRadius = halfH;
+            const rectHalfWidth = halfW - capsuleRadius;
+            
+            if (Math.abs(dx) <= rectHalfWidth) {
+              // In rectangular middle
+              isInside = Math.abs(dy) <= capsuleRadius;
+            } else {
+              // In semicircular ends
+              const endCenterX = Math.sign(dx) * rectHalfWidth;
+              const localDx = dx - endCenterX;
+              const distToEndCenter = Math.sqrt(localDx * localDx + dy * dy);
+              isInside = distToEndCenter <= capsuleRadius;
+            }
           } else {
+            // Rectangle
             isInside = Math.abs(dx) <= halfW && Math.abs(dy) <= halfH;
           }
           
@@ -1742,21 +1758,51 @@ export class UnifiedUltrasoundEngine {
       const isInside = normalizedDist <= 1;
       const distFromCenter = Math.sqrt(normalizedDist);
       
-      // ═══ CORRIGIDO: Calcular distância real da borda mesmo quando FORA ═══
       if (isInside) {
-        // Dentro: distância positiva da borda interna
         return {
           isInside: true,
           distanceFromEdge: (1 - distFromCenter) * Math.min(rx, ry)
         };
       } else {
-        // Fora: distância positiva da borda externa
-        // Aproximação: (distFromCenter - 1) * raio médio
         return {
           isInside: false,
           distanceFromEdge: (distFromCenter - 1) * Math.min(rx, ry)
         };
       }
+    } else if (inclusion.shape === 'capsule') {
+      // ═══════════════════════════════════════════════════════════════════════════════
+      // CAPSULE SHAPE (Stadium/Pill) - Rectangle with semicircular ends
+      // Perfect for longitudinal vessel visualization
+      // 
+      // Geometry: Two semicircles connected by a rectangle
+      // - Total length = width (horizontal)
+      // - Height = diameter of the semicircles (vertical)
+      // - Radius of ends = height / 2
+      // ═══════════════════════════════════════════════════════════════════════════════
+      const halfWidth = inclusion.sizeCm.width / 2;
+      const halfHeight = inclusion.sizeCm.height / 2;
+      const capsuleRadius = halfHeight; // Semicircle radius = half of vertical dimension
+      const rectHalfWidth = halfWidth - capsuleRadius; // Length of rectangular middle section
+      
+      // Signed distance to capsule (SDF)
+      let dist: number;
+      
+      if (Math.abs(dx) <= rectHalfWidth) {
+        // In the rectangular middle section - distance is just vertical
+        dist = Math.abs(dy) - capsuleRadius;
+      } else {
+        // In one of the semicircular ends
+        const endCenterX = Math.sign(dx) * rectHalfWidth;
+        const localDx = dx - endCenterX;
+        const distToEndCenter = Math.sqrt(localDx * localDx + dy * dy);
+        dist = distToEndCenter - capsuleRadius;
+      }
+      
+      const isInside = dist <= 0;
+      return {
+        isInside,
+        distanceFromEdge: Math.abs(dist)
+      };
     } else { // rectangle
       const halfW = inclusion.sizeCm.width / 2;
       const halfH = inclusion.sizeCm.height / 2;
@@ -1770,7 +1816,6 @@ export class UnifiedUltrasoundEngine {
           distanceFromEdge: Math.min(distX, distY)
         };
       } else {
-        // Fora: calcular distância da borda mais próxima
         const overlapX = Math.max(0, Math.abs(dx) - halfW);
         const overlapY = Math.max(0, Math.abs(dy) - halfH);
         return {

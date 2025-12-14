@@ -184,13 +184,17 @@ export function getDefaultInclusionsForPreset(presetId: UltrasoundAnatomyPresetI
     // 
     // VISÃO LONGITUDINAL = CORTE LONGO EIXO:
     // - O vaso aparece como um TUBO HORIZONTAL estendido
-    // - Paredes PARALELAS superior e inferior (não círculos!)
+    // - Shape: CAPSULE (retângulo com extremidades semicirculares)
+    // - Paredes paralelas com contorno curvo e suave
     // - Lúmen anecogênico contínuo da esquerda à direita
     // - Extensão horizontal: 60-80% da largura da imagem
     // 
-    // DIFERENÇA CRÍTICA vs TRANSVERSAL:
-    // - Transversal: shape=ellipse com width≈height (círculo)
-    // - Longitudinal: shape=rectangle com width >> height (tubo)
+    // CAPSULE SHAPE (Stadium/Pill):
+    // - Geometria: dois semicírculos conectados por um retângulo
+    // - Comprimento total = width (horizontal)
+    // - Altura = height = diâmetro dos semicírculos (vertical)
+    // - Raio das extremidades = height / 2
+    // - Resultado: formato de "charuto" ou "cápsula" com bordas suaves
     // 
     // FÍSICA:
     // - Lúmen: anecogênico (blood), posterior enhancement
@@ -199,18 +203,18 @@ export function getDefaultInclusionsForPreset(presetId: UltrasoundAnatomyPresetI
     // ============================================================
     carotid_long: [
       // ═══ ARTÉRIA CARÓTIDA COMUM - VISÃO LONGITUDINAL ═══
-      // Lúmen estendido horizontalmente como um tubo
-      // Extensão: ~3.5cm horizontal, diâmetro: 6mm vertical
+      // Lúmen estendido horizontalmente como cápsula/charuto
+      // Extensão: ~3.2cm horizontal, diâmetro: 5.5mm vertical
       // Profundidade: 1.5cm (centro do lúmen)
       {
         id: "carotid_common_longitudinal",
         type: "vessel",
         label: "Artéria Carótida Comum - Lúmen Longitudinal",
-        shape: "rectangle", // CRÍTICO: rectangle para visão longitudinal (tubo)
-        centerDepthCm: 1.55, // Centro do lúmen a ~1.5cm de profundidade
+        shape: "capsule", // CAPSULE = retângulo com extremidades arredondadas
+        centerDepthCm: 1.50, // Centro do lúmen a ~1.5cm de profundidade
         centerLateralPos: 0.0, // Centralizado horizontalmente
         sizeCm: { 
-          width: 3.5,  // EXTENSÃO HORIZONTAL: 3.5cm (~70% da largura típica)
+          width: 3.2,  // EXTENSÃO HORIZONTAL: 3.2cm (~65% da largura típica)
           height: 0.55 // DIÂMETRO: 5.5mm (espessura vertical do tubo)
         },
         mediumInsideId: "blood", // Anecogênico - lúmen preto sem speckle
@@ -221,17 +225,17 @@ export function getDefaultInclusionsForPreset(presetId: UltrasoundAnatomyPresetI
       
       // ═══ VEIA JUGULAR INTERNA - VISÃO LONGITUDINAL ═══
       // Paralela à carótida, mais superficial e ligeiramente maior
-      // Também como tubo horizontal estendido
+      // Também como cápsula horizontal estendida
       {
         id: "jugular_vein_longitudinal",
         type: "vessel",
         label: "Veia Jugular Interna - Lúmen Longitudinal",
-        shape: "rectangle", // Também tubo horizontal
-        centerDepthCm: 1.05, // Mais superficial que carótida
-        centerLateralPos: 0.0, // Mesmo centro lateral (sobreposta em planos diferentes)
+        shape: "capsule", // Também cápsula horizontal
+        centerDepthCm: 1.0, // Mais superficial que carótida
+        centerLateralPos: 0.0, // Mesmo centro lateral
         sizeCm: { 
-          width: 3.0,  // Extensão horizontal ligeiramente menor
-          height: 0.70 // Diâmetro maior (veia é mais larga)
+          width: 2.8,  // Extensão horizontal ligeiramente menor
+          height: 0.65 // Diâmetro maior (veia é mais larga)
         },
         mediumInsideId: "blood",
         hasStrongShadow: false,

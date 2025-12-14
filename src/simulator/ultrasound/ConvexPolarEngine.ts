@@ -472,6 +472,19 @@ export class ConvexPolarEngine {
       const normX = distortedDx / halfWidth;
       const normY = dy / halfHeight;
       return (normX * normX + normY * normY) <= 1.0;
+    } else if (inclusion.shape === 'capsule') {
+      // Capsule: rectangle with semicircular ends
+      const capsuleRadius = halfHeight;
+      const rectHalfWidth = halfWidth - capsuleRadius;
+      
+      if (Math.abs(distortedDx) <= rectHalfWidth) {
+        return Math.abs(dy) <= capsuleRadius;
+      } else {
+        const endCenterX = Math.sign(distortedDx) * rectHalfWidth;
+        const localDx = distortedDx - endCenterX;
+        const distToEndCenter = Math.sqrt(localDx * localDx + dy * dy);
+        return distToEndCenter <= capsuleRadius;
+      }
     } else {
       return Math.abs(distortedDx) <= halfWidth && Math.abs(dy) <= halfHeight;
     }
@@ -583,6 +596,25 @@ export class ConvexPolarEngine {
             const normY = dy / halfHeight;
             const dist = Math.sqrt(normX * normX + normY * normY);
             isInside = dist <= 1.0;
+            if (isInside) {
+              edgeFactor = Math.max(0.3, 1.0 - dist * 0.7);
+            }
+          } else if (inclusion.shape === 'capsule') {
+            // Capsule: rectangle with semicircular ends
+            const capsuleRadius = halfHeight;
+            const rectHalfWidth = halfWidth - capsuleRadius;
+            
+            let dist: number;
+            if (Math.abs(distortedDx) <= rectHalfWidth) {
+              dist = Math.abs(dy) / capsuleRadius;
+              isInside = dist <= 1.0;
+            } else {
+              const endCenterX = Math.sign(distortedDx) * rectHalfWidth;
+              const localDx = distortedDx - endCenterX;
+              const distToEndCenter = Math.sqrt(localDx * localDx + dy * dy);
+              dist = distToEndCenter / capsuleRadius;
+              isInside = dist <= 1.0;
+            }
             if (isInside) {
               edgeFactor = Math.max(0.3, 1.0 - dist * 0.7);
             }
@@ -776,6 +808,19 @@ export class ConvexPolarEngine {
           const normX = distortedDx / halfWidth;
           const normY = dy / halfHeight;
           isInside = (normX * normX + normY * normY) <= 1.0;
+        } else if (inclusion.shape === 'capsule') {
+          // Capsule: rectangle with semicircular ends
+          const capsuleRadius = halfHeight;
+          const rectHalfWidth = halfWidth - capsuleRadius;
+          
+          if (Math.abs(distortedDx) <= rectHalfWidth) {
+            isInside = Math.abs(dy) <= capsuleRadius;
+          } else {
+            const endCenterX = Math.sign(distortedDx) * rectHalfWidth;
+            const localDx = distortedDx - endCenterX;
+            const distToEndCenter = Math.sqrt(localDx * localDx + dy * dy);
+            isInside = distToEndCenter <= capsuleRadius;
+          }
         } else {
           isInside = Math.abs(distortedDx) <= halfWidth && Math.abs(dy) <= halfHeight;
         }
