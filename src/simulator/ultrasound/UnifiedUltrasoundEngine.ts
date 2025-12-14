@@ -1536,14 +1536,20 @@ export class UnifiedUltrasoundEngine {
     }
     
     // ═══════════════════════════════════════════════════════════════════════════════
-    // PASSO 2: Gerar shadowMask - AJUSTE FOTOMÉTRICO FINO
+    // PASSO 2: MODELO FÍSICO CORRETO - Sombra constante em profundidade
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // 
+    // Física: após sair da inclusão, o feixe volta ao meio de fundo.
+    // A razão sombra/tecido deve ser CONSTANTE com a profundidade.
+    // A força da sombra depende APENAS do comprimento do caminho L(x) dentro da elipse.
+    //
+    // beamShadowFactor é um ESCALAR por feixe X, aplicado em TODA a coluna abaixo.
     // ═══════════════════════════════════════════════════════════════════════════════
     
-    // Máximo 18% de escurecimento no centro (thicknessFactor = 1)
-    const MAX_DROP = 0.18;
-    
-    // Gradiente vertical muito longo e suave
-    const fadeDepth = 60; // pixels
+    // Parâmetros de contraste da sombra
+    const minFactor = 0.65;  // Centro da elipse: pixel fica com ~65% da intensidade (35% mais escuro)
+    const maxFactor = 0.95;  // Pontas da elipse: ~95% (quase sem sombra)
+    const fadeSamples = 4;   // Fade curtíssimo só nos primeiros pixels
     
     this.linearConvShadowMask = new Float32Array(width * height);
     this.linearConvShadowMask.fill(1.0); // Inicializar sem sombra
@@ -1556,28 +1562,28 @@ export class UnifiedUltrasoundEngine {
       // ═══ thicknessFactor: 0 nas pontas, 1 no centro ═══
       const thicknessFactor = info.pathLength / L_max;
       
-      // ═══ startFactor: força inicial da sombra ═══
-      // Centro (tf=1): startFactor = 1.0 - 0.18 = 0.82 (18% escuro)
-      // Pontas (tf=0.2): startFactor = 1.0 - 0.036 = 0.964 (3.6% escuro)
-      const baseDrop = MAX_DROP * thicknessFactor;
-      const startFactor = 1.0 - baseDrop;
-      // NÃO usar MIN_FACTOR, NÃO usar exp()
+      // ═══ beamShadowFactor: ESCALAR constante para este feixe ═══
+      // thicknessFactor = 1 (centro) → 0.65
+      // thicknessFactor ≈ 0 (pontas) → 0.95
+      const beamShadowFactor = maxFactor - (maxFactor - minFactor) * thicknessFactor;
       
-      // ═══ Aplicar gradiente suave com profundidade ═══
-      for (let y = info.z_exit + 1; y < height; y++) {
-        const depthDown = y - info.z_exit;
-        const t = Math.min(1.0, depthDown / fadeDepth);
+      // ═══ Aplicar sombra CONSTANTE abaixo da elipse ═══
+      const z0 = info.z_exit;
+      
+      for (let z = z0 + 1; z < height; z++) {
+        // Fade curtíssimo só nos primeiros poucos pixels
+        const dz = z - (z0 + 1);
+        const w = dz < fadeSamples ? dz / fadeSamples : 1.0;
         
-        // Mesmo lá no fundo, apenas 50% da força inicial
-        // lerp(1.0, startFactor, t * 0.5)
-        const factor = 1.0 + (startFactor - 1.0) * t * 0.5;
+        // Começa em 1.0 logo abaixo, converge rápido para beamShadowFactor e depois fica CONSTANTE
+        const factor = 1.0 * (1.0 - w) + beamShadowFactor * w;
         
-        this.linearConvShadowMask[y * width + x] = factor;
+        this.linearConvShadowMask[z * width + x] = factor;
       }
     }
     
     // ═══════════════════════════════════════════════════════════════════════════════
-    // PASSO 3: Suavização lateral (bordas difusas entre colunas)
+    // PASSO 3: Suavização lateral para bordas menos abruptas
     // ═══════════════════════════════════════════════════════════════════════════════
     const blurRadius = 3;
     const tempMask = new Float32Array(width * height);
@@ -1630,16 +1636,14 @@ export class UnifiedUltrasoundEngine {
     if (this.config.transducerType === 'linear') {
       
       // ═══════════════════════════════════════════════════════════════════════════════
-      // MODO PATH-LENGTH SHADOW: Usa o shadow mask pré-computado com blending fraco
+      // MODELO FÍSICO: Sombra constante em profundidade, baseada em path length
       // ═══════════════════════════════════════════════════════════════════════════════
       if (this.USE_LINEAR_CONV_SHADOW) {
         // Buscar fator de sombra do mask pré-computado
         const shadowFactor = this.getLinearConvShadowFactor(x, y);
         
-        // Blending fraco: 85% original + 15% com sombra → preserva speckle
-        // blended = intensity * (1 - 0.15) + intensity * factor * 0.15
-        // = intensity * (0.85 + factor * 0.15)
-        const blendStrength = 0.15;
+        // Blending para preservar speckle: 40% original + 60% com sombra
+        const blendStrength = 0.60;
         const blendedFactor = (1.0 - blendStrength) + shadowFactor * blendStrength;
         
         attenuationFactor *= blendedFactor;
