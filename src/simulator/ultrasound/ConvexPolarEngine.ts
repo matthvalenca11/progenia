@@ -431,11 +431,11 @@ export class ConvexPolarEngine {
     const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
     
     // ═══════════════════════════════════════════════════════════════════════════════
-    // UNIFIED SHADOW PARAMETERS - Increased for stronger Convex/Microconvex shadows
+    // UNIFIED SHADOW PARAMETERS - STRONGER Convex/Microconvex shadows
     // ═══════════════════════════════════════════════════════════════════════════════
-    const SHADOW_ALPHA_BASE = 0.70;    // Increased for stronger attenuation
-    const SHADOW_STRENGTH = 0.50;      // ~50% max darkening (stronger for Convex)
-    const SHADOW_MIN_INTENSITY = 0.20; // Lower floor for more visible shadow
+    const SHADOW_ALPHA_BASE = 1.2;     // Much higher for faster attenuation
+    const SHADOW_STRENGTH = 0.55;      // Not used in new formula but kept for reference
+    const SHADOW_MIN_INTENSITY = 0.55; // Shadow goes down to 55% brightness (45% darker)
     
     // Apply same lateral offset as getTissueAtPolar
     const clampedOffset = Math.max(-0.3, Math.min(0.3, lateralOffset || 0));
@@ -517,7 +517,7 @@ export class ConvexPolarEngine {
         const alpha = baseAlpha * beamNoise;
         
         // ═══ APPLY ATTENUATION WITH SMOOTH TRANSITION AT SHADOW START ═══
-        const TRANSITION_DEPTH_CM = 0.15; // Transition zone in cm
+        const TRANSITION_DEPTH_CM = 0.10; // Shorter transition zone
         
         for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
           const r = (rIdx / numDepthSamples) * maxDepthCm;
@@ -525,11 +525,17 @@ export class ConvexPolarEngine {
           if (r <= z_exit) continue;
           
           const posteriorDepth = r - z_exit;
+          
+          // ═══ SIMPLIFIED DIRECT SHADOW - More aggressive ═══
+          // Direct exponential attenuation without complex edgeFactor blending
           const attenuation = Math.exp(-alpha * posteriorDepth);
           
-          // Softer shadow with edge softness
-          const rawShadow = 1.0 - SHADOW_STRENGTH * edgeFactor * (1.0 - attenuation);
-          const shadowFactor = Math.max(SHADOW_MIN_INTENSITY, rawShadow);
+          // Direct shadow: (1 - STRENGTH) at max attenuation, approaches 1.0 as attenuation → 1
+          // With STRENGTH = 0.50, shadow goes from 1.0 down to 0.50 (50% darker)
+          const rawShadow = SHADOW_MIN_INTENSITY + (1.0 - SHADOW_MIN_INTENSITY) * attenuation;
+          
+          // Apply edge softness (but keep it mild)
+          const shadowFactor = SHADOW_MIN_INTENSITY + (rawShadow - SHADOW_MIN_INTENSITY) * edgeFactor;
           
           // ═══ SMOOTH TRANSITION: Blend shadow gradually at the start ═══
           let transitionBlend = 1.0;
@@ -538,7 +544,7 @@ export class ConvexPolarEngine {
             transitionBlend = t * t * (3 - 2 * t); // smoothstep function
           }
           
-          // Apply transitioned shadow: lerp(1.0, shadowFactor, transitionBlend)
+          // Apply transitioned shadow
           const finalShadow = 1.0 * (1 - transitionBlend) + shadowFactor * transitionBlend;
           
           const idx = rIdx * numAngleSamples + thetaIdx;
