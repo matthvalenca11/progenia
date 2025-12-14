@@ -905,7 +905,10 @@ export class UnifiedUltrasoundEngine {
     const SHADOW_LIGHTEST = 0.88;    // Sombra mínima nas bordas (88% = sutil nas bordas)
     const RECOVERY_RATE = 0.25;      // Taxa de recuperação (por cm)
     
-    // ═══ CALCULAR MOTION OFFSET (mesmo do rendering) ═══
+    // ═══ CALCULAR MOTION OFFSET (INVERSO do rendering para sincronizar) ═══
+    // No rendering, motion é adicionado às coordenadas de amostragem,
+    // então a inclusão APARECE deslocada na direção OPOSTA.
+    // Para a sombra acompanhar, precisamos SUBTRAIR o motion da posição da inclusão.
     const breathingCycle = Math.sin(this.time * 0.3) * 0.015;
     const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008;
     const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
@@ -915,9 +918,9 @@ export class UnifiedUltrasoundEngine {
       const lateralCm = ((x / width) - 0.5) * 5.0; // -2.5 a +2.5 cm
       
       for (const inclusion of shadowInclusions) {
-        // ═══ APLICAR MOTION À POSIÇÃO DA INCLUSÃO ═══
-        const inclLateral = inclusion.centerLateralPos * 2.5 + jitterLateral;
-        const inclCenterDepth = inclusion.centerDepthCm + jitterDepth + breathingCycle * (inclusion.centerDepthCm / this.config.depth);
+        // ═══ MOTION INVERTIDO para sincronizar com rendering ═══
+        const inclLateral = inclusion.centerLateralPos * 2.5 - jitterLateral;
+        const inclCenterDepth = inclusion.centerDepthCm - jitterDepth - breathingCycle * (inclusion.centerDepthCm / this.config.depth);
         const halfW = inclusion.sizeCm.width / 2;
         const halfH = inclusion.sizeCm.height / 2;
         
