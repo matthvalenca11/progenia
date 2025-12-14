@@ -188,7 +188,7 @@ export const ULTRASOUND_PRESETS: Record<UltrasoundAnatomyPresetId, UltrasoundAna
     label: "Carótida - Transversal",
     shortDescription: "Artéria carótida e veia jugular - corte axial",
     clinicalTagline: "Diâmetro arterial, diferenciação artéria/veia, compressibilidade venosa - anatomia clássica",
-    transducerType: "convex",
+    transducerType: "linear",
     recommendedFrequencyMHz: 7.0,
     recommendedDepthCm: 3.6,
     recommendedFocusCm: 2.4,
