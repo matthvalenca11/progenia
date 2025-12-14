@@ -177,23 +177,23 @@ export class UnifiedUltrasoundEngine {
    */
   private getFrequencyDependentPSF(): { sigmaAxial: number; sigmaLateral: number; speckleScale: number } {
     const f = this.config.frequency;
-    const fRef = 10.0; // High reference = most frequencies get some effect
+    const fRef = 11.0; // Reference = max frequency for linear
     
-    // Ultra-subtle blur constants
-    const kAxial = 0.15;
-    const kLateral = 0.2;
+    // Stronger blur constants for visible resolution effect
+    const kAxial = 0.8;   // Increased from 0.15
+    const kLateral = 1.0; // Increased from 0.2
     
     const frequencyRatio = fRef / f;
     
-    // Smooth, gradual scaling - no hard threshold
-    // At 10 MHz: ratio=1.0, sigma=0
-    // At 5 MHz: ratio=2.0, sigmaAxial=0.15, sigmaLateral=0.2
-    // At 3 MHz: ratio=3.3, sigmaAxial=0.35, sigmaLateral=0.46
+    // Gradual scaling from high to low frequency
+    // At 11 MHz: ratio=1.0, sigma=0 (sharpest)
+    // At 5 MHz: ratio=2.2, sigmaAxial=0.96, sigmaLateral=1.2
+    // At 2 MHz: ratio=5.5, sigmaAxial=3.6, sigmaLateral=4.5
     const sigmaAxial = kAxial * Math.max(0, frequencyRatio - 1.0);
     const sigmaLateral = kLateral * Math.max(0, frequencyRatio - 1.0);
     
-    // Speckle: extremely subtle (5% effect)
-    const speckleScale = 1.0 + (frequencyRatio - 1.0) * 0.05;
+    // Speckle grain: more noticeable scaling (20% effect)
+    const speckleScale = 1.0 + (frequencyRatio - 1.0) * 0.2;
     
     return { sigmaAxial, sigmaLateral, speckleScale };
   }
