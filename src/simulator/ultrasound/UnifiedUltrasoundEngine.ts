@@ -901,8 +901,8 @@ export class UnifiedUltrasoundEngine {
     //
     // ═══════════════════════════════════════════════════════════════════════════════
     
-    const SHADOW_INTENSITY = 0.78;   // Sombra mais sutil (78%)
-    const FADE_IN_DEPTH_CM = 0.5;    // Transição mais longa e gradual (cm)
+    // Sombra uniforme sem transição - evita bandas visíveis
+    const SHADOW_INTENSITY = 0.82;   // Sombra bem sutil (82%)
     
     // ═══ CALCULAR MOTION OFFSET (INVERSO do rendering para sincronizar) ═══
     const breathingCycle = Math.sin(this.time * 0.3) * 0.015;
@@ -940,24 +940,13 @@ export class UnifiedUltrasoundEngine {
           this.linearZExits[x] = z_exit_pixel;
         }
         
-        // Variação sutil por feixe
-        const beamNoise = 1.0 + (this.hashNoise(x * 17 + 42) - 0.5) * 0.04;
+        // Variação sutil por feixe para textura natural
+        const beamNoise = 1.0 + (this.hashNoise(x * 17 + 42) - 0.5) * 0.03;
         
-        // ═══ SOMBRA UNIFORME COM FADE-IN SUAVE ═══
+        // ═══ SOMBRA 100% UNIFORME - SEM FADE, SEM TRANSIÇÃO ═══
+        const shadowFactor = SHADOW_INTENSITY * beamNoise;
+        
         for (let y = z_exit_pixel; y < height; y++) {
-          const depthCm = (y / height) * this.config.depth;
-          const posteriorDepth = Math.max(0, depthCm - z_exit_cm);
-          
-          // Fade-in suave nos primeiros pixels
-          let fadeIn = 1.0;
-          if (posteriorDepth < FADE_IN_DEPTH_CM) {
-            const t = posteriorDepth / FADE_IN_DEPTH_CM;
-            fadeIn = t * t * (3 - 2 * t); // smoothstep
-          }
-          
-          // Sombra uniforme (sem recuperação) com fade-in
-          const shadowFactor = 1.0 - (1.0 - SHADOW_INTENSITY) * fadeIn * beamNoise;
-          
           const idx = y * width + x;
           this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], shadowFactor);
         }
