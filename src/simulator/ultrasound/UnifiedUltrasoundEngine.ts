@@ -901,24 +901,19 @@ export class UnifiedUltrasoundEngine {
     //
     // ═══════════════════════════════════════════════════════════════════════════════
     
-    const SHADOW_DARKEST = 0.55;     // Sombra mais sutil no centro (55%)
-    const SHADOW_LIGHTEST = 0.92;    // Sombra mínima nas bordas (92% = bem sutil)
-    const RECOVERY_RATE = 0.30;      // Recuperação um pouco mais rápida
+    const SHADOW_INTENSITY = 0.72;   // Intensidade uniforme da sombra (72% = sutil)
+    const FADE_IN_DEPTH_CM = 0.3;    // Zona de transição suave no início (cm)
     
     // ═══ CALCULAR MOTION OFFSET (INVERSO do rendering para sincronizar) ═══
-    // No rendering, motion é adicionado às coordenadas de amostragem,
-    // então a inclusão APARECE deslocada na direção OPOSTA.
-    // Para a sombra acompanhar, precisamos SUBTRAIR o motion da posição da inclusão.
     const breathingCycle = Math.sin(this.time * 0.3) * 0.015;
     const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008;
     const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
     
     // ═══ PASSO 1: CALCULAR SOMBRA POR COLUNA ═══
     for (let x = 0; x < width; x++) {
-      const lateralCm = ((x / width) - 0.5) * 5.0; // -2.5 a +2.5 cm
+      const lateralCm = ((x / width) - 0.5) * 5.0;
       
       for (const inclusion of shadowInclusions) {
-        // ═══ MOTION INVERTIDO para sincronizar com rendering ═══
         const inclLateral = inclusion.centerLateralPos * 2.5 - jitterLateral;
         const inclCenterDepth = inclusion.centerDepthCm - jitterDepth - breathingCycle * (inclusion.centerDepthCm / this.config.depth);
         const halfW = inclusion.sizeCm.width / 2;
@@ -927,22 +922,16 @@ export class UnifiedUltrasoundEngine {
         const dx = lateralCm - inclLateral;
         const normX = dx / halfW;
         
-        // Verificar se o feixe intercepta a elipse
         if (Math.abs(normX) > 1.0) continue;
         
-        // ═══ CÁLCULO ANALÍTICO DO Z_EXIT ═══
         const sqrtTerm = Math.sqrt(Math.max(0, 1.0 - normX * normX));
         
         let z_exit_cm: number;
-        let pathFactor: number;
-        
         if (inclusion.shape === 'ellipse') {
           z_exit_cm = inclCenterDepth + halfH * sqrtTerm;
-          pathFactor = sqrtTerm;
         } else {
           if (Math.abs(dx) > halfW) continue;
           z_exit_cm = inclCenterDepth + halfH;
-          pathFactor = 1.0 - Math.abs(normX) * 0.3;
         }
         
         const z_exit_pixel = Math.floor((z_exit_cm / this.config.depth) * height);
@@ -951,18 +940,23 @@ export class UnifiedUltrasoundEngine {
           this.linearZExits[x] = z_exit_pixel;
         }
         
-        // ═══ INTENSIDADE INICIAL DA SOMBRA (mais sutil) ═══
-        const initialShadow = SHADOW_LIGHTEST - (SHADOW_LIGHTEST - SHADOW_DARKEST) * pathFactor;
+        // Variação sutil por feixe
+        const beamNoise = 1.0 + (this.hashNoise(x * 17 + 42) - 0.5) * 0.04;
         
-        const beamNoise = 1.0 + (this.hashNoise(x * 17 + 42) - 0.5) * 0.08;
-        
-        // ═══ APLICAR SOMBRA ABAIXO DE z_exit ═══
+        // ═══ SOMBRA UNIFORME COM FADE-IN SUAVE ═══
         for (let y = z_exit_pixel; y < height; y++) {
           const depthCm = (y / height) * this.config.depth;
           const posteriorDepth = Math.max(0, depthCm - z_exit_cm);
           
-          const recovery = 1.0 - Math.exp(-RECOVERY_RATE * beamNoise * posteriorDepth);
-          const shadowFactor = initialShadow + (1.0 - initialShadow) * recovery;
+          // Fade-in suave nos primeiros pixels
+          let fadeIn = 1.0;
+          if (posteriorDepth < FADE_IN_DEPTH_CM) {
+            const t = posteriorDepth / FADE_IN_DEPTH_CM;
+            fadeIn = t * t * (3 - 2 * t); // smoothstep
+          }
+          
+          // Sombra uniforme (sem recuperação) com fade-in
+          const shadowFactor = 1.0 - (1.0 - SHADOW_INTENSITY) * fadeIn * beamNoise;
           
           const idx = y * width + x;
           this.linearShadowMap[idx] = Math.min(this.linearShadowMap[idx], shadowFactor);
