@@ -942,34 +942,38 @@ export class UnifiedUltrasoundEngine {
         const halfH = inclusion.sizeCm.height / 2;
         
         // ═══════════════════════════════════════════════════════════════════════════════
-        // CÁLCULO ANALÍTICO DO Z_EXIT (sem dependência de resolução de pixels)
+        // CÁLCULO ANALÍTICO DO Z_EXIT - SEGUINDO CURVATURA DA ELIPSE
         // ═══════════════════════════════════════════════════════════════════════════════
-        // Para um feixe vertical na posição lateralCm, calcular onde ele sai da elipse
+        // Equação da elipse centrada em (inclLateral, inclCenterDepth):
+        // ((x - cx)/a)² + ((y - cy)/b)² = 1
         // 
-        // Equação da elipse: (dx/halfW)² + (dy/halfH)² = 1
-        // Para dx fixo (lateral do feixe), resolver para dy:
-        // dy = ±halfH * sqrt(1 - (dx/halfW)²)
-        // z_exit = inclCenterDepth + halfH * sqrt(1 - (dx/halfW)²)
+        // Para encontrar onde o feixe VERTICAL em lateralCm intersecta a BORDA INFERIOR:
+        // Resolver para y: y = cy + b * sqrt(1 - ((x - cx)/a)²)
+        // O sinal + dá a metade inferior (maior profundidade)
         
         const dx = lateralCm - inclLateral;
         const normX = dx / halfW;
         
         // Verificar se o feixe intercepta a elipse
-        if (Math.abs(normX) > 1.0) continue; // Feixe fora da elipse
+        if (Math.abs(normX) > 1.0) continue;
         
-        // Calcular z_exit ANALITICAMENTE
+        // Calcular z_exit ANALITICAMENTE - ponto onde o feixe SAI da elipse
         let z_exit_cm: number;
         let edgeFactor: number;
         
         if (inclusion.shape === 'ellipse') {
-          // z_exit = centro + semi-eixo * sqrt(1 - normX²)
-          const sqrtTerm = Math.sqrt(1.0 - normX * normX);
+          // A expressão sqrt(1 - normX²) dá a fração do semi-eixo vertical
+          // Quando normX=0 (centro): sqrt(1) = 1.0 → z_exit = centro + halfH (ponto mais baixo)
+          // Quando normX=±1 (bordas): sqrt(0) = 0 → z_exit = centro (tangente lateral)
+          const sqrtTerm = Math.sqrt(Math.max(0, 1.0 - normX * normX));
+          
+          // z_exit é a profundidade onde o feixe sai da elipse (borda inferior)
           z_exit_cm = inclCenterDepth + halfH * sqrtTerm;
           
-          // edgeFactor: 1.0 no centro (normX=0), menor nas bordas (normX→±1)
-          edgeFactor = Math.max(0.2, sqrtTerm);
+          // edgeFactor: mais forte no centro (mais massa para atravessar), mais fraco nas bordas
+          edgeFactor = Math.max(0.15, sqrtTerm);
         } else {
-          // Retângulo: z_exit = centro + halfH (constante dentro do retângulo)
+          // Retângulo: z_exit = centro + halfH (borda inferior reta)
           if (Math.abs(dx) > halfW) continue;
           z_exit_cm = inclCenterDepth + halfH;
           edgeFactor = 1.0 - Math.abs(dx) / halfW * 0.5;
@@ -977,6 +981,11 @@ export class UnifiedUltrasoundEngine {
         
         // Converter para pixels
         const z_exit_pixel = Math.floor((z_exit_cm / this.config.depth) * height);
+        
+        // DEBUG: Verificar variação do z_exit por coluna
+        if (this.frameCount % 120 === 0 && x % 50 === 0) {
+          console.log(`LINEAR_SHADOW x=${x} normX=${normX.toFixed(3)} sqrtTerm=${inclusion.shape === 'ellipse' ? Math.sqrt(Math.max(0, 1.0 - normX * normX)).toFixed(3) : 'rect'} z_exit_cm=${z_exit_cm.toFixed(3)} z_exit_pixel=${z_exit_pixel}`);
+        }
         
         // Guardar para compatibilidade
         if (this.linearZExits[x] < z_exit_pixel) {
