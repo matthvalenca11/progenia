@@ -85,9 +85,12 @@ export class ConvexPolarEngine {
   }
 
   /**
-   * ═══════════════════════════════════════════════════════════════════
-   * ETAPA 1: Gera imagem polar com FÍSICA UNIFICADA (baseada no Linear)
-   * ═══════════════════════════════════════════════════════════════════
+   * ═══════════════════════════════════════════════════════════════════════════════
+   * GENERATE POLAR IMAGE - PHOTOMETRICALLY IDENTICAL TO LINEAR MODE
+   * ═══════════════════════════════════════════════════════════════════════════════
+   * 
+   * All photometric parameters (speckle, attenuation, gain, contrast, noise) are
+   * EXACTLY copied from Linear mode. Only beam geometry differs (fan vs parallel).
    */
   private generatePolarImageWithPhysics() {
     const { numDepthSamples, numAngleSamples, maxDepthCm, frequency, gain, fovDegrees } = this.config;
@@ -128,61 +131,74 @@ export class ConvexPolarEngine {
         let x = r * Math.sin(theta);
         let y = r * Math.cos(theta);
         
-        // ═══ APLICAR MOTION ARTIFACTS COM AMPLITUDE AUMENTADA (breathing, jitter, tremor) ═══
-        const withMotion = this.physicsCore.applyMotionArtifacts(y, x, physicsConfig);
+        // ═══ MOTION ARTIFACTS - IDENTICAL TO LINEAR ═══
+        // 1. Breathing motion (cyclic vertical displacement)
+        const breathingCycle = Math.sin(this.time * 0.3) * 0.015; // ~20 breaths/min, ±0.15mm
+        const breathingDepthEffect = r / maxDepthCm;
+        y += breathingCycle * breathingDepthEffect;
         
-        // Aumentar amplitude do motion para convexo (2.5x mais perceptível)
-        const motionAmplitude = 2.5;
-        const depthWithMotion = y + (withMotion.depth - y) * motionAmplitude;
-        const lateralWithMotion = x + (withMotion.lateral - x) * motionAmplitude;
+        // 2. Probe micro-jitter (operator hand tremor)
+        const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008;
+        const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
+        x += jitterLateral;
+        y += jitterDepth;
+        
+        // 3. Tissue micro-movements (random fibrillar motion)
+        const tissueTremor = Math.sin(x * 100 * 0.02 + this.time * 5) * 
+                             Math.cos(y * 100 * 0.015 + this.time * 4) * 0.003;
+        y += tissueTremor;
         
         // Reconverter para polar com motion aplicado
-        const rWithMotion = Math.sqrt(depthWithMotion * depthWithMotion + lateralWithMotion * lateralWithMotion);
-        const thetaWithMotion = Math.atan2(lateralWithMotion, depthWithMotion);
+        const rWithMotion = Math.sqrt(x * x + y * y);
+        const thetaWithMotion = Math.atan2(x, y);
         
         // Índices de pixel fictícios para cache (mapeamento polar → cartesiano)
         const pixelX = Math.floor((theta / (2 * halfFOVRad) + 0.5) * this.config.canvasWidth);
         const pixelY = Math.floor((r / maxDepthCm) * this.config.canvasHeight);
         
         // ═══════════════════════════════════════════════════════════════════════════════
-        // CORRECT PIPELINE ORDER:
+        // PIPELINE IDENTICAL TO LINEAR MODE:
         // 1. Base intensity (clean, no noise)
         // 2. Physical effects (attenuation, TGC, focal gain)
-        // 3. SHADOW (applied to clean image, geometry-based only)
-        // 4. SPECKLE (applied last, multiplicative noise)
+        // 3. Interface reflections
+        // 4. Beam falloff
+        // 5. SHADOW (applied to clean image)
+        // 6. SPECKLE (applied last, multiplicative noise)
+        // 7. LOG COMPRESSION
         // ═══════════════════════════════════════════════════════════════════════════════
         
         // ═══ 1. OBTER TECIDO EM (r, θ) COM MOTION ═══
         const tissue = this.getTissueAtPolar(rWithMotion, thetaWithMotion);
         
-        // ═══ 2. ECHOGENICIDADE BASE (LIMPA - sem ruído) ═══
-        let intensity = this.physicsCore.getBaseEchogenicity(tissue.echogenicity);
+        // ═══ 2. ECHOGENICIDADE BASE - IDENTICAL TO LINEAR ═══
+        let intensity = this.getBaseEchogenicityLinear(tissue.echogenicity);
         
-        // ═══ 3. ATENUAÇÃO (motor unificado) ═══
-        const tissueProps: TissueProperties = {
-          echogenicity: tissue.echogenicity,
-          attenuation: tissue.attenuation,
-          reflectivity: 0.5,
-          impedance: 1.63,
-          isInclusion: tissue.isInclusion,
-          inclusion: tissue.isInclusion ? this.config.inclusions?.find(inc => 
-            this.isPointInInclusionPolar(r, theta, inc)
-          ) : undefined,
-        };
-        
-        const attenuation = this.physicsCore.calculateAttenuation(r, tissueProps, frequency);
+        // ═══ 3. ATENUAÇÃO - IDENTICAL TO LINEAR ═══
+        const attenuationDb = tissue.attenuation * frequency * r;
+        const attenuation = Math.pow(10, -attenuationDb / 20);
         intensity *= attenuation;
         
-        // ═══ 4. GANHO FOCAL (motor unificado) ═══
-        const focalGain = this.physicsCore.calculateFocalGain(r, physicsConfig.focus);
+        // ═══ 4. GANHO FOCAL - IDENTICAL TO LINEAR ═══
+        const focusDepth = physicsConfig.focus;
+        const focalDist = Math.abs(r - focusDepth);
+        const focalGain = 1 + 0.4 * Math.exp(-focalDist * focalDist * 2);
         intensity *= focalGain;
         
-        // ═══ 5. TGC (motor unificado) ═══
-        const tgc = this.physicsCore.calculateTGC(r, maxDepthCm);
+        // ═══ 5. TGC - IDENTICAL TO LINEAR ═══
+        const tgc = 1 + r / maxDepthCm * 0.3;
         intensity *= tgc;
         
-        // ═══ 6. APLICAR SOMBRA ACÚSTICA - ANTES DO SPECKLE ═══
-        // Shadow mask é baseado apenas em geometria (sem dependência de ruído)
+        // ═══ 6. INTERFACE REFLECTIONS - IDENTICAL TO LINEAR (multiplicative) ═══
+        // Simplified reflection at layer boundaries
+        const reflection = this.calculateInterfaceReflectionPolar(r, theta);
+        intensity *= (1 + reflection * 0.3);
+        
+        // ═══ 7. BEAM FALLOFF (adapted for polar geometry) ═══
+        const normalizedLateral = Math.abs(theta) / halfFOVRad; // 0 to 1
+        const beamFalloff = 1 - normalizedLateral * normalizedLateral * 0.15;
+        intensity *= beamFalloff;
+        
+        // ═══ 8. APLICAR SOMBRA ACÚSTICA - ANTES DO SPECKLE ═══
         const rIdxWithMotion = Math.floor((rWithMotion / maxDepthCm) * numDepthSamples);
         const thetaIdxWithMotion = Math.floor(((thetaWithMotion / halfFOVRad) + 1) * 0.5 * numAngleSamples);
         
@@ -192,54 +208,136 @@ export class ConvexPolarEngine {
         
         intensity *= this.shadowMap[shadowIdx];
         
-        // ═══ 7. REALCE POSTERIOR (se aplicável) ═══
+        // ═══ 9. REALCE POSTERIOR (se aplicável) ═══
         if (tissue.posteriorEnhancement) {
           const enhancementFactor = 1.2 + (r / maxDepthCm) * 0.4;
           intensity *= enhancementFactor;
         }
         
         // ═══════════════════════════════════════════════════════════════════════════════
-        // 8. SPECKLE - PURELY MULTIPLICATIVE (NO ADDITIVE NOISE)
+        // 10. SPECKLE - IDENTICAL TO LINEAR MODE
         // ═══════════════════════════════════════════════════════════════════════════════
-        // CRITICAL: NO additive noise (+=), NO row-wise operations
-        // Formula: intensity *= (1 + k * random_per_pixel)
+        // CRITICAL: Same density, distribution, randomness, blending as Linear
         
-        // Per-pixel hash-based noise (not periodic sin/cos)
+        // Get cached values (simulated with pixel mapping)
+        const speckleIdx = (pixelY * this.config.canvasWidth + pixelX) % (this.config.canvasWidth * this.config.canvasHeight);
+        
+        // Use hash-based Rayleigh approximation (identical to Linear)
+        const rayleighSeed = speckleIdx * 12.9898 + 78.233;
+        const rayleigh = Math.abs(Math.sqrt(-2 * Math.log(Math.max(0.001, this.noise(rayleighSeed)))) * 
+                                  Math.cos(2 * Math.PI * this.noise(rayleighSeed + 1000)));
+        
+        // Perlin-style noise (identical to Linear)
+        const perlin = this.multiOctaveNoiseLinear(pixelX, pixelY, 6);
+        
+        // Depth-dependent speckle size - IDENTICAL TO LINEAR: 0.25 coefficient
+        const depthFactor = 1 + (r / maxDepthCm) * 0.25;
+        
+        // Per-pixel granular noise - IDENTICAL TO LINEAR coefficients
         const px = pixelX * 0.1 + this.time * 0.5;
         const py = pixelY * 0.1;
-        const hashNoise = this.noise(px * 12.9898 + py * 78.233) * 2 - 1; // -1 to 1
+        const hashNoise = this.noise(px * 12.9898 + py * 78.233) * 2 - 1;
         const fineHash = this.noise((px + 100) * 45.123 + (py + 50) * 91.456) * 2 - 1;
         
-        // Multi-octave base from physics core
-        const baseSpeckle = this.physicsCore.multiOctaveNoisePolar(r, theta, 4);
+        // IDENTICAL TO LINEAR: rayleigh * 0.5 + perlin * 0.5
+        const baseSpeckle = (rayleigh * 0.5 + (perlin * 0.5 + 0.5) * 0.5) * depthFactor;
         
-        // Echogenicity scaling
-        const speckleScale = tissue.echogenicity === "anechoic" ? 0.15 : 
-                            tissue.echogenicity === "hypoechoic" ? 0.5 :
-                            tissue.echogenicity === "isoechoic" ? 0.7 :
-                            0.85;
+        // IDENTICAL TO LINEAR: pixelVariation with 0.15 and 0.1 coefficients
+        const pixelVariation = 1.0 + hashNoise * 0.15 + fineHash * 0.1;
         
-        // Depth-dependent speckle
-        const depthFactor = 1 + (r / maxDepthCm) * 0.2;
+        // IDENTICAL TO LINEAR: 0.5 + baseSpeckle * 0.5
+        const speckleMultiplier = (0.5 + baseSpeckle * 0.5) * pixelVariation;
         
-        // PURELY MULTIPLICATIVE speckle (no additive terms)
-        const pixelVariation = 1.0 + hashNoise * 0.12 + fineHash * 0.08;
-        const speckleMultiplier = (0.5 + baseSpeckle * speckleScale * 0.5) * pixelVariation * depthFactor;
+        // Blood flow modulation (if applicable) - IDENTICAL TO LINEAR
+        let flowMultiplier = 1.0;
+        if (tissue.isInclusion) {
+          const inclusion = this.config.inclusions?.find(inc => 
+            this.isPointInInclusionPolar(r, theta, inc)
+          );
+          if (inclusion?.mediumInsideId === 'blood') {
+            const inclLateral = inclusion.centerLateralPos * maxDepthCm * Math.tan(halfFOVRad);
+            const inclX = r * Math.sin(theta);
+            const dx = inclX - inclLateral;
+            const dy = r - inclusion.centerDepthCm;
+            const radialPos = Math.sqrt(dx * dx + dy * dy) / (inclusion.sizeCm.width / 2);
+            const flowSpeed = Math.max(0, 1 - radialPos * radialPos) * 0.8;
+            const flowPhase = this.time * flowSpeed * 25;
+            const pulse = 0.5 + 0.5 * Math.sin(this.time * 1.2 * 2 * Math.PI);
+            flowMultiplier = 1.0 + Math.sin(flowPhase + r * 8 + theta * 6) * 0.2 * pulse;
+          }
+        }
         
-        // Apply multiplicative speckle
-        intensity *= speckleMultiplier;
+        // Apply PURELY MULTIPLICATIVE speckle - IDENTICAL TO LINEAR
+        intensity *= speckleMultiplier * flowMultiplier;
         
         // ═══════════════════════════════════════════════════════════════════════════════
-        // 9. LOG COMPRESSION (LAST STEP - after shadow and speckle)
+        // 11. LOG COMPRESSION - IDENTICAL TO LINEAR
         // ═══════════════════════════════════════════════════════════════════════════════
-        // NO clamp before this point
-        intensity *= Math.pow(10, (gain - 50) / 20); // Gain
-        intensity = Math.log(1 + intensity * 10) / Math.log(11); // Log compression
+        const gainLinear = Math.pow(10, (gain - 50) / 20);
+        intensity *= gainLinear;
         
-        // ═══ 10. FINAL CLAMP (only after log compression) ═══
+        // Log compression - IDENTICAL TO LINEAR
+        intensity = Math.log(1 + intensity * 10) / Math.log(11);
+        
+        // ═══ 12. FINAL CLAMP ═══
         this.polarImage[idx] = Math.max(0, Math.min(1, intensity));
       }
     }
+  }
+  
+  /**
+   * Base echogenicity - IDENTICAL TO LINEAR
+   */
+  private getBaseEchogenicityLinear(echogenicity: string): number {
+    switch (echogenicity) {
+      case 'anechoic': return 0.05;
+      case 'hypoechoic': return 0.35;
+      case 'isoechoic': return 0.55;
+      case 'hyperechoic': return 0.85;
+      default: return 0.5;
+    }
+  }
+  
+  /**
+   * Interface reflection for polar coordinates
+   */
+  private calculateInterfaceReflectionPolar(r: number, theta: number): number {
+    // Simplified layer interface detection
+    if (!this.config.layers || this.config.layers.length < 2) return 0;
+    
+    let cumulativeDepth = 0;
+    for (let i = 0; i < this.config.layers.length - 1; i++) {
+      cumulativeDepth += this.config.layers[i].thicknessCm;
+      const distFromInterface = Math.abs(r - cumulativeDepth);
+      if (distFromInterface < 0.05) {
+        // Near interface - add reflection
+        return Math.exp(-distFromInterface * 40) * 0.3;
+      }
+    }
+    return 0;
+  }
+  
+  /**
+   * Multi-octave Perlin noise - IDENTICAL TO LINEAR
+   */
+  private multiOctaveNoiseLinear(x: number, y: number, octaves: number): number {
+    let value = 0;
+    let amplitude = 1;
+    let frequency = 1;
+    let maxValue = 0;
+    
+    for (let i = 0; i < octaves; i++) {
+      const sampleX = x * frequency * 0.01;
+      const sampleY = y * frequency * 0.01;
+      const n = Math.sin(sampleX * 12.9898 + sampleY * 78.233 + i * 43758.5453) * 43758.5453;
+      const noiseVal = (n - Math.floor(n)) * 2 - 1;
+      value += noiseVal * amplitude;
+      maxValue += amplitude;
+      amplitude *= 0.5;
+      frequency *= 2;
+    }
+    
+    return value / maxValue;
   }
   
   /**
@@ -736,8 +834,28 @@ export class ConvexPolarEngine {
         const v1 = v10 * (1 - tFrac) + v11 * tFrac;
         let intensity = v0 * (1 - rFrac) + v1 * rFrac;
         
-        // ═══ RUÍDO TEMPORAL (motor unificado - igual ao linear) ═══
-        intensity = this.physicsCore.applyTemporalNoise(x, y, physDepthCm, maxDepthCm, intensity);
+        // ═══ RUÍDO TEMPORAL - IDENTICAL TO LINEAR ═══
+        const depthRatio = physDepthCm / maxDepthCm;
+        const temporalSeed = this.time * 2.5;
+        
+        // Multi-frequency temporal noise - IDENTICAL TO LINEAR coefficients
+        const highFreqNoise = Math.sin(x * 0.3 + y * 0.2 + temporalSeed * 12) * 0.012;
+        const midFreqNoise = Math.sin(x * 0.08 + y * 0.1 + temporalSeed * 4) * 0.018;
+        const lowFreqNoise = Math.sin(temporalSeed * 1.5) * 0.008;
+        const frameNoise = (Math.random() - 0.5) * 0.025 * (1 + depthRatio * 0.5);
+        
+        const totalLiveNoise = (highFreqNoise + midFreqNoise + lowFreqNoise + frameNoise) * (1 + depthRatio * 0.8);
+        intensity *= (1 + totalLiveNoise);
+        
+        // Scanline/refresh effect - IDENTICAL TO LINEAR
+        const scanlinePos = (temporalSeed * 50) % canvasHeight;
+        const scanlineDistance = Math.abs(y - scanlinePos);
+        const scanlineEffect = Math.exp(-scanlineDistance * 0.3) * 0.015 * Math.sin(temporalSeed * 15);
+        intensity *= (1 + scanlineEffect);
+        
+        // Vertical banding - IDENTICAL TO LINEAR
+        const bandingNoise = Math.sin(x * 0.15 + temporalSeed * 2) * 0.006;
+        intensity *= (1 + bandingNoise);
         
         // ═══ FEATHERING NAS BORDAS ═══
         const angleFromEdge = halfFOVRad - Math.abs(pixelAngle);
@@ -747,7 +865,7 @@ export class ConvexPolarEngine {
           intensity *= edgeFalloff;
         }
         
-        // Near-field feathering
+        // Near-field feathering - IDENTICAL TO LINEAR
         const nearFieldCm = 0.3;
         if (physDepthCm < nearFieldCm) {
           const nearFalloff = physDepthCm / nearFieldCm;
