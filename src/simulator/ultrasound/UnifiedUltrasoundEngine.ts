@@ -1411,17 +1411,20 @@ export class UnifiedUltrasoundEngine {
   ): number {
     let { depth, lateral } = coords;
     
-    // Motion artifacts (mantidos para consistência visual)
-    const breathingCycle = Math.sin(this.time * 0.3) * 0.015;
+    // Motion artifacts (INCREASED for realistic hand-held probe movements)
+    const breathingCycle = Math.sin(this.time * 0.3) * 0.035;
     const breathingDepthEffect = depth / this.config.depth;
     depth += breathingCycle * breathingDepthEffect;
     
-    const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008;
-    const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
+    const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.025;
+    const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.018;
     lateral += jitterLateral;
     depth += jitterDepth;
     
-    const tissueTremor = Math.sin(x * 0.02 + this.time * 5) * Math.cos(y * 0.015 + this.time * 4) * 0.003;
+    const armSway = Math.sin(this.time * 1.2) * Math.cos(this.time * 0.7) * 0.015;
+    lateral += armSway;
+    
+    const tissueTremor = Math.sin(x * 0.02 + this.time * 5) * Math.cos(y * 0.015 + this.time * 4) * 0.008;
     depth += tissueTremor;
     
     // 1. Get tissue properties at this location
@@ -1510,20 +1513,24 @@ export class UnifiedUltrasoundEngine {
   ): number {
     let { depth, lateral } = coords;
     
-    // MOTION ARTIFACTS - Realistic subtle movements
+    // MOTION ARTIFACTS - Realistic hand-held probe movements (INCREASED for visibility)
     // 1. Breathing motion (cyclic vertical displacement)
-    const breathingCycle = Math.sin(this.time * 0.3) * 0.015; // ~20 breaths/min, ±0.15mm
-    const breathingDepthEffect = depth / this.config.depth; // Deeper = more movement
+    const breathingCycle = Math.sin(this.time * 0.3) * 0.035; // Increased from 0.015
+    const breathingDepthEffect = depth / this.config.depth;
     depth += breathingCycle * breathingDepthEffect;
     
-    // 2. Probe micro-jitter (operator hand tremor)
-    const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008; // ~8Hz tremor
-    const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
+    // 2. Probe micro-jitter (operator hand tremor) - INCREASED
+    const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.025; // Increased from 0.008
+    const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.018; // Increased from 0.006
     lateral += jitterLateral;
     depth += jitterDepth;
     
-    // 3. Tissue micro-movements (random fibrillar motion)
-    const tissueTremor = Math.sin(x * 0.02 + this.time * 5) * Math.cos(y * 0.015 + this.time * 4) * 0.003;
+    // 3. Additional low-frequency sway (natural arm movement)
+    const armSway = Math.sin(this.time * 1.2) * Math.cos(this.time * 0.7) * 0.015;
+    lateral += armSway;
+    
+    // 4. Tissue micro-movements (random fibrillar motion) - INCREASED
+    const tissueTremor = Math.sin(x * 0.02 + this.time * 5) * Math.cos(y * 0.015 + this.time * 4) * 0.008;
     depth += tissueTremor;
     
     // ═══════════════════════════════════════════════════════════════════════════════
@@ -3037,7 +3044,7 @@ export class UnifiedUltrasoundEngine {
   
   /**
    * Apply Doppler color to a single pixel with realistic carotid flow visualization
-   * Based on real clinical Color Doppler appearance
+   * Based on real clinical Color Doppler appearance (GE, Philips, Siemens style)
    */
   private applyDopplerColorToPixel(
     data: Uint8ClampedArray,
@@ -3051,120 +3058,127 @@ export class UnifiedUltrasoundEngine {
     incCenterX: number
   ): void {
     // ═══════════════════════════════════════════════════════════════════════════════
-    // REALISTIC CAROTID DOPPLER COLOR FLOW
+    // ULTRA-REALISTIC CAROTID DOPPLER COLOR FLOW
     // 
-    // Real Doppler characteristics:
-    // - Laminar flow: parabolic velocity profile (fastest at center)
-    // - Pulsatile: systolic peak with diastolic baseline
-    // - Color map: Red-Orange-Yellow (toward) / Blue-Cyan (away)
-    // - Aliasing: color wrap at Nyquist limit
-    // - Noise/variance: subtle color fluctuation
+    // Real clinical Doppler characteristics:
+    // - Laminar flow with parabolic velocity profile
+    // - Saturated colors: deep red/orange center, dark red edges
+    // - Blue for venous: deep blue center, darker edges
+    // - Motion-synchronized color fluctuation
+    // - Edge softening with gradual color fade
     // ═══════════════════════════════════════════════════════════════════════════════
     
     // Parabolic velocity profile (Poiseuille laminar flow)
-    // Center = 1.0, Edge = 0.0
     const normalizedRadius = Math.min(1.0, distFromCenter);
-    const laminarProfile = 1.0 - normalizedRadius * normalizedRadius;
+    const laminarProfile = Math.pow(1.0 - normalizedRadius * normalizedRadius, 0.7);
     
-    // Velocity with realistic micro-turbulence
-    const spatialNoise = this.dopplerNoise(px * 0.1, py * 0.1, this.time * 2) * 0.08;
-    const velocity = Math.max(0, laminarProfile * (0.85 + spatialNoise));
+    // Velocity with realistic micro-turbulence (motion-synchronized)
+    const motionPhase = this.time * 3.5;
+    const spatialNoise = this.dopplerNoise(px * 0.05 + motionPhase, py * 0.05, this.time) * 0.12;
+    const velocity = Math.max(0, laminarProfile * (0.75 + spatialNoise));
     
-    // Pulsatile modulation (systolic peak)
-    const systolicBoost = pulse > 0.7 ? (pulse - 0.7) * 1.5 : 0;
-    const pulsatileVelocity = velocity * (0.6 + 0.4 * pulse + systolicBoost * 0.3);
+    // Pulsatile modulation (stronger systolic peak)
+    const cardiacPhase = (this.time * 1.2) % 1.0;
+    const systole = Math.pow(Math.sin(cardiacPhase * Math.PI), 2);
+    const pulsatileVelocity = velocity * (0.5 + 0.5 * systole * pulse);
     
-    // Flow direction - carotid typically flows toward probe (red)
-    // Jugular typically flows away from probe (blue)
-    // Use lateral position relative to vessel center to determine
+    // Flow direction based on vessel type
     const flowBias = lateral - incCenterX;
-    const isArterial = flowBias < 0.1; // Carotid usually medial
+    const isArterial = flowBias < 0.15;
     
-    // Color intensity (0-1)
-    const baseIntensity = pulsatileVelocity * 0.9;
+    // Edge fade factor (softer color at vessel edges)
+    const edgeFade = Math.pow(laminarProfile, 0.5);
     
-    if (baseIntensity < 0.08) return; // Below threshold
+    // Color intensity
+    const baseIntensity = pulsatileVelocity * edgeFade;
+    
+    if (baseIntensity < 0.05) return;
     
     const idx = (py * width + px) * 4;
     const gray = data[idx];
     
-    // ═══ REALISTIC DOPPLER COLOR MAP ═══
-    // Based on clinical ultrasound color scales
+    // ═══ CLINICAL DOPPLER COLOR MAP ═══
+    // Matches GE Logiq / Philips EPIQ color scales
     
     let r: number, g: number, b: number;
+    const v = pulsatileVelocity;
     
     if (isArterial) {
       // ═══ ARTERIAL FLOW (toward probe) ═══
-      // Low velocity: dark red
-      // Medium velocity: bright red/orange
-      // High velocity: yellow/white
-      // Matches real carotid Doppler appearance
+      // Clinical scale: Dark Red → Bright Red → Orange → Yellow
       
-      if (pulsatileVelocity < 0.4) {
-        // Low velocity: dark red
-        const t = pulsatileVelocity / 0.4;
-        r = Math.floor(80 + 120 * t);
-        g = Math.floor(10 * t);
-        b = 0;
-      } else if (pulsatileVelocity < 0.7) {
-        // Medium velocity: red to orange
-        const t = (pulsatileVelocity - 0.4) / 0.3;
-        r = Math.floor(200 + 55 * t);
-        g = Math.floor(10 + 100 * t);
-        b = 0;
+      if (v < 0.25) {
+        const t = v / 0.25;
+        r = Math.floor(100 + 80 * t);
+        g = Math.floor(5 + 15 * t);
+        b = Math.floor(5 + 5 * t);
+      } else if (v < 0.5) {
+        const t = (v - 0.25) / 0.25;
+        r = Math.floor(180 + 60 * t);
+        g = Math.floor(20 + 40 * t);
+        b = Math.floor(10 - 5 * t);
+      } else if (v < 0.75) {
+        const t = (v - 0.5) / 0.25;
+        r = Math.floor(240 + 15 * t);
+        g = Math.floor(60 + 80 * t);
+        b = Math.floor(5 + 10 * t);
       } else {
-        // High velocity: orange to yellow
-        const t = Math.min(1.0, (pulsatileVelocity - 0.7) / 0.3);
+        const t = Math.min(1.0, (v - 0.75) / 0.25);
         r = 255;
-        g = Math.floor(110 + 145 * t);
-        b = Math.floor(50 * t);
+        g = Math.floor(140 + 100 * t);
+        b = Math.floor(15 + 60 * t);
       }
       
       // Aliasing at very high velocity (Nyquist wrap)
-      if (pulsatileVelocity > 0.9) {
-        const aliasT = (pulsatileVelocity - 0.9) / 0.1;
-        // Wrap to cyan/turquoise (aliasing artifact)
-        b = Math.floor(b + (180 - b) * aliasT * 0.6);
-        g = Math.floor(g + (255 - g) * aliasT * 0.3);
+      if (v > 0.92) {
+        const aliasT = (v - 0.92) / 0.08;
+        const wrap = Math.sin(aliasT * Math.PI) * 0.5;
+        b = Math.floor(b + (200 - b) * wrap);
+        g = Math.floor(g + (220 - g) * wrap * 0.4);
       }
       
     } else {
       // ═══ VENOUS FLOW (away from probe) ═══
-      // Low velocity: dark blue
-      // Medium velocity: bright blue
-      // High velocity: cyan/turquoise
+      // Clinical scale: Dark Blue → Medium Blue → Bright Blue → Cyan
       
-      if (pulsatileVelocity < 0.4) {
-        // Low velocity: dark blue
-        const t = pulsatileVelocity / 0.4;
-        r = 0;
-        g = Math.floor(10 * t);
-        b = Math.floor(60 + 100 * t);
-      } else if (pulsatileVelocity < 0.7) {
-        // Medium velocity: blue to cyan
-        const t = (pulsatileVelocity - 0.4) / 0.3;
-        r = 0;
-        g = Math.floor(10 + 120 * t);
-        b = Math.floor(160 + 70 * t);
+      if (v < 0.25) {
+        const t = v / 0.25;
+        r = Math.floor(5 + 10 * t);
+        g = Math.floor(10 + 30 * t);
+        b = Math.floor(80 + 60 * t);
+      } else if (v < 0.5) {
+        const t = (v - 0.25) / 0.25;
+        r = Math.floor(15 - 5 * t);
+        g = Math.floor(40 + 50 * t);
+        b = Math.floor(140 + 50 * t);
+      } else if (v < 0.75) {
+        const t = (v - 0.5) / 0.25;
+        r = Math.floor(10 + 20 * t);
+        g = Math.floor(90 + 60 * t);
+        b = Math.floor(190 + 40 * t);
       } else {
-        // High velocity: bright cyan
-        const t = Math.min(1.0, (pulsatileVelocity - 0.7) / 0.3);
-        r = Math.floor(40 * t);
-        g = Math.floor(130 + 100 * t);
+        const t = Math.min(1.0, (v - 0.75) / 0.25);
+        r = Math.floor(30 + 40 * t);
+        g = Math.floor(150 + 80 * t);
         b = Math.floor(230 + 25 * t);
       }
     }
     
-    // Blend with underlying B-mode (semi-transparent overlay)
-    const alpha = 0.75 + 0.15 * baseIntensity; // More opaque at high velocity
+    // Apply edge fade to color saturation
+    r = Math.floor(r * (0.6 + 0.4 * edgeFade));
+    g = Math.floor(g * (0.6 + 0.4 * edgeFade));
+    b = Math.floor(b * (0.6 + 0.4 * edgeFade));
+    
+    // Blend with underlying B-mode
+    const alpha = 0.88 + 0.08 * baseIntensity;
     const invAlpha = 1 - alpha;
     
-    // Add subtle color variance for texture
-    const colorNoise = this.dopplerNoise(px * 0.3, py * 0.3, this.time * 5) * 15;
+    // Motion-synchronized color noise
+    const colorNoise = this.dopplerNoise(px * 0.2 + this.time * 2, py * 0.2, this.time * 3) * 8;
     
     data[idx] = Math.min(255, Math.max(0, Math.floor(r * alpha + gray * invAlpha + colorNoise)));
-    data[idx + 1] = Math.min(255, Math.max(0, Math.floor(g * alpha + gray * invAlpha + colorNoise * 0.5)));
-    data[idx + 2] = Math.min(255, Math.max(0, Math.floor(b * alpha + gray * invAlpha + colorNoise * 0.3)));
+    data[idx + 1] = Math.min(255, Math.max(0, Math.floor(g * alpha + gray * invAlpha + colorNoise * 0.6)));
+    data[idx + 2] = Math.min(255, Math.max(0, Math.floor(b * alpha + gray * invAlpha + colorNoise * 0.4)));
   }
   
   /**
