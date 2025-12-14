@@ -722,27 +722,68 @@ export class UnifiedUltrasoundEngine {
       }
       
       // ═══════════════════════════════════════════════════════════════════════════════
-      // PASSO 4: Pós-processamento LEVE da sombra Linear
-      // - Clareia levemente (~8%) para reduzir força global da sombra
-      // - Smoothing vertical super leve para suavizar paredes, mantendo speckle
+      // PASSO 4: C1 CONTINUITY BRIDGING - Remove descontinuidade multiplicativa em zExit
+      // 
+      // O problema: acima de zExit temos I_base, abaixo temos I_base * shadowFactor
+      // Isso cria uma descontinuidade matemática (linha horizontal)
+      // 
+      // Solução: "bridge" entre as duas funções para continuidade C1
+      // ═══════════════════════════════════════════════════════════════════════════════
+      const BRIDGE_TRANSITION_PIXELS = 8;
+      
+      for (let x = 0; x < width; x++) {
+        const zExit = this.linearZExits[x];
+        if (zExit < 0 || zExit >= height - 1) continue;
+        
+        // Obter o shadowFactor desta coluna no ponto imediatamente após zExit
+        const shadowMapIdx = (zExit + 1) * width + x;
+        if (!this.linearShadowMap || shadowMapIdx >= this.linearShadowMap.length) continue;
+        
+        const shadowFactor = this.linearShadowMap[shadowMapIdx];
+        if (shadowFactor >= 0.999) continue; // Sem sombra nesta coluna
+        
+        // Valor do último pixel NÃO sombreado (zExit)
+        const idxLastUnshadowed = zExit * width + x;
+        const I_lastUnshadowed = image_final[idxLastUnshadowed];
+        
+        // Valor "bridge" = intensidade que a região sombreada DEVERIA ter para continuidade
+        const bridge = I_lastUnshadowed * shadowFactor;
+        
+        // PASSO 4a: Primeiro pixel após zExit - atribuição direta do bridge
+        const idxFirstShadowed = (zExit + 1) * width + x;
+        image_final[idxFirstShadowed] = bridge;
+        
+        // PASSO 4b: Transição suave nos próximos 8 pixels (zExit+2 até zExit+9)
+        const transitionEnd = Math.min(height - 1, zExit + 1 + BRIDGE_TRANSITION_PIXELS);
+        
+        for (let z = zExit + 2; z <= transitionEnd; z++) {
+          const idx = z * width + x;
+          
+          // t varia de 0 (início da transição) até 1 (fim da transição)
+          const t = (z - (zExit + 1)) / BRIDGE_TRANSITION_PIXELS;
+          
+          // target = intensidade normal sombreada que o pixel teria
+          const target = image_final[idx]; // Já foi processado com shadow no PASSO 2-3
+          
+          // Interpolação linear do bridge para o target
+          image_final[idx] = (1.0 - t) * bridge + t * target;
+        }
+      }
+      
+      // ═══════════════════════════════════════════════════════════════════════════════
+      // PASSO 5: Smoothing vertical leve dentro da sombra (mantém speckle)
       // ═══════════════════════════════════════════════════════════════════════════════
       for (let x = 0; x < width; x++) {
         const zExit = this.linearZExits[x];
         if (zExit < 0) continue;
         
-        const z0 = zExit + 1;
+        // Começar APÓS a região de transição do bridge
+        const z0 = zExit + BRIDGE_TRANSITION_PIXELS + 2;
         const z1 = height - 2;
         
-        if (z0 >= height) continue;
+        if (z0 >= z1) continue;
         
-        // Clarear levemente a sombra (~8%)
         for (let z = z0; z <= z1; z++) {
-          const idx = z * width + x;
-          image_final[idx] = image_final[idx] * 1.08;
-        }
-        
-        // Smoothing vertical super leve só dentro da sombra
-        for (let z = z0 + 1; z <= z1 - 1; z++) {
           const idxPrev = (z - 1) * width + x;
           const idxCurr = z * width + x;
           const idxNext = (z + 1) * width + x;
@@ -752,41 +793,8 @@ export class UnifiedUltrasoundEngine {
           const c = image_final[idxNext];
           
           const smooth = (a + 2 * b + c) / 4.0;
-          // Mantém speckle, mas quebra paredes retas
-          image_final[idxCurr] = 0.8 * smooth + 0.2 * b;
-        }
-      }
-      
-      // ═══════════════════════════════════════════════════════════════════════════════
-      // PASSO 5: Smoothing de junção na transição zExit (banda de 8 pixels)
-      // Remove a linha horizontal de descontinuidade entre base e sombra
-      // ═══════════════════════════════════════════════════════════════════════════════
-      for (let x = 0; x < width; x++) {
-        const zExit = this.linearZExits[x];
-        if (zExit < 0) continue;
-        
-        const junctionZ0 = zExit;
-        const junctionZ1 = Math.min(height - 2, zExit + 8);
-        
-        if (junctionZ0 < 1 || junctionZ0 >= height - 1) continue;
-        
-        // Smoothing com kernel (1, 4, 1)/6 para manter 80-90% do speckle
-        for (let z = junctionZ0; z <= junctionZ1; z++) {
-          if (z < 1 || z >= height - 1) continue;
-          
-          const idxPrev = (z - 1) * width + x;
-          const idxCurr = z * width + x;
-          const idxNext = (z + 1) * width + x;
-          
-          const a = image_final[idxPrev];
-          const b = image_final[idxCurr];
-          const c = image_final[idxNext];
-          
-          // Kernel (1, 4, 1)/6 preserva mais do valor central
-          const smoothed = (a + 4 * b + c) / 6.0;
-          
-          // Blend 85% original + 15% smoothed para quebrar a linha sem perder speckle
-          image_final[idxCurr] = 0.85 * image_final[idxCurr] + 0.15 * smoothed;
+          // Mantém 80% speckle, 20% smoothed
+          image_final[idxCurr] = 0.8 * b + 0.2 * smooth;
         }
       }
       
