@@ -1658,7 +1658,7 @@ export class UnifiedUltrasoundEngine {
     
     return {
       echogenicity: layer.echogenicity,
-      attenuation: layer.attenuationCoeff || 0.7,
+      attenuation: layer.attenuationCoeff || 0.35, // Reduced from 0.7 for better depth penetration
       reflectivity: layer.reflectivity,
       impedance: 1.63, // Average soft tissue
       isInclusion: false
@@ -1679,7 +1679,7 @@ export class UnifiedUltrasoundEngine {
       reflectivity: 0.5,
       echogenicity: 'isoechoic',
       texture: 'homogeneous',
-      attenuationCoeff: 0.7
+      attenuationCoeff: 0.35 // Reduced from 0.7 for better depth penetration
     };
   }
   
