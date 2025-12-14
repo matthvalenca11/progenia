@@ -125,7 +125,7 @@ export const useUltrasoundLabStore = create<UltrasoundLabState>((set, get) => ({
   labId: null,
   labName: '',
   labDescription: '',
-  presetId: 'muscle_generic',
+  presetId: 'custom', // Default: personalizado (sem camadas/inclusões pré-definidas)
   layers: [],
   acousticLayers: [],
   inclusions: [],
@@ -269,7 +269,7 @@ export const useUltrasoundLabStore = create<UltrasoundLabState>((set, get) => ({
     labId: null,
     labName: '',
     labDescription: '',
-    presetId: 'muscle_generic',
+    presetId: 'custom', // Default: personalizado (sem camadas/inclusões pré-definidas)
     layers: [],
     acousticLayers: [],
     inclusions: [],
