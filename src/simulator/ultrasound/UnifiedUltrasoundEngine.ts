@@ -1435,20 +1435,19 @@ export class UnifiedUltrasoundEngine {
   
   /**
    * ═══════════════════════════════════════════════════════════════════════════════
-   * ACOUSTIC SHADOW - v7 (LINEAR) - DISTÂNCIA CONTÍNUA À ELIPSE
+   * LINEAR SOFT SHADOW - ALGORITMO SIMPLES E SUAVE
    * ═══════════════════════════════════════════════════════════════════════════════
    * 
-   * PROBLEMA v6: Ainda havia linha horizontal porque a transição usava zonas
-   * discretas (dentro/fora da elipse) que criavam descontinuidade visual.
-   * 
-   * SOLUÇÃO v7: Usar distância euclidiana REAL à superfície da elipse.
-   * A sombra é uma função CONTÍNUA dessa distância, sem zonas.
-   * 
-   * Para cada pixel, calculamos:
-   * 1. A distância ao ponto mais próximo na superfície da elipse
-   * 2. Se o pixel está ABAIXO da elipse (na região de sombra)
-   * 3. Aplicamos atenuação baseada nessa distância contínua
+   * Modo "soft shadow" exclusivo do Linear:
+   * - Ignora completamente a lógica antiga (alphaBase, expAtten, SHADOW_STRENGTH)
+   * - Usa apenas gradiente linear/quadrático simples
+   * - Máximo 25% mais escuro que o tecido vizinho
+   * - Preserva speckle completamente
    */
+  
+  // Flag para ativar o modo soft shadow no Linear
+  private USE_LINEAR_SOFT_SHADOW = true;
+  
   private calculateInclusionEffects(
     x: number,
     y: number,
@@ -1461,121 +1460,74 @@ export class UnifiedUltrasoundEngine {
     
     if (this.config.transducerType === 'linear') {
       
-      for (const inclusion of this.config.inclusions) {
-        if (!inclusion.hasStrongShadow) continue;
+      // ═══════════════════════════════════════════════════════════════════════════════
+      // MODO SOFT SHADOW: ALGORITMO SIMPLES
+      // ═══════════════════════════════════════════════════════════════════════════════
+      if (this.USE_LINEAR_SOFT_SHADOW) {
         
-        // Posição da inclusão
-        const inclLateral = inclusion.centerLateralPos * 2.5; // -2.5 to +2.5 cm
-        const inclCenterDepth = inclusion.centerDepthCm;
-        const inclHalfWidth = inclusion.sizeCm.width / 2;
-        const inclHalfHeight = inclusion.sizeCm.height / 2;
-        
-        // ═══════════════════════════════════════════════════════════════════════════════
-        // CALCULAR SE O PIXEL ESTÁ NA REGIÃO DE SOMBRA (ABAIXO DA ELIPSE)
-        // ═══════════════════════════════════════════════════════════════════════════════
-        
-        // Coordenadas normalizadas relativas ao centro da elipse
-        const dx = lateral - inclLateral;
-        const dy = depth - inclCenterDepth;
-        
-        // Coordenadas normalizadas para a elipse unitária
-        const nx = dx / inclHalfWidth;
-        const ny = dy / inclHalfHeight;
-        
-        // Verificar se está na coluna de sombra (dentro da largura da elipse + margem)
-        if (Math.abs(nx) > 1.3) continue;
-        
-        // Só aplicar sombra se estiver ABAIXO do centro da elipse
-        if (ny < 0) continue;
-        
-        // ═══════════════════════════════════════════════════════════════════════════════
-        // CALCULAR DISTÂNCIA À SUPERFÍCIE DA ELIPSE
-        // ═══════════════════════════════════════════════════════════════════════════════
-        
-        // Para uma elipse, a "distância normalizada" ao centro é:
-        // d = sqrt((x/a)² + (y/b)²)
-        // Se d < 1: dentro da elipse
-        // Se d = 1: na superfície
-        // Se d > 1: fora da elipse
-        const ellipseNormDist = Math.sqrt(nx * nx + ny * ny);
-        
-        // Verificar se estamos dentro da elipse
-        if (ellipseNormDist < 1.0) {
-          // Dentro da elipse - sem sombra
-          continue;
+        for (const inclusion of this.config.inclusions) {
+          if (!inclusion.hasStrongShadow) continue;
+          
+          // Posição da inclusão
+          const inclLateral = inclusion.centerLateralPos * 2.5; // -2.5 to +2.5 cm
+          const inclCenterDepth = inclusion.centerDepthCm;
+          const inclHalfWidth = inclusion.sizeCm.width / 2;
+          const inclHalfHeight = inclusion.sizeCm.height / 2;
+          
+          // Coordenadas normalizadas
+          const dx = lateral - inclLateral;
+          const nx = dx / inclHalfWidth;
+          
+          // Só aplicar sombra se estamos dentro da largura da inclusão
+          if (Math.abs(nx) > 1.0) continue;
+          
+          // Calcular a borda inferior da elipse NESTA coluna lateral
+          // Para uma elipse: y = b * sqrt(1 - (x/a)²)
+          const ellipseBottomY = inclCenterDepth + inclHalfHeight * Math.sqrt(1 - nx * nx);
+          
+          // Só aplicar sombra se estamos ABAIXO da borda inferior da elipse
+          if (depth <= ellipseBottomY) continue;
+          
+          // ═══════════════════════════════════════════════════════════════════════════════
+          // ALGORITMO SIMPLES DE SOMBRA SUAVE
+          // ═══════════════════════════════════════════════════════════════════════════════
+          
+          // Profundidade abaixo da borda inferior da inclusão (em cm)
+          const depthDown = depth - ellipseBottomY;
+          
+          // Profundidade máxima até o fundo da imagem (em cm)
+          const maxDepthDown = this.config.depth - ellipseBottomY;
+          
+          // Normalizar: 0 na borda, 1 no fundo
+          const t = Math.min(1.0, depthDown / Math.max(0.1, maxDepthDown));
+          
+          // Quanta sombra aplicar (máximo 25% mais escuro)
+          const maxDrop = 0.25; // 25% de queda máxima
+          
+          // Curva quadrática para transição mais suave
+          const drop = maxDrop * t * t;
+          
+          // Fator final de sombra: entre 0.75 e 1.0
+          let factor = 1.0 - drop;
+          
+          // Bordas laterais difusas
+          const absNx = Math.abs(nx);
+          if (absNx > 0.7) {
+            // Reduzir efeito nas bordas
+            const edgeFade = (absNx - 0.7) / 0.3; // 0 a 1 nas bordas
+            factor = factor + (1.0 - factor) * edgeFade; // Blend para 1.0 nas bordas
+          }
+          
+          // Garantir limites
+          factor = Math.max(0.75, Math.min(1.0, factor));
+          
+          // Aplicar de forma multiplicativa
+          attenuationFactor *= factor;
         }
         
-        // ═══════════════════════════════════════════════════════════════════════════════
-        // CALCULAR PONTO MAIS PRÓXIMO NA SUPERFÍCIE DA ELIPSE
-        // ═══════════════════════════════════════════════════════════════════════════════
-        
-        // Aproximação: projetar o ponto na direção do centro
-        // O ponto na superfície da elipse é: (nx/d, ny/d) em coords normalizadas
-        const surfaceNx = nx / ellipseNormDist;
-        const surfaceNy = ny / ellipseNormDist;
-        
-        // Converter de volta para coordenadas reais (cm)
-        const surfaceX = inclLateral + surfaceNx * inclHalfWidth;
-        const surfaceY = inclCenterDepth + surfaceNy * inclHalfHeight;
-        
-        // Distância euclidiana real ao ponto mais próximo na superfície (em cm)
-        const distToSurface = Math.sqrt(
-          Math.pow(lateral - surfaceX, 2) + 
-          Math.pow(depth - surfaceY, 2)
-        );
-        
-        // ═══════════════════════════════════════════════════════════════════════════════
-        // VERIFICAR SE ESTAMOS NA REGIÃO DE SOMBRA
-        // A sombra segue a CURVATURA da elipse, não uma linha horizontal
-        // ═══════════════════════════════════════════════════════════════════════════════
-        
-        // Verificar se o ponto mais próximo na superfície está na metade INFERIOR da elipse
-        // surfaceNy > 0 significa que está na metade inferior
-        if (surfaceNy < 0.3) {
-          // O ponto mais próximo está na metade superior ou lateral - sem sombra
-          continue;
-        }
-        
-        // A sombra só existe se estamos ABAIXO do ponto de superfície
-        // Isso garante que a sombra segue a curvatura da elipse
-        if (depth < surfaceY) continue;
-        
-        // ═══════════════════════════════════════════════════════════════════════════════
-        // MODELO DE SOMBRA: TRANSIÇÃO ULTRA-SUAVE
-        // ═══════════════════════════════════════════════════════════════════════════════
-        
-        // Parâmetros para transição muito mais gradual
-        const maxFactor = 0.95;  // Quase sem sombra na superfície
-        const minFactor = 0.65;  // Sombra máxima (nunca muito escura)
-        
-        // Escala de transição MUITO maior para eliminar a linha visível
-        const transitionScale = 0.8; // cm - escala grande = transição lenta
-        const normalizedDist = distToSurface / transitionScale;
-        
-        // Função de atenuação ainda mais suave: x² ao invés de tanh para início mais gradual
-        // tanh começa com derivada=1, mas x²/(1+x²) começa com derivada=0
-        const shadowStrength = (normalizedDist * normalizedDist) / (1 + normalizedDist * normalizedDist);
-        
-        // Fator de sombra: interpolação entre maxFactor e minFactor
-        let shadowFactor = maxFactor - (maxFactor - minFactor) * shadowStrength;
-        
-        // ═══════════════════════════════════════════════════════════════════════════════
-        // BORDAS LATERAIS DIFUSAS
-        // ═══════════════════════════════════════════════════════════════════════════════
-        
-        const absNx = Math.abs(nx);
-        if (absNx > 0.5) {
-          // Suavizar nas bordas laterais - começa mais cedo
-          const edgeFade = 1.0 - Math.pow((absNx - 0.5) / 0.8, 2);
-          shadowFactor = shadowFactor + (1.0 - shadowFactor) * (1.0 - Math.max(0, edgeFade));
-        }
-        
-        // Ruído orgânico por pixel (±2%)
-        const pixelSeed = x * 7919 + y * 104729;
-        const noise = (this.hashNoise(pixelSeed) - 0.5) * 0.04;
-        shadowFactor = Math.max(0.60, Math.min(0.98, shadowFactor + noise));
-        
-        attenuationFactor *= shadowFactor;
+      } else {
+        // Lógica antiga (desativada)
+        // ... código antigo removido
       }
       
       // Posterior enhancement
@@ -1583,8 +1535,9 @@ export class UnifiedUltrasoundEngine {
         const enhancementFactor = this.applyPosteriorEnhancement(depth, lateral);
         attenuationFactor *= enhancementFactor;
       }
+      
     } else {
-      // CONVEX/MICROCONVEX
+      // CONVEX/MICROCONVEX - sem alterações
       if (this.config.enablePosteriorEnhancement) {
         const enhancementFactor = this.applyPosteriorEnhancement(depth, lateral);
         attenuationFactor *= enhancementFactor;
