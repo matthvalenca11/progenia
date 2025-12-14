@@ -75,14 +75,25 @@ export const UltrasoundPreview = () => {
       dynamicRange: dynamicRange || 60,
       tgc: [],
       mode: mode || 'b-mode',
+      // Core imaging
+      showStructuralBMode: simulationFeatures?.showStructuralBMode ?? true,
+      // Artifacts
       enablePosteriorEnhancement: simulationFeatures?.enablePosteriorEnhancement ?? true,
       enableAcousticShadow: simulationFeatures?.enableAcousticShadow ?? true,
-      enableReverberation: simulationFeatures?.enableReverberation ?? true,
+      enableReverberation: simulationFeatures?.enableReverberation ?? false,
+      enableNearFieldClutter: simulationFeatures?.enableNearFieldClutter ?? false,
       enableSpeckle: true,
+      // Visual overlays
       showBeamLines: simulationFeatures?.showBeamOverlay ?? false,
       showDepthScale: simulationFeatures?.showDepthScale ?? true,
       showFocusMarker: simulationFeatures?.showFocusMarker ?? true,
-      showLabels: simulationFeatures?.showAnatomyLabels ?? false,
+      // Didactic overlays
+      showFieldLines: simulationFeatures?.showFieldLines ?? false,
+      showAttenuationMap: simulationFeatures?.showAttenuationMap ?? false,
+      showAnatomyLabels: simulationFeatures?.showAnatomyLabels ?? false,
+      // Advanced features
+      showPhysicsPanel: simulationFeatures?.showPhysicsPanel ?? false,
+      enableColorDoppler: simulationFeatures?.enableColorDoppler ?? false,
     });
     
     engineRef.current = engine;
@@ -123,13 +134,24 @@ export const UltrasoundPreview = () => {
       lateralOffset: 0,
       dynamicRange: dynamicRange || 60,
       mode: mode || 'b-mode',
-      enablePosteriorEnhancement: simulationFeatures?.enablePosteriorEnhancement || true,
-      enableAcousticShadow: simulationFeatures?.enableAcousticShadow || true,
-      enableReverberation: simulationFeatures?.enableReverberation || true,
-      showBeamLines: simulationFeatures?.showBeamOverlay || false,
-      showDepthScale: simulationFeatures?.showDepthScale || true,
-      showFocusMarker: simulationFeatures?.showFocusMarker || true,
-      showLabels: simulationFeatures?.showAnatomyLabels || false,
+      // Core imaging
+      showStructuralBMode: simulationFeatures?.showStructuralBMode ?? true,
+      // Artifacts
+      enablePosteriorEnhancement: simulationFeatures?.enablePosteriorEnhancement ?? true,
+      enableAcousticShadow: simulationFeatures?.enableAcousticShadow ?? true,
+      enableReverberation: simulationFeatures?.enableReverberation ?? false,
+      enableNearFieldClutter: simulationFeatures?.enableNearFieldClutter ?? false,
+      // Visual overlays
+      showBeamLines: simulationFeatures?.showBeamOverlay ?? false,
+      showDepthScale: simulationFeatures?.showDepthScale ?? true,
+      showFocusMarker: simulationFeatures?.showFocusMarker ?? true,
+      // Didactic overlays
+      showFieldLines: simulationFeatures?.showFieldLines ?? false,
+      showAttenuationMap: simulationFeatures?.showAttenuationMap ?? false,
+      showAnatomyLabels: simulationFeatures?.showAnatomyLabels ?? false,
+      // Advanced features
+      showPhysicsPanel: simulationFeatures?.showPhysicsPanel ?? false,
+      enableColorDoppler: simulationFeatures?.enableColorDoppler ?? false,
     });
   }, [
     presetId,

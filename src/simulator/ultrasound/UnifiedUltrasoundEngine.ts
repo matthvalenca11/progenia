@@ -36,19 +36,31 @@ export interface UnifiedEngineConfig {
   // Mode
   mode: 'b-mode' | 'color-doppler';
   
-  // Artifact toggles
-  enablePosteriorEnhancement: boolean;
-  enableAcousticShadow: boolean;
-  enableReverberation: boolean;
-  enableSpeckle: boolean;
+  // === CORE IMAGING ===
+  showStructuralBMode: boolean;        // Main B-mode rendering toggle
   
-  // Visual overlays
-  showBeamLines: boolean;
-  showDepthScale: boolean;
-  showFocusMarker: boolean;
-  showLabels: boolean;
+  // === ARTIFACT TOGGLES ===
+  enablePosteriorEnhancement: boolean; // Brightness increase behind anechoic structures
+  enableAcousticShadow: boolean;       // Dark shadows behind hyperechoic structures
+  enableReverberation: boolean;        // Multiple echo artifacts
+  enableNearFieldClutter: boolean;     // Increased noise in superficial region
+  enableSpeckle: boolean;              // Base speckle texture
   
-  // DEBUG: Linear shadow debug view mode
+  // === VISUAL OVERLAYS (Orientation elements) ===
+  showBeamLines: boolean;              // Beam direction lines overlay
+  showDepthScale: boolean;             // Depth markers (cm) on the side
+  showFocusMarker: boolean;            // Focus zone indicator (triangle/arc)
+  
+  // === DIDACTIC OVERLAYS ===
+  showFieldLines: boolean;             // Concentric wave propagation arcs
+  showAttenuationMap: boolean;         // Semi-transparent attenuation gradient overlay
+  showAnatomyLabels: boolean;          // Text labels for anatomical layers
+  
+  // === ADVANCED FEATURES ===
+  showPhysicsPanel: boolean;           // Real-time physics parameters panel
+  enableColorDoppler: boolean;         // Color flow overlay (blue/red for vessels)
+  
+  // === DEBUG ===
   linearDebugView?: LinearDebugView;
 }
 
@@ -243,6 +255,16 @@ export class UnifiedUltrasoundEngine {
   };
   
   public renderFrame(): void {
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // SHOW STRUCTURAL B-MODE TOGGLE
+    // When disabled, render blank screen with message
+    // ═══════════════════════════════════════════════════════════════════════════════
+    if (!this.config.showStructuralBMode) {
+      this.renderBlankScreen();
+      this.renderOverlays();
+      return;
+    }
+    
     // USAR MOTOR POLAR PURO para convexo/microconvexo
     if ((this.config.transducerType === 'convex' || this.config.transducerType === 'microconvex') && this.convexEngine) {
       this.convexEngine.render(this.ctx);
@@ -251,11 +273,34 @@ export class UnifiedUltrasoundEngine {
       this.renderBMode();
     }
     
-    if (this.config.mode === 'color-doppler') {
+    // Color Doppler overlay (only when enabled)
+    if (this.config.mode === 'color-doppler' || this.config.enableColorDoppler) {
       this.renderDopplerOverlay();
     }
     
     this.renderOverlays();
+  }
+  
+  /**
+   * ═══════════════════════════════════════════════════════════════════════════════
+   * BLANK SCREEN - Rendered when showStructuralBMode is OFF
+   * ═══════════════════════════════════════════════════════════════════════════════
+   */
+  private renderBlankScreen(): void {
+    const { width, height } = this.canvas;
+    
+    // Dark gray background
+    this.ctx.fillStyle = '#1a1a1a';
+    this.ctx.fillRect(0, 0, width, height);
+    
+    // "No Image" message
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    this.ctx.font = 'bold 16px sans-serif';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('Modo B desativado', width / 2, height / 2 - 10);
+    this.ctx.font = '12px sans-serif';
+    this.ctx.fillText('Ative "Imagem estrutural" para visualizar', width / 2, height / 2 + 15);
+    this.ctx.textAlign = 'left';
   }
   
   /**
@@ -1352,11 +1397,26 @@ export class UnifiedUltrasoundEngine {
     // 9. Reverberation artifacts (MULTIPLICATIVE, not additive)
     if (this.config.enableReverberation) {
       const reverb = this.calculateReverberation(depth);
-      intensity *= (1 + reverb * 0.2); // Multiplicative, not additive
+      intensity *= (1 + reverb * 0.4); // Stronger effect when enabled
     }
     
     // ═══════════════════════════════════════════════════════════════════════════════
-    // 10. SPECKLE - MULTIPLICATIVE ONLY (NO ADDITIVE NOISE)
+    // 10. NEAR FIELD CLUTTER - Increased noise in superficial region
+    // ═══════════════════════════════════════════════════════════════════════════════
+    if (this.config.enableNearFieldClutter) {
+      const nearFieldDepthCm = 1.0; // First 1cm affected
+      if (depth < nearFieldDepthCm) {
+        const nearFieldFactor = 1 - (depth / nearFieldDepthCm); // 1 at surface, 0 at 1cm
+        const clutterNoise = (Math.random() - 0.5) * 0.4 * nearFieldFactor;
+        const perlinClutter = this.smoothNoise(x * 0.05, y * 0.05, 123) * 0.3 * nearFieldFactor;
+        intensity *= (1 + clutterNoise + perlinClutter);
+        // Also increase base brightness in near field
+        intensity *= (1 + nearFieldFactor * 0.15);
+      }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // 11. SPECKLE - MULTIPLICATIVE ONLY (NO ADDITIVE NOISE)
     // ═══════════════════════════════════════════════════════════════════════════════
     // CRITICAL: Speckle must be purely multiplicative per-pixel.
     // NO additive noise (+=), NO row-wise averaging.
@@ -1403,7 +1463,7 @@ export class UnifiedUltrasoundEngine {
     }
     
     // ═══════════════════════════════════════════════════════════════════════════════
-    // 11. LOG COMPRESSION (LAST STEP - after shadow and speckle)
+    // 12. LOG COMPRESSION (LAST STEP - after shadow and speckle)
     // ═══════════════════════════════════════════════════════════════════════════════
     // NO clamp before this, NO threshold before this
     const gainLinear = Math.pow(10, (this.config.gain - 50) / 20);
@@ -1516,11 +1576,18 @@ export class UnifiedUltrasoundEngine {
     return Math.pow(10, this.config.tgc[idx] / 20);
   }
   
+  /**
+   * ═══════════════════════════════════════════════════════════════════════════════
+   * REVERBERATION - Multiple echo artifacts (horizontal bands)
+   * ═══════════════════════════════════════════════════════════════════════════════
+   */
   private calculateReverberation(depth: number): number {
-    // Multiple echoes from strong reflectors
-    const reverb1 = Math.sin(depth * 40) * Math.exp(-depth * 1.5) * 0.08;
-    const reverb2 = Math.sin(depth * 80) * Math.exp(-depth * 2.0) * 0.04;
-    return reverb1 + reverb2;
+    // Multiple echoes from strong reflectors - creates horizontal bands
+    // More visible when enabled
+    const reverb1 = Math.sin(depth * 25) * Math.exp(-depth * 0.8) * 0.15;
+    const reverb2 = Math.sin(depth * 50) * Math.exp(-depth * 1.2) * 0.10;
+    const reverb3 = Math.sin(depth * 75) * Math.exp(-depth * 1.8) * 0.05;
+    return reverb1 + reverb2 + reverb3;
   }
   
   private getDistanceFromInclusion(
@@ -2455,16 +2522,60 @@ export class UnifiedUltrasoundEngine {
     return { depth, lateral };
   }
   
+  /**
+   * ═══════════════════════════════════════════════════════════════════════════════
+   * COLOR DOPPLER OVERLAY - Flow visualization for blood vessels
+   * ═══════════════════════════════════════════════════════════════════════════════
+   */
   private renderDopplerOverlay(): void {
-    // Doppler implementation (placeholder for now)
-    // Would show flow in vessels
+    const { width, height } = this.canvas;
+    
+    // Find blood/vessel inclusions and render color flow
+    for (const inclusion of this.config.inclusions) {
+      if (inclusion.mediumInsideId === 'blood' || inclusion.mediumInsideId === 'water') {
+        const centerX = width * 0.5 + (inclusion.centerLateralPos * 2.5 / 5.0) * width * 2;
+        const centerY = (inclusion.centerDepthCm / this.config.depth) * height;
+        const radiusX = (inclusion.sizeCm.width / 5.0) * width;
+        const radiusY = (inclusion.sizeCm.height / this.config.depth) * height;
+        
+        // Create radial gradient for Doppler effect
+        const gradient = this.ctx.createRadialGradient(
+          centerX, centerY, 0,
+          centerX, centerY, Math.max(radiusX, radiusY)
+        );
+        
+        // Pulsatile flow effect
+        const pulse = 0.5 + 0.5 * Math.sin(this.time * 1.2 * 2 * Math.PI);
+        const flowDirection = Math.sin(this.time * 0.5) > 0 ? 1 : -1;
+        
+        if (flowDirection > 0) {
+          // Flow towards probe = red
+          gradient.addColorStop(0, `rgba(255, 0, 0, ${0.4 * pulse})`);
+          gradient.addColorStop(0.7, `rgba(200, 0, 0, ${0.2 * pulse})`);
+          gradient.addColorStop(1, 'rgba(100, 0, 0, 0)');
+        } else {
+          // Flow away from probe = blue
+          gradient.addColorStop(0, `rgba(0, 0, 255, ${0.4 * pulse})`);
+          gradient.addColorStop(0.7, `rgba(0, 0, 200, ${0.2 * pulse})`);
+          gradient.addColorStop(1, 'rgba(0, 0, 100, 0)');
+        }
+        
+        this.ctx.fillStyle = gradient;
+        this.ctx.beginPath();
+        this.ctx.ellipse(centerX, centerY, radiusX * 0.8, radiusY * 0.8, 0, 0, 2 * Math.PI);
+        this.ctx.fill();
+      }
+    }
   }
   
   private renderOverlays(): void {
     if (this.config.showBeamLines) this.drawBeamLines();
     if (this.config.showDepthScale) this.drawDepthScale();
     if (this.config.showFocusMarker) this.drawFocusMarker();
-    if (this.config.showLabels) this.drawLabels();
+    if (this.config.showAnatomyLabels) this.drawLabels();
+    if (this.config.showFieldLines) this.drawFieldLines();
+    if (this.config.showAttenuationMap) this.drawAttenuationMap();
+    if (this.config.showPhysicsPanel) this.drawPhysicsPanel();
   }
   
   private drawBeamLines(): void {
@@ -2562,5 +2673,138 @@ export class UnifiedUltrasoundEngine {
       const x = this.canvas.width * 0.5 + (lateralCm / 5.0) * this.canvas.width * 2;
       this.ctx.fillText(inclusion.label, x, y);
     }
+  }
+  
+  /**
+   * ═══════════════════════════════════════════════════════════════════════════════
+   * FIELD LINES OVERLAY - Concentric wave propagation arcs (didactic overlay)
+   * ═══════════════════════════════════════════════════════════════════════════════
+   */
+  private drawFieldLines(): void {
+    const { width, height } = this.canvas;
+    
+    this.ctx.strokeStyle = 'rgba(0, 200, 255, 0.25)';
+    this.ctx.lineWidth = 1;
+    
+    if (this.config.transducerType === 'linear') {
+      // Linear: horizontal arcs representing wavefronts
+      const numArcs = 8;
+      for (let i = 1; i <= numArcs; i++) {
+        const y = (i / numArcs) * height;
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, y);
+        this.ctx.lineTo(width, y);
+        this.ctx.stroke();
+      }
+    } else {
+      // Convex/Microconvex: concentric arcs from transducer center
+      const fovDegrees = this.config.transducerType === 'convex' ? 60 : 50;
+      const transducerRadiusCm = this.config.transducerType === 'convex' ? 5.0 : 2.5;
+      const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
+      const centerX = width / 2;
+      
+      const totalDistanceFromCenter = transducerRadiusCm + this.config.depth;
+      const pixelsPerCm = height / totalDistanceFromCenter;
+      const arcRadiusPixels = transducerRadiusCm * pixelsPerCm;
+      const virtualCenterY = -arcRadiusPixels;
+      
+      const numArcs = 8;
+      for (let i = 1; i <= numArcs; i++) {
+        const depthCm = (i / numArcs) * this.config.depth;
+        const arcRadius = (transducerRadiusCm + depthCm) * pixelsPerCm;
+        
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, virtualCenterY, arcRadius, Math.PI / 2 - halfFOVRad, Math.PI / 2 + halfFOVRad);
+        this.ctx.stroke();
+      }
+    }
+  }
+  
+  /**
+   * ═══════════════════════════════════════════════════════════════════════════════
+   * ATTENUATION MAP OVERLAY - Semi-transparent gradient showing intensity decay
+   * ═══════════════════════════════════════════════════════════════════════════════
+   */
+  private drawAttenuationMap(): void {
+    const { width, height } = this.canvas;
+    
+    // Create a semi-transparent overlay showing attenuation gradient
+    const gradient = this.ctx.createLinearGradient(0, 0, 0, height);
+    
+    // Color gradient from green (high intensity) to red (low intensity)
+    gradient.addColorStop(0, 'rgba(0, 255, 100, 0.15)');
+    gradient.addColorStop(0.3, 'rgba(255, 255, 0, 0.12)');
+    gradient.addColorStop(0.6, 'rgba(255, 100, 0, 0.10)');
+    gradient.addColorStop(1.0, 'rgba(255, 0, 0, 0.08)');
+    
+    this.ctx.fillStyle = gradient;
+    this.ctx.fillRect(0, 0, width, height);
+    
+    // Add attenuation percentage labels
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    this.ctx.font = '10px monospace';
+    
+    const attenuationDb = this.config.frequency * 0.7; // ~0.7 dB/cm/MHz typical
+    const steps = 4;
+    for (let i = 0; i <= steps; i++) {
+      const y = (i / steps) * height;
+      const depthCm = (i / steps) * this.config.depth;
+      const totalAttenuation = attenuationDb * depthCm;
+      const percentRemaining = Math.pow(10, -totalAttenuation / 10) * 100;
+      
+      this.ctx.fillText(`${percentRemaining.toFixed(0)}%`, width - 35, y + 12);
+    }
+  }
+  
+  /**
+   * ═══════════════════════════════════════════════════════════════════════════════
+   * PHYSICS PANEL - Real-time physics parameters display
+   * ═══════════════════════════════════════════════════════════════════════════════
+   */
+  private drawPhysicsPanel(): void {
+    const { width } = this.canvas;
+    
+    // Semi-transparent panel background
+    const panelWidth = 180;
+    const panelHeight = 140;
+    const panelX = width - panelWidth - 10;
+    const panelY = 10;
+    
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    this.ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+    
+    // Border
+    this.ctx.strokeStyle = 'rgba(0, 200, 255, 0.5)';
+    this.ctx.lineWidth = 1;
+    this.ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+    
+    // Title
+    this.ctx.fillStyle = 'rgba(0, 200, 255, 1)';
+    this.ctx.font = 'bold 11px monospace';
+    this.ctx.fillText('PARÂMETROS FÍSICOS', panelX + 10, panelY + 18);
+    
+    // Parameters
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    this.ctx.font = '10px monospace';
+    
+    const params = [
+      `Freq: ${this.config.frequency.toFixed(1)} MHz`,
+      `Prof: ${this.config.depth.toFixed(1)} cm`,
+      `Foco: ${this.config.focus.toFixed(1)} cm`,
+      `Ganho: ${this.config.gain.toFixed(0)} dB`,
+      `DR: ${this.config.dynamicRange} dB`,
+      `Transd: ${this.config.transducerType.toUpperCase()}`,
+    ];
+    
+    params.forEach((param, i) => {
+      this.ctx.fillText(param, panelX + 10, panelY + 35 + i * 16);
+    });
+    
+    // Calculate and display derived physics
+    const wavelengthMm = (1.54 / this.config.frequency).toFixed(2); // c = 1540 m/s in tissue
+    const axialRes = (parseFloat(wavelengthMm) / 2).toFixed(2);
+    
+    this.ctx.fillStyle = 'rgba(100, 255, 100, 0.9)';
+    this.ctx.fillText(`λ: ${wavelengthMm}mm | Res: ${axialRes}mm`, panelX + 10, panelY + 130);
   }
 }
