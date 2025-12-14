@@ -2871,19 +2871,29 @@ export class UnifiedUltrasoundEngine {
           const lateralNormalized = (px / width) - 0.5;
           const lateralCm = lateralNormalized * FIXED_LATERAL_SCALE;
           
+          // Check ALL vessel inclusions to detect overlaps
+          const insideResults: Array<{ inclusion: typeof vesselInclusions[0]; result: { isInside: boolean; distanceFromEdge: number } }> = [];
+          
           for (const inclusion of vesselInclusions) {
-            // Use unified getDistanceFromInclusion which supports capsule, rotation, irregularity
             const result = this.getDistanceFromInclusion(depth, lateralCm, inclusion);
-            
             if (result.isInside) {
-              // Calculate distFromCenter for color intensity (0 = center, 1 = edge)
-              const halfSize = Math.min(inclusion.sizeCm.width, inclusion.sizeCm.height) / 2;
-              const distFromCenter = Math.max(0, 1 - (result.distanceFromEdge / halfSize));
-              
-              const inclLateralCm = inclusion.centerLateralPos * (FIXED_LATERAL_SCALE / 2);
-              this.applyDopplerColorToPixel(data, px, py, width, distFromCenter, pulse, depth, lateralCm, inclLateralCm);
-              break;
+              insideResults.push({ inclusion, result });
             }
+          }
+          
+          if (insideResults.length > 0) {
+            // Use the first inclusion for color/direction
+            const { inclusion, result } = insideResults[0];
+            const halfSize = Math.min(inclusion.sizeCm.width, inclusion.sizeCm.height) / 2;
+            
+            // If inside multiple vessels (overlap), suppress edge effect
+            const isOverlap = insideResults.length > 1;
+            const distFromCenter = isOverlap 
+              ? 0.3 // Flat color in overlap region (no edge darkening)
+              : Math.max(0, 1 - (result.distanceFromEdge / halfSize));
+            
+            const inclLateralCm = inclusion.centerLateralPos * (FIXED_LATERAL_SCALE / 2);
+            this.applyDopplerColorToPixel(data, px, py, width, distFromCenter, pulse, depth, lateralCm, inclLateralCm);
           }
         }
       }
@@ -2907,18 +2917,28 @@ export class UnifiedUltrasoundEngine {
           const physicalX = r * Math.sin(theta);
           const physicalY = r * Math.cos(theta) - virtualApexDepth;
           
+          // Check ALL vessel inclusions to detect overlaps
+          const insideResults: Array<{ inclusion: typeof vesselInclusions[0]; result: { isInside: boolean; distanceFromEdge: number } }> = [];
+          
           for (const inclusion of vesselInclusions) {
-            // Use unified isPointInInclusionConvex which supports capsule, rotation, irregularity
             const result = this.isPointInInclusionConvex(physicalX, physicalY, r, inclusion, maxLateralExtent);
-            
             if (result.isInside) {
-              const halfSize = Math.min(inclusion.sizeCm.width, inclusion.sizeCm.height) / 2;
-              const distFromCenter = Math.max(0, 1 - (result.distanceFromEdge / halfSize));
-              
-              const inclX = inclusion.centerLateralPos * maxLateralExtent;
-              this.applyDopplerColorToPixel(data, px, py, width, distFromCenter, pulse, r, physicalX, inclX);
-              break;
+              insideResults.push({ inclusion, result });
             }
+          }
+          
+          if (insideResults.length > 0) {
+            const { inclusion, result } = insideResults[0];
+            const halfSize = Math.min(inclusion.sizeCm.width, inclusion.sizeCm.height) / 2;
+            
+            // If inside multiple vessels (overlap), suppress edge effect
+            const isOverlap = insideResults.length > 1;
+            const distFromCenter = isOverlap 
+              ? 0.3
+              : Math.max(0, 1 - (result.distanceFromEdge / halfSize));
+            
+            const inclX = inclusion.centerLateralPos * maxLateralExtent;
+            this.applyDopplerColorToPixel(data, px, py, width, distFromCenter, pulse, r, physicalX, inclX);
           }
         }
       }
