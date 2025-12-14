@@ -3210,6 +3210,18 @@ export class UnifiedUltrasoundEngine {
       }
     }
     
+    // === EDGE BLUE TINT DURING PULSATION ===
+    // Edges get a subtle blue shift during systole (reverse flow at edges)
+    const isAtEdge = laminarProfile < 0.45;
+    const edgeBlueTint = isAtEdge ? systolicWave * (1 - laminarProfile / 0.45) * 0.6 : 0;
+    
+    if (edgeBlueTint > 0.1) {
+      // Add blue tint to edges during pulsation
+      r = Math.floor(r * (1 - edgeBlueTint * 0.5));
+      g = Math.floor(g * (1 - edgeBlueTint * 0.2));
+      b = Math.floor(Math.min(255, b + edgeBlueTint * 120));
+    }
+    
     // Apply edge darkening
     r = Math.floor(r * (0.4 + 0.6 * edgeFade));
     g = Math.floor(g * (0.4 + 0.6 * edgeFade));
