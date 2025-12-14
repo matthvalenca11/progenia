@@ -96,7 +96,7 @@ export const DEFAULT_SIMULATION_FEATURES: UltrasoundSimulationFeatures = {
   showDepthScale: true,
   showFocusMarker: true,
   showPhysicsPanel: true,
-  enablePosteriorEnhancement: true,
+  enablePosteriorEnhancement: false, // OFF by default - interacts poorly with acoustic shadow
   enableAcousticShadow: true,
   enableReverberation: false,
   enableNearFieldClutter: false,
@@ -134,7 +134,7 @@ export const getFeaturesByComplexity = (level: ComplexityLevel): UltrasoundSimul
         showDepthScale: true,
         showFocusMarker: true,
         showPhysicsPanel: true,
-        enablePosteriorEnhancement: true,
+        enablePosteriorEnhancement: false, // OFF - causes artifacts with acoustic shadow
         enableAcousticShadow: true,
         enableReverberation: false,
         enableNearFieldClutter: false,
@@ -150,7 +150,7 @@ export const getFeaturesByComplexity = (level: ComplexityLevel): UltrasoundSimul
         showDepthScale: true,
         showFocusMarker: true,
         showPhysicsPanel: true,
-        enablePosteriorEnhancement: true,
+        enablePosteriorEnhancement: false, // OFF - causes artifacts with acoustic shadow
         enableAcousticShadow: true,
         enableReverberation: true,
         enableNearFieldClutter: true,
