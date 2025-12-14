@@ -936,24 +936,43 @@ export class UnifiedUltrasoundEngine {
         // Skip if column is outside inclusion lateral bounds
         if (Math.abs(normX) > 1.0) continue;
         
-        // For ellipse: calculate entry and exit points
+        // ═══════════════════════════════════════════════════════════════════════════
+        // ELLIPSE INTERSECTION: Exact geometric calculation
+        // 
+        // Ellipse equation: (x - cx)²/rx² + (z - cz)²/ry² = 1
+        // Solving for z: dz = ry * sqrt(1 - dx²) where dx = (x - cx) / rx
+        // zEnter = cz - dz (top of ellipse at this column)
+        // zExit = cz + dz (bottom of ellipse at this column)
+        // ═══════════════════════════════════════════════════════════════════════════
+        
         let z_enter_cm: number;
         let z_exit_cm: number;
         
         if (inclusion.shape === 'ellipse') {
-          const sqrtTerm = Math.sqrt(Math.max(0, 1.0 - normX * normX));
-          z_enter_cm = inclCenterDepth - halfH * sqrtTerm;
-          z_exit_cm = inclCenterDepth + halfH * sqrtTerm;
+          // dx is already normalized: normX = (lateralCm - inclLateral) / halfW
+          // This is equivalent to (x - cx) / rx in the ellipse equation
+          const dx_squared = normX * normX;
+          
+          // Ensure we're inside the ellipse (|normX| <= 1)
+          if (dx_squared > 1.0) continue;
+          
+          // Exact ellipse intersection: dz = ry * sqrt(1 - dx²)
+          const dz = halfH * Math.sqrt(1.0 - dx_squared);
+          
+          z_enter_cm = inclCenterDepth - dz; // Top of ellipse at this column
+          z_exit_cm = inclCenterDepth + dz;  // Bottom of ellipse at this column
         } else {
-          // Rectangle
+          // Rectangle: simple bounds
           if (Math.abs(dx) > halfW) continue;
           z_enter_cm = inclCenterDepth - halfH;
           z_exit_cm = inclCenterDepth + halfH;
         }
         
         // Convert to pixels
+        // CRITICAL: Use floor for zEnter (top) but CEIL for zExit (bottom)
+        // This ensures shadow starts immediately at the geometric boundary
         const z_enter_pixel = Math.floor((z_enter_cm / this.config.depth) * height);
-        const z_exit_pixel = Math.floor((z_exit_cm / this.config.depth) * height);
+        const z_exit_pixel = Math.ceil((z_exit_cm / this.config.depth) * height);
         
         // Store for this column
         if (zEnterArray[x] < 0 || z_enter_pixel < zEnterArray[x]) {
