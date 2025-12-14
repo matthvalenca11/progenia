@@ -2864,46 +2864,23 @@ export class UnifiedUltrasoundEngine {
     
     if (this.config.transducerType === 'linear') {
       // ═══ LINEAR MODE ═══
-      // Use exact same coordinate system as renderLinearModeOptimized & isPointInInclusion
-      
       for (let py = 0; py < height; py++) {
         const depth = (py / height) * this.config.depth;
         
         for (let px = 0; px < width; px++) {
-          // EXACT same lateral calculation as isPointInInclusion
-          const lateralNormalized = (px / width) - 0.5; // -0.5 to +0.5
-          const lateralCm = lateralNormalized * FIXED_LATERAL_SCALE; // -2.5 to +2.5 cm
+          const lateralNormalized = (px / width) - 0.5;
+          const lateralCm = lateralNormalized * FIXED_LATERAL_SCALE;
           
-          // Check each vessel inclusion using SAME logic as main engine
           for (const inclusion of vesselInclusions) {
-            // Inclusion center - EXACT same calculation as isPointInInclusion
-            // centerLateralPos is -0.5 to +0.5, multiply by FIXED_LATERAL_SCALE/2 to get cm
-            const inclLateralCm = inclusion.centerLateralPos * (FIXED_LATERAL_SCALE / 2); // -2.5 to +2.5
-            const inclDepthCm = inclusion.centerDepthCm;
+            // Use unified getDistanceFromInclusion which supports capsule, rotation, irregularity
+            const result = this.getDistanceFromInclusion(depth, lateralCm, inclusion);
             
-            const halfWidth = inclusion.sizeCm.width / 2;
-            const halfHeight = inclusion.sizeCm.height / 2;
-            
-            // Distance from inclusion center
-            const dx = lateralCm - inclLateralCm;
-            const dy = depth - inclDepthCm;
-            
-            // Ellipse test (normalized)
-            let isInside = false;
-            let distFromCenter = 1.0;
-            
-            if (inclusion.shape === 'ellipse') {
-              const normX = dx / halfWidth;
-              const normY = dy / halfHeight;
-              distFromCenter = Math.sqrt(normX * normX + normY * normY);
-              isInside = distFromCenter <= 1.0;
-            } else {
-              // Rectangle
-              isInside = Math.abs(dx) <= halfWidth && Math.abs(dy) <= halfHeight;
-              distFromCenter = Math.max(Math.abs(dx) / halfWidth, Math.abs(dy) / halfHeight);
-            }
-            
-            if (isInside) {
+            if (result.isInside) {
+              // Calculate distFromCenter for color intensity (0 = center, 1 = edge)
+              const halfSize = Math.min(inclusion.sizeCm.width, inclusion.sizeCm.height) / 2;
+              const distFromCenter = Math.max(0, 1 - (result.distanceFromEdge / halfSize));
+              
+              const inclLateralCm = inclusion.centerLateralPos * (FIXED_LATERAL_SCALE / 2);
               this.applyDopplerColorToPixel(data, px, py, width, distFromCenter, pulse, depth, lateralCm, inclLateralCm);
               break;
             }
@@ -2912,7 +2889,6 @@ export class UnifiedUltrasoundEngine {
       }
     } else {
       // ═══ CONVEX/MICROCONVEX MODE ═══
-      // Use polar coordinates matching getConvexTissue exactly
       const sectorAngle = this.config.transducerType === 'convex' ? 80 : 60;
       const halfAngle = (sectorAngle / 2) * Math.PI / 180;
       const virtualApexDepth = -2.5;
@@ -2920,7 +2896,6 @@ export class UnifiedUltrasoundEngine {
       
       for (let py = 0; py < height; py++) {
         for (let px = 0; px < width; px++) {
-          // Polar coordinate transformation (same as main engine)
           const centerX = width / 2;
           const normalizedR = py / height;
           const normalizedTheta = (px - centerX) / (width / 2);
@@ -2928,43 +2903,19 @@ export class UnifiedUltrasoundEngine {
           const theta = normalizedTheta * halfAngle;
           const r = normalizedR * this.config.depth;
           
-          // Convert to physical coordinates (same as getConvexTissue)
+          // Convert to physical coordinates
           const physicalX = r * Math.sin(theta);
           const physicalY = r * Math.cos(theta) - virtualApexDepth;
           
-          // Check each vessel inclusion
           for (const inclusion of vesselInclusions) {
-            // Inclusion center in physical space (same as getConvexTissue)
-            const inclNormLat = inclusion.centerLateralPos;
-            const inclDepth = inclusion.centerDepthCm;
-            const inclX = inclNormLat * maxLateralExtent;
-            const inclY = inclDepth;
+            // Use unified isPointInInclusionConvex which supports capsule, rotation, irregularity
+            const result = this.isPointInInclusionConvex(physicalX, physicalY, r, inclusion, maxLateralExtent);
             
-            // Distance from inclusion center
-            const dx = physicalX - inclX;
-            const dy = physicalY - inclY;
-            
-            // Radial distortion factor (same as getConvexTissue)
-            const depthFactor = 1.0 + (r / this.config.depth) * 0.3;
-            const distortedDx = dx / depthFactor;
-            
-            const halfWidth = inclusion.sizeCm.width / 2;
-            const halfHeight = inclusion.sizeCm.height / 2;
-            
-            let isInside = false;
-            let distFromCenter = 1.0;
-            
-            if (inclusion.shape === 'ellipse') {
-              const normX = distortedDx / halfWidth;
-              const normY = dy / halfHeight;
-              distFromCenter = Math.sqrt(normX * normX + normY * normY);
-              isInside = distFromCenter <= 1.0;
-            } else {
-              isInside = Math.abs(distortedDx) <= halfWidth && Math.abs(dy) <= halfHeight;
-              distFromCenter = Math.max(Math.abs(distortedDx) / halfWidth, Math.abs(dy) / halfHeight);
-            }
-            
-            if (isInside) {
+            if (result.isInside) {
+              const halfSize = Math.min(inclusion.sizeCm.width, inclusion.sizeCm.height) / 2;
+              const distFromCenter = Math.max(0, 1 - (result.distanceFromEdge / halfSize));
+              
+              const inclX = inclusion.centerLateralPos * maxLateralExtent;
               this.applyDopplerColorToPixel(data, px, py, width, distFromCenter, pulse, r, physicalX, inclX);
               break;
             }
@@ -2974,6 +2925,94 @@ export class UnifiedUltrasoundEngine {
     }
     
     this.ctx.putImageData(imageData, 0, 0);
+  }
+  
+  /**
+   * Check if point is inside inclusion for Convex mode with full geometry support
+   */
+  private isPointInInclusionConvex(
+    physicalX: number,
+    physicalY: number,
+    r: number,
+    inclusion: UltrasoundInclusionConfig,
+    maxLateralExtent: number
+  ): { isInside: boolean; distanceFromEdge: number } {
+    const inclNormLat = inclusion.centerLateralPos;
+    const inclDepth = inclusion.centerDepthCm;
+    const inclX = inclNormLat * maxLateralExtent;
+    const inclY = inclDepth;
+    
+    // Distance from inclusion center
+    const dx = physicalX - inclX;
+    const dy = physicalY - inclY;
+    
+    // Radial distortion factor
+    const depthFactor = 1.0 + (r / this.config.depth) * 0.3;
+    const distortedDx = dx / depthFactor;
+    
+    const halfWidth = inclusion.sizeCm.width / 2;
+    const halfHeight = inclusion.sizeCm.height / 2;
+    
+    if (inclusion.shape === 'ellipse') {
+      const normX = distortedDx / halfWidth;
+      const normY = dy / halfHeight;
+      const normalizedDist = normX * normX + normY * normY;
+      const isInside = normalizedDist <= 1.0;
+      const distFromEdge = isInside 
+        ? (1 - Math.sqrt(normalizedDist)) * Math.min(halfWidth, halfHeight)
+        : (Math.sqrt(normalizedDist) - 1) * Math.min(halfWidth, halfHeight);
+      return { isInside, distanceFromEdge: Math.abs(distFromEdge) };
+      
+    } else if (inclusion.shape === 'capsule') {
+      // Capsule with ROTATION and IRREGULARITY support
+      const capsuleRadius = halfHeight;
+      const rectHalfWidth = halfWidth - capsuleRadius;
+      
+      // === ROTATION TRANSFORM ===
+      const rotationDeg = inclusion.rotationDegrees || 0;
+      const rotationRad = (rotationDeg * Math.PI) / 180;
+      const cosR = Math.cos(rotationRad);
+      const sinR = Math.sin(rotationRad);
+      const dxLocal = distortedDx * cosR + dy * sinR;
+      const dyLocal = -distortedDx * sinR + dy * cosR;
+      
+      // === WALL IRREGULARITY ===
+      const irregularity = inclusion.wallIrregularity || 0;
+      let radiusMod = 0;
+      if (irregularity > 0) {
+        radiusMod = irregularity * (
+          0.5 * Math.sin(dxLocal * 8.0) + 
+          0.3 * Math.cos(dxLocal * 15.0) + 
+          0.2 * Math.sin(dxLocal * 23.0)
+        );
+      }
+      
+      // === WALL ASYMMETRY ===
+      const asymmetry = inclusion.wallAsymmetry || 0;
+      const asymmetryOffset = dyLocal > 0 ? asymmetry : -asymmetry;
+      const effectiveRadius = capsuleRadius + radiusMod + asymmetryOffset;
+      
+      let dist: number;
+      if (Math.abs(dxLocal) <= rectHalfWidth) {
+        dist = Math.abs(dyLocal) - effectiveRadius;
+      } else {
+        const endCenterX = Math.sign(dxLocal) * rectHalfWidth;
+        const localDxEnd = dxLocal - endCenterX;
+        const distToEndCenter = Math.sqrt(localDxEnd * localDxEnd + dyLocal * dyLocal);
+        dist = distToEndCenter - effectiveRadius;
+      }
+      
+      const isInside = dist <= 0;
+      return { isInside, distanceFromEdge: Math.abs(dist) };
+      
+    } else {
+      // Rectangle
+      const isInside = Math.abs(distortedDx) <= halfWidth && Math.abs(dy) <= halfHeight;
+      const distX = halfWidth - Math.abs(distortedDx);
+      const distY = halfHeight - Math.abs(dy);
+      const distFromEdge = isInside ? Math.min(distX, distY) : -Math.min(Math.abs(distX), Math.abs(distY));
+      return { isInside, distanceFromEdge: Math.abs(distFromEdge) };
+    }
   }
   
   /**
