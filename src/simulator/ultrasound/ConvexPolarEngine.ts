@@ -472,19 +472,12 @@ export class ConvexPolarEngine {
       const normX = distortedDx / halfWidth;
       const normY = dy / halfHeight;
       return (normX * normX + normY * normY) <= 1.0;
-    } else if (inclusion.shape === 'capsule' || inclusion.shape === 'vessel_ascending' || inclusion.shape === 'vessel_descending') {
-      // Capsule/Vessel: rectangle with semicircular ends + rotation
+    } else if (inclusion.shape === 'capsule') {
+      // Capsule: rectangle with semicircular ends + rotation
       const capsuleRadius = halfHeight;
       const rectHalfWidth = halfWidth - capsuleRadius;
       
-      // Apply shape-based default rotation
-      let rotationDeg = inclusion.rotationDegrees ?? 0;
-      if (inclusion.shape === 'vessel_ascending' && inclusion.rotationDegrees === undefined) {
-        rotationDeg = 12;
-      } else if (inclusion.shape === 'vessel_descending' && inclusion.rotationDegrees === undefined) {
-        rotationDeg = -12;
-      }
-      
+      const rotationDeg = inclusion.rotationDegrees ?? 0;
       const rotationRad = (rotationDeg * Math.PI) / 180;
       const cosR = Math.cos(rotationRad);
       const sinR = Math.sin(rotationRad);

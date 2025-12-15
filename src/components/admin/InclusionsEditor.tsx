@@ -35,8 +35,6 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
     { value: "ellipse", label: "Elipse" },
     { value: "rectangle", label: "Retângulo" },
     { value: "capsule", label: "Cápsula (Vaso Longitudinal)" },
-    { value: "vessel_ascending", label: "Vaso Ascendente ↗" },
-    { value: "vessel_descending", label: "Vaso Descendente ↘" },
   ];
 
   const handleAddInclusion = () => {
@@ -230,17 +228,17 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
                       </div>
                     </div>
 
-                    {/* Anatomical realism controls for capsule/vessel shapes */}
-                    {(inclusion.shape === 'capsule' || inclusion.shape === 'vessel_ascending' || inclusion.shape === 'vessel_descending') && (
+                    {/* Anatomical realism controls for capsule shape */}
+                    {inclusion.shape === 'capsule' && (
                       <div className="space-y-3 p-3 bg-muted/30 rounded-lg border">
                         <Label className="text-sm font-medium">Realismo Anatômico (Vasos)</Label>
                         
                         <div>
                           <Label className="text-xs">
-                            Rotação: {(inclusion.rotationDegrees ?? (inclusion.shape === 'vessel_ascending' ? 12 : inclusion.shape === 'vessel_descending' ? -12 : 0)).toFixed(0)}°
+                            Rotação: {(inclusion.rotationDegrees ?? 0).toFixed(0)}°
                           </Label>
                           <Slider
-                            value={[inclusion.rotationDegrees ?? (inclusion.shape === 'vessel_ascending' ? 12 : inclusion.shape === 'vessel_descending' ? -12 : 0)]}
+                            value={[inclusion.rotationDegrees ?? 0]}
                             onValueChange={([value]) => handleUpdateInclusion(index, { rotationDegrees: value })}
                             min={-30}
                             max={30}
@@ -377,15 +375,10 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
                   
                   const shapeClass = inclusion.shape === "ellipse" ? "rounded-full" : 
                                    inclusion.shape === "rectangle" ? "rounded-sm" :
-                                   "rounded-full"; // capsule and vessel shapes render as elongated ellipse
+                                   "rounded-full"; // capsule renders as elongated ellipse
                   
-                  // Calculate rotation for vessel shapes
-                  let rotationDeg = inclusion.rotationDegrees ?? 0;
-                  if (inclusion.shape === "vessel_ascending" && !inclusion.rotationDegrees) {
-                    rotationDeg = 12;
-                  } else if (inclusion.shape === "vessel_descending" && !inclusion.rotationDegrees) {
-                    rotationDeg = -12;
-                  }
+                  // Get rotation for capsule shapes
+                  const rotationDeg = inclusion.shape === 'capsule' ? (inclusion.rotationDegrees ?? 0) : 0;
                   
                   let colorClass = "";
                   let borderClass = "";
