@@ -34,6 +34,9 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
   const shapes: { value: UltrasoundInclusionShape; label: string }[] = [
     { value: "ellipse", label: "Elipse" },
     { value: "rectangle", label: "Retângulo" },
+    { value: "capsule", label: "Cápsula (Vaso Longitudinal)" },
+    { value: "vessel_ascending", label: "Vaso Ascendente ↗" },
+    { value: "vessel_descending", label: "Vaso Descendente ↘" },
   ];
 
   const handleAddInclusion = () => {
@@ -321,7 +324,16 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
                   const height = Math.max((inclusion.sizeCm.height / 10) * 100, 2);
                   
                   const shapeClass = inclusion.shape === "ellipse" ? "rounded-full" : 
-                                   "rounded-sm";
+                                   inclusion.shape === "rectangle" ? "rounded-sm" :
+                                   "rounded-full"; // capsule and vessel shapes render as elongated ellipse
+                  
+                  // Calculate rotation for vessel shapes
+                  let rotationDeg = inclusion.rotationDegrees ?? 0;
+                  if (inclusion.shape === "vessel_ascending" && !inclusion.rotationDegrees) {
+                    rotationDeg = 12;
+                  } else if (inclusion.shape === "vessel_descending" && !inclusion.rotationDegrees) {
+                    rotationDeg = -12;
+                  }
                   
                   let colorClass = "";
                   let borderClass = "";
@@ -362,7 +374,7 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
                       style={{
                         top: `${top}%`,
                         left: `${left}%`,
-                        transform: "translate(-50%, -50%)",
+                        transform: `translate(-50%, -50%) rotate(${rotationDeg}deg)`,
                       }}
                     >
                       <div
