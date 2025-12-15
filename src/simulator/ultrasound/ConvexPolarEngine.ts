@@ -220,7 +220,12 @@ export class ConvexPolarEngine {
         const reflection = this.calculateInterfaceReflectionPolar(r, theta);
         intensity *= (1 + reflection * 0.3);
         
-        // ═══ 7. BEAM FALLOFF (adapted for polar geometry) ═══
+        // ═══ 7. REFLECTIVITY ADJUSTMENT - From layer configuration ═══
+        // reflectivity ranges 0-1, with 0.5 being neutral (no change)
+        const reflectivityFactor = 0.5 + tissue.reflectivity; // 0.5 to 1.5 range
+        intensity *= reflectivityFactor;
+        
+        // ═══ 8. BEAM FALLOFF (adapted for polar geometry) ═══
         const normalizedLateral = Math.abs(theta) / halfFOVRad; // 0 to 1
         const beamFalloff = 1 - normalizedLateral * normalizedLateral * 0.15;
         intensity *= beamFalloff;
@@ -797,6 +802,7 @@ export class ConvexPolarEngine {
   private getTissueAtPolar(r: number, theta: number): {
     echogenicity: string;
     attenuation: number;
+    reflectivity: number;
     isInclusion: boolean;
     posteriorEnhancement: boolean;
   } {
@@ -885,6 +891,7 @@ export class ConvexPolarEngine {
           return {
             echogenicity: medium.baseEchogenicity,
             attenuation: medium.attenuation_dB_per_cm_MHz,
+            reflectivity: 0.5, // Default for inclusions
             isInclusion: true,
             posteriorEnhancement: inclusion.posteriorEnhancement || false,
           };
@@ -902,6 +909,7 @@ export class ConvexPolarEngine {
           return {
             echogenicity: medium.baseEchogenicity,
             attenuation: medium.attenuation_dB_per_cm_MHz,
+            reflectivity: layer.reflectivityBias !== undefined ? 0.5 + layer.reflectivityBias : 0.5,
             isInclusion: false,
             posteriorEnhancement: false,
           };
@@ -913,6 +921,7 @@ export class ConvexPolarEngine {
     return {
       echogenicity: 'isoechoic',
       attenuation: 0.7,
+      reflectivity: 0.5,
       isInclusion: false,
       posteriorEnhancement: false,
     };
