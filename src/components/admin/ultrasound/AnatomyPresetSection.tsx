@@ -15,6 +15,7 @@ export const AnatomyPresetSection = () => {
     presetId, 
     setPresetId,
     setLayers,
+    setAcousticLayers,
     setInclusions,
     setTransducerType,
     setFrequency,
@@ -57,6 +58,10 @@ export const AnatomyPresetSection = () => {
     });
 
     setLayers(anatomyLayers);
+    
+    // CRITICAL: Clear acousticLayers to ensure preset layers are used
+    // This fixes the bug where manual edits persist after preset selection
+    setAcousticLayers([]);
 
     // Load inclusions from preset
     const presetInclusions = getDefaultInclusionsForPreset(presetId as UltrasoundAnatomyPresetId);
@@ -68,7 +73,7 @@ export const AnatomyPresetSection = () => {
     setDepth(preset.recommendedDepthCm);
     setFocus(preset.recommendedFocusCm);
     setGain(preset.recommendedGain);
-  }, [presetId, setLayers, setInclusions, setTransducerType, setFrequency, setDepth, setFocus, setGain]);
+  }, [presetId, setLayers, setAcousticLayers, setInclusions, setTransducerType, setFrequency, setDepth, setFocus, setGain]);
   
   return (
     <Card>
