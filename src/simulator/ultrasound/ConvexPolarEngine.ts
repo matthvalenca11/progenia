@@ -425,22 +425,28 @@ export class ConvexPolarEngine {
   }
   
   /**
-   * Interface reflection for polar coordinates
+   * Interface reflection for polar coordinates - ENHANCED (matching Linear quality)
+   * Creates visible bright lines at tissue layer boundaries
    */
   private calculateInterfaceReflectionPolar(r: number, theta: number): number {
-    // Simplified layer interface detection
     if (!this.config.layers || this.config.layers.length < 2) return 0;
     
     let cumulativeDepth = 0;
+    let totalReflection = 0;
+    
     for (let i = 0; i < this.config.layers.length - 1; i++) {
       cumulativeDepth += this.config.layers[i].thicknessCm;
       const distFromInterface = Math.abs(r - cumulativeDepth);
-      if (distFromInterface < 0.05) {
-        // Near interface - add reflection
-        return Math.exp(-distFromInterface * 40) * 0.3;
+      
+      // Sharper interface detection for visible layer boundaries
+      if (distFromInterface < 0.08) {
+        // Gaussian-like falloff for smooth but visible interface
+        const interfaceStrength = Math.exp(-distFromInterface * 50) * 0.5;
+        totalReflection += interfaceStrength;
       }
     }
-    return 0;
+    
+    return Math.min(totalReflection, 0.8); // Cap total reflection
   }
   
   /**
@@ -821,7 +827,7 @@ export class ConvexPolarEngine {
 
   /**
    * Obtém propriedades do tecido em coordenadas polares
-   * Aplica lateral offset para simular movimento do transdutor
+   * COM BLENDING DE BORDAS E BORDAS HIPERECÓICAS (igual ao Linear)
    */
   private getTissueAtPolar(r: number, theta: number): {
     echogenicity: string;
@@ -835,46 +841,48 @@ export class ConvexPolarEngine {
     
     // Aplicar lateral offset (limitado a ±0.3 para movimento realista)
     const clampedOffset = Math.max(-0.3, Math.min(0.3, lateralOffset || 0));
-    const offsetCm = clampedOffset * maxDepthCm * 0.5; // Escalar offset
+    const offsetCm = clampedOffset * maxDepthCm * 0.5;
     
     // Converter (r, θ) para cartesiano físico COM offset
     const x = r * Math.sin(theta) + offsetCm;
     const y = r * Math.cos(theta);
     
-    // ═══ VERIFICAR INCLUSÕES ═══
+    // ═══ VERIFICAR INCLUSÕES COM DISTÂNCIA DA BORDA ═══
     if (this.config.inclusions) {
       for (const inclusion of this.config.inclusions) {
         const inclDepth = inclusion.centerDepthCm;
-        const inclLateral = inclusion.centerLateralPos; // -0.5 to +0.5
+        const inclLateral = inclusion.centerLateralPos;
         
-        // Converter lateral normalizado para cm
         const maxLateralAtDepth = inclDepth * Math.tan(halfFOVRad);
         const inclX = inclLateral * maxLateralAtDepth * 2;
         const inclY = inclDepth;
         
-        // Distância da inclusão
         const dx = x - inclX;
         const dy = y - inclY;
         
-        // Fator de distorção por divergência do feixe
         const beamWidthFactor = 1.0 + (r / maxDepthCm) * 0.4;
         const distortedDx = dx / beamWidthFactor;
         
         const halfWidth = inclusion.sizeCm.width / 2;
         const halfHeight = inclusion.sizeCm.height / 2;
         
+        // ═══ CALCULAR DISTÂNCIA NORMALIZADA E DA BORDA ═══
+        let normalizedDist = 0;
+        let distanceFromEdge = 0;
         let isInside = false;
         
         if (inclusion.shape === 'ellipse') {
           const normX = distortedDx / halfWidth;
           const normY = dy / halfHeight;
-          isInside = (normX * normX + normY * normY) <= 1.0;
+          normalizedDist = Math.sqrt(normX * normX + normY * normY);
+          isInside = normalizedDist <= 1.0;
+          distanceFromEdge = isInside 
+            ? (1 - normalizedDist) * Math.min(halfWidth, halfHeight)
+            : (normalizedDist - 1) * Math.min(halfWidth, halfHeight);
         } else if (inclusion.shape === 'capsule') {
-          // Capsule with ROTATION and IRREGULARITY for anatomical realism
           const capsuleRadius = halfHeight;
           const rectHalfWidth = halfWidth - capsuleRadius;
           
-          // === ROTATION TRANSFORM ===
           const rotationDeg = inclusion.rotationDegrees || 0;
           const rotationRad = (rotationDeg * Math.PI) / 180;
           const cosR = Math.cos(rotationRad);
@@ -882,7 +890,6 @@ export class ConvexPolarEngine {
           const dxLocal = distortedDx * cosR + dy * sinR;
           const dyLocal = -distortedDx * sinR + dy * cosR;
           
-          // === WALL IRREGULARITY ===
           const irregularity = inclusion.wallIrregularity || 0;
           let radiusMod = 0;
           if (irregularity > 0) {
@@ -893,29 +900,64 @@ export class ConvexPolarEngine {
             );
           }
           
-          // === WALL ASYMMETRY ===
           const asymmetry = inclusion.wallAsymmetry || 0;
           const asymmetryOffset = dyLocal > 0 ? asymmetry : -asymmetry;
           const effectiveRadius = capsuleRadius + radiusMod + asymmetryOffset;
           
           if (Math.abs(dxLocal) <= rectHalfWidth) {
             isInside = Math.abs(dyLocal) <= effectiveRadius;
+            distanceFromEdge = effectiveRadius - Math.abs(dyLocal);
           } else {
             const endCenterX = Math.sign(dxLocal) * rectHalfWidth;
             const localDxEnd = dxLocal - endCenterX;
             const distToEndCenter = Math.sqrt(localDxEnd * localDxEnd + dyLocal * dyLocal);
             isInside = distToEndCenter <= effectiveRadius;
+            distanceFromEdge = effectiveRadius - distToEndCenter;
           }
         } else {
           isInside = Math.abs(distortedDx) <= halfWidth && Math.abs(dy) <= halfHeight;
+          distanceFromEdge = Math.min(halfWidth - Math.abs(distortedDx), halfHeight - Math.abs(dy));
+        }
+        
+        // ═══ SE PERTO DA BORDA (dentro ou fora) - BORDA HIPERECÓICA ═══
+        const edgeZone = 0.08; // Zone de transição em cm
+        const isNearEdge = Math.abs(distanceFromEdge) < edgeZone;
+        
+        if (isNearEdge && !isInside) {
+          // Borda externa hiperecóica (brilhante) para inclusões com sharp border
+          if (inclusion.borderEchogenicity === 'sharp') {
+            const edgeIntensity = Math.exp(-Math.abs(distanceFromEdge) / 0.03);
+            return {
+              echogenicity: 'hyperechoic',
+              attenuation: 0.5,
+              reflectivity: 0.5 + edgeIntensity * 0.45, // Borda brilhante
+              isInclusion: false,
+              posteriorEnhancement: false,
+            };
+          }
         }
         
         if (isInside) {
           const medium = getAcousticMedium(inclusion.mediumInsideId);
+          
+          // ═══ BLENDING SUAVE NA BORDA (igual ao Linear) ═══
+          let blendFactor = 1;
+          if (distanceFromEdge < edgeZone && distanceFromEdge >= 0) {
+            const t = distanceFromEdge / edgeZone;
+            // Smoothstep: t² * (3 - 2t)
+            blendFactor = t * t * (3 - 2 * t);
+          }
+          
+          // Borda interna hiperecóica para sharp borders
+          let edgeBoost = 0;
+          if (inclusion.borderEchogenicity === 'sharp' && distanceFromEdge < edgeZone) {
+            edgeBoost = (1 - distanceFromEdge / edgeZone) * 0.4;
+          }
+          
           return {
             echogenicity: medium.baseEchogenicity,
             attenuation: medium.attenuation_dB_per_cm_MHz,
-            reflectivity: 0.5, // Default for inclusions
+            reflectivity: (0.5 + edgeBoost) * blendFactor,
             isInclusion: true,
             posteriorEnhancement: inclusion.posteriorEnhancement || false,
           };
