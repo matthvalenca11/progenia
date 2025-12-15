@@ -562,8 +562,8 @@ export class ConvexPolarEngine {
     for (let thetaIdx = 0; thetaIdx < numAngleSamples; thetaIdx++) {
       const theta = ((thetaIdx / numAngleSamples) * 2 - 1) * halfFOVRad;
       
+      // All inclusions generate acoustic shadows automatically (no toggle)
       for (const inclusion of this.config.inclusions) {
-        if (!inclusion.hasStrongShadow) continue;
         
         // ═══ EXACT SAME GEOMETRY AS isPointInInclusionPolar ═══
         const inclDepth = inclusion.centerDepthCm;
