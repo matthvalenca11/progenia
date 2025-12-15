@@ -1518,24 +1518,24 @@ export class UnifiedUltrasoundEngine {
   ): number {
     let { depth, lateral } = coords;
     
-    // MOTION ARTIFACTS - Realistic hand-held probe movements (SMOOTHER)
+    // MOTION ARTIFACTS - Realistic hand-held probe movements (SMOOTHER SPEED)
     // 1. Breathing motion (cyclic vertical displacement)
-    const breathingCycle = Math.sin(this.time * 0.3) * 0.022; // Reduced for smoother motion
+    const breathingCycle = Math.sin(this.time * 0.2) * 0.035; // Slower oscillation (0.3→0.2)
     const breathingDepthEffect = depth / this.config.depth;
     depth += breathingCycle * breathingDepthEffect;
     
-    // 2. Probe micro-jitter (operator hand tremor) - SMOOTHER
-    const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.015; // Reduced
-    const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.012; // Reduced
+    // 2. Probe micro-jitter (operator hand tremor) - SLOWER OSCILLATION
+    const jitterLateral = Math.sin(this.time * 5.0 + Math.cos(this.time * 7)) * 0.025; // Slower (8.5→5.0, 12→7)
+    const jitterDepth = Math.cos(this.time * 4.5 + Math.sin(this.time * 6)) * 0.018; // Slower (7.2→4.5, 9.5→6)
     lateral += jitterLateral;
     depth += jitterDepth;
     
     // 3. Additional low-frequency sway (natural arm movement)
-    const armSway = Math.sin(this.time * 1.2) * Math.cos(this.time * 0.7) * 0.010; // Reduced
+    const armSway = Math.sin(this.time * 0.8) * Math.cos(this.time * 0.5) * 0.015; // Slower (1.2→0.8, 0.7→0.5)
     lateral += armSway;
     
-    // 4. Tissue micro-movements (random fibrillar motion) - SMOOTHER
-    const tissueTremor = Math.sin(x * 0.02 + this.time * 5) * Math.cos(y * 0.015 + this.time * 4) * 0.005; // Reduced
+    // 4. Tissue micro-movements (random fibrillar motion) - SLOWER
+    const tissueTremor = Math.sin(x * 0.02 + this.time * 3) * Math.cos(y * 0.015 + this.time * 2.5) * 0.008; // Slower (5→3, 4→2.5)
     depth += tissueTremor;
     
     // ═══════════════════════════════════════════════════════════════════════════════
