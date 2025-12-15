@@ -1518,24 +1518,24 @@ export class UnifiedUltrasoundEngine {
   ): number {
     let { depth, lateral } = coords;
     
-    // MOTION ARTIFACTS - Realistic hand-held probe movements (INCREASED for visibility)
+    // MOTION ARTIFACTS - Realistic hand-held probe movements (SMOOTHER)
     // 1. Breathing motion (cyclic vertical displacement)
-    const breathingCycle = Math.sin(this.time * 0.3) * 0.035; // Increased from 0.015
+    const breathingCycle = Math.sin(this.time * 0.3) * 0.022; // Reduced for smoother motion
     const breathingDepthEffect = depth / this.config.depth;
     depth += breathingCycle * breathingDepthEffect;
     
-    // 2. Probe micro-jitter (operator hand tremor) - INCREASED
-    const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.025; // Increased from 0.008
-    const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.018; // Increased from 0.006
+    // 2. Probe micro-jitter (operator hand tremor) - SMOOTHER
+    const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.015; // Reduced
+    const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.012; // Reduced
     lateral += jitterLateral;
     depth += jitterDepth;
     
     // 3. Additional low-frequency sway (natural arm movement)
-    const armSway = Math.sin(this.time * 1.2) * Math.cos(this.time * 0.7) * 0.015;
+    const armSway = Math.sin(this.time * 1.2) * Math.cos(this.time * 0.7) * 0.010; // Reduced
     lateral += armSway;
     
-    // 4. Tissue micro-movements (random fibrillar motion) - INCREASED
-    const tissueTremor = Math.sin(x * 0.02 + this.time * 5) * Math.cos(y * 0.015 + this.time * 4) * 0.008;
+    // 4. Tissue micro-movements (random fibrillar motion) - SMOOTHER
+    const tissueTremor = Math.sin(x * 0.02 + this.time * 5) * Math.cos(y * 0.015 + this.time * 4) * 0.005; // Reduced
     depth += tissueTremor;
     
     // ═══════════════════════════════════════════════════════════════════════════════
