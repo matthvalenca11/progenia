@@ -160,21 +160,25 @@ export class ConvexPolarEngine {
         let x = r * Math.sin(theta);
         let y = r * Math.cos(theta);
         
-        // ═══ MOTION ARTIFACTS - IDENTICAL TO LINEAR ═══
-        // 1. Breathing motion (cyclic vertical displacement)
-        const breathingCycle = Math.sin(this.time * 0.3) * 0.015; // ~20 breaths/min, ±0.15mm
+        // ═══ MOTION ARTIFACTS - IDENTICAL TO LINEAR (SAME VALUES) ═══
+        // 1. Breathing motion (cyclic vertical displacement) - INCREASED to match Linear
+        const breathingCycle = Math.sin(this.time * 0.3) * 0.035; // Matched from 0.015
         const breathingDepthEffect = r / maxDepthCm;
         y += breathingCycle * breathingDepthEffect;
         
-        // 2. Probe micro-jitter (operator hand tremor)
-        const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.008;
-        const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.006;
+        // 2. Probe micro-jitter (operator hand tremor) - INCREASED to match Linear
+        const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.025; // Matched from 0.008
+        const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.018; // Matched from 0.006
         x += jitterLateral;
         y += jitterDepth;
         
-        // 3. Tissue micro-movements (random fibrillar motion)
-        const tissueTremor = Math.sin(x * 100 * 0.02 + this.time * 5) * 
-                             Math.cos(y * 100 * 0.015 + this.time * 4) * 0.003;
+        // 3. Additional low-frequency sway (natural arm movement) - NEW, from Linear
+        const armSway = Math.sin(this.time * 1.2) * Math.cos(this.time * 0.7) * 0.015;
+        x += armSway;
+        
+        // 4. Tissue micro-movements (random fibrillar motion) - INCREASED to match Linear
+        const tissueTremor = Math.sin(x * 0.02 + this.time * 5) * 
+                             Math.cos(y * 0.015 + this.time * 4) * 0.008; // Matched from 0.003
         y += tissueTremor;
         
         // Reconverter para polar com motion aplicado
