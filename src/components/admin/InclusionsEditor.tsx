@@ -230,6 +230,58 @@ export function InclusionsEditor({ inclusions, onChange }: InclusionsEditorProps
                       </div>
                     </div>
 
+                    {/* Anatomical realism controls for capsule/vessel shapes */}
+                    {(inclusion.shape === 'capsule' || inclusion.shape === 'vessel_ascending' || inclusion.shape === 'vessel_descending') && (
+                      <div className="space-y-3 p-3 bg-muted/30 rounded-lg border">
+                        <Label className="text-sm font-medium">Realismo Anatômico (Vasos)</Label>
+                        
+                        <div>
+                          <Label className="text-xs">
+                            Rotação: {(inclusion.rotationDegrees ?? (inclusion.shape === 'vessel_ascending' ? 12 : inclusion.shape === 'vessel_descending' ? -12 : 0)).toFixed(0)}°
+                          </Label>
+                          <Slider
+                            value={[inclusion.rotationDegrees ?? (inclusion.shape === 'vessel_ascending' ? 12 : inclusion.shape === 'vessel_descending' ? -12 : 0)]}
+                            onValueChange={([value]) => handleUpdateInclusion(index, { rotationDegrees: value })}
+                            min={-30}
+                            max={30}
+                            step={1}
+                            className="mt-1"
+                          />
+                          <p className="text-[10px] text-muted-foreground">Ângulo do vaso (negativo = desce, positivo = sobe)</p>
+                        </div>
+
+                        <div>
+                          <Label className="text-xs">
+                            Irregularidade da parede: {((inclusion.wallIrregularity ?? 0) * 100).toFixed(0)}%
+                          </Label>
+                          <Slider
+                            value={[(inclusion.wallIrregularity ?? 0) * 100]}
+                            onValueChange={([value]) => handleUpdateInclusion(index, { wallIrregularity: value / 100 })}
+                            min={0}
+                            max={10}
+                            step={0.5}
+                            className="mt-1"
+                          />
+                          <p className="text-[10px] text-muted-foreground">Variação natural da espessura da parede</p>
+                        </div>
+
+                        <div>
+                          <Label className="text-xs">
+                            Assimetria anterior/posterior: {((inclusion.wallAsymmetry ?? 0) * 100).toFixed(1)}%
+                          </Label>
+                          <Slider
+                            value={[(inclusion.wallAsymmetry ?? 0) * 100]}
+                            onValueChange={([value]) => handleUpdateInclusion(index, { wallAsymmetry: value / 100 })}
+                            min={0}
+                            max={5}
+                            step={0.1}
+                            className="mt-1"
+                          />
+                          <p className="text-[10px] text-muted-foreground">Parede posterior mais espessa que anterior</p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Rendering flags */}
                     <div className="space-y-2">
 
