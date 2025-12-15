@@ -257,10 +257,19 @@ export class ConvexPolarEngine {
           intensity *= enhancementFactor;
         }
         
+        // ═══ 10. REVERBERATION ARTIFACTS - NEW (from Linear) ═══
+        // Adds horizontal echo lines at shallow depths - common ultrasound artifact
+        const reverberationDepth = 0.15; // Only in superficial region
+        if (r / maxDepthCm < reverberationDepth) {
+          const reverbFreq = 8; // Multiple reverb lines
+          const reverbPhase = Math.sin(r * reverbFreq * Math.PI / (maxDepthCm * reverberationDepth));
+          const reverbStrength = (1 - r / (maxDepthCm * reverberationDepth)) * 0.15;
+          intensity *= (1 + reverbPhase * reverbStrength);
+        }
+        
         // ═══════════════════════════════════════════════════════════════════════════════
-        // 10. SPECKLE - FREQUENCY-DEPENDENT GRAIN SIZE
+        // 11. SPECKLE - ENHANCED REALISM (matching Linear quality)
         // ═══════════════════════════════════════════════════════════════════════════════
-        // Speckle grain size scales with 1/frequency (lower freq = coarser grains)
         
         // Get frequency-dependent scaling
         const psf = this.getFrequencyDependentPSF();
@@ -272,33 +281,36 @@ export class ConvexPolarEngine {
         
         const speckleIdx = Math.floor(scaledY) * this.config.canvasWidth + Math.floor(scaledX);
         
-        // Use hash-based Rayleigh approximation
+        // Enhanced Rayleigh noise with better distribution
         const rayleighSeed = Math.abs(speckleIdx) * 12.9898 + 78.233;
-        const rayleigh = Math.abs(Math.sqrt(-2 * Math.log(Math.max(0.001, this.noise(rayleighSeed)))) * 
-                                  Math.cos(2 * Math.PI * this.noise(rayleighSeed + 1000)));
+        const u1 = Math.max(0.001, this.noise(rayleighSeed));
+        const u2 = this.noise(rayleighSeed + 1000);
+        const rayleigh = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+        const rayleighAbs = Math.abs(rayleigh);
         
-        // Perlin-style noise with frequency scaling
+        // Multi-octave Perlin noise for texture
         const perlin = this.multiOctaveNoiseLinear(scaledX, scaledY, 6);
         
-        // Depth-dependent speckle size
-        const depthFactor = 1 + (r / maxDepthCm) * 0.25;
+        // Depth-dependent speckle intensity (more visible in deeper regions)
+        const depthFactor = 1 + (r / maxDepthCm) * 0.35;
         
-        // Per-pixel granular noise with frequency scaling
-        const px = scaledX * 0.1 + this.time * 0.5;
+        // Per-pixel granular noise - ENHANCED for more realistic texture
+        const px = scaledX * 0.1 + this.time * 0.3; // Slower temporal variation
         const py = scaledY * 0.1;
         const hashNoise = this.noise(px * 12.9898 + py * 78.233) * 2 - 1;
         const fineHash = this.noise((px + 100) * 45.123 + (py + 50) * 91.456) * 2 - 1;
+        const microHash = this.noise((px + 200) * 67.891 + (py + 100) * 23.456) * 2 - 1; // Extra fine detail
         
-        // Base speckle from Rayleigh/Perlin
-        const baseSpeckle = (rayleigh * 0.5 + (perlin * 0.5 + 0.5) * 0.5) * depthFactor;
+        // Base speckle from Rayleigh/Perlin - INCREASED contribution
+        const baseSpeckle = (rayleighAbs * 0.55 + (perlin * 0.5 + 0.5) * 0.45) * depthFactor;
         
-        // Pixel variation
-        const pixelVariation = 1.0 + hashNoise * 0.15 + fineHash * 0.1;
+        // Enhanced pixel variation with micro-texture
+        const pixelVariation = 1.0 + hashNoise * 0.18 + fineHash * 0.12 + microHash * 0.06;
         
-        // Combined speckle multiplier
-        const speckleMultiplier = (0.5 + baseSpeckle * 0.5) * pixelVariation;
+        // Combined speckle multiplier - more pronounced effect
+        const speckleMultiplier = (0.45 + baseSpeckle * 0.55) * pixelVariation;
         
-        // Blood flow modulation (if applicable) - IDENTICAL TO LINEAR
+        // Blood flow modulation (if applicable)
         let flowMultiplier = 1.0;
         if (tissue.isInclusion) {
           const inclusion = this.config.inclusions?.find(inc => 
@@ -317,7 +329,7 @@ export class ConvexPolarEngine {
           }
         }
         
-        // Apply PURELY MULTIPLICATIVE speckle - IDENTICAL TO LINEAR
+        // Apply speckle with enhanced multiplier
         intensity *= speckleMultiplier * flowMultiplier;
         
         // ═══════════════════════════════════════════════════════════════════════════════
