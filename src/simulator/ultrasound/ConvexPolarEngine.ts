@@ -722,25 +722,32 @@ export class ConvexPolarEngine {
           const posteriorDepth = r - z_exit;
           
           // ═══ SIMPLIFIED DIRECT SHADOW - More aggressive ═══
-          // Direct exponential attenuation without complex edgeFactor blending
           const attenuation = Math.exp(-alpha * posteriorDepth);
           
-          // Direct shadow: (1 - STRENGTH) at max attenuation, approaches 1.0 as attenuation → 1
-          // With STRENGTH = 0.50, shadow goes from 1.0 down to 0.50 (50% darker)
+          // Direct shadow: (1 - STRENGTH) at max attenuation
           const rawShadow = SHADOW_MIN_INTENSITY + (1.0 - SHADOW_MIN_INTENSITY) * attenuation;
           
-          // Apply edge softness (but keep it mild)
+          // Apply edge softness
           const shadowFactor = SHADOW_MIN_INTENSITY + (rawShadow - SHADOW_MIN_INTENSITY) * edgeFactor;
           
-          // ═══ SMOOTH TRANSITION: Blend shadow gradually at the start ═══
+          // ═══ SMOOTH TRANSITION at shadow start ═══
           let transitionBlend = 1.0;
           if (posteriorDepth < TRANSITION_DEPTH_CM) {
             const t = posteriorDepth / TRANSITION_DEPTH_CM;
-            transitionBlend = t * t * (3 - 2 * t); // smoothstep function
+            transitionBlend = t * t * (3 - 2 * t);
           }
           
-          // Apply transitioned shadow
-          const finalShadow = 1.0 * (1 - transitionBlend) + shadowFactor * transitionBlend;
+          // ═══ PER-PIXEL ORGANIC NOISE (serrated effect - from Linear) ═══
+          // Creates granular, jagged texture at inclusion bottom
+          const NOISE_SCALE = 0.08;
+          const NOISE_AMP = 0.04; // ±4% organic jitter
+          const nx = thetaIdx * NOISE_SCALE;
+          const nz = rIdx * NOISE_SCALE;
+          const noiseValue = this.smoothNoise2D(nx, nz, 42);
+          const organicJitter = 1.0 + NOISE_AMP * noiseValue;
+          
+          // Apply transitioned shadow with organic noise
+          const finalShadow = (1.0 * (1 - transitionBlend) + shadowFactor * transitionBlend) * organicJitter;
           
           const idx = rIdx * numAngleSamples + thetaIdx;
           this.shadowMap[idx] = Math.min(this.shadowMap[idx], finalShadow);
@@ -821,6 +828,33 @@ export class ConvexPolarEngine {
   private noise(seed: number): number {
     const x = Math.sin(seed * 12.9898 + seed * 0.1) * 43758.5453;
     return x - Math.floor(x);
+  }
+  
+  /**
+   * Smooth 2D noise for organic texture (serrated effect at inclusion bottoms)
+   * Similar to Linear mode's smoothNoise function
+   */
+  private smoothNoise2D(x: number, y: number, seed: number): number {
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+    const fx = x - ix;
+    const fy = y - iy;
+    
+    // Hermite interpolation weights
+    const ux = fx * fx * (3 - 2 * fx);
+    const uy = fy * fy * (3 - 2 * fy);
+    
+    // Four corner noise values
+    const n00 = this.noise(ix + iy * 57 + seed);
+    const n10 = this.noise(ix + 1 + iy * 57 + seed);
+    const n01 = this.noise(ix + (iy + 1) * 57 + seed);
+    const n11 = this.noise(ix + 1 + (iy + 1) * 57 + seed);
+    
+    // Bilinear interpolation
+    const nx0 = n00 * (1 - ux) + n10 * ux;
+    const nx1 = n01 * (1 - ux) + n11 * ux;
+    
+    return (nx0 * (1 - uy) + nx1 * uy) * 2 - 1; // Return -1 to 1
   }
 
   // DEPRECATED function removed - use computeAcousticShadowsWithMotion instead
