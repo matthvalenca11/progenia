@@ -53,15 +53,19 @@ export const UltrasoundLabBuilder = ({ videoUrl, onVideoChange }: UltrasoundLabB
     const anatomyLayers = newLayerConfigs.map((layerConfig, index) => {
       const startDepth = newLayerConfigs.slice(0, index).reduce((sum, l) => sum + l.thicknessCm, 0);
       const endDepth = startDepth + layerConfig.thicknessCm;
+      const medium = getAcousticMedium(layerConfig.mediumId);
       
       return {
         name: layerConfig.name,
         depthRange: [startDepth / totalDepth, endDepth / totalDepth] as [number, number],
         reflectivity: 0.5 + (layerConfig.reflectivityBias || 0),
-        echogenicity: 'isoechoic' as const,
-        texture: 'homogeneous' as const,
-        attenuationCoeff: 0.5,
-        hasFlow: false,
+        echogenicity: medium.baseEchogenicity as 'anechoic' | 'hypoechoic' | 'isoechoic' | 'hyperechoic',
+        texture: layerConfig.mediumId === 'muscle' ? 'striated' as const : 
+                 layerConfig.mediumId === 'tendon' ? 'fibrillar' as const : 
+                 layerConfig.mediumId === 'fat' ? 'heterogeneous' as const :
+                 'homogeneous' as const,
+        attenuationCoeff: medium.attenuation_dB_per_cm_MHz,
+        hasFlow: layerConfig.mediumId === 'blood',
       };
     });
     

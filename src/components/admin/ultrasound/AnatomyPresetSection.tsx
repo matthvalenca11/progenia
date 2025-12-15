@@ -59,9 +59,9 @@ export const AnatomyPresetSection = () => {
 
     setLayers(anatomyLayers);
     
-    // CRITICAL: Clear acousticLayers to ensure preset layers are used
-    // This fixes the bug where manual edits persist after preset selection
-    setAcousticLayers([]);
+    // CRITICAL: Also set acousticLayers directly from preset to preserve mediumId
+    // This ensures the editor has the correct layer configs with all properties
+    setAcousticLayers(layerConfigs);
 
     // Load inclusions from preset
     const presetInclusions = getDefaultInclusionsForPreset(presetId as UltrasoundAnatomyPresetId);
