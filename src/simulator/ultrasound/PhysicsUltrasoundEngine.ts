@@ -324,19 +324,12 @@ export class PhysicsUltrasoundEngine {
 
     if (inclusion.shape === 'ellipse') {
       return (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) <= 1;
-    } else if (inclusion.shape === 'capsule' || inclusion.shape === 'vessel_ascending' || inclusion.shape === 'vessel_descending') {
-      // Capsule/Vessel with rotation and irregularity
+    } else if (inclusion.shape === 'capsule') {
+      // Capsule with rotation and irregularity
       const capsuleRadius = ry;
       const rectHalfWidth = rx - capsuleRadius;
       
-      // Apply shape-based default rotation
-      let rotationDeg = inclusion.rotationDegrees ?? 0;
-      if (inclusion.shape === 'vessel_ascending' && inclusion.rotationDegrees === undefined) {
-        rotationDeg = 12;
-      } else if (inclusion.shape === 'vessel_descending' && inclusion.rotationDegrees === undefined) {
-        rotationDeg = -12;
-      }
-      
+      const rotationDeg = inclusion.rotationDegrees ?? 0;
       const rotationRad = (rotationDeg * Math.PI) / 180;
       const cosR = Math.cos(rotationRad);
       const sinR = Math.sin(rotationRad);

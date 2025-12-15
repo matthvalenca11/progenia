@@ -162,10 +162,8 @@ export type UltrasoundLayerConfig = {
  * - ellipse: circular/oval cross-sections (transverse view)
  * - rectangle: box shape with sharp corners
  * - capsule: stadium/pill shape = rectangle with semicircular ends (longitudinal vessels)
- * - vessel_ascending: blood vessel angled upward (superficial → deep, left → right)
- * - vessel_descending: blood vessel angled downward (deep → superficial, left → right)
  */
-export type UltrasoundInclusionShape = "ellipse" | "rectangle" | "capsule" | "vessel_ascending" | "vessel_descending";
+export type UltrasoundInclusionShape = "ellipse" | "rectangle" | "capsule";
 
 /**
  * Inclusion types
@@ -230,37 +228,4 @@ export function getAcousticMedium(id: AcousticMediumId): AcousticMedium {
  */
 export function getAllAcousticMedia(): AcousticMedium[] {
   return Object.values(ACOUSTIC_MEDIA);
-}
-
-/**
- * Normalize inclusion shape - vessel_ascending/descending are capsules with predefined rotation
- * Returns the base shape and the effective rotation degrees
- */
-export function normalizeInclusionShape(
-  shape: UltrasoundInclusionShape,
-  rotationDegrees?: number
-): { baseShape: "ellipse" | "rectangle" | "capsule"; effectiveRotation: number } {
-  if (shape === "vessel_ascending") {
-    // Ascending vessel: goes from superficial-left to deep-right (positive rotation ~12°)
-    return {
-      baseShape: "capsule",
-      effectiveRotation: rotationDegrees ?? 12
-    };
-  } else if (shape === "vessel_descending") {
-    // Descending vessel: goes from deep-left to superficial-right (negative rotation ~-12°)
-    return {
-      baseShape: "capsule",
-      effectiveRotation: rotationDegrees ?? -12
-    };
-  } else if (shape === "capsule") {
-    return {
-      baseShape: "capsule",
-      effectiveRotation: rotationDegrees ?? 0
-    };
-  } else {
-    return {
-      baseShape: shape as "ellipse" | "rectangle",
-      effectiveRotation: 0
-    };
-  }
 }
