@@ -1450,7 +1450,11 @@ export class UnifiedUltrasoundEngine {
     const reflection = this.calculateInterfaceReflection(depth, lateral);
     intensity *= (1 + reflection * 0.3);
     
-    // 7. Beam geometry
+    // 7. Reflectivity adjustment (from layer/inclusion configuration)
+    const reflectivityFactor = 0.5 + tissue.reflectivity;
+    intensity *= reflectivityFactor;
+    
+    // 8. Beam geometry
     const beamFalloff = this.calculateBeamFalloff(depth, lateral);
     intensity *= beamFalloff;
     
