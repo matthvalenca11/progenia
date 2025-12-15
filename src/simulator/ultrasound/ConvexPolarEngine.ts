@@ -62,23 +62,23 @@ export class ConvexPolarEngine {
     const f = this.config.frequency;
     const fRef = 6.0; // Reference = max frequency for convex
     
-    // Strong blur constants for VERY visible resolution effect
-    // At low frequencies (2 MHz), image should be noticeably blurry
-    const kAxial = 1.2;   // Strong axial blur
-    const kLateral = 1.5; // Strong lateral blur
+    // VERY strong blur constants for clearly visible resolution effect
+    // Convex/Microconvex need stronger blur than Linear due to deeper penetration use
+    const kAxial = 2.0;   // Very strong axial blur
+    const kLateral = 2.5; // Very strong lateral blur
     
     const frequencyRatio = fRef / f;
     
     // Progressive scaling from high to low frequency
     // At 6 MHz: ratio=1.0, sigma=0 (sharpest)
-    // At 4 MHz: ratio=1.5, sigmaAxial=0.6, sigmaLateral=0.75
-    // At 3 MHz: ratio=2.0, sigmaAxial=1.2, sigmaLateral=1.5
-    // At 2 MHz: ratio=3.0, sigmaAxial=2.4, sigmaLateral=3.0
+    // At 4 MHz: ratio=1.5, sigmaAxial=1.0, sigmaLateral=1.25
+    // At 3 MHz: ratio=2.0, sigmaAxial=2.0, sigmaLateral=2.5
+    // At 2 MHz: ratio=3.0, sigmaAxial=4.0, sigmaLateral=5.0
     const sigmaAxial = kAxial * Math.max(0, frequencyRatio - 1.0);
     const sigmaLateral = kLateral * Math.max(0, frequencyRatio - 1.0);
     
-    // Speckle grain: coarser at low frequency (25% effect)
-    const speckleScale = 1.0 + (frequencyRatio - 1.0) * 0.25;
+    // Speckle grain: much coarser at low frequency (35% effect)
+    const speckleScale = 1.0 + (frequencyRatio - 1.0) * 0.35;
     
     return { sigmaAxial, sigmaLateral, speckleScale };
   }
