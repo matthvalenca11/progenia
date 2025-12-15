@@ -1130,7 +1130,8 @@ export class UnifiedUltrasoundEngine {
     this.linearShadowFactors.fill(1.0);
     this.linearZExits.fill(-1);
     
-    const shadowInclusions = this.config.inclusions.filter(inc => inc.hasStrongShadow);
+    // All inclusions generate acoustic shadows automatically (no toggle)
+    const shadowInclusions = this.config.inclusions;
     if (shadowInclusions.length === 0) return;
     
     // Motion compensation (inverted from rendering for synchronization)
