@@ -1804,10 +1804,15 @@ export class UnifiedUltrasoundEngine {
           distanceFromEdge: (distFromCenter - 1) * Math.min(rx, ry)
         };
       }
-    } else if (inclusion.shape === 'capsule') {
+    } else if (inclusion.shape === 'capsule' || inclusion.shape === 'vessel_ascending' || inclusion.shape === 'vessel_descending') {
       // ═══════════════════════════════════════════════════════════════════════════════
       // CAPSULE SHAPE (Stadium/Pill) - Rectangle with semicircular ends
       // Perfect for longitudinal vessel visualization
+      // 
+      // VARIANTS:
+      // - capsule: horizontal vessel with custom rotation
+      // - vessel_ascending: vessel going from superficial-left to deep-right (+12°)
+      // - vessel_descending: vessel going from deep-left to superficial-right (-12°)
       // 
       // ANATOMICAL REALISM FEATURES:
       // - Rotation: slight angle to simulate vessel path (±10°)
@@ -1820,7 +1825,13 @@ export class UnifiedUltrasoundEngine {
       const rectHalfWidth = halfWidth - capsuleRadius;
       
       // === ROTATION TRANSFORM ===
-      const rotationDeg = inclusion.rotationDegrees || 0;
+      // Use shape-based default rotation if not specified
+      let rotationDeg = inclusion.rotationDegrees ?? 0;
+      if (inclusion.shape === 'vessel_ascending' && inclusion.rotationDegrees === undefined) {
+        rotationDeg = 12; // Default ascending angle
+      } else if (inclusion.shape === 'vessel_descending' && inclusion.rotationDegrees === undefined) {
+        rotationDeg = -12; // Default descending angle
+      }
       const rotationRad = (rotationDeg * Math.PI) / 180;
       const cosR = Math.cos(rotationRad);
       const sinR = Math.sin(rotationRad);

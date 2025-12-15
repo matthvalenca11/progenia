@@ -472,17 +472,31 @@ export class ConvexPolarEngine {
       const normX = distortedDx / halfWidth;
       const normY = dy / halfHeight;
       return (normX * normX + normY * normY) <= 1.0;
-    } else if (inclusion.shape === 'capsule') {
-      // Capsule: rectangle with semicircular ends
+    } else if (inclusion.shape === 'capsule' || inclusion.shape === 'vessel_ascending' || inclusion.shape === 'vessel_descending') {
+      // Capsule/Vessel: rectangle with semicircular ends + rotation
       const capsuleRadius = halfHeight;
       const rectHalfWidth = halfWidth - capsuleRadius;
       
-      if (Math.abs(distortedDx) <= rectHalfWidth) {
-        return Math.abs(dy) <= capsuleRadius;
+      // Apply shape-based default rotation
+      let rotationDeg = inclusion.rotationDegrees ?? 0;
+      if (inclusion.shape === 'vessel_ascending' && inclusion.rotationDegrees === undefined) {
+        rotationDeg = 12;
+      } else if (inclusion.shape === 'vessel_descending' && inclusion.rotationDegrees === undefined) {
+        rotationDeg = -12;
+      }
+      
+      const rotationRad = (rotationDeg * Math.PI) / 180;
+      const cosR = Math.cos(rotationRad);
+      const sinR = Math.sin(rotationRad);
+      const dxLocal = distortedDx * cosR + dy * sinR;
+      const dyLocal = -distortedDx * sinR + dy * cosR;
+      
+      if (Math.abs(dxLocal) <= rectHalfWidth) {
+        return Math.abs(dyLocal) <= capsuleRadius;
       } else {
-        const endCenterX = Math.sign(distortedDx) * rectHalfWidth;
-        const localDx = distortedDx - endCenterX;
-        const distToEndCenter = Math.sqrt(localDx * localDx + dy * dy);
+        const endCenterX = Math.sign(dxLocal) * rectHalfWidth;
+        const localDx = dxLocal - endCenterX;
+        const distToEndCenter = Math.sqrt(localDx * localDx + dyLocal * dyLocal);
         return distToEndCenter <= capsuleRadius;
       }
     } else {
