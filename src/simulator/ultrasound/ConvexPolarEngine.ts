@@ -62,21 +62,23 @@ export class ConvexPolarEngine {
     const f = this.config.frequency;
     const fRef = 6.0; // Reference = max frequency for convex
     
-    // Stronger blur constants for visible resolution effect
-    const kAxial = 0.6;   // Increased from 0.12
-    const kLateral = 0.8; // Increased from 0.15
+    // Strong blur constants for VERY visible resolution effect
+    // At low frequencies (2 MHz), image should be noticeably blurry
+    const kAxial = 1.2;   // Strong axial blur
+    const kLateral = 1.5; // Strong lateral blur
     
     const frequencyRatio = fRef / f;
     
-    // Gradual scaling from high to low frequency
+    // Progressive scaling from high to low frequency
     // At 6 MHz: ratio=1.0, sigma=0 (sharpest)
-    // At 3 MHz: ratio=2.0, sigmaAxial=0.6, sigmaLateral=0.8
-    // At 2 MHz: ratio=3.0, sigmaAxial=1.2, sigmaLateral=1.6
+    // At 4 MHz: ratio=1.5, sigmaAxial=0.6, sigmaLateral=0.75
+    // At 3 MHz: ratio=2.0, sigmaAxial=1.2, sigmaLateral=1.5
+    // At 2 MHz: ratio=3.0, sigmaAxial=2.4, sigmaLateral=3.0
     const sigmaAxial = kAxial * Math.max(0, frequencyRatio - 1.0);
     const sigmaLateral = kLateral * Math.max(0, frequencyRatio - 1.0);
     
-    // Speckle grain: more noticeable scaling (15% effect)
-    const speckleScale = 1.0 + (frequencyRatio - 1.0) * 0.15;
+    // Speckle grain: coarser at low frequency (25% effect)
+    const speckleScale = 1.0 + (frequencyRatio - 1.0) * 0.25;
     
     return { sigmaAxial, sigmaLateral, speckleScale };
   }
@@ -338,7 +340,8 @@ export class ConvexPolarEngine {
     const { numDepthSamples, numAngleSamples } = this.config;
     
     // Skip blur if sigmas are too small (high frequency = sharp image)
-    if (psf.sigmaAxial < 0.8 && psf.sigmaLateral < 0.8) {
+    // Lower threshold to make effect more visible at moderate frequencies
+    if (psf.sigmaAxial < 0.3 && psf.sigmaLateral < 0.3) {
       return;
     }
     
