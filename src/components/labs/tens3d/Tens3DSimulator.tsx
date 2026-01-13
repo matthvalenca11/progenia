@@ -1,6 +1,6 @@
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { TensMode } from '@/lib/tensSimulation';
 import { TissueConfig, RiskResult } from '@/types/tissueConfig';
 import { TissueLayersModel } from './TissueLayersModel';
@@ -22,6 +22,7 @@ interface Tens3DSimulatorProps {
   tissueConfig: TissueConfig;
   riskResult: RiskResult;
   compact?: boolean;
+  electrodeDistance?: number;
 }
 
 export function Tens3DSimulator({
@@ -34,12 +35,21 @@ export function Tens3DSimulator({
   tissueConfig,
   riskResult,
   compact = false,
+  electrodeDistance = 6,
 }: Tens3DSimulatorProps) {
   const [visualMode, setVisualMode] = useState<VisualizationMode>('electric');
   const [electrodePositions, setElectrodePositions] = useState({
-    proximal: [-3, 0, 0] as [number, number, number],
-    distal: [3, 0, 0] as [number, number, number],
+    proximal: [-electrodeDistance / 2, 0, 0] as [number, number, number],
+    distal: [electrodeDistance / 2, 0, 0] as [number, number, number],
   });
+
+  // Atualizar posições quando a distância mudar
+  useEffect(() => {
+    setElectrodePositions({
+      proximal: [-electrodeDistance / 2, 0, 0] as [number, number, number],
+      distal: [electrodeDistance / 2, 0, 0] as [number, number, number],
+    });
+  }, [electrodeDistance]);
 
   // Normalize parameters
   const intensityNorm = Math.min(1, intensitymA / 80);

@@ -62,12 +62,12 @@ export function TissuePresetSelector({
               {selectedPreset?.label}
               {isCustom && (
                 <span className="ml-2 inline-flex px-2 py-0.5 text-xs rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
-                  ✏️ Personalizado
+                  Personalizado
                 </span>
               )}
               {selectedPreset?.config.hasMetalImplant && !isCustom && (
                 <span className="ml-2 inline-flex px-2 py-0.5 text-xs rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">
-                  ⚡ Implante
+                  Implante
                 </span>
               )}
             </p>
@@ -108,14 +108,6 @@ export function TissuePresetSelector({
                           <h3 className="text-sm font-semibold text-left truncate flex-1">
                             {preset.label}
                           </h3>
-                          <div className="flex gap-1 flex-shrink-0">
-                            {preset.config.hasMetalImplant && (
-                              <span className="text-xs">⚡</span>
-                            )}
-                            {preset.isCustom && (
-                              <span className="text-xs">✏️</span>
-                            )}
-                          </div>
                         </div>
                         <p className={`text-xs text-left line-clamp-1 ${
                           tempSelectedId === preset.id 

@@ -12,6 +12,7 @@ interface TensSemi3DViewProps {
   comfortLevel: number;
   tissueConfig: TissueConfig;
   riskResult: RiskResult;
+  electrodeDistance?: number;
 }
 
 export function TensSemi3DView({
@@ -23,6 +24,7 @@ export function TensSemi3DView({
   comfortLevel,
   tissueConfig,
   riskResult,
+  electrodeDistance = 6,
 }: TensSemi3DViewProps) {
   // Normalize parameters
   const intensityNorm = Math.min(1, intensitymA / 80);
@@ -97,9 +99,11 @@ export function TensSemi3DView({
           backgroundImage: `repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px)`
         }} />
         
-        {/* Electrodes */}
-        <div className="absolute left-[20%] top-1/2 -translate-y-1/2 w-20 h-20 bg-gradient-to-br from-slate-300 to-slate-400 dark:from-slate-600 dark:to-slate-700 rounded-xl shadow-2xl border-2 border-slate-500/50"
+        {/* Electrodes - posicionados baseados na distância */}
+        <div 
+          className="absolute top-1/2 -translate-y-1/2 w-20 h-20 bg-gradient-to-br from-slate-300 to-slate-400 dark:from-slate-600 dark:to-slate-700 rounded-xl shadow-2xl border-2 border-slate-500/50"
           style={{
+            left: `calc(50% - ${electrodeDistance * 2.5}%)`,
             boxShadow: `0 8px 16px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.3), ${intensityNorm > 0 ? `0 0 ${20 + intensityNorm * 30}px rgba(59, 130, 246, ${0.3 + intensityNorm * 0.4})` : ''}`
           }}>
           <div className="absolute inset-0 flex items-center justify-center">
@@ -108,8 +112,10 @@ export function TensSemi3DView({
           <div className="absolute inset-2 bg-gradient-to-br from-blue-100/40 to-cyan-100/40 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-lg" />
         </div>
         
-        <div className="absolute right-[20%] top-1/2 -translate-y-1/2 w-20 h-20 bg-gradient-to-br from-slate-300 to-slate-400 dark:from-slate-600 dark:to-slate-700 rounded-xl shadow-2xl border-2 border-slate-500/50"
+        <div 
+          className="absolute top-1/2 -translate-y-1/2 w-20 h-20 bg-gradient-to-br from-slate-300 to-slate-400 dark:from-slate-600 dark:to-slate-700 rounded-xl shadow-2xl border-2 border-slate-500/50"
           style={{
+            left: `calc(50% + ${electrodeDistance * 2.5}%)`,
             boxShadow: `0 8px 16px rgba(0,0,0,0.2), inset 0 1px 2px rgba(255,255,255,0.3), ${intensityNorm > 0 ? `0 0 ${20 + intensityNorm * 30}px rgba(59, 130, 246, ${0.3 + intensityNorm * 0.4})` : ''}`
           }}>
           <div className="absolute inset-0 flex items-center justify-center">

@@ -22,7 +22,7 @@ interface TensLabConfigEditorProps {
 export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorProps) {
   // Estado local para gerenciar presets
   const [selectedPresetId, setSelectedPresetId] = useState<TissuePresetId>(
-    config.tissueConfigId ? "custom" : "forearm_slim"
+    config.tissueConfigId ? config.tissueConfigId : "custom"
   );
   const [tissueConfig, setTissueConfig] = useState<TissueConfig>(() => {
     const customPreset = tissuePresets.find(p => p.id === "custom");
@@ -45,6 +45,9 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
   );
   const [mode, setMode] = useState<TensMode>(
     config.allowedModes[0] || "convencional"
+  );
+  const [electrodeDistance, setElectrodeDistance] = useState(
+    Math.floor((config.electrodeDistanceRange.min + config.electrodeDistanceRange.max) / 2)
   );
   
   const updateConfig = (updates: Partial<TensLabConfig>) => {
@@ -130,7 +133,7 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
       {/* Tab 1: Anatomia com Preview Integrado */}
       <TabsContent value="anatomy" className="mt-6">
         {/* Layout: Controles à esquerda, Previews sticky à direita */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr,600px] gap-6 items-start relative">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr,600px] gap-6 items-start">
           {/* COLUNA 1: Controles de Anatomia + Estimulação (scroll normal) */}
           <div className="space-y-6">
             {/* Cenário selecionado */}
@@ -222,12 +225,31 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
                     </div>
                   </div>
                 )}
+
+                {config.enabledControls.electrodeDistance && (
+                  <div>
+                    <div className="flex justify-between items-center mb-2">
+                      <Label>Distância entre Eletrodos</Label>
+                      <span className="text-sm font-bold text-primary">{electrodeDistance} cm</span>
+                    </div>
+                    <Slider
+                      value={[electrodeDistance]}
+                      onValueChange={(v) => setElectrodeDistance(v[0])}
+                      min={config.electrodeDistanceRange.min}
+                      max={config.electrodeDistanceRange.max}
+                      step={0.5}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Distância maior = campo mais profundo, menor intensidade superficial
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
           
           {/* COLUNA 2: Previews sticky (2D + 3D) + Painel de Análises */}
-          <div className="lg:fixed lg:top-20 lg:right-8 lg:w-[600px] space-y-4 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:z-0">
+          <div className="w-full flex flex-col gap-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
             <TensLabPreview
               config={config} 
               tissueConfig={previewTissueConfig}
@@ -235,6 +257,7 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
               pulseWidth={pulseWidth}
               intensity={intensity}
               mode={mode}
+              electrodeDistance={electrodeDistance}
             />
           </div>
         </div>
@@ -529,6 +552,104 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
                     }}
                     min={0}
                     max={80}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Distância entre Eletrodos */}
+            <div className="space-y-3 pt-4 border-t">
+              <Label className="font-medium">Distância entre Eletrodos (cm)</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="dist-min" className="text-sm text-muted-foreground">
+                    Mínimo
+                  </Label>
+                  <Input
+                    id="dist-min"
+                    type="number"
+                    value={config.electrodeDistanceRange.min}
+                    onChange={(e) => {
+                      updateConfig({
+                        electrodeDistanceRange: {
+                          ...config.electrodeDistanceRange,
+                          min: Number(e.target.value),
+                        },
+                      });
+                    }}
+                    min={2}
+                    max={12}
+                    step={0.5}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dist-max" className="text-sm text-muted-foreground">
+                    Máximo
+                  </Label>
+                  <Input
+                    id="dist-max"
+                    type="number"
+                    value={config.electrodeDistanceRange.max}
+                    onChange={(e) => {
+                      updateConfig({
+                        electrodeDistanceRange: {
+                          ...config.electrodeDistanceRange,
+                          max: Number(e.target.value),
+                        },
+                      });
+                    }}
+                    min={2}
+                    max={12}
+                    step={0.5}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Distância entre Eletrodos */}
+            <div className="space-y-3 pt-4 border-t">
+              <Label className="font-medium">Distância entre Eletrodos (cm)</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="dist-min" className="text-sm text-muted-foreground">
+                    Mínimo
+                  </Label>
+                  <Input
+                    id="dist-min"
+                    type="number"
+                    value={config.electrodeDistanceRange.min}
+                    onChange={(e) => {
+                      updateConfig({
+                        electrodeDistanceRange: {
+                          ...config.electrodeDistanceRange,
+                          min: Number(e.target.value),
+                        },
+                      });
+                    }}
+                    min={2}
+                    max={12}
+                    step={0.5}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dist-max" className="text-sm text-muted-foreground">
+                    Máximo
+                  </Label>
+                  <Input
+                    id="dist-max"
+                    type="number"
+                    value={config.electrodeDistanceRange.max}
+                    onChange={(e) => {
+                      updateConfig({
+                        electrodeDistanceRange: {
+                          ...config.electrodeDistanceRange,
+                          max: Number(e.target.value),
+                        },
+                      });
+                    }}
+                    min={2}
+                    max={12}
+                    step={0.5}
                   />
                 </div>
               </div>
