@@ -49,56 +49,53 @@ export function TensLabPreview({
   );
 
   return (
-    <div className="xl:col-span-2 space-y-6">
-      {/* Grid com os dois previews lado a lado */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Preview 2D da Anatomia */}
-        <Card className="bg-gradient-to-br from-slate-950 to-slate-900 border-cyan-500/20">
-          <CardHeader>
-            <CardTitle className="text-lg text-cyan-400">Preview da Anatomia</CardTitle>
-            <CardDescription className="text-slate-400">
-              Visualização em tempo real das camadas anatômicas
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="h-[500px]">
-            <TensSemi3DView
-              frequencyHz={frequency}
-              pulseWidthUs={pulseWidth}
-              intensitymA={intensity}
-              mode={mode}
-              activationLevel={sim.activationLevel}
-              comfortLevel={sim.comfortLevel}
-              tissueConfig={tissueConfig}
-              riskResult={riskResult}
-            />
-          </CardContent>
-        </Card>
+    <div className="space-y-4">
+      {/* Preview 2D da Anatomia - empilhado */}
+      <Card className="bg-gradient-to-br from-slate-950 to-slate-900 border-cyan-500/20">
+        <CardHeader className="py-3">
+          <CardTitle className="text-base text-cyan-400">Preview da Anatomia</CardTitle>
+          <CardDescription className="text-slate-400 text-sm">
+            Visualização em tempo real das camadas anatômicas
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="h-[300px]">
+          <TensSemi3DView
+            frequencyHz={frequency}
+            pulseWidthUs={pulseWidth}
+            intensitymA={intensity}
+            mode={mode}
+            activationLevel={sim.activationLevel}
+            comfortLevel={sim.comfortLevel}
+            tissueConfig={tissueConfig}
+            riskResult={riskResult}
+          />
+        </CardContent>
+      </Card>
 
-        {/* Simulador 3D Biomédico */}
-        <Card className="bg-gradient-to-br from-slate-950 to-slate-900 border-blue-500/20">
-          <CardHeader>
-            <CardTitle className="text-lg text-blue-400">Simulador 3D Biomédico</CardTitle>
-            <CardDescription className="text-slate-400">
-              Modelo fisiológico com campo elétrico
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="h-[500px]">
-            <Tens3DSimulator
-              frequencyHz={frequency}
-              pulseWidthUs={pulseWidth}
-              intensitymA={intensity}
-              mode={mode}
-              activationLevel={sim.activationLevel}
-              comfortLevel={sim.comfortLevel}
-              tissueConfig={tissueConfig}
-              riskResult={riskResult}
-              compact={true}
-            />
-          </CardContent>
-        </Card>
-      </div>
+      {/* Simulador 3D Biomédico - empilhado */}
+      <Card className="bg-gradient-to-br from-slate-950 to-slate-900 border-blue-500/20">
+        <CardHeader className="py-3">
+          <CardTitle className="text-base text-blue-400">Simulador 3D Biomédico</CardTitle>
+          <CardDescription className="text-slate-400 text-sm">
+            Modelo fisiológico com campo elétrico
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="h-[300px]">
+          <Tens3DSimulator
+            frequencyHz={frequency}
+            pulseWidthUs={pulseWidth}
+            intensitymA={intensity}
+            mode={mode}
+            activationLevel={sim.activationLevel}
+            comfortLevel={sim.comfortLevel}
+            tissueConfig={tissueConfig}
+            riskResult={riskResult}
+            compact={true}
+          />
+        </CardContent>
+      </Card>
 
-      {/* Painel de Análises abaixo dos previews */}
+      {/* Painel de Análises - empilhado */}
       <TensInsightsPanel
         showFeedback={config.showFeedbackSection}
         showRisk={config.showRiskSection}
