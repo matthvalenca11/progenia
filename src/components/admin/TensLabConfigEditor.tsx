@@ -129,9 +129,9 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
 
       {/* Tab 1: Anatomia com Preview Integrado */}
       <TabsContent value="anatomy" className="mt-6">
-        {/* Layout: Controles à esquerda, Previews à direita */}
-        <div className="grid grid-cols-1 xl:grid-cols-[400px_1fr] gap-8">
-          {/* COLUNA 1: Controles de Anatomia + Estimulação */}
+        {/* Layout: Controles à esquerda, Previews sticky à direita */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr,600px] gap-6 items-start relative">
+          {/* COLUNA 1: Controles de Anatomia + Estimulação (scroll normal) */}
           <div className="space-y-6">
             {/* Cenário selecionado */}
             <Card className="p-4 bg-muted/30">
@@ -226,15 +226,17 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
             </Card>
           </div>
           
-          {/* COLUNA 2: Previews (2D + 3D) + Painel de Análises */}
-          <TensLabPreview
-            config={config} 
-            tissueConfig={previewTissueConfig}
-            frequency={frequency}
-            pulseWidth={pulseWidth}
-            intensity={intensity}
-            mode={mode}
-          />
+          {/* COLUNA 2: Previews sticky (2D + 3D) + Painel de Análises */}
+          <div className="lg:fixed lg:top-20 lg:right-8 lg:w-[600px] space-y-4 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:z-0">
+            <TensLabPreview
+              config={config} 
+              tissueConfig={previewTissueConfig}
+              frequency={frequency}
+              pulseWidth={pulseWidth}
+              intensity={intensity}
+              mode={mode}
+            />
+          </div>
         </div>
       </TabsContent>
 
