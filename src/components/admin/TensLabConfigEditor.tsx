@@ -605,55 +605,6 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
                 </div>
               </div>
             </div>
-
-            {/* Distância entre Eletrodos */}
-            <div className="space-y-3 pt-4 border-t">
-              <Label className="font-medium">Distância entre Eletrodos (cm)</Label>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="dist-min" className="text-sm text-muted-foreground">
-                    Mínimo
-                  </Label>
-                  <Input
-                    id="dist-min"
-                    type="number"
-                    value={config.electrodeDistanceRange.min}
-                    onChange={(e) => {
-                      updateConfig({
-                        electrodeDistanceRange: {
-                          ...config.electrodeDistanceRange,
-                          min: Number(e.target.value),
-                        },
-                      });
-                    }}
-                    min={2}
-                    max={12}
-                    step={0.5}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dist-max" className="text-sm text-muted-foreground">
-                    Máximo
-                  </Label>
-                  <Input
-                    id="dist-max"
-                    type="number"
-                    value={config.electrodeDistanceRange.max}
-                    onChange={(e) => {
-                      updateConfig({
-                        electrodeDistanceRange: {
-                          ...config.electrodeDistanceRange,
-                          max: Number(e.target.value),
-                        },
-                      });
-                    }}
-                    min={2}
-                    max={12}
-                    step={0.5}
-                  />
-                </div>
-              </div>
-            </div>
           </CardContent>
         </Card>
 

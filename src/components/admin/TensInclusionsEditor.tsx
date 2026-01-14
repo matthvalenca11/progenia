@@ -99,8 +99,10 @@ export function TensInclusionsEditor({ inclusions, onChange }: TensInclusionsEdi
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="bone">Osso destacado</SelectItem>
-                          <SelectItem value="metal_implant">Implante metálico</SelectItem>
+                          <SelectItem value="bone">Osso destacado (barreira elétrica)</SelectItem>
+                          <SelectItem value="metal_implant">Implante metálico (alta condutividade)</SelectItem>
+                          <SelectItem value="muscle">Músculo (boa condução)</SelectItem>
+                          <SelectItem value="fat">Tecido adiposo (baixa condução)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

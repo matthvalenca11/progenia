@@ -6,13 +6,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Waves, Activity, Thermometer } from "lucide-react";
 import { toast } from "sonner";
 import { virtualLabService, VirtualLab, VirtualLabType } from "@/services/virtualLabService";
 import { UltrasoundLabBuilder } from "@/components/admin/ultrasound/UltrasoundLabBuilder";
 import { TensLabConfigEditor } from "@/components/admin/TensLabConfigEditor";
+import { UltrasoundTherapyLabConfigEditor } from "@/components/admin/UltrasoundTherapyLabConfigEditor";
 import { LabVideoUploader } from "@/components/admin/LabVideoUploader";
 import { defaultTensLabConfig } from "@/types/tensLabConfig";
+import { defaultUltrasoundTherapyConfig } from "@/types/ultrasoundTherapyConfig";
 import TensLabPage from "@/pages/TensLabPage";
 import { useUltrasoundLabStore } from "@/stores/ultrasoundLabStore";
 
@@ -159,6 +161,8 @@ export default function VirtualLabEditorUnified() {
       updates.config_data = defaultTensLabConfig;
     } else if (newType === "ultrasound") {
       updates.config_data = {}; // Will be handled by UltrasoundLabBuilder
+    } else if (newType === "ultrasound_therapy") {
+      updates.config_data = defaultUltrasoundTherapyConfig;
     }
 
     setLab({ ...lab, ...updates });
@@ -219,20 +223,25 @@ export default function VirtualLabEditorUnified() {
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {[
-                  { value: "ultrasound", label: "Ultrassom", desc: "Simulador de imagem ultrassonográfica" },
-                  { value: "tens", label: "TENS", desc: "Estimulação Elétrica Transcutânea" },
-                ].map((type) => (
-                  <Card 
-                    key={type.value}
-                    className="cursor-pointer hover:border-primary transition-colors"
-                    onClick={() => handleLabTypeChange(type.value as VirtualLabType)}
-                  >
-                    <CardContent className="p-4 text-center">
-                      <h3 className="font-semibold">{type.label}</h3>
-                      <p className="text-xs text-muted-foreground mt-1">{type.desc}</p>
-                    </CardContent>
-                  </Card>
-                ))}
+                  { value: "ultrasound", label: "Ultrassom", desc: "Simulador de imagem ultrassonográfica", icon: Waves },
+                  { value: "tens", label: "TENS", desc: "Estimulação Elétrica Transcutânea", icon: Activity },
+                  { value: "ultrasound_therapy", label: "Ultrassom Terapêutico", desc: "Simulador de ultrassom terapêutico com análise de penetração e aquecimento", icon: Thermometer },
+                ].map((type) => {
+                  const Icon = type.icon;
+                  return (
+                    <Card 
+                      key={type.value}
+                      className="cursor-pointer hover:border-primary transition-colors"
+                      onClick={() => handleLabTypeChange(type.value as VirtualLabType)}
+                    >
+                      <CardContent className="p-4 text-center">
+                        <Icon className="h-8 w-8 mx-auto mb-2 text-primary/60" />
+                        <h3 className="font-semibold">{type.label}</h3>
+                        <p className="text-xs text-muted-foreground mt-1">{type.desc}</p>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -246,8 +255,8 @@ export default function VirtualLabEditorUnified() {
           />
         )}
 
-        {/* Basic Info for non-ultrasound labs */}
-        {lab.lab_type && lab.lab_type !== "ultrasound" && (
+        {/* Basic Info for non-ultrasound labs (but not TENS or ultrasound_therapy - they have their own editors) */}
+        {lab.lab_type && lab.lab_type !== "ultrasound" && lab.lab_type !== "ultrasound_therapy" && lab.lab_type !== "tens" && (
           <>
             <Card>
               <CardHeader>
@@ -327,7 +336,88 @@ export default function VirtualLabEditorUnified() {
           />
         )}
 
-        {!["ultrasound", "tens"].includes(lab.lab_type || "") && (
+        {/* Basic Info for Ultrasound Therapy */}
+        {lab.lab_type === "ultrasound_therapy" && (
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle>Informações Básicas</CardTitle>
+                <CardDescription>Dados gerais do laboratório</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="name">Nome do Laboratório *</Label>
+                    <Input
+                      id="name"
+                      value={lab.name}
+                      onChange={(e) => setLab({ ...lab, name: e.target.value })}
+                      placeholder="Ex: Ultrassom de Ombro - Tendão Supraespinal"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="slug">Slug (URL) *</Label>
+                    <Input
+                      id="slug"
+                      value={lab.slug}
+                      onChange={(e) => setLab({ ...lab, slug: e.target.value })}
+                      placeholder="Ex: ultrassom-terapeutico-ombro"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Será gerado automaticamente se deixar vazio
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="description">Descrição</Label>
+                  <Textarea
+                    id="description"
+                    value={lab.description}
+                    onChange={(e) => setLab({ ...lab, description: e.target.value })}
+                    placeholder="Descreva os objetivos de aprendizado e o que os alunos poderão explorar neste laboratório..."
+                    rows={3}
+                  />
+                </div>
+
+                <div>
+                  <Label>Tipo de Laboratório</Label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-sm font-medium capitalize">Ultrassom Terapêutico</span>
+                    {!isEdit && (
+                      <Button 
+                        variant="link" 
+                        size="sm" 
+                        className="text-xs p-0 h-auto"
+                        onClick={() => setLab({ ...lab, lab_type: undefined })}
+                      >
+                        (alterar)
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Video Uploader for Ultrasound Therapy */}
+            <LabVideoUploader
+              videoUrl={videoUrl}
+              onVideoChange={setVideoUrl}
+              disabled={loading}
+            />
+          </>
+        )}
+
+        {/* Ultrasound Therapy Configuration */}
+        {lab.lab_type === "ultrasound_therapy" && lab.config_data && (
+          <UltrasoundTherapyLabConfigEditor
+            config={lab.config_data}
+            onChange={(config) => setLab({ ...lab, config_data: config })}
+          />
+        )}
+
+        {!["ultrasound", "tens", "ultrasound_therapy"].includes(lab.lab_type || "") && (
           <Card>
             <CardContent className="py-12 text-center">
               <p className="text-muted-foreground">

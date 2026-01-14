@@ -122,6 +122,8 @@ export function TensLabPreview({
             riskResult={riskResult}
             compact={true}
             electrodeDistance={electrodeDistance}
+            metalHotspot={fieldSim.metalHotspot}
+            thermalHotspot={fieldSim.thermalHotspot}
           />
         </CardContent>
       </Card>

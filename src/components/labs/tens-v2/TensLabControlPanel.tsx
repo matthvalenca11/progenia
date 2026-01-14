@@ -199,36 +199,6 @@ export function TensLabControlPanel() {
             step={0.5}
             unit="cm"
           />
-
-          <div className="space-y-2">
-            <Label className="text-xs text-slate-400">Forma</Label>
-            <div className="flex gap-1.5">
-              <Button
-                variant={electrodes.shape === "rectangular" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setElectrodes({ shape: "rectangular" })}
-                className={`flex-1 text-xs h-7 ${
-                  electrodes.shape === "rectangular" 
-                    ? 'bg-primary' 
-                    : 'bg-slate-800 border-slate-700 text-slate-300'
-                }`}
-              >
-                Retangular
-              </Button>
-              <Button
-                variant={electrodes.shape === "circular" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setElectrodes({ shape: "circular" })}
-                className={`flex-1 text-xs h-7 ${
-                  electrodes.shape === "circular" 
-                    ? 'bg-primary' 
-                    : 'bg-slate-800 border-slate-700 text-slate-300'
-                }`}
-              >
-                Circular
-              </Button>
-            </div>
-          </div>
         </div>
 
         {/* Info sobre distância */}

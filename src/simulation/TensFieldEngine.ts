@@ -6,7 +6,7 @@
 import { TensMode } from "@/lib/tensSimulation";
 import { TissueConfig } from "@/types/tissueConfig";
 
-export type ElectrodeShape = "rectangular" | "circular";
+export type ElectrodeShape = "circular";
 export type ElectrodePlacement = "default" | "muscle_target" | "superficial" | "spread";
 
 export interface ElectrodeConfig {
@@ -52,6 +52,10 @@ export interface TensFieldResult {
   // Dados para visualização
   heatmapData: HeatmapPoint[];
   activationZone: ActivationZone;
+  
+  // Efeitos de implante metálico e inclusões
+  metalHotspot?: { intensity: number; depth: number; span: number };
+  thermalHotspot?: { intensity: number; depth: number };
 }
 
 export interface HeatmapPoint {
@@ -97,9 +101,8 @@ function calculateTissueResistance(
   electrodes: ElectrodeConfig
 ): number {
   const d = electrodes.distanceCm;
-  const area = electrodes.shape === "circular" 
-    ? Math.PI * (electrodes.sizeCm / 2) ** 2 
-    : electrodes.sizeCm ** 2;
+  // Sempre usar formato circular
+  const area = Math.PI * (electrodes.sizeCm / 2) ** 2;
 
   // Modelo simplificado: R = rho * L / A, com rho composto
   const skinR = (1 / TISSUE_CONDUCTIVITY.skin) * tissue.skinThickness * 0.5;
@@ -116,11 +119,12 @@ function calculateTissueResistance(
 
 /**
  * Calcula o campo elétrico nas diferentes camadas
+ * Agora considera implantes metálicos e inclusões anatômicas
  */
 function calculateElectricField(
   params: TensFieldParams,
   tissue: TissueConfig
-): { E_skin: number; E_muscle: number; spread: number } {
+): { E_skin: number; E_muscle: number; spread: number; metalHotspot?: { intensity: number; depth: number; span: number } } {
   const { intensitymA, electrodes } = params;
   const d = electrodes.distanceCm;
 
@@ -128,26 +132,107 @@ function calculateElectricField(
   const I = intensitymA / 1000;
 
   // Área do eletrodo em cm²
-  const area = electrodes.shape === "circular" 
-    ? Math.PI * (electrodes.sizeCm / 2) ** 2 
-    : electrodes.sizeCm ** 2;
+  // Sempre usar formato circular
+  const area = Math.PI * (electrodes.sizeCm / 2) ** 2;
 
   // Densidade de corrente na superfície (A/cm²)
   const J_surface = I / area;
 
   // Campo elétrico aproximado (V/cm)
   // E = J / sigma, onde sigma é condutividade
-  const E_skin = (J_surface / TISSUE_CONDUCTIVITY.skin) * 100;
+  let E_skin = (J_surface / TISSUE_CONDUCTIVITY.skin) * 100;
 
   // Campo no músculo é atenuado pela camada de gordura
   const fatAttenuation = Math.exp(-tissue.fatThickness * 2);
-  const E_muscle = E_skin * fatAttenuation * (TISSUE_CONDUCTIVITY.skin / TISSUE_CONDUCTIVITY.muscle);
+  let E_muscle = E_skin * fatAttenuation * (TISSUE_CONDUCTIVITY.skin / TISSUE_CONDUCTIVITY.muscle);
+
+  // EFEITO DO IMPLANTE METÁLICO: alta condutividade distorce o campo
+  let metalHotspot: { intensity: number; depth: number; span: number } | undefined;
+  if (tissue.hasMetalImplant && tissue.metalImplantDepth !== undefined && tissue.metalImplantSpan !== undefined) {
+    const implantDepth = tissue.metalImplantDepth;
+    const implantSpan = tissue.metalImplantSpan;
+    
+    // Metal tem condutividade ~100x maior que tecido (aproximação)
+    const METAL_CONDUCTIVITY = 40; // vs 0.4 do músculo = 100x
+    
+    // Campo elétrico concentrado no implante (efeito de "short circuit")
+    // Intensidade do hotspot baseada na profundidade e extensão
+    const depthFactor = 1 - Math.abs(implantDepth - 0.5) * 0.5; // Mais intenso quando central
+    const spanFactor = implantSpan; // Maior extensão = maior área afetada
+    
+    // Intensidade do hotspot aumenta com intensidade da corrente
+    const hotspotIntensity = (intensitymA / 80) * depthFactor * spanFactor * 2.5; // Multiplicador para visibilidade
+    
+    // Campo elétrico local no implante (muito maior devido à condutividade)
+    const E_metal = E_muscle * (METAL_CONDUCTIVITY / TISSUE_CONDUCTIVITY.muscle) * depthFactor;
+    
+    // O campo ao redor do implante é distorcido (concentrado)
+    E_muscle *= (1 + hotspotIntensity * 0.3); // Aumenta campo geral devido à distorção
+    
+    metalHotspot = {
+      intensity: Math.min(1, hotspotIntensity),
+      depth: implantDepth,
+      span: implantSpan
+    };
+  }
+
+  // EFEITO DAS INCLUSÕES ANATÔMICAS
+  if (tissue.inclusions && tissue.inclusions.length > 0) {
+    let inclusionEffect = 1.0;
+    
+    tissue.inclusions.forEach(inclusion => {
+      const inclusionDepth = inclusion.depth;
+      const inclusionSpan = inclusion.span;
+      
+      // Efeito baseado no tipo de inclusão
+      if (inclusion.type === 'bone') {
+        // Osso = barreira elétrica (baixa condutividade)
+        // Reduz campo elétrico na região
+        const boneResistance = 1 + (inclusionSpan * 0.4); // Até 40% de redução
+        inclusionEffect *= (1 / boneResistance);
+      } else if (inclusion.type === 'muscle') {
+        // Músculo = boa condução
+        // Aumenta campo localmente
+        inclusionEffect *= (1 + inclusionSpan * 0.2);
+      } else if (inclusion.type === 'fat') {
+        // Gordura = baixa condução
+        // Reduz campo localmente
+        inclusionEffect *= (1 - inclusionSpan * 0.3);
+      } else if (inclusion.type === 'metal_implant') {
+        // Implante metálico nas inclusões (mesmo efeito do hasMetalImplant)
+        const depthFactor = 1 - Math.abs(inclusionDepth - 0.5) * 0.5;
+        const spanFactor = inclusionSpan;
+        const hotspotIntensity = (intensitymA / 80) * depthFactor * spanFactor * 2.5;
+        inclusionEffect *= (1 + hotspotIntensity * 0.4);
+        
+        // Adicionar ao hotspot se não existir ou combinar
+        if (!metalHotspot) {
+          metalHotspot = {
+            intensity: Math.min(1, hotspotIntensity),
+            depth: inclusionDepth,
+            span: inclusionSpan
+          };
+        } else {
+          // Combinar hotspots se houver múltiplos
+          metalHotspot.intensity = Math.min(1, metalHotspot.intensity + hotspotIntensity * 0.5);
+        }
+      }
+    });
+    
+    // Aplicar efeito das inclusões ao campo muscular
+    E_muscle *= inclusionEffect;
+  }
 
   // Spread do campo aumenta com distância
   // Modelo simplificado: campo se espalha proporcionalmente à distância
-  const spread = d * 0.7 + electrodes.sizeCm * 0.3;
+  let spread = d * 0.7 + electrodes.sizeCm * 0.3;
+  
+  // Implante metálico distorce o spread (concentra o campo)
+  if (tissue.hasMetalImplant && tissue.metalImplantSpan !== undefined) {
+    spread *= (1 - tissue.metalImplantSpan * 0.2); // Reduz spread quando há implante
+  }
 
-  return { E_skin, E_muscle, spread };
+  return { E_skin, E_muscle, spread, metalHotspot };
 }
 
 /**
@@ -275,12 +360,13 @@ function calculateComfort(
 
 /**
  * Calcula risco baseado em configuração
+ * Agora considera profundidade e extensão do implante para cálculo de hotspot térmico
  */
 function calculateRisk(
   params: TensFieldParams,
   tissue: TissueConfig,
   E_skin: number
-): { score: number; level: "baixo" | "moderado" | "alto"; messages: string[] } {
+): { score: number; level: "baixo" | "moderado" | "alto"; messages: string[]; thermalHotspot?: { intensity: number; depth: number } } {
   const { intensitymA, pulseWidthUs, frequencyHz, electrodes } = params;
   const d = electrodes.distanceCm;
 
@@ -289,13 +375,65 @@ function calculateRisk(
 
   let riskScore = 0;
   const messages: string[] = [];
+  let thermalHotspot: { intensity: number; depth: number } | undefined;
 
-  // Risco 1: Implante metálico
-  if (tissue.hasMetalImplant) {
-    riskScore += 30 * intensityNorm;
-    if (intensityNorm > 0.5) {
-      messages.push("⚠️ Implante metálico: risco de aquecimento com alta intensidade.");
+  // Risco 1: Implante metálico - AGORA CONSIDERA PROFUNDIDADE E EXTENSÃO
+  if (tissue.hasMetalImplant && tissue.metalImplantDepth !== undefined && tissue.metalImplantSpan !== undefined) {
+    const implantDepth = tissue.metalImplantDepth;
+    const implantSpan = tissue.metalImplantSpan;
+    
+    // Risco base aumenta com intensidade
+    let implantRisk = 30 * intensityNorm;
+    
+    // Profundidade afeta risco:
+    // - Implante superficial (0.2-0.4) = maior risco de queimadura cutânea
+    // - Implante profundo (0.6-0.8) = menor risco superficial, mas pode afetar tecido profundo
+    if (implantDepth < 0.4) {
+      implantRisk += 20 * intensityNorm; // Risco adicional se superficial
+      messages.push(`⚠️ Implante metálico superficial (${Math.round(implantDepth * 100)}%): risco elevado de aquecimento cutâneo.`);
+    } else if (implantDepth > 0.6) {
+      implantRisk += 15 * intensityNorm; // Risco moderado se profundo
+      messages.push(`⚠️ Implante metálico profundo (${Math.round(implantDepth * 100)}%): possível aquecimento em tecido profundo.`);
+    } else {
+      messages.push(`⚠️ Implante metálico em profundidade intermediária: monitore aquecimento local.`);
     }
+    
+    // Extensão afeta área de risco
+    // Maior extensão = maior área afetada = maior risco térmico total
+    implantRisk *= (1 + implantSpan * 0.5); // Até 50% de aumento com maior extensão
+    
+    // Calcular intensidade do hotspot térmico
+    // Baseado em: intensidade da corrente, profundidade, extensão, e largura de pulso
+    const thermalIntensity = intensityNorm * pulseNorm * implantSpan * (1 + (1 - implantDepth) * 0.5);
+    
+    riskScore += implantRisk;
+    
+    if (thermalIntensity > 0.3) {
+      thermalHotspot = {
+        intensity: Math.min(1, thermalIntensity),
+        depth: implantDepth
+      };
+    }
+  }
+  
+  // Verificar inclusões do tipo metal_implant também
+  if (tissue.inclusions) {
+    tissue.inclusions.forEach(inclusion => {
+      if (inclusion.type === 'metal_implant') {
+        const inclusionRisk = 25 * intensityNorm * inclusion.span;
+        riskScore += inclusionRisk;
+        
+        const thermalIntensity = intensityNorm * pulseNorm * inclusion.span * (1 + (1 - inclusion.depth) * 0.5);
+        if (thermalIntensity > 0.3) {
+          if (!thermalHotspot || thermalIntensity > thermalHotspot.intensity) {
+            thermalHotspot = {
+              intensity: Math.min(1, thermalIntensity),
+              depth: inclusion.depth
+            };
+          }
+        }
+      }
+    });
   }
 
   // Risco 2: Distância muito curta + alta intensidade = queimadura
@@ -343,7 +481,12 @@ function calculateRisk(
     level = "alto";
   }
 
-  return { score: Math.round(riskScore), level, messages: messages.slice(0, 3) };
+  return { 
+    score: Math.round(riskScore), 
+    level, 
+    messages: messages.slice(0, 3),
+    thermalHotspot 
+  };
 }
 
 /**
@@ -421,8 +564,8 @@ export function simulateTensField(
   params: TensFieldParams,
   tissue: TissueConfig
 ): TensFieldResult {
-  // Calcular campo elétrico
-  const { E_skin, E_muscle, spread } = calculateElectricField(params, tissue);
+  // Calcular campo elétrico (agora retorna metalHotspot)
+  const { E_skin, E_muscle, spread, metalHotspot } = calculateElectricField(params, tissue);
 
   // Calcular ativação
   const activation = calculateActivation(params, tissue, E_muscle);
@@ -430,7 +573,7 @@ export function simulateTensField(
   // Calcular conforto
   const comfort = calculateComfort(params, tissue, E_skin);
 
-  // Calcular risco
+  // Calcular risco (agora retorna thermalHotspot)
   const risk = calculateRisk(params, tissue, E_skin);
 
   // Gerar explicação da distância
@@ -468,6 +611,10 @@ export function simulateTensField(
 
     heatmapData,
     activationZone,
+    
+    // Novos campos para visualização de implantes e inclusões
+    metalHotspot,
+    thermalHotspot: risk.thermalHotspot,
   };
 }
 
@@ -477,7 +624,7 @@ export function simulateTensField(
 export const defaultElectrodeConfig: ElectrodeConfig = {
   distanceCm: 6,
   sizeCm: 4,
-  shape: "rectangular",
+  shape: "circular",
   placement: "default",
   anodePosition: [-3, 0, 0],
   cathodePosition: [3, 0, 0],

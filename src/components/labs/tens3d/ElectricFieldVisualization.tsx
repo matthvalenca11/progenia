@@ -32,19 +32,51 @@ export function ElectricFieldVisualization({
   const volumeRef = useRef<THREE.Mesh>(null);
 
   // Calculate penetration depth based on tissue configuration
+  // Agora considera inclusões anatômicas
   const penetrationDepth = useMemo(() => {
     const basePenetration = intensityNorm * 0.8;
     const fatResistance = tissueConfig.fatThickness / 100;
-    return Math.max(0.3, Math.min(1.5, basePenetration * (1 - fatResistance * 0.3)));
-  }, [intensityNorm, tissueConfig.fatThickness]);
+    let depth = Math.max(0.3, Math.min(1.5, basePenetration * (1 - fatResistance * 0.3)));
+    
+    // Efeito das inclusões na penetração
+    if (tissueConfig.inclusions) {
+      tissueConfig.inclusions.forEach(inclusion => {
+        if (inclusion.type === 'bone') {
+          // Osso bloqueia penetração
+          depth *= (1 - inclusion.span * 0.3);
+        } else if (inclusion.type === 'fat') {
+          // Gordura reduz penetração
+          depth *= (1 - inclusion.span * 0.2);
+        } else if (inclusion.type === 'muscle') {
+          // Músculo facilita penetração
+          depth *= (1 + inclusion.span * 0.15);
+        }
+      });
+    }
+    
+    return Math.max(0.2, Math.min(2.0, depth));
+  }, [intensityNorm, tissueConfig.fatThickness, tissueConfig.inclusions]);
 
-  // Generate curved field lines
+  // Generate curved field lines - agora distorce ao redor de implantes e inclusões
   const fieldLines = useMemo(() => {
     const lines: THREE.Vector3[][] = [];
     const numLines = Math.floor(8 + intensityNorm * 12);
     
     const [x1, y1, z1] = electrodePositions.proximal;
     const [x2, y2, z2] = electrodePositions.distal;
+    
+    // Calcular posição do implante metálico se existir
+    let metalImplantPos: { x: number; y: number; span: number } | null = null;
+    if (tissueConfig.hasMetalImplant && tissueConfig.metalImplantDepth !== undefined && tissueConfig.metalImplantSpan !== undefined) {
+      const centerX = (x1 + x2) / 2;
+      const totalDepth = tissueConfig.skinThickness + tissueConfig.fatThickness + tissueConfig.muscleThickness;
+      const implantY = -tissueConfig.metalImplantDepth * totalDepth * 5; // Converter para coordenadas 3D
+      metalImplantPos = {
+        x: centerX,
+        y: implantY,
+        span: tissueConfig.metalImplantSpan
+      };
+    }
     
     for (let i = 0; i < numLines; i++) {
       const points: THREE.Vector3[] = [];
@@ -53,12 +85,63 @@ export function ElectricFieldVisualization({
       
       // Create curved path from electrode to electrode
       for (let t = 0; t <= 1; t += 0.05) {
-        const x = x1 + (x2 - x1) * t;
+        let x = x1 + (x2 - x1) * t;
         const baseY = y1 + (y2 - y1) * t;
         
         // Parabolic curve going downward
         const curve = Math.sin(t * Math.PI);
-        const y = baseY + arcHeight * curve;
+        let y = baseY + arcHeight * curve;
+        
+        // DISTORÇÃO POR IMPLANTE METÁLICO: linhas de campo são atraídas/concentradas
+        if (metalImplantPos) {
+          const distToImplant = Math.sqrt((x - metalImplantPos.x) ** 2 + (y - metalImplantPos.y) ** 2);
+          const influenceRadius = metalImplantPos.span * 2;
+          
+          if (distToImplant < influenceRadius) {
+            // Atrair linhas de campo para o implante (efeito de alta condutividade)
+            const attraction = (1 - distToImplant / influenceRadius) * 0.4;
+            const dx = (metalImplantPos.x - x) * attraction;
+            const dy = (metalImplantPos.y - y) * attraction;
+            x += dx;
+            y += dy;
+          }
+        }
+        
+        // DISTORÇÃO POR INCLUSÕES
+        if (tissueConfig.inclusions) {
+          tissueConfig.inclusions.forEach(inclusion => {
+            const inclusionX = x1 + (x2 - x1) * inclusion.position;
+            const totalDepth = tissueConfig.skinThickness + tissueConfig.fatThickness + tissueConfig.muscleThickness;
+            const inclusionY = -inclusion.depth * totalDepth * 5;
+            const distToInclusion = Math.sqrt((x - inclusionX) ** 2 + (y - inclusionY) ** 2);
+            const influenceRadius = inclusion.span * 1.5;
+            
+            if (distToInclusion < influenceRadius) {
+              if (inclusion.type === 'bone') {
+                // Osso desvia linhas de campo (barreira)
+                const deflection = (1 - distToInclusion / influenceRadius) * 0.3;
+                const normalX = (x - inclusionX) / distToInclusion;
+                const normalY = (y - inclusionY) / distToInclusion;
+                x += normalX * deflection;
+                y += normalY * deflection;
+              } else if (inclusion.type === 'muscle') {
+                // Músculo atrai linhas (boa condução)
+                const attraction = (1 - distToInclusion / influenceRadius) * 0.2;
+                const dx = (inclusionX - x) * attraction;
+                const dy = (inclusionY - y) * attraction;
+                x += dx;
+                y += dy;
+              } else if (inclusion.type === 'fat') {
+                // Gordura desvia levemente (baixa condução)
+                const deflection = (1 - distToInclusion / influenceRadius) * 0.15;
+                const normalX = (x - inclusionX) / distToInclusion;
+                const normalY = (y - inclusionY) / distToInclusion;
+                x += normalX * deflection;
+                y += normalY * deflection;
+              }
+            }
+          });
+        }
         
         const z = z1 + (z2 - z1) * t + offsetZ * curve;
         
@@ -69,7 +152,7 @@ export function ElectricFieldVisualization({
     }
     
     return lines;
-  }, [electrodePositions, intensityNorm, penetrationDepth]);
+  }, [electrodePositions, intensityNorm, penetrationDepth, tissueConfig]);
 
   // Animate field lines based on mode and frequency
   useFrame((state) => {

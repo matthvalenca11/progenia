@@ -1,31 +1,30 @@
 /**
- * TensLabV2 - Laboratório TENS com layout limpo e profissional
+ * UltrasoundTherapyLabV2 - Laboratório de Ultrassom Terapêutico com layout limpo e profissional
  */
 
 import { useEffect, useState } from "react";
-import { TensLabTopBar } from "./TensLabTopBar";
-import { TensLabControlPanel } from "./TensLabControlPanel";
-import { TensLabInsightsPanel } from "./TensLabInsightsPanel";
-import { TensLabBottomDock } from "./TensLabBottomDock";
-import { Tens3DViewer } from "./Tens3DViewer";
-import { useTensLabStore } from "@/stores/tensLabStore";
-import { TensLabConfig, defaultTensLabConfig } from "@/types/tensLabConfig";
+import { UltrasoundTherapyTopBar } from "./UltrasoundTherapyTopBar";
+import { UltrasoundTherapyControlPanel } from "./UltrasoundTherapyControlPanel";
+import { UltrasoundTherapyInsightsPanel } from "./UltrasoundTherapyInsightsPanel";
+import { UltrasoundTherapy3DViewer } from "./UltrasoundTherapy3DViewer";
+import { useUltrasoundTherapyStore } from "@/stores/ultrasoundTherapyStore";
+import { UltrasoundTherapyConfig, defaultUltrasoundTherapyConfig } from "@/types/ultrasoundTherapyConfig";
 import { PanelLeftClose, PanelLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface TensLabV2Props {
-  config?: TensLabConfig;
+interface UltrasoundTherapyLabV2Props {
+  config?: UltrasoundTherapyConfig;
   labName?: string;
   showBackButton?: boolean;
 }
 
-export function TensLabV2({ 
-  config = defaultTensLabConfig, 
-  labName = "Laboratório Virtual de TENS",
+export function UltrasoundTherapyLabV2({ 
+  config = defaultUltrasoundTherapyConfig, 
+  labName = "Laboratório Virtual de Ultrassom Terapêutico",
   showBackButton = true 
-}: TensLabV2Props) {
-  const { setLabConfig, runSimulation, controlPanelCollapsed, setControlPanelCollapsed } = useTensLabStore();
-  const [showInsights, setShowInsights] = useState(false); // Colapsado por padrão para dar mais espaço ao canvas
+}: UltrasoundTherapyLabV2Props) {
+  const { setLabConfig, runSimulation, controlPanelCollapsed, setControlPanelCollapsed, insightsPanelCollapsed, setInsightsPanelCollapsed } = useUltrasoundTherapyStore();
+  const [showInsights, setShowInsights] = useState(false);
 
   useEffect(() => {
     setLabConfig(config);
@@ -35,17 +34,17 @@ export function TensLabV2({
   return (
     <div className="h-screen flex flex-col bg-slate-950 overflow-hidden">
       {/* Top Bar - compacto */}
-      <TensLabTopBar labName={labName} showBackButton={showBackButton} />
+      <UltrasoundTherapyTopBar labName={labName} showBackButton={showBackButton} />
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left - Control Panel (colapsável) - mais estreito */}
+        {/* Left - Control Panel (colapsável) */}
         <aside 
           className={`border-r border-slate-800 shrink-0 overflow-hidden transition-all duration-300 ${
             controlPanelCollapsed ? 'w-0' : 'w-64'
           }`}
         >
-          {!controlPanelCollapsed && <TensLabControlPanel />}
+          {!controlPanelCollapsed && <UltrasoundTherapyControlPanel />}
         </aside>
 
         {/* Botão para expandir painel */}
@@ -74,7 +73,7 @@ export function TensLabV2({
             </Button>
           )}
 
-          {/* Container do 3D Viewer - QUADRADO 1:1 com altura automática */}
+          {/* Container do 3D Viewer - QUADRADO 1:1 */}
           <div className="w-full flex items-center justify-center flex-shrink-0" style={{ height: 'fit-content', minHeight: 'fit-content' }}>
             <div 
               className="w-full"
@@ -84,21 +83,18 @@ export function TensLabV2({
                 maxHeight: '100%'
               }}
             >
-              <Tens3DViewer />
+              <UltrasoundTherapy3DViewer />
             </div>
           </div>
-          
-          {/* Bottom Dock */}
-          <TensLabBottomDock />
         </main>
 
-        {/* Right - Insights Panel (toggle) - mais estreito e colapsável por padrão */}
+        {/* Right - Insights Panel (toggle) */}
         <aside 
           className={`border-l border-slate-800 shrink-0 overflow-hidden transition-all duration-300 ${
             showInsights ? 'w-56' : 'w-0'
           }`}
         >
-          {showInsights && <TensLabInsightsPanel onClose={() => setShowInsights(false)} />}
+          {showInsights && <UltrasoundTherapyInsightsPanel onClose={() => setShowInsights(false)} />}
         </aside>
 
         {/* Toggle insights quando fechado */}
@@ -117,4 +113,4 @@ export function TensLabV2({
   );
 }
 
-export default TensLabV2;
+export default UltrasoundTherapyLabV2;

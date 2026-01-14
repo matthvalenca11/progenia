@@ -6,6 +6,7 @@ import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
 import { UltrasoundUnifiedLab } from "@/components/labs/UltrasoundUnifiedLab";
 import { LabWrapper } from "@/components/labs/LabWrapper";
 import TensLabPage from "@/pages/TensLabPage";
+import UltrasoundTherapyLabPage from "@/pages/UltrasoundTherapyLabPage";
 import { toast } from "sonner";
 
 export default function LabViewer() {
@@ -96,6 +97,26 @@ export default function LabViewer() {
         <LabWrapper videoUrl={videoUrl} title={lab.name}>
           <TensLabPage config={lab.config_data} />
         </LabWrapper>
+      </div>
+    );
+  }
+
+  if (lab.lab_type === "ultrasound_therapy" || lab.lab_type === "ultrassom_terapeutico") {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto py-8">
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/dashboard")}
+            className="mb-4"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Voltar ao Dashboard
+          </Button>
+          <LabWrapper videoUrl={videoUrl} title={lab.title || lab.name}>
+            <UltrasoundTherapyLabPage config={lab.config_data} />
+          </LabWrapper>
+        </div>
       </div>
     );
   }

@@ -1,223 +1,24 @@
 /**
  * Tens3DViewer - Visualizador 3D com eletrodos e efeito de distância
+ * Agora usa os mesmos componentes avançados do builder para visualização idêntica
  */
 
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera, Html, Line } from '@react-three/drei';
 import { useTensLabStore, ViewerTab } from '@/stores/tensLabStore';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Eye, Zap, Target } from "lucide-react";
-import * as THREE from 'three';
-import { useMemo } from 'react';
+import { Tens3DSceneSetup } from '@/components/labs/tens3d/Tens3DSceneSetup';
+import { TissueLayersModel } from '@/components/labs/tens3d/TissueLayersModel';
+import { ElectricFieldVisualization } from '@/components/labs/tens3d/ElectricFieldVisualization';
+import { ElectrodeModel } from '@/components/labs/tens3d/ElectrodeModel';
+import { StressHeatmap } from '@/components/labs/tens3d/StressHeatmap';
+import { MetalImplantHotspot } from '@/components/labs/tens3d/MetalImplantHotspot';
+import { ThermalHotspot } from '@/components/labs/tens3d/ThermalHotspot';
+import { useMemo, useEffect, useState } from 'react';
+import { TensMode } from '@/lib/tensSimulation';
+import { RiskResult } from '@/types/tissueConfig';
 
-function TissueLayer({ 
-  yOffset, 
-  height, 
-  color, 
-  opacity = 0.9,
-  wireframe = false 
-}: { 
-  yOffset: number; 
-  height: number; 
-  color: string; 
-  opacity?: number;
-  wireframe?: boolean;
-}) {
-  return (
-    <mesh position={[0, yOffset - height / 2, 0]}>
-      <boxGeometry args={[10, height, 6]} />
-      <meshStandardMaterial 
-        color={color} 
-        transparent 
-        opacity={opacity}
-        wireframe={wireframe}
-      />
-    </mesh>
-  );
-}
-
-function Electrode({ 
-  position, 
-  label, 
-  intensity,
-  size 
-}: { 
-  position: [number, number, number]; 
-  label: string; 
-  intensity: number;
-  size: number;
-}) {
-  const glowIntensity = 0.2 + intensity * 0.6;
-  const radius = size * 0.12;
-  
-  return (
-    <group position={position}>
-      {/* Base do eletrodo */}
-      <mesh position={[0, 0.1, 0]}>
-        <cylinderGeometry args={[radius, radius, 0.2, 32]} />
-        <meshStandardMaterial color="#475569" metalness={0.7} roughness={0.2} />
-      </mesh>
-      {/* Superfície condutiva com glow */}
-      <mesh position={[0, 0.22, 0]}>
-        <cylinderGeometry args={[radius * 0.85, radius * 0.85, 0.05, 32]} />
-        <meshStandardMaterial 
-          color="#3b82f6" 
-          emissive="#3b82f6" 
-          emissiveIntensity={glowIntensity}
-          metalness={0.3}
-          roughness={0.1}
-        />
-      </mesh>
-      {/* Label */}
-      <Html position={[0, 0.6, 0]} center>
-        <div className="bg-slate-900/90 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg">
-          {label}
-        </div>
-      </Html>
-    </group>
-  );
-}
-
-function ElectricFieldLines({ 
-  distanceCm, 
-  intensity,
-  depth 
-}: { 
-  distanceCm: number; 
-  intensity: number;
-  depth: number;
-}) {
-  const lines = useMemo(() => {
-    const result = [];
-    const numLines = 7;
-    const halfDist = distanceCm / 2;
-    
-    // Profundidade do campo baseada na distância e intensidade
-    // Maior distância = campo mais profundo mas menos intenso na superfície
-    const maxDepth = Math.min(3 + depth * 0.05, 5);
-    const spreadFactor = 1 + (distanceCm - 4) * 0.1;
-    
-    for (let i = 0; i < numLines; i++) {
-      const offset = (i / (numLines - 1) - 0.5) * 3 * spreadFactor;
-      const lineDepth = maxDepth * (1 - Math.abs(offset) / 4);
-      
-      const points = [
-        new THREE.Vector3(-halfDist * 0.9, 0.25, offset),
-        new THREE.Vector3(-halfDist * 0.4, -lineDepth * 0.4, offset),
-        new THREE.Vector3(0, -lineDepth, offset),
-        new THREE.Vector3(halfDist * 0.4, -lineDepth * 0.4, offset),
-        new THREE.Vector3(halfDist * 0.9, 0.25, offset),
-      ];
-      
-      result.push(
-        <Line 
-          key={i} 
-          points={points} 
-          color="#60a5fa" 
-          lineWidth={1.5} 
-          opacity={0.3 + intensity * 0.3} 
-          transparent 
-        />
-      );
-    }
-    return result;
-  }, [distanceCm, intensity, depth]);
-
-  return <group>{lines}</group>;
-}
-
-function ActivationZone({ 
-  result, 
-  distanceCm 
-}: { 
-  result: any;
-  distanceCm: number;
-}) {
-  if (!result) return null;
-  
-  const depth = result.activationDepthMm / 25;
-  const radius = Math.sqrt(result.activatedAreaCm2) / 2.5;
-  // Maior distância = zona mais espalhada horizontalmente
-  const spreadX = 1 + (distanceCm - 4) * 0.08;
-  
-  return (
-    <mesh position={[0, -depth, 0]} scale={[spreadX, 1, 1]}>
-      <sphereGeometry args={[radius, 24, 24]} />
-      <meshStandardMaterial 
-        color="#a855f7" 
-        transparent 
-        opacity={0.25} 
-        emissive="#a855f7" 
-        emissiveIntensity={0.2} 
-      />
-    </mesh>
-  );
-}
-
-function DistanceRuler({ distance }: { distance: number }) {
-  const halfDist = distance / 2;
-  
-  return (
-    <group position={[0, 0.7, 2.5]}>
-      {/* Linha principal */}
-      <Line 
-        points={[[-halfDist, 0, 0], [halfDist, 0, 0]]} 
-        color="#f59e0b" 
-        lineWidth={2} 
-      />
-      {/* Marcadores */}
-      <Line 
-        points={[[-halfDist, -0.15, 0], [-halfDist, 0.15, 0]]} 
-        color="#f59e0b" 
-        lineWidth={2} 
-      />
-      <Line 
-        points={[[halfDist, -0.15, 0], [halfDist, 0.15, 0]]} 
-        color="#f59e0b" 
-        lineWidth={2} 
-      />
-      {/* Label */}
-      <Html position={[0, 0.35, 0]} center>
-        <Badge 
-          variant="outline" 
-          className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-[10px] font-mono shadow-lg"
-        >
-          {distance} cm
-        </Badge>
-      </Html>
-    </group>
-  );
-}
-
-function Heatmap({ 
-  distanceCm, 
-  intensity,
-  tissueConfig 
-}: { 
-  distanceCm: number; 
-  intensity: number;
-  tissueConfig: any;
-}) {
-  // Heatmap visual simplificado baseado na distância
-  const skinH = tissueConfig.skinThickness * 2.5;
-  const fatH = tissueConfig.fatThickness * 3;
-  
-  // Centro mais quente com distância menor
-  const hotspotIntensity = Math.max(0.1, intensity * (6 / distanceCm));
-  const spreadWidth = 1.5 + distanceCm * 0.15;
-  
-  return (
-    <mesh position={[0, -(skinH + fatH * 0.5), 0]}>
-      <planeGeometry args={[spreadWidth, fatH + skinH]} />
-      <meshBasicMaterial 
-        color="#ef4444" 
-        transparent 
-        opacity={hotspotIntensity * 0.3}
-      />
-    </mesh>
-  );
-}
+type VisualizationMode = 'anatomical' | 'electric' | 'lesion';
 
 export function Tens3DViewer() {
   const { 
@@ -226,16 +27,73 @@ export function Tens3DViewer() {
     tissueConfig, 
     electrodes, 
     intensity, 
+    frequency,
+    pulseWidth,
+    mode,
     simulationResult 
   } = useTensLabStore();
   
-  const intensityNorm = intensity / 80;
-
-  const skinH = tissueConfig.skinThickness * 2.5;
-  const fatH = tissueConfig.fatThickness * 3;
-  const muscleH = tissueConfig.muscleThickness * 4;
+  // Normalizar parâmetros (igual ao builder)
+  const intensityNorm = Math.min(1, intensity / 80);
+  const pulseNorm = (pulseWidth - 50) / (400 - 50);
   
-  let yPos = 0;
+  // Calcular lesionIndex (igual ao builder)
+  const lesionIndex = useMemo(() => {
+    let index = 0;
+    
+    if (simulationResult?.riskLevel === "alto") index += 0.7;
+    else if (simulationResult?.riskLevel === "moderado") index += 0.4;
+    
+    index += intensityNorm * 0.3;
+    index += pulseNorm * 0.3;
+    
+    if (tissueConfig.hasMetalImplant && intensityNorm > 0.5) index += 0.4;
+    if (tissueConfig.boneDepth < 0.4 && intensityNorm > 0.6) index += 0.3;
+    if (tissueConfig.skinThickness < 0.2 && intensityNorm > 0.5) index += 0.25;
+    
+    return Math.min(1, Math.max(0, index));
+  }, [intensityNorm, pulseNorm, tissueConfig, simulationResult]);
+
+  // Mapear viewerTab para visualMode
+  const visualMode: VisualizationMode = useMemo(() => {
+    if (viewerTab === 'anatomy') return 'anatomical';
+    if (viewerTab === 'electric') return 'electric';
+    if (viewerTab === 'activated') return 'electric'; // Mostrar campo elétrico na zona ativada
+    return 'electric';
+  }, [viewerTab]);
+
+  // Posições dos eletrodos baseadas na distância
+  const [electrodePositions, setElectrodePositions] = useState({
+    proximal: [-electrodes.distanceCm / 2, 0, 0] as [number, number, number],
+    distal: [electrodes.distanceCm / 2, 0, 0] as [number, number, number],
+  });
+
+  useEffect(() => {
+    setElectrodePositions({
+      proximal: [-electrodes.distanceCm / 2, 0, 0] as [number, number, number],
+      distal: [electrodes.distanceCm / 2, 0, 0] as [number, number, number],
+    });
+  }, [electrodes.distanceCm]);
+
+  // Criar RiskResult a partir do simulationResult
+  const riskResult: RiskResult = useMemo(() => {
+    if (!simulationResult) {
+      return {
+        riskLevel: 'baixo',
+        riskScore: 0,
+        messages: [],
+      };
+    }
+    return {
+      riskLevel: simulationResult.riskLevel,
+      riskScore: simulationResult.riskScore,
+      messages: simulationResult.riskMessages || [],
+    };
+  }, [simulationResult]);
+
+  // Calcular activationLevel e comfortLevel
+  const activationLevel = simulationResult?.sensoryActivation || 0;
+  const comfortLevel = simulationResult?.comfortScore || 0;
 
   return (
     <div className="relative w-full h-full bg-gradient-to-b from-slate-900 to-slate-950">
@@ -257,71 +115,87 @@ export function Tens3DViewer() {
       </div>
 
       {/* Canvas */}
-      <Canvas shadows dpr={[1, 2]}>
-        <PerspectiveCamera makeDefault position={[0, 3, 12]} fov={45} />
-        <OrbitControls 
-          enablePan={false} 
-          maxPolarAngle={Math.PI / 2.2} 
-          minPolarAngle={Math.PI / 6} 
-          maxDistance={20} 
-          minDistance={6}
-          enableDamping
-          dampingFactor={0.05}
-        />
-        
-        <ambientLight intensity={0.3} />
-        <directionalLight position={[8, 8, 5]} intensity={0.6} castShadow />
-        <pointLight position={[0, 3, 0]} intensity={0.3} color="#60a5fa" />
-        <fog attach="fog" args={['#0f172a', 10, 25]} />
+      <Canvas 
+        gl={{ 
+          preserveDrawingBuffer: true, 
+          antialias: true,
+          alpha: true,
+          powerPreference: 'high-performance'
+        }}
+        shadows 
+        dpr={[1, 2]}
+      >
+        {/* Configuração compartilhada da cena (câmera, controles, iluminação, fog) - igual ao builder */}
+        <Tens3DSceneSetup />
 
-        {/* Camadas teciduais */}
-        <TissueLayer yOffset={yPos} height={skinH} color="#fda4af" />
-        <TissueLayer yOffset={yPos -= skinH} height={fatH} color="#fcd34d" opacity={0.8} />
-        <TissueLayer yOffset={yPos -= fatH} height={muscleH} color="#dc2626" opacity={0.75} />
-        <TissueLayer yOffset={yPos -= muscleH} height={1.2} color="#64748b" />
-
-        {/* Eletrodos */}
-        <Electrode 
-          position={[-electrodes.distanceCm / 2, skinH / 2 + 0.25, 0]} 
-          label="+" 
-          intensity={intensityNorm}
-          size={electrodes.sizeCm}
-        />
-        <Electrode 
-          position={[electrodes.distanceCm / 2, skinH / 2 + 0.25, 0]} 
-          label="−" 
-          intensity={intensityNorm}
-          size={electrodes.sizeCm}
+        {/* Tissue Layers - usando o mesmo componente do builder */}
+        <TissueLayersModel
+          key={`${tissueConfig.skinThickness}-${tissueConfig.fatThickness}-${tissueConfig.muscleThickness}-${tissueConfig.hasMetalImplant}`}
+          tissueConfig={tissueConfig}
+          visualMode={visualMode}
+          intensityNorm={intensityNorm}
+          lesionIndex={lesionIndex}
         />
 
-        {/* Régua de distância */}
-        <DistanceRuler distance={electrodes.distanceCm} />
+        {/* Electrodes - usando o mesmo componente do builder */}
+        <ElectrodeModel
+          position={electrodePositions.proximal}
+          label="+"
+          isActive={intensity > 0}
+          intensity={Math.max(0.2, intensityNorm)}
+        />
+        <ElectrodeModel
+          position={electrodePositions.distal}
+          label="-"
+          isActive={intensity > 0}
+          intensity={Math.max(0.2, intensityNorm)}
+        />
 
-        {/* Campo elétrico */}
-        {(viewerTab === 'electric' || viewerTab === 'activated') && (
-          <>
-            <ElectricFieldLines 
-              distanceCm={electrodes.distanceCm} 
-              intensity={intensityNorm}
-              depth={simulationResult?.activationDepthMm || 15}
-            />
-            <Heatmap 
-              distanceCm={electrodes.distanceCm}
-              intensity={intensityNorm}
-              tissueConfig={tissueConfig}
-            />
-          </>
-        )}
-
-        {/* Zona de ativação */}
-        {viewerTab === 'activated' && (
-          <ActivationZone 
-            result={simulationResult} 
-            distanceCm={electrodes.distanceCm}
+        {/* Electric Field Visualization - sempre mostrar algo mesmo com intensidade baixa */}
+        {(visualMode === 'electric' || visualMode === 'lesion' || viewerTab === 'activated') && (
+          <ElectricFieldVisualization
+            electrodePositions={electrodePositions}
+            intensityNorm={Math.max(0.15, intensityNorm)}
+            frequencyHz={frequency}
+            mode={mode as TensMode}
+            tissueConfig={tissueConfig}
+            activationLevel={activationLevel}
+            visualMode={visualMode}
           />
         )}
 
-        <gridHelper args={[16, 16, '#1e293b', '#0f172a']} position={[0, -7, 0]} />
+        {/* Stress/Lesion Heatmap - sempre mostrar quando há risco significativo */}
+        {lesionIndex > 0.2 && (
+          <StressHeatmap
+            electrodePositions={electrodePositions}
+            intensityNorm={intensityNorm}
+            pulseNorm={pulseNorm}
+            tissueConfig={tissueConfig}
+            riskResult={riskResult}
+          />
+        )}
+
+        {/* Metal Implant Hotspot - sempre visível quando há implante metálico */}
+        {tissueConfig.hasMetalImplant && simulationResult?.metalHotspot && simulationResult.metalHotspot.intensity > 0.1 && (
+          <MetalImplantHotspot
+            electrodePositions={electrodePositions}
+            metalHotspot={simulationResult.metalHotspot}
+            tissueConfig={tissueConfig}
+            intensityNorm={intensityNorm}
+          />
+        )}
+
+        {/* Thermal Hotspot - sempre visível quando há implante metálico */}
+        {tissueConfig.hasMetalImplant && simulationResult?.thermalHotspot && simulationResult.thermalHotspot.intensity > 0.15 && (
+          <ThermalHotspot
+            electrodePositions={electrodePositions}
+            thermalHotspot={simulationResult.thermalHotspot}
+            tissueConfig={tissueConfig}
+          />
+        )}
+
+        {/* Grid Helper (subtle) - aumentado para acomodar eletrodos mais distantes */}
+        <gridHelper args={[24, 24, '#334155', '#1e293b']} position={[0, -4, 0]} />
       </Canvas>
 
       {/* Instrução */}

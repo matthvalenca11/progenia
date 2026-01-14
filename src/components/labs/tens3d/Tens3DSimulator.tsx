@@ -1,5 +1,4 @@
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import { useState, useMemo, useEffect } from 'react';
 import { TensMode } from '@/lib/tensSimulation';
 import { TissueConfig, RiskResult } from '@/types/tissueConfig';
@@ -7,6 +6,9 @@ import { TissueLayersModel } from './TissueLayersModel';
 import { ElectricFieldVisualization } from './ElectricFieldVisualization';
 import { ElectrodeModel } from './ElectrodeModel';
 import { StressHeatmap } from './StressHeatmap';
+import { MetalImplantHotspot } from './MetalImplantHotspot';
+import { ThermalHotspot } from './ThermalHotspot';
+import { Tens3DSceneSetup } from './Tens3DSceneSetup';
 import { Button } from '@/components/ui/button';
 import { Eye, Zap, AlertTriangle } from 'lucide-react';
 
@@ -23,6 +25,8 @@ interface Tens3DSimulatorProps {
   riskResult: RiskResult;
   compact?: boolean;
   electrodeDistance?: number;
+  metalHotspot?: { intensity: number; depth: number; span: number };
+  thermalHotspot?: { intensity: number; depth: number };
 }
 
 export function Tens3DSimulator({
@@ -36,6 +40,8 @@ export function Tens3DSimulator({
   riskResult,
   compact = false,
   electrodeDistance = 6,
+  metalHotspot,
+  thermalHotspot,
 }: Tens3DSimulatorProps) {
   const [visualMode, setVisualMode] = useState<VisualizationMode>('electric');
   const [electrodePositions, setElectrodePositions] = useState({
@@ -147,27 +153,8 @@ export function Tens3DSimulator({
         shadows
         dpr={[1, 2]}
       >
-        <PerspectiveCamera makeDefault position={[0, 3, 12]} fov={50} />
-        <OrbitControls
-          enableZoom={true}
-          enablePan={false}
-          maxPolarAngle={Math.PI / 2}
-          minPolarAngle={Math.PI / 4}
-          maxDistance={20}
-          minDistance={8}
-          enableDamping={true}
-          dampingFactor={0.05}
-        />
-
-        {/* Enhanced Lighting */}
-        <ambientLight intensity={0.5} />
-        <directionalLight position={[10, 10, 5]} intensity={0.8} castShadow />
-        <directionalLight position={[-10, -10, -5]} intensity={0.4} />
-        <pointLight position={[0, 5, 0]} intensity={0.5} color="#60a5fa" />
-        <hemisphereLight args={['#ffffff', '#444444', 0.3]} />
-        
-        {/* Subtle fog for depth */}
-        <fog attach="fog" args={['#0f172a', 10, 25]} />
+        {/* Configuração compartilhada da cena (câmera, controles, iluminação, fog) */}
+        <Tens3DSceneSetup />
 
         {/* Tissue Layers - key forces re-render when config changes */}
         <TissueLayersModel
@@ -216,8 +203,27 @@ export function Tens3DSimulator({
           />
         )}
 
-        {/* Grid Helper (subtle) */}
-        <gridHelper args={[20, 20, '#334155', '#1e293b']} position={[0, -4, 0]} />
+        {/* Metal Implant Hotspot - sempre visível quando há implante metálico */}
+        {tissueConfig.hasMetalImplant && metalHotspot && metalHotspot.intensity > 0.1 && (
+          <MetalImplantHotspot
+            electrodePositions={electrodePositions}
+            metalHotspot={metalHotspot}
+            tissueConfig={tissueConfig}
+            intensityNorm={intensityNorm}
+          />
+        )}
+
+        {/* Thermal Hotspot - sempre visível quando há implante metálico */}
+        {tissueConfig.hasMetalImplant && thermalHotspot && thermalHotspot.intensity > 0.15 && (
+          <ThermalHotspot
+            electrodePositions={electrodePositions}
+            thermalHotspot={thermalHotspot}
+            tissueConfig={tissueConfig}
+          />
+        )}
+
+        {/* Grid Helper (subtle) - aumentado para acomodar eletrodos mais distantes */}
+        <gridHelper args={[24, 24, '#334155', '#1e293b']} position={[0, -4, 0]} />
       </Canvas>
 
       {/* Instructions */}

@@ -227,21 +227,50 @@ export function TissueLayersModel({
   }, []);
 
   // Adjust opacity and appearance based on visualization mode
+  // Se há implante metálico, tornar camadas mais transparentes para visualizar o implante
+  const hasMetalImplant = tissueConfig.hasMetalImplant;
+  
   const getLayerOpacity = (layer: string) => {
-    if (visualMode === 'anatomical') return 1.0;
-    if (visualMode === 'electric') {
-      // Make tissues semi-transparent to see field
-      if (layer === 'skin') return 0.7;
-      if (layer === 'fat') return 0.6;
-      if (layer === 'muscle') return 0.8;
-      if (layer === 'bone') return 0.9;
-    }
-    if (visualMode === 'lesion') {
-      // Even more transparent to see heatmap
-      if (layer === 'skin') return 0.5;
-      if (layer === 'fat') return 0.4;
-      if (layer === 'muscle') return 0.6;
-      if (layer === 'bone') return 0.7;
+    // Se há implante metálico, tornar mais transparente para visualizar
+    if (hasMetalImplant) {
+      if (visualMode === 'anatomical') {
+        // Modo anatômico com implante: semi-transparente para ver o implante
+        if (layer === 'skin') return 0.6;
+        if (layer === 'fat') return 0.5;
+        if (layer === 'muscle') return 0.6;
+        if (layer === 'bone') return 0.7;
+      }
+      if (visualMode === 'electric') {
+        // Make tissues semi-transparent to see field and implant
+        if (layer === 'skin') return 0.5;
+        if (layer === 'fat') return 0.4;
+        if (layer === 'muscle') return 0.5;
+        if (layer === 'bone') return 0.6;
+      }
+      if (visualMode === 'lesion') {
+        // Even more transparent to see heatmap and implant
+        if (layer === 'skin') return 0.4;
+        if (layer === 'fat') return 0.3;
+        if (layer === 'muscle') return 0.4;
+        if (layer === 'bone') return 0.5;
+      }
+    } else {
+      // Sem implante: opacidade normal
+      if (visualMode === 'anatomical') return 1.0;
+      if (visualMode === 'electric') {
+        // Make tissues semi-transparent to see field
+        if (layer === 'skin') return 0.7;
+        if (layer === 'fat') return 0.6;
+        if (layer === 'muscle') return 0.8;
+        if (layer === 'bone') return 0.9;
+      }
+      if (visualMode === 'lesion') {
+        // Even more transparent to see heatmap
+        if (layer === 'skin') return 0.5;
+        if (layer === 'fat') return 0.4;
+        if (layer === 'muscle') return 0.6;
+        if (layer === 'bone') return 0.7;
+      }
     }
     return 1.0;
   };
@@ -269,7 +298,7 @@ export function TissueLayersModel({
     <group>
       {/* Skin Layer */}
       <mesh position={[0, skinY, 0]} castShadow receiveShadow>
-        <boxGeometry args={[10, skinHeight, 8]} />
+        <boxGeometry args={[20, skinHeight, 8]} />
         <meshStandardMaterial
           map={skinTexture}
           transparent
@@ -283,7 +312,7 @@ export function TissueLayersModel({
       {/* Fat Layer */}
       {tissueConfig.fatThickness > 0 && (
         <mesh position={[0, fatY, 0]} castShadow receiveShadow>
-          <boxGeometry args={[10, fatHeight, 8]} />
+          <boxGeometry args={[20, fatHeight, 8]} />
           <meshStandardMaterial
             map={fatTexture}
             transparent
@@ -297,7 +326,7 @@ export function TissueLayersModel({
 
       {/* Muscle Layer */}
       <mesh position={[0, muscleY, 0]} castShadow receiveShadow>
-        <boxGeometry args={[10, muscleHeight, 8]} />
+        <boxGeometry args={[20, muscleHeight, 8]} />
         <meshStandardMaterial
           map={muscleTexture}
           transparent
@@ -310,7 +339,7 @@ export function TissueLayersModel({
 
       {/* Bone Layer */}
       <mesh position={[0, boneY, 0]} castShadow receiveShadow>
-        <boxGeometry args={[10, boneHeight, 8]} />
+        <boxGeometry args={[20, boneHeight, 8]} />
         <meshStandardMaterial
           map={boneTexture}
           transparent
@@ -321,40 +350,114 @@ export function TissueLayersModel({
         />
       </mesh>
 
-      {/* Metal Implant (if present) */}
-      {tissueConfig.hasMetalImplant && tissueConfig.metalImplantDepth !== null && (
-        <mesh
-          position={[
-            0,
-            skinY - (tissueConfig.metalImplantDepth / 10),
-            0,
-          ]}
-          castShadow
-        >
-          <cylinderGeometry args={[0.3, 0.3, tissueConfig.metalImplantSpan || 2, 16]} />
-          <meshStandardMaterial
-            color="#8b9dc3"
-            roughness={0.1}
-            metalness={0.9}
-            emissive={visualMode === 'electric' ? '#4488ff' : '#000000'}
-            emissiveIntensity={visualMode === 'electric' ? intensityNorm * 0.5 : 0}
-          />
-        </mesh>
+      {/* Metal Implant (if present) - AGORA USA PROFUNDIDADE E EXTENSÃO REAIS */}
+      {tissueConfig.hasMetalImplant && tissueConfig.metalImplantDepth !== undefined && tissueConfig.metalImplantSpan !== undefined && (
+        <group>
+          {/* Implante metálico principal - mais visível */}
+          <mesh
+            position={[
+              0,
+              skinY - (tissueConfig.metalImplantDepth * (skinHeight + fatHeight + muscleHeight)),
+              0,
+            ]}
+            castShadow
+          >
+            <boxGeometry args={[
+              (tissueConfig.metalImplantSpan * 4), // Largura aumentada para melhor visualização
+              0.3, // Espessura aumentada
+              (tissueConfig.metalImplantSpan * 3) // Profundidade aumentada
+            ]} />
+            <meshStandardMaterial
+              color="#475569"
+              roughness={0.05}
+              metalness={0.98}
+              emissive={visualMode === 'electric' || visualMode === 'lesion' ? '#3b82f6' : '#60a5fa'}
+              emissiveIntensity={visualMode === 'electric' ? intensityNorm * 1.0 : (visualMode === 'lesion' ? intensityNorm * 1.5 : 0.3)}
+            />
+          </mesh>
+          
+          {/* Glow ao redor do implante quando há campo elétrico */}
+          {(visualMode === 'electric' || visualMode === 'lesion') && intensityNorm > 0.2 && (
+            <mesh
+              position={[
+                0,
+                skinY - (tissueConfig.metalImplantDepth * (skinHeight + fatHeight + muscleHeight)),
+                0,
+              ]}
+            >
+              <boxGeometry args={[
+                (tissueConfig.metalImplantSpan * 4.5),
+                0.4,
+                (tissueConfig.metalImplantSpan * 3.5)
+              ]} />
+              <meshBasicMaterial
+                color="#3b82f6"
+                transparent
+                opacity={intensityNorm * 0.3}
+                side={THREE.DoubleSide}
+                depthWrite={false}
+              />
+            </mesh>
+          )}
+        </group>
       )}
+
+      {/* Inclusões Anatômicas */}
+      {tissueConfig.inclusions && tissueConfig.inclusions.map((inclusion) => {
+        const totalDepth = skinHeight + fatHeight + muscleHeight;
+        const inclusionY = skinY - (inclusion.depth * totalDepth);
+        const inclusionX = (inclusion.position - 0.5) * 16; // Posição entre eletrodos (-8 a +8) para acomodar distâncias maiores
+        const inclusionWidth = inclusion.span * 2;
+        const inclusionHeight = inclusion.span * 0.5;
+        
+        let inclusionColor = '#64748b';
+        let inclusionEmissive = '#000000';
+        
+        if (inclusion.type === 'bone') {
+          inclusionColor = '#cbd5e1';
+          inclusionEmissive = visualMode === 'electric' ? '#fbbf24' : '#000000';
+        } else if (inclusion.type === 'muscle') {
+          inclusionColor = '#dc2626';
+          inclusionEmissive = visualMode === 'electric' ? '#ef4444' : '#000000';
+        } else if (inclusion.type === 'fat') {
+          inclusionColor = '#fcd34d';
+          inclusionEmissive = '#000000';
+        } else if (inclusion.type === 'metal_implant') {
+          inclusionColor = '#64748b';
+          inclusionEmissive = visualMode === 'electric' ? '#3b82f6' : '#000000';
+        }
+        
+        return (
+          <mesh
+            key={inclusion.id}
+            position={[inclusionX, inclusionY, 0]}
+            castShadow
+          >
+            <boxGeometry args={[inclusionWidth, inclusionHeight, 1.5]} />
+            <meshStandardMaterial
+              color={inclusionColor}
+              roughness={inclusion.type === 'metal_implant' ? 0.1 : 0.7}
+              metalness={inclusion.type === 'metal_implant' ? 0.95 : 0.2}
+              emissive={inclusionEmissive}
+              emissiveIntensity={visualMode === 'electric' ? intensityNorm * 0.6 : 0}
+            />
+          </mesh>
+        );
+      })}
 
       {/* Layer Labels (when in anatomical mode) */}
       {visualMode === 'anatomical' && (
         <group>
-          <LabelSprite text="Pele" position={[5.5, skinY, 0]} />
+          <LabelSprite text="Pele" position={[10.5, skinY, 0]} />
           {tissueConfig.fatThickness > 0 && (
-            <LabelSprite text="Gordura" position={[5.5, fatY, 0]} />
+            <LabelSprite text="Gordura" position={[10.5, fatY, 0]} />
           )}
-          <LabelSprite text="Músculo" position={[5.5, muscleY, 0]} />
-          <LabelSprite text="Osso" position={[5.5, boneY, 0]} />
+          <LabelSprite text="Músculo" position={[10.5, muscleY, 0]} />
+          <LabelSprite text="Osso" position={[10.5, boneY, 0]} />
           {tissueConfig.hasMetalImplant && (
             <LabelSprite
               text="Implante"
-              position={[5.5, skinY - (tissueConfig.metalImplantDepth || 0) / 10, 0]}
+              position={[10.5, skinY - (tissueConfig.metalImplantDepth || 0) / 10, 0]}
             />
           )}
         </group>

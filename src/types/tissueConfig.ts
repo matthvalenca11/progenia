@@ -7,7 +7,7 @@ export type TissuePresetId =
   | "ankle_bony"
   | "custom";
 
-export type TissueInclusionType = "bone" | "metal_implant";
+export type TissueInclusionType = "bone" | "metal_implant" | "muscle" | "fat";
 
 export interface TissueInclusion {
   id: string;
