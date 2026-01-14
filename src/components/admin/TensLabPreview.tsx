@@ -77,7 +77,8 @@ export function TensLabPreview({
     // Distância maior = menos intensidade superficial, mais profundo
     // Distância menor = mais intensidade superficial, menos profundo
     const distanceFactor = 1 - (electrodeDistance - 4) * 0.05; // Referência 4cm
-    const adjustedActivation = Math.min(100, sim.activationLevel * distanceFactor + fieldSim.sensory * 0.3);
+    const sensoryValue = 'sensoryActivation' in fieldSim ? fieldSim.sensoryActivation : 0;
+    const adjustedActivation = Math.min(100, sim.activationLevel * distanceFactor + sensoryValue * 0.3);
     const adjustedComfort = Math.max(0, sim.comfortLevel - (electrodeDistance - 4) * 2);
     
     return {
@@ -122,8 +123,8 @@ export function TensLabPreview({
             riskResult={riskResult}
             compact={true}
             electrodeDistance={electrodeDistance}
-            metalHotspot={fieldSim.metalHotspot}
-            thermalHotspot={fieldSim.thermalHotspot}
+            metalHotspot={'metalHotspot' in fieldSim ? fieldSim.metalHotspot : undefined}
+            thermalHotspot={'thermalHotspot' in fieldSim ? fieldSim.thermalHotspot : undefined}
           />
         </CardContent>
       </Card>

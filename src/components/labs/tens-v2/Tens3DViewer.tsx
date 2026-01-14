@@ -152,7 +152,7 @@ export function Tens3DViewer() {
         />
 
         {/* Electric Field Visualization - sempre mostrar algo mesmo com intensidade baixa */}
-        {(visualMode === 'electric' || visualMode === 'lesion' || viewerTab === 'activated') && (
+        {(visualMode === 'electric' || viewerTab === 'activated') && (
           <ElectricFieldVisualization
             electrodePositions={electrodePositions}
             intensityNorm={Math.max(0.15, intensityNorm)}

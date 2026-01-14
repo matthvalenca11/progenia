@@ -90,7 +90,7 @@ export function ThermalHotspot({
       {/* Hotspot térmico principal */}
       <mesh ref={hotspotRef} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[size, 32]} />
-        <meshBasicMaterial
+        <meshStandardMaterial
           color={color}
           transparent
           opacity={thermalHotspot.intensity * 0.6}

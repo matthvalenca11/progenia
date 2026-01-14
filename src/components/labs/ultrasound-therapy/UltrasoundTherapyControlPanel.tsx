@@ -303,11 +303,9 @@ export function UltrasoundTherapyControlPanel() {
         <div className="h-px bg-slate-800" />
 
         {/* V6: Transducer Position Control (2D Map) */}
-        {config.enabledControls.transducerPosition !== false && (
-          <div className="p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
-            <TransducerMap2D />
-          </div>
-        )}
+        <div className="p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+          <TransducerMap2D />
+        </div>
 
         <div className="h-px bg-slate-800" />
 

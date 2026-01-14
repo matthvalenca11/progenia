@@ -66,6 +66,15 @@ export interface UltrasoundTherapyParams {
     muscle: number;
     boneThickness?: number; // Opcional: espessura do osso (STACK model)
   };
+  mixedLayer?: {
+    enabled: boolean;
+    depth: number;
+    division: number;
+  };
+  transducerPosition?: {
+    x: number;
+    y: number;
+  };
 }
 
 type UltrasoundMode = "continuous" | "pulsed";
@@ -548,12 +557,14 @@ export function simulateUltrasoundTherapy(
   
   // Overall risk = max(thermal risk, periosteal risk)
   let risk: "low" | "medium" | "high" = thermalRisk;
-  if (periostealRiskLevel === "high" || (periostealRiskLevel === "medium" && thermalRisk === "low")) {
-    risk = periostealRiskLevel;
-  } else if (thermalRisk === "high" || periostealRiskLevel === "high") {
+  if (periostealRiskLevel === "high") {
     risk = "high";
-  } else if (thermalRisk === "medium" || periostealRiskLevel === "medium") {
+  } else if (periostealRiskLevel === "medium" && thermalRisk === "low") {
     risk = "medium";
+  }
+  // Ensure high risk is captured
+  if (thermalRisk === "high") {
+    risk = "high";
   }
   
   // Additional contextual factors (only if risk is still low)

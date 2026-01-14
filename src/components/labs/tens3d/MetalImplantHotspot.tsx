@@ -71,7 +71,7 @@ export function MetalImplantHotspot({
       {/* Hotspot central - concentração de campo */}
       <mesh ref={hotspotRef} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[size * 0.5, 32]} />
-        <meshBasicMaterial
+        <meshStandardMaterial
           color="#60a5fa"
           transparent
           opacity={metalHotspot.intensity * 0.6}

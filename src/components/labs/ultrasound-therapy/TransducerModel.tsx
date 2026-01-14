@@ -5,7 +5,7 @@
 import { useMemo, useRef } from 'react';
 import { Cylinder, Sphere, Ring } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { Mesh } from 'three';
+import { Mesh, MeshStandardMaterial } from 'three';
 
 interface TransducerModelProps {
   era: number;
@@ -49,44 +49,49 @@ export function TransducerModel({
     const time = clock.getElapsedTime();
     
     if (faceRef.current) {
-      if (mode === "continuous") {
-        // Continuous: steady glow with subtle pulse
-        const pulse = 0.1 + Math.sin(time * 2) * 0.05;
-        faceRef.current.material.emissiveIntensity = 0.15 + pulse * intensity;
-      } else {
-        // Pulsed: on/off pattern based on duty cycle
-        const period = 1.0; // 1 second period
-        const onTime = period * (dutyCycle / 100);
-        const cyclePos = (time % period) / period;
-        const isOn = cyclePos < (onTime / period);
-        faceRef.current.material.emissiveIntensity = isOn ? 0.3 * intensity : 0.05;
+      const mat = faceRef.current.material;
+      if (mat && !Array.isArray(mat) && 'emissiveIntensity' in mat) {
+        const stdMat = mat as MeshStandardMaterial;
+        if (mode === "continuous") {
+          const pulse = 0.1 + Math.sin(time * 2) * 0.05;
+          stdMat.emissiveIntensity = 0.15 + pulse * intensity;
+        } else {
+          const period = 1.0;
+          const onTime = period * (dutyCycle / 100);
+          const cyclePos = (time % period) / period;
+          const isOn = cyclePos < (onTime / period);
+          stdMat.emissiveIntensity = isOn ? 0.3 * intensity : 0.05;
+        }
       }
     }
     
     if (haloRef.current) {
-      if (mode === "continuous") {
-        // Continuous: expanding/contracting halo
-        const scale = 1.0 + Math.sin(time * 3) * 0.15;
-        haloRef.current.scale.set(scale, scale, 1);
-        haloRef.current.material.opacity = 0.2 + Math.sin(time * 2) * 0.1;
-      } else {
-        // Pulsed: flash on pulse
-        const period = 1.0;
-        const onTime = period * (dutyCycle / 100);
-        const cyclePos = (time % period) / period;
-        const isOn = cyclePos < (onTime / period);
-        haloRef.current.scale.set(isOn ? 1.2 : 1.0, isOn ? 1.2 : 1.0, 1);
-        haloRef.current.material.opacity = isOn ? 0.3 : 0.05;
+      const mat = haloRef.current.material;
+      if (mat && !Array.isArray(mat) && 'opacity' in mat) {
+        if (mode === "continuous") {
+          const scale = 1.0 + Math.sin(time * 3) * 0.15;
+          haloRef.current.scale.set(scale, scale, 1);
+          mat.opacity = 0.2 + Math.sin(time * 2) * 0.1;
+        } else {
+          const period = 1.0;
+          const onTime = period * (dutyCycle / 100);
+          const cyclePos = (time % period) / period;
+          const isOn = cyclePos < (onTime / period);
+          haloRef.current.scale.set(isOn ? 1.2 : 1.0, isOn ? 1.2 : 1.0, 1);
+          mat.opacity = isOn ? 0.3 : 0.05;
+        }
       }
     }
     
     if (pulseRef.current && mode === "pulsed") {
-      // Pulsing ring for pulsed mode
-      const period = 1.0;
-      const onTime = period * (dutyCycle / 100);
-      const cyclePos = (time % period) / period;
-      const isOn = cyclePos < (onTime / period);
-      pulseRef.current.material.opacity = isOn ? 0.6 : 0.1;
+      const mat = pulseRef.current.material;
+      if (mat && !Array.isArray(mat) && 'opacity' in mat) {
+        const period = 1.0;
+        const onTime = period * (dutyCycle / 100);
+        const cyclePos = (time % period) / period;
+        const isOn = cyclePos < (onTime / period);
+        mat.opacity = isOn ? 0.6 : 0.1;
+      }
     }
   });
   
