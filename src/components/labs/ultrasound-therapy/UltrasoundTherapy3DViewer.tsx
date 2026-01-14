@@ -96,7 +96,7 @@ export function UltrasoundTherapy3DViewer() {
         <fog attach="fog" args={['#0f172a', 15, 35]} />
         
         {/* Grid - Consistent with other labs */}
-        <Grid args={[24, 24, '#334155', '#1e293b']} position={[0, -4, 0]} />
+        <Grid args={[24, 24]} position={[0, -4, 0]} cellColor="#334155" sectionColor="#1e293b" />
         
         {/* Transducer Model - V6: Geometrically correct (face = sqrt(ERA/π)) */}
         <TransducerModel 

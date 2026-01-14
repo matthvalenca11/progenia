@@ -22,7 +22,9 @@ interface TensLabConfigEditorProps {
 export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorProps) {
   // Estado local para gerenciar presets
   const [selectedPresetId, setSelectedPresetId] = useState<TissuePresetId>(
-    config.tissueConfigId ? config.tissueConfigId : "custom"
+    (config.tissueConfigId && tissuePresets.some(p => p.id === config.tissueConfigId)) 
+      ? config.tissueConfigId as TissuePresetId 
+      : "custom"
   );
   const [tissueConfig, setTissueConfig] = useState<TissueConfig>(() => {
     const customPreset = tissuePresets.find(p => p.id === "custom");
