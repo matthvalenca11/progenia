@@ -36,6 +36,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { UltrasoundUnifiedLab } from "@/components/labs/UltrasoundUnifiedLab";
 import TensLabPage from "@/pages/TensLabPage";
+import UltrasoundTherapyLabPage from "@/pages/UltrasoundTherapyLabPage";
 
 export default function VirtualLabsAdmin() {
   const navigate = useNavigate();
@@ -131,6 +132,7 @@ export default function VirtualLabsAdmin() {
     const badges = {
       ultrasound: { label: "Ultrassom", variant: "default" as const },
       tens: { label: "TENS", variant: "secondary" as const },
+      ultrasound_therapy: { label: "Ultrassom Terapêutico", variant: "default" as const },
       electrotherapy: { label: "Eletroterapia", variant: "secondary" as const },
       thermal: { label: "Térmico", variant: "outline" as const },
       other: { label: "Outro", variant: "outline" as const },
@@ -336,6 +338,11 @@ export default function VirtualLabsAdmin() {
             {labToTest?.lab_type === "tens" && labToTest.config_data && (
               <div className="rounded-xl border bg-slate-50 p-4">
                 <TensLabPage config={labToTest.config_data as any} />
+              </div>
+            )}
+            {(labToTest?.lab_type === "ultrasound_therapy" || labToTest?.lab_type === "ultrassom_terapeutico") && labToTest.config_data && (
+              <div className="rounded-xl border bg-slate-50 p-4">
+                <UltrasoundTherapyLabPage config={labToTest.config_data as any} />
               </div>
             )}
             {labToTest?.lab_type === "electrotherapy" && (
