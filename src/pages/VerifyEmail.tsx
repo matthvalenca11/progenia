@@ -54,7 +54,7 @@ const VerifyEmail = () => {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md p-8">
         <div className="flex flex-col items-center text-center space-y-6">
-          <img src={logo} alt="ProGenia" className="h-16 mb-2" />
+          <img src={logo} alt="ProGenia" className="h-16 mb-2 progenia-logo" />
           
           {status === "loading" && (
             <>

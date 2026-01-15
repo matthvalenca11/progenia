@@ -138,7 +138,7 @@ export default function ModuleCapsules() {
               Voltar
             </Button>
             <div className="flex items-center gap-3 flex-1">
-              <img src={logo} alt="ProGenia" className="h-8" />
+              <img src={logo} alt="ProGenia" className="h-8 progenia-logo" />
               <h1 className="text-xl font-semibold truncate">{module.title}</h1>
             </div>
           </div>

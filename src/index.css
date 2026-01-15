@@ -66,42 +66,67 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 204 82% 8%;
-    --foreground: 0 0% 98%;
+    /* Dark Mode - ProGenia Biomedical Theme */
+    /* Fundo principal: azulado/cinza escuro biomédico (não preto puro) */
+    --background: 220 30% 8%; /* #0B1220 - tom azulado escuro */
+    --foreground: 210 20% 92%; /* #E5E7EB - quase branco para texto principal */
 
-    --card: 204 82% 12%;
-    --card-foreground: 0 0% 98%;
+    /* Cards e superfícies: tons mais claros que o fundo */
+    --card: 220 28% 12%; /* #121A2A - superfícies elevadas */
+    --card-foreground: 210 20% 92%;
 
-    --popover: 204 82% 12%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 220 28% 12%;
+    --popover-foreground: 210 20% 92%;
 
-    --primary: 173 68% 42%;
+    /* Primary: mantém cor de marca, ajustada para dark mode */
+    --primary: 173 68% 48%; /* Teal ProGenia - ligeiramente mais claro para contraste */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 204 82% 18%;
+    /* Secondary: Navy Blue ajustado */
+    --secondary: 204 75% 25%; /* Navy mais claro para dark mode */
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 204 50% 15%;
-    --muted-foreground: 210 20% 70%;
+    /* Muted: áreas secundárias com bom contraste */
+    --muted: 220 25% 16%; /* #1A2332 - áreas secundárias */
+    --muted-foreground: 210 15% 65%; /* #9CA3AF - texto secundário legível */
 
-    --accent: 173 68% 42%;
+    /* Accent: mantém identidade ProGenia */
+    --accent: 173 68% 48%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 204 50% 20%;
-    --input: 204 50% 20%;
-    --ring: 173 68% 42%;
+    /* Bordas: sutis, baixa opacidade */
+    --border: 220 25% 20%; /* bordas sutis */
+    --input: 220 25% 20%;
+    --ring: 173 68% 48%; /* focus ring com cor de marca */
+    
+    /* Slider: melhor contraste no dark mode */
+    --slider-track: 220 25% 20%; /* track mais visível */
+    --slider-thumb: 173 68% 48%; /* thumb com cor de marca */
 
-    --sidebar-background: 204 82% 10%;
-    --sidebar-foreground: 0 0% 95%;
-    --sidebar-primary: 173 68% 42%;
+    /* Sidebar: consistente com tema dark */
+    --sidebar-background: 220 30% 10%; /* #0E1624 */
+    --sidebar-foreground: 210 20% 92%;
+    --sidebar-primary: 173 68% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 204 50% 15%;
-    --sidebar-accent-foreground: 0 0% 95%;
-    --sidebar-border: 204 50% 20%;
-    --sidebar-ring: 173 68% 42%;
+    --sidebar-accent: 220 25% 16%;
+    --sidebar-accent-foreground: 210 20% 92%;
+    --sidebar-border: 220 25% 20%;
+    --sidebar-ring: 173 68% 48%;
+
+    /* Gradientes ajustados para dark mode */
+    --gradient-primary: linear-gradient(135deg, hsl(204 75% 25%), hsl(204 75% 35%));
+    --gradient-accent: linear-gradient(135deg, hsl(173 68% 48%), hsl(173 68% 58%));
+    --gradient-hero: linear-gradient(135deg, hsl(204 75% 25%) 0%, hsl(173 68% 48%) 100%);
+    
+    /* Shadows ajustados para dark mode */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.6);
+    --shadow-glow: 0 0 40px hsl(173 68% 48% / 0.4);
 }
 
 .hover-scale {
@@ -160,6 +185,16 @@ All colors MUST be HSL.
 
   .transition-bounce {
     transition: var(--transition-bounce);
+  }
+
+  /* Logo ProGenia - melhor contraste no dark mode */
+  .progenia-logo {
+    filter: brightness(1) contrast(1);
+    transition: filter 0.3s ease;
+  }
+
+  .dark .progenia-logo {
+    filter: brightness(1.4) contrast(1.1);
   }
 }
 

@@ -111,7 +111,7 @@ const CapsuleViewer = () => {
             <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <img src={logo} alt="ProGenia" className="h-10" />
+            <img src={logo} alt="ProGenia" className="h-10 progenia-logo" />
           </div>
           <div className="flex items-center gap-4">
             {capsula.duration_minutes && (

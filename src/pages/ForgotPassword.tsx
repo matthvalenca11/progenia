@@ -86,7 +86,7 @@ const ForgotPassword = () => {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md p-8">
         <div className="flex flex-col items-center mb-8">
-          <img src={logo} alt="ProGenia" className="h-16 mb-4" />
+          <img src={logo} alt="ProGenia" className="h-16 mb-4 progenia-logo" />
           <h2 className="text-2xl font-bold text-center mb-2">Esqueceu sua senha?</h2>
           <p className="text-muted-foreground text-center text-sm">
             Digite seu e-mail e enviaremos um link para redefinir sua senha.

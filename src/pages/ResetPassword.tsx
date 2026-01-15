@@ -102,7 +102,7 @@ const ResetPassword = () => {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md p-8">
         <div className="flex flex-col items-center mb-8">
-          <img src={logo} alt="ProGenia" className="h-16 mb-4" />
+          <img src={logo} alt="ProGenia" className="h-16 mb-4 progenia-logo" />
           <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
             <Lock className="h-8 w-8 text-primary" />
           </div>

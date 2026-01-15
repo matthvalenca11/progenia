@@ -33,7 +33,7 @@ export function TensLabV2({
   }, [config]);
 
   return (
-    <div className="h-screen flex flex-col bg-slate-950 overflow-hidden">
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
       {/* Top Bar - compacto */}
       <TensLabTopBar labName={labName} showBackButton={showBackButton} />
 
@@ -41,7 +41,7 @@ export function TensLabV2({
       <div className="flex-1 flex overflow-hidden">
         {/* Left - Control Panel (colapsável) - mais estreito */}
         <aside 
-          className={`border-r border-slate-800 shrink-0 overflow-hidden transition-all duration-300 ${
+          className={`border-r border-border shrink-0 overflow-hidden transition-all duration-300 ${
             controlPanelCollapsed ? 'w-0' : 'w-64'
           }`}
         >
@@ -53,7 +53,7 @@ export function TensLabV2({
           <Button
             variant="ghost"
             size="icon"
-            className="absolute left-2 top-1/2 -translate-y-1/2 z-20 bg-slate-800/80 hover:bg-slate-700 h-10 w-6 rounded-l-none"
+            className="absolute left-2 top-1/2 -translate-y-1/2 z-20 bg-muted/80 hover:bg-muted h-10 w-6 rounded-l-none"
             onClick={() => setControlPanelCollapsed(false)}
           >
             <PanelLeft className="h-4 w-4" />
@@ -67,7 +67,7 @@ export function TensLabV2({
             <Button
               variant="ghost"
               size="icon"
-              className="absolute left-2 top-2 z-20 bg-slate-800/60 hover:bg-slate-700 h-8 w-8"
+              className="absolute left-2 top-2 z-20 bg-muted/60 hover:bg-muted h-8 w-8"
               onClick={() => setControlPanelCollapsed(true)}
             >
               <PanelLeftClose className="h-4 w-4" />
@@ -94,7 +94,7 @@ export function TensLabV2({
 
         {/* Right - Insights Panel (toggle) - mais estreito e colapsável por padrão */}
         <aside 
-          className={`border-l border-slate-800 shrink-0 overflow-hidden transition-all duration-300 ${
+          className={`border-l border-border shrink-0 overflow-hidden transition-all duration-300 ${
             showInsights ? 'w-56' : 'w-0'
           }`}
         >
@@ -106,7 +106,7 @@ export function TensLabV2({
           <Button
             variant="ghost"
             size="sm"
-            className="absolute right-2 top-16 z-20 bg-slate-800/80 hover:bg-slate-700"
+            className="absolute right-2 top-16 z-20 bg-muted/80 hover:bg-muted"
             onClick={() => setShowInsights(true)}
           >
             Métricas

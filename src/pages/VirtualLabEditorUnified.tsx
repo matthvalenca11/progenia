@@ -6,16 +6,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Save, Loader2, Waves, Activity, Thermometer } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Waves, Activity, Thermometer, Magnet } from "lucide-react";
 import { toast } from "sonner";
 import { virtualLabService, VirtualLab, VirtualLabType } from "@/services/virtualLabService";
 import { UltrasoundLabBuilder } from "@/components/admin/ultrasound/UltrasoundLabBuilder";
 import { TensLabConfigEditor } from "@/components/admin/TensLabConfigEditor";
 import { UltrasoundTherapyLabConfigEditor } from "@/components/admin/UltrasoundTherapyLabConfigEditor";
+import { MRILabConfigEditor } from "@/components/admin/MRILabConfigEditor";
+import { MRILabPreview } from "@/components/admin/MRILabPreview";
 import { LabVideoUploader } from "@/components/admin/LabVideoUploader";
 import { defaultTensLabConfig } from "@/types/tensLabConfig";
 import { defaultUltrasoundTherapyConfig } from "@/types/ultrasoundTherapyConfig";
+import { defaultMRILabConfig } from "@/types/mriLabConfig";
 import TensLabPage from "@/pages/TensLabPage";
+import MRILabPage from "@/pages/MRILabPage";
 import { useUltrasoundLabStore } from "@/stores/ultrasoundLabStore";
 
 export default function VirtualLabEditorUnified() {
@@ -25,6 +29,7 @@ export default function VirtualLabEditorUnified() {
 
   const [loading, setLoading] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | undefined>();
+  const [mriPreviewMode, setMriPreviewMode] = useState<"student" | "admin">("student");
   const [lab, setLab] = useState<Partial<VirtualLab>>({
     name: "",
     slug: "",
@@ -163,6 +168,9 @@ export default function VirtualLabEditorUnified() {
       updates.config_data = {}; // Will be handled by UltrasoundLabBuilder
     } else if (newType === "ultrasound_therapy") {
       updates.config_data = defaultUltrasoundTherapyConfig;
+    } else if (newType === "mri") {
+      // Deep clone to avoid reference issues
+      updates.config_data = JSON.parse(JSON.stringify(defaultMRILabConfig));
     }
 
     setLab({ ...lab, ...updates });
@@ -226,6 +234,7 @@ export default function VirtualLabEditorUnified() {
                   { value: "ultrasound", label: "Ultrassom", desc: "Simulador de imagem ultrassonográfica", icon: Waves },
                   { value: "tens", label: "TENS", desc: "Estimulação Elétrica Transcutânea", icon: Activity },
                   { value: "ultrasound_therapy", label: "Ultrassom Terapêutico", desc: "Simulador de ultrassom terapêutico com análise de penetração e aquecimento", icon: Thermometer },
+                  { value: "mri", label: "Ressonância Magnética", desc: "Simulador de MRI com visualização de magnetização e fatias", icon: Magnet },
                 ].map((type) => {
                   const Icon = type.icon;
                   return (
@@ -255,8 +264,8 @@ export default function VirtualLabEditorUnified() {
           />
         )}
 
-        {/* Basic Info for non-ultrasound labs (but not TENS or ultrasound_therapy - they have their own editors) */}
-        {lab.lab_type && lab.lab_type !== "ultrasound" && lab.lab_type !== "ultrasound_therapy" && lab.lab_type !== "tens" && (
+        {/* Basic Info for non-ultrasound labs (but not TENS, ultrasound_therapy, or MRI - they have their own editors) */}
+        {lab.lab_type && lab.lab_type !== "ultrasound" && lab.lab_type !== "ultrasound_therapy" && lab.lab_type !== "tens" && lab.lab_type !== "mri" && (
           <>
             <Card>
               <CardHeader>
@@ -417,7 +426,110 @@ export default function VirtualLabEditorUnified() {
           />
         )}
 
-        {!["ultrasound", "tens", "ultrasound_therapy"].includes(lab.lab_type || "") && (
+        {/* Basic Info for MRI */}
+        {lab.lab_type === "mri" && (
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle>Informações Básicas</CardTitle>
+                <CardDescription>Dados gerais do laboratório</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="name">Nome do Laboratório *</Label>
+                    <Input
+                      id="name"
+                      value={lab.name}
+                      onChange={(e) => setLab({ ...lab, name: e.target.value })}
+                      placeholder="Ex: Ressonância Magnética - Princípios Físicos"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="slug">Slug (URL) *</Label>
+                    <Input
+                      id="slug"
+                      value={lab.slug}
+                      onChange={(e) => setLab({ ...lab, slug: e.target.value })}
+                      placeholder="Ex: ressonancia-magnetica"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Será gerado automaticamente se deixar vazio
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="description">Descrição</Label>
+                  <Textarea
+                    id="description"
+                    value={lab.description}
+                    onChange={(e) => setLab({ ...lab, description: e.target.value })}
+                    placeholder="Descreva os objetivos de aprendizado e o que os alunos poderão explorar neste laboratório..."
+                    rows={3}
+                  />
+                </div>
+
+                <div>
+                  <Label>Tipo de Laboratório</Label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-sm font-medium capitalize">Ressonância Magnética</span>
+                    {!isEdit && (
+                      <Button 
+                        variant="link" 
+                        size="sm" 
+                        className="text-xs p-0 h-auto"
+                        onClick={() => setLab({ ...lab, lab_type: undefined })}
+                      >
+                        (alterar)
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Video Uploader for MRI */}
+            <LabVideoUploader
+              videoUrl={videoUrl}
+              onVideoChange={setVideoUrl}
+              disabled={loading}
+            />
+          </>
+        )}
+
+        {/* MRI Configuration with Live Preview */}
+        {lab.lab_type === "mri" && (
+          <div className="grid grid-cols-1 lg:grid-cols-[35%_65%] gap-4">
+            {/* Left: Configuration Editor */}
+            <div className="space-y-4">
+              {lab.config_data ? (
+                <MRILabConfigEditor
+                  config={lab.config_data}
+                  onChange={(config) => setLab({ ...lab, config_data: config })}
+                />
+              ) : (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    <p>Inicializando configuração...</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+            
+            {/* Right: Live Preview */}
+            <div className="lg:sticky lg:top-4 h-[calc(100vh-120px)]">
+              <MRILabPreview 
+                config={lab.config_data || defaultMRILabConfig}
+                previewMode={mriPreviewMode}
+                onPreviewModeChange={setMriPreviewMode}
+              />
+            </div>
+          </div>
+        )}
+
+        {!["ultrasound", "tens", "ultrasound_therapy", "mri"].includes(lab.lab_type || "") && (
           <Card>
             <CardContent className="py-12 text-center">
               <p className="text-muted-foreground">

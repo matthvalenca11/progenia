@@ -88,7 +88,7 @@ const Contact = () => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
       <Link to="/" className="mb-8">
-        <img src={logo} alt="ProGenia" className="h-16 hover:opacity-80 transition-opacity cursor-pointer" />
+        <img src={logo} alt="ProGenia" className="h-16 hover:opacity-80 transition-opacity cursor-pointer progenia-logo" />
       </Link>
       <Card className="w-full max-w-2xl">
         <CardHeader>

@@ -89,7 +89,7 @@ const Sobre = () => {
       <nav className="border-b border-border/50 bg-background/80 backdrop-blur-xl sticky top-0 z-50 shadow-sm">
         <div className="container mx-auto px-6 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer hover-scale" onClick={() => navigate("/")}>
-            <img src={logo} alt="ProGenia" className="h-12" />
+            <img src={logo} alt="ProGenia" className="h-12 progenia-logo" />
             <span className="text-2xl font-bold gradient-text">ProGenia</span>
           </div>
           <div className="flex gap-4">

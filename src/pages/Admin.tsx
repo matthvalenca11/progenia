@@ -24,6 +24,7 @@ import { MediaLibrary } from "@/components/admin/MediaLibrary";
 import VirtualLabsAdmin from "./VirtualLabsAdmin";
 import { EmailSettingsManager } from "@/components/admin/EmailSettingsManager";
 import { AboutManager } from "@/components/admin/AboutManager";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -79,10 +80,11 @@ const Admin = () => {
       <nav className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate("/dashboard")}>
-            <img src={logo} alt="ProGenia" className="h-10" />
+            <img src={logo} alt="ProGenia" className="h-10 progenia-logo" />
             <span className="text-xl font-bold gradient-text">ProGenia Admin</span>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Button variant="ghost" onClick={() => navigate("/dashboard")}>
               <Home className="h-4 w-4 mr-2" />
               Dashboard

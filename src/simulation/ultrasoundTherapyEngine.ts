@@ -366,23 +366,31 @@ export function simulateUltrasoundTherapy(
     }
   }
   
-  // Beam width (more realistic - near field and far field)
-  // V5: Frequency has stronger effect on beam width
+  // REFACTORED: Beam geometry is STABLE and independent of frequency
+  // Geometry based only on ERA (transducer size)
+  // Frequency affects ONLY attenuation (already handled in calculateIntensityAtDepth)
   const transducerRadius = Math.sqrt(era / Math.PI); // cm
-  // V5: Higher frequency = longer near field, narrower beam
-  const nearFieldLength = Math.pow(transducerRadius, 2) * frequency / 1.2; // cm (frequency dependent)
+  
+  // Near field length: based on transducer geometry only (not frequency)
+  // For therapeutic transducers, near field is typically 1-3 cm
+  const nearFieldLength = Math.max(1.0, Math.min(3.0, transducerRadius * 2.5));
+  
+  // Divergence angle: based on transducer geometry only (not frequency)
+  // For therapeutic transducers, typical divergence is 10-20 degrees
+  const baseDivergence = 0.2; // Base divergence in radians (~11 degrees)
+  const sizeFactor = Math.max(0.5, Math.min(1.5, 1.0 / (transducerRadius + 0.5))); // Larger ERA = less divergence
+  const fixedDivergenceAngle = baseDivergence * sizeFactor;
   
   let beamWidth: number;
   if (effectiveDepth < nearFieldLength) {
-    // Near field: beam width approximately constant, but frequency affects it
-    const baseWidth = transducerRadius * 2;
-    // Higher frequency = slightly narrower near field beam
-    beamWidth = baseWidth * (1.0 - (frequency - 1) * 0.1);
+    // Near field: beam width approximately constant (minimal divergence)
+    beamWidth = transducerRadius * 2 * 1.05; // Starts at face diameter, very slight divergence
   } else {
-    // Far field: beam diverges - frequency strongly affects divergence
-    // Higher frequency = less divergence (narrower beam)
-    const divergenceAngle = 1.22 / (transducerRadius * frequency * 1.2); // radians (frequency dependent)
-    beamWidth = transducerRadius * 2 + 2 * effectiveDepth * Math.tan(divergenceAngle);
+    // Far field: diverges with fixed angle (independent of frequency)
+    const farFieldDepth = effectiveDepth - nearFieldLength;
+    const divergence = Math.tan(fixedDivergenceAngle);
+    const clampedDivergence = Math.min(divergence, 0.5); // Max 0.5 rad (~28 degrees)
+    beamWidth = transducerRadius * 2 + 2 * farFieldDepth * clampedDivergence;
   }
   
   // Calculate treated area considering movement

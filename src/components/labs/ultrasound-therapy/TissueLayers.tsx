@@ -196,7 +196,7 @@ export function TissueLayers({ scenario, showLabels = false, customThicknesses, 
 
         // Semi-translucid layers so the beam is visible inside the volume
         const opacity =
-          layer.type === 'skin' ? 0.65 :
+          layer.type === 'skin' ? 0.80 : // Increased for brighter, more visible surface
           layer.type === 'fat' ? 0.42 :
           layer.type === 'muscle' ? 0.42 :
           0.75; // bone
@@ -209,8 +209,9 @@ export function TissueLayers({ scenario, showLabels = false, customThicknesses, 
         
         // Emissive com a mesma cor para compensar iluminação e tornar cores mais vibrantes
         // Intensidade ajustada por tipo de tecido (maior para cores mais escuras)
+        // Skin layer has higher emissive intensity to make the top surface brighter and more visible
         const emissiveIntensity =
-          layer.type === 'skin' ? 0.10 :
+          layer.type === 'skin' ? 0.28 : // Increased for brighter, more visible surface
           layer.type === 'fat' ? 0.08 :
           layer.type === 'muscle' ? 0.08 :
           0.06;

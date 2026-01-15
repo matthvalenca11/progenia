@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { GraduationCap, Brain, Award, Users, Microscope, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import logo from "@/assets/logo.png";
 
 const Landing = () => {
@@ -11,9 +12,10 @@ const Landing = () => {
       <nav className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="ProGenia" className="h-10" />
+            <img src={logo} alt="ProGenia" className="h-10 progenia-logo" />
           </div>
           <div className="flex items-center gap-4">
+            <ThemeToggle />
             <Link to="/sobre">
               <Button variant="ghost">Sobre</Button>
             </Link>
@@ -167,7 +169,7 @@ const Landing = () => {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3">
-              <img src={logo} alt="ProGenia" className="h-8" />
+              <img src={logo} alt="ProGenia" className="h-8 progenia-logo" />
             </div>
             <p className="text-muted-foreground text-sm">
               © 2026 ProGenia. Todos os direitos reservados.

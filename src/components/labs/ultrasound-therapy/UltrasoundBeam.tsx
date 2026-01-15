@@ -24,33 +24,46 @@ export function UltrasoundBeam({
   coupling = "good",
   position = { x: 0, y: 0 }
 }: UltrasoundBeamProps) {
-  // V6: Beam calculation - starts from face radius (geometrically correct)
+  // REFACTORED: Beam geometry is STABLE and independent of frequency
+  // Geometry based only on ERA (transducer size)
   const faceRadius = useMemo(() => Math.sqrt(era / Math.PI), [era]);
-  const nearFieldLength = useMemo(() => Math.pow(faceRadius, 2) * frequency / 1.5, [faceRadius, frequency]);
   
-  // Beam width at different depths
+  // Near field length: based on transducer geometry only (not frequency)
+  // Physical formula: N ≈ D² / (4λ), but we simplify to avoid frequency dependency
+  // For therapeutic transducers, near field is typically 1-3 cm
+  const nearFieldLength = useMemo(() => {
+    // Base near field on ERA only: larger transducers have longer near field
+    // Typical range: 1-3 cm for therapeutic transducers
+    return Math.max(1.0, Math.min(3.0, faceRadius * 2.5));
+  }, [faceRadius]);
+  
+  // Divergence angle: based on transducer geometry only (not frequency)
+  // Physical formula: sin(θ) ≈ 1.22 * λ / D, but we use a simplified fixed divergence
+  // For therapeutic transducers, typical divergence is 10-20 degrees
+  const fixedDivergenceAngle = useMemo(() => {
+    // Larger transducers = less divergence
+    // Typical: 0.15-0.25 radians (8-14 degrees) for therapeutic transducers
+    const baseDivergence = 0.2; // Base divergence in radians (~11 degrees)
+    const sizeFactor = Math.max(0.5, Math.min(1.5, 1.0 / (faceRadius + 0.5))); // Larger ERA = less divergence
+    return baseDivergence * sizeFactor;
+  }, [faceRadius]);
+  
+  // Beam width at different depths: GEOMETRY ONLY (no frequency dependency)
   const beamWidthAtDepth = useMemo(() => {
-    // Ensure we have a valid depth for calculation
-    const depth = Math.max(0.1, effectiveDepth); // Minimum depth to avoid division issues
+    const depth = Math.max(0.1, effectiveDepth);
     
     if (depth < nearFieldLength) {
-      // Near field: approximately constant width (slight divergence)
-      return faceRadius * 2 * 1.1; // Starts at face diameter, slight divergence
+      // Near field: approximately constant width (minimal divergence)
+      return faceRadius * 2 * 1.05; // Starts at face diameter, very slight divergence
     } else {
-      // Far field: diverges
-      // Prevent division by zero or very small values
-      const denominator = faceRadius * frequency;
-      if (denominator < 0.01) {
-        // Fallback for very small values
-        return faceRadius * 2 * 1.2;
-      }
-      const divergenceAngle = 1.22 / denominator;
-      const divergence = Math.tan(divergenceAngle);
+      // Far field: diverges with fixed angle (independent of frequency)
+      const farFieldDepth = depth - nearFieldLength;
+      const divergence = Math.tan(fixedDivergenceAngle);
       // Clamp divergence to prevent extreme values
       const clampedDivergence = Math.min(divergence, 0.5); // Max 0.5 rad (~28 degrees)
-      return faceRadius * 2 + 2 * depth * clampedDivergence;
+      return faceRadius * 2 + 2 * farFieldDepth * clampedDivergence;
     }
-  }, [faceRadius, frequency, effectiveDepth, nearFieldLength]);
+  }, [faceRadius, effectiveDepth, nearFieldLength, fixedDivergenceAngle]);
   
   // V6: Beam starts at face (y=0) with face radius
   const beamStartY = 0; // Surface level
@@ -162,7 +175,7 @@ export function UltrasoundBeam({
         </Cone>
       )}
       
-      {/* Near field indicator (if applicable) */}
+      {/* Near field indicator (if applicable) - geometry fixed, opacity shows attenuation */}
       {effectiveDepth < nearFieldLength && coneTopRadius > 0 && (
         <Cone
           args={[coneTopRadius * 0.95, Math.max(0.1, Math.min(effectiveDepth, nearFieldLength)), 32]}

@@ -7,6 +7,7 @@ import { UltrasoundUnifiedLab } from "@/components/labs/UltrasoundUnifiedLab";
 import { LabWrapper } from "@/components/labs/LabWrapper";
 import TensLabPage from "@/pages/TensLabPage";
 import UltrasoundTherapyLabPage from "@/pages/UltrasoundTherapyLabPage";
+import MRILabPage from "@/pages/MRILabPage";
 import { toast } from "sonner";
 
 export default function LabViewer() {
@@ -117,6 +118,16 @@ export default function LabViewer() {
             <UltrasoundTherapyLabPage config={lab.config_data} />
           </LabWrapper>
         </div>
+      </div>
+    );
+  }
+
+  if (lab.lab_type === "mri") {
+    return (
+      <div className="min-h-screen bg-background">
+        <LabWrapper videoUrl={videoUrl} title={lab.title || lab.name}>
+          <MRILabPage config={lab.config_data} />
+        </LabWrapper>
       </div>
     );
   }

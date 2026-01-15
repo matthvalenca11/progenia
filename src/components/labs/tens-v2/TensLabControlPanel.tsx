@@ -42,11 +42,11 @@ function SliderControl({
   return (
     <div className={`space-y-2 ${disabled ? "opacity-40 pointer-events-none" : ""}`}>
       <div className="flex items-center justify-between">
-        <Label className="text-xs text-slate-400">{label}</Label>
+        <Label className="text-xs text-muted-foreground">{label}</Label>
         <div className={`px-2 py-0.5 rounded text-xs font-mono ${
-          highlight ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-800 text-slate-300'
+          highlight ? 'bg-amber-500/20 text-amber-400' : 'bg-muted text-foreground'
         }`}>
-          {value} <span className="text-slate-500">{unit}</span>
+          {value} <span className="text-muted-foreground">{unit}</span>
         </div>
       </div>
       <Slider
@@ -82,18 +82,18 @@ export function TensLabControlPanel() {
   } = useTensLabStore();
 
   return (
-    <div className="h-full flex flex-col bg-slate-900">
+    <div className="h-full flex flex-col bg-card">
       {/* Header */}
-      <div className="p-3 border-b border-slate-800">
-        <h2 className="text-sm font-medium text-white">Controles</h2>
+      <div className="p-3 border-b border-border">
+        <h2 className="text-sm font-medium text-foreground">Controles</h2>
       </div>
       
       <div className="flex-1 overflow-y-auto p-3 space-y-5">
         {/* Cenário */}
         <div className="space-y-2">
-          <Label className="text-xs text-slate-500 uppercase tracking-wide">Cenário</Label>
+          <Label className="text-xs text-muted-foreground uppercase tracking-wide">Cenário</Label>
           <Select value={presetId} onValueChange={(v) => setPreset(v as TissuePresetId)}>
-            <SelectTrigger className="bg-slate-800 border-slate-700 text-sm">
+            <SelectTrigger className="bg-muted border-border text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -110,7 +110,7 @@ export function TensLabControlPanel() {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Zap className="h-3.5 w-3.5 text-amber-500" />
-            <Label className="text-xs text-slate-500 uppercase tracking-wide">Parâmetros</Label>
+            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Parâmetros</Label>
           </div>
 
           {labConfig.enabledControls.frequency && (
@@ -177,7 +177,7 @@ export function TensLabControlPanel() {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Ruler className="h-3.5 w-3.5 text-cyan-500" />
-            <Label className="text-xs text-slate-500 uppercase tracking-wide">Eletrodos</Label>
+            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Eletrodos</Label>
           </div>
 
           <SliderControl
@@ -203,7 +203,7 @@ export function TensLabControlPanel() {
 
         {/* Info sobre distância */}
         <div className="p-2.5 bg-slate-800/50 rounded-lg border border-slate-700/50">
-          <p className="text-[11px] text-slate-400 leading-relaxed">
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
             {electrodes.distanceCm <= 4 
               ? "⚡ Distância curta: campo concentrado, ativação superficial"
               : electrodes.distanceCm <= 8 

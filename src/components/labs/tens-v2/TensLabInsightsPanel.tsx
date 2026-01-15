@@ -17,8 +17,8 @@ export function TensLabInsightsPanel({ onClose }: InsightsPanelProps) {
 
   if (!simulationResult) {
     return (
-      <div className="h-full bg-slate-900 flex items-center justify-center">
-        <p className="text-slate-500 text-xs">Carregando...</p>
+      <div className="h-full bg-card flex items-center justify-center">
+        <p className="text-muted-foreground text-xs">Carregando...</p>
       </div>
     );
   }
@@ -35,12 +35,12 @@ export function TensLabInsightsPanel({ onClose }: InsightsPanelProps) {
   } = simulationResult;
 
   return (
-    <div className="h-full flex flex-col bg-slate-900">
+    <div className="h-full flex flex-col bg-card">
       {/* Header */}
-      <div className="p-3 border-b border-slate-800 flex items-center justify-between">
-        <h2 className="text-sm font-medium text-white">Métricas</h2>
+      <div className="p-3 border-b border-border flex items-center justify-between">
+        <h2 className="text-sm font-medium text-foreground">Métricas</h2>
         {onClose && (
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={onClose}>
             <X className="h-3.5 w-3.5" />
           </Button>
         )}
@@ -59,7 +59,7 @@ export function TensLabInsightsPanel({ onClose }: InsightsPanelProps) {
                 riskLevel === "baixo" ? "text-emerald-400" :
                 riskLevel === "moderado" ? "text-amber-400" : "text-red-400"
               }`} />
-              <span className="text-xs text-slate-400">Risco</span>
+              <span className="text-xs text-muted-foreground">Risco</span>
             </div>
             <Badge className={`text-[10px] ${
               riskLevel === "baixo" ? "bg-emerald-500/20 text-emerald-400" :
@@ -69,17 +69,17 @@ export function TensLabInsightsPanel({ onClose }: InsightsPanelProps) {
               {riskLevel.toUpperCase()}
             </Badge>
           </div>
-          <div className="text-2xl font-bold text-white">{riskScore}<span className="text-sm text-slate-500">/100</span></div>
+          <div className="text-2xl font-bold text-foreground">{riskScore}<span className="text-sm text-muted-foreground">/100</span></div>
         </div>
 
         {/* Conforto */}
-        <div className="p-2.5 bg-slate-800/50 rounded-lg space-y-1.5">
+        <div className="p-2.5 bg-muted/50 rounded-lg space-y-1.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <Heart className="h-3 w-3 text-rose-400" />
-              <span className="text-[11px] text-slate-400">Conforto</span>
+              <span className="text-[11px] text-muted-foreground">Conforto</span>
             </div>
-            <span className="text-sm font-medium text-white">{comfortScore}</span>
+            <span className="text-sm font-medium text-foreground">{comfortScore}</span>
           </div>
           <Progress value={comfortScore} className="h-1" />
         </div>
@@ -87,12 +87,12 @@ export function TensLabInsightsPanel({ onClose }: InsightsPanelProps) {
         {/* Ativação */}
         <div className="grid grid-cols-2 gap-2">
           <div className="p-2.5 bg-blue-500/10 rounded-lg">
-            <div className="text-[10px] text-slate-400 mb-1">Sensorial</div>
+            <div className="text-[10px] text-muted-foreground mb-1">Sensorial</div>
             <div className="text-lg font-bold text-blue-400">{sensoryActivation}%</div>
             <Progress value={sensoryActivation} className="h-0.5 mt-1 [&>div]:bg-blue-500" />
           </div>
           <div className="p-2.5 bg-purple-500/10 rounded-lg">
-            <div className="text-[10px] text-slate-400 mb-1">Motora</div>
+            <div className="text-[10px] text-muted-foreground mb-1">Motora</div>
             <div className="text-lg font-bold text-purple-400">{motorActivation}%</div>
             <Progress value={motorActivation} className="h-0.5 mt-1 [&>div]:bg-purple-500" />
           </div>
@@ -100,19 +100,19 @@ export function TensLabInsightsPanel({ onClose }: InsightsPanelProps) {
 
         {/* Profundidade e Área */}
         <div className="grid grid-cols-2 gap-2">
-          <div className="p-2.5 bg-slate-800/50 rounded-lg">
+          <div className="p-2.5 bg-muted/50 rounded-lg">
             <div className="flex items-center gap-1 mb-1">
               <ArrowDown className="h-3 w-3 text-cyan-400" />
-              <span className="text-[10px] text-slate-400">Profundidade</span>
+              <span className="text-[10px] text-muted-foreground">Profundidade</span>
             </div>
-            <div className="text-lg font-bold text-white">{activationDepthMm.toFixed(0)}<span className="text-xs text-slate-500"> mm</span></div>
+            <div className="text-lg font-bold text-foreground">{activationDepthMm.toFixed(0)}<span className="text-xs text-muted-foreground"> mm</span></div>
           </div>
-          <div className="p-2.5 bg-slate-800/50 rounded-lg">
+          <div className="p-2.5 bg-muted/50 rounded-lg">
             <div className="flex items-center gap-1 mb-1">
               <Target className="h-3 w-3 text-cyan-400" />
-              <span className="text-[10px] text-slate-400">Área</span>
+              <span className="text-[10px] text-muted-foreground">Área</span>
             </div>
-            <div className="text-lg font-bold text-white">{activatedAreaCm2.toFixed(1)}<span className="text-xs text-slate-500"> cm²</span></div>
+            <div className="text-lg font-bold text-foreground">{activatedAreaCm2.toFixed(1)}<span className="text-xs text-muted-foreground"> cm²</span></div>
           </div>
         </div>
 
@@ -122,7 +122,7 @@ export function TensLabInsightsPanel({ onClose }: InsightsPanelProps) {
             <Zap className="h-3 w-3 text-amber-400" />
             <span className="text-[10px] text-amber-400 font-medium">Distância: {electrodes.distanceCm} cm</span>
           </div>
-          <p className="text-[10px] text-slate-400 leading-relaxed">
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
             {distanceExplanation}
           </p>
         </div>

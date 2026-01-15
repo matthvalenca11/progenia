@@ -216,7 +216,7 @@ const Auth = () => {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <img src={logo} alt="ProGenia" className="h-16 mx-auto mb-4" />
+          <img src={logo} alt="ProGenia" className="h-16 mx-auto mb-4 progenia-logo" />
           <h1 className="text-3xl font-bold">Bem-vindo à ProGenia</h1>
           <p className="text-muted-foreground mt-2">
             Sua jornada para dominar a tecnologia médica começa aqui

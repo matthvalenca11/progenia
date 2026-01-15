@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { enrollmentService } from "@/services/enrollmentService";
 import { useCapsulasRecomendadas, useCapsulaInacabada } from "@/hooks/useCapsulas";
 import VirtualLabsSection from "@/components/dashboard/VirtualLabsSection";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface UserProfile {
   full_name: string;
@@ -237,9 +238,10 @@ const Dashboard = () => {
       <nav className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="ProGenia" className="h-10" />
+            <img src={logo} alt="ProGenia" className="h-10 progenia-logo" />
           </div>
           <div className="flex items-center gap-4">
+            <ThemeToggle />
             <Button variant="ghost" onClick={() => navigate("/admin")}>
               Admin
             </Button>

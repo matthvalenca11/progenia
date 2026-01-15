@@ -28,7 +28,7 @@ export function TensLabTopBar({ labName = "Laboratório TENS", showBackButton = 
   const riskLevel = simulationResult?.riskLevel || "baixo";
 
   return (
-    <header className="bg-slate-900/95 border-b border-slate-800 px-4 py-2 shrink-0">
+    <header className="bg-card/95 border-b border-border backdrop-blur sticky top-0 z-50 px-4 py-2 shrink-0">
       <div className="flex items-center justify-between gap-4">
         {/* Left */}
         <div className="flex items-center gap-3">
@@ -37,34 +37,34 @@ export function TensLabTopBar({ labName = "Laboratório TENS", showBackButton = 
               variant="ghost" 
               size="icon"
               onClick={() => navigate("/dashboard")}
-              className="h-8 w-8 text-slate-400 hover:text-white"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
           )}
-          <h1 className="font-medium text-sm text-white">{labName}</h1>
+          <h1 className="font-medium text-sm text-foreground">{labName}</h1>
         </div>
 
         {/* Center - Resumo compacto */}
         <div className="hidden md:flex items-center gap-3 text-xs">
-          <div className="flex items-center gap-4 bg-slate-800/50 rounded-full px-4 py-1.5">
-            <span className="text-slate-400">
+          <div className="flex items-center gap-4 bg-muted/50 rounded-full px-4 py-1.5">
+            <span className="text-muted-foreground">
               <span className="text-cyan-400 font-mono font-medium">{frequency}</span> Hz
             </span>
-            <span className="text-slate-600">|</span>
-            <span className="text-slate-400">
+            <span className="text-border">|</span>
+            <span className="text-muted-foreground">
               <span className="text-cyan-400 font-mono font-medium">{pulseWidth}</span> µs
             </span>
-            <span className="text-slate-600">|</span>
-            <span className="text-slate-400">
+            <span className="text-border">|</span>
+            <span className="text-muted-foreground">
               <span className="text-cyan-400 font-mono font-medium">{intensity}</span> mA
             </span>
-            <span className="text-slate-600">|</span>
-            <span className="text-slate-400">
+            <span className="text-border">|</span>
+            <span className="text-muted-foreground">
               <span className="text-amber-400 font-mono font-medium">{electrodes.distanceCm}</span> cm
             </span>
-            <span className="text-slate-600">|</span>
-            <Badge variant="outline" className="text-[10px] capitalize border-slate-600 text-slate-300">
+            <span className="text-border">|</span>
+            <Badge variant="outline" className="text-[10px] capitalize border-border text-foreground">
               {mode}
             </Badge>
           </div>
@@ -87,7 +87,7 @@ export function TensLabTopBar({ labName = "Laboratório TENS", showBackButton = 
           variant="ghost" 
           size="sm" 
           onClick={resetToDefaults}
-          className="text-slate-400 hover:text-white gap-1.5 text-xs"
+          className="text-muted-foreground hover:text-foreground gap-1.5 text-xs"
         >
           <RotateCcw className="h-3.5 w-3.5" />
           Reset

@@ -9,6 +9,7 @@ import { TherapeuticUltrasoundLab } from "@/components/labs/TherapeuticUltrasoun
 import { LabWrapper } from "@/components/labs/LabWrapper";
 import TensLabPage from "@/pages/TensLabPage";
 import UltrasoundTherapyLabPage from "@/pages/UltrasoundTherapyLabPage";
+import MRILabPage from "@/pages/MRILabPage";
 import { Card, CardContent } from "@/components/ui/card";
 import { Beaker, Loader2 } from "lucide-react";
 
@@ -99,6 +100,9 @@ export function VirtualLabRenderer({ labId, className }: VirtualLabRendererProps
       case "ultrassom_terapeutico":
       case "ultrasound_therapy":
         return <UltrasoundTherapyLabPage config={config} />;
+      
+      case "mri":
+        return <MRILabPage config={config} />;
       
       case "termico_sim":
       case "thermal":
