@@ -353,11 +353,53 @@ export default function VirtualLabEditorUnified() {
         )}
 
         {/* TENS Configuration */}
-        {lab.lab_type === "tens" && lab.config_data && (
-          <TensLabConfigEditor
-            config={lab.config_data}
-            onChange={(config) => setLab({ ...lab, config_data: config })}
-          />
+        {lab.lab_type === "tens" && (
+          <>
+            {/* Basic Info for TENS */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Informações Básicas</CardTitle>
+                <CardDescription>Defina o nome e descrição do laboratório</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="tens-name">Nome do Laboratório *</Label>
+                  <Input
+                    id="tens-name"
+                    value={lab.name}
+                    onChange={(e) => setLab({ ...lab, name: e.target.value })}
+                    placeholder="Ex: TENS para Dor Lombar"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="tens-description">Descrição</Label>
+                  <Textarea
+                    id="tens-description"
+                    value={lab.description}
+                    onChange={(e) => setLab({ ...lab, description: e.target.value })}
+                    placeholder="Descreva os objetivos de aprendizado e o que os alunos poderão explorar neste laboratório..."
+                    rows={3}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Video Uploader for TENS */}
+            <LabVideoUploader
+              videoUrl={videoUrl}
+              onVideoChange={setVideoUrl}
+              disabled={loading}
+            />
+
+            {/* TENS Config Editor */}
+            {lab.config_data && (
+              <TensLabConfigEditor
+                config={lab.config_data}
+                onChange={(config) => setLab({ ...lab, config_data: config })}
+              />
+            )}
+          </>
         )}
 
         {/* Basic Info for Ultrasound Therapy */}
