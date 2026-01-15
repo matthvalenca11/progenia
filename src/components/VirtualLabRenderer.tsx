@@ -102,6 +102,7 @@ export function VirtualLabRenderer({ labId, className }: VirtualLabRendererProps
         return <UltrasoundTherapyLabPage config={config} />;
       
       case "mri":
+      case "mri_viewer":
         return <MRILabPage config={config} />;
       
       case "termico_sim":

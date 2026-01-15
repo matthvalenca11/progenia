@@ -3,6 +3,7 @@
  * Uses the same renderer as the student mode for accurate preview
  */
 
+import { useEffect } from "react";
 import { MRILabV2 } from "@/components/labs/mri/MRILabV2";
 import { MRILabConfig, defaultMRILabConfig } from "@/types/mriLabConfig";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Eye, Settings, Loader2 } from "lucide-react";
 import { MRIErrorBoundary } from "./MRIErrorBoundary";
+import { useMRILabStore } from "@/stores/mriLabStore";
 
 interface MRILabPreviewProps {
   config?: MRILabConfig;
@@ -22,13 +24,55 @@ export function MRILabPreview({
   previewMode = "student",
   onPreviewModeChange 
 }: MRILabPreviewProps) {
+  const store = useMRILabStore();
+  const { initIfNeeded, volumeReady } = store;
+  const storeInstanceId = store.storeInstanceId || "unknown";
+  
   // Use default config if not provided or invalid
   const validConfig = config && typeof config === 'object' && 'tr' in config 
     ? config 
     : defaultMRILabConfig;
   
+  console.log("[MRILabPreview] Rendering preview with config:", {
+    storeInstanceId,
+    hasConfig: !!config,
+    validConfig: !!validConfig,
+    phantomType: validConfig.phantomType,
+    tr: validConfig.tr,
+    te: validConfig.te,
+    volumeReady,
+  });
+  
+  // CRITICAL: Initialize store on mount if needed
+  useEffect(() => {
+    console.log("[MRILabPreview] ✅ Component mounted, calling initIfNeeded");
+    initIfNeeded("MRILabPreview mount", validConfig);
+  }, []); // Only on mount
+  
+  // Re-initialize if config changes significantly
+  useEffect(() => {
+    const configKey = `${validConfig.dataSource}-${validConfig.phantomType}-${validConfig.tr}-${validConfig.te}-${validConfig.flipAngle}-${validConfig.preset}-${validConfig.dicomSeries ? 'hasDicom' : 'noDicom'}-${validConfig.niftiVolume ? 'hasNifti' : 'noNifti'}`;
+    console.log("[MRILabPreview] Config changed, calling initIfNeeded with new config:", {
+      dataSource: validConfig.dataSource,
+      hasDicomSeries: !!validConfig.dicomSeries,
+      hasNiftiVolume: !!validConfig.niftiVolume,
+      configKey,
+    });
+    initIfNeeded("MRILabPreview config change", validConfig);
+  }, [
+    validConfig.dataSource,
+    validConfig.phantomType, 
+    validConfig.tr, 
+    validConfig.te, 
+    validConfig.flipAngle, 
+    validConfig.preset,
+    validConfig.dicomSeries,
+    validConfig.niftiVolume,
+    initIfNeeded
+  ]);
+  
   // MRILabV2 will handle updating the store when config prop changes
-  // No need to update store here to avoid double updates
+  // But we ensure initialization happens here too
 
   return (
     <Card className="h-full flex flex-col">

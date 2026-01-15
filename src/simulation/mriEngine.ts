@@ -62,13 +62,21 @@ export function calculateMRISignal(
  * In the future, this can be replaced with real volume loading
  */
 export function generatePhantomVolume(phantomType: MRIPhantomType = "brain"): VolumeMRI {
-  const width = 64;
-  const height = 64;
-  const depth = 32;
+  // Increase resolution for better visibility
+  const width = 128;
+  const height = 128;
+  const depth = 64;
   const voxels: VoxelMRI[] = [];
   
+  console.log("[MRI Engine] generatePhantomVolume start:", {
+    phantomType,
+    plannedDims: `${width}x${height}x${depth}`,
+    expectedVoxels: width * height * depth,
+  });
+  
   if (phantomType === "brain") {
-    // Brain-like: WM/GM + ventricles
+    // Brain-like phantom: Anatomically realistic structure
+    // Based on real brain anatomy: WM (outer), GM (middle), CSF/ventricles (center)
     for (let z = 0; z < depth; z++) {
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
@@ -80,21 +88,39 @@ export function generatePhantomVolume(phantomType: MRIPhantomType = "brain"): Vo
           const dy = y - cy;
           const dz = z - cz;
           
+          // Distance from center (3D)
           const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-          const radius = Math.min(width, height, depth) * 0.4;
+          const maxRadius = Math.min(width, height, depth) * 0.45;
           
           let tissueType: string;
           
-          if (dist > radius) {
-            tissueType = "bone"; // Background
-          } else if (dist < radius * 0.15) {
-            // Center - ventricles (CSF)
+          // Anatomical regions (realistic proportions)
+          // 1. Ventricles (CSF) - central, ~15-20% of brain volume
+          if (dist < maxRadius * 0.18) {
             tissueType = "csf";
-          } else if (dist < radius * 0.5) {
-            // Middle - gray matter
-            tissueType = "gray_matter";
-          } else {
-            // Outer - white matter
+          }
+          // 2. Gray Matter (GM) - cortical and subcortical, ~40% of brain volume
+          else if (dist < maxRadius * 0.55) {
+            // Add some anatomical variation (gyri/sulci pattern)
+            const angle = Math.atan2(dy, dx);
+            const corticalPattern = Math.sin(angle * 4) * 0.08; // Simulates cortical folds
+            if (dist < maxRadius * (0.42 + corticalPattern)) {
+              tissueType = "gray_matter";
+            } else {
+              tissueType = "white_matter";
+            }
+          }
+          // 3. White Matter (WM) - outer layer, ~40% of brain volume
+          else if (dist < maxRadius * 0.95) {
+            tissueType = "white_matter";
+          }
+          // 4. Skull/Bone - outer boundary
+          else {
+            tissueType = "bone";
+          }
+          
+          // Ensure we have a valid tissue type
+          if (!tissueType) {
             tissueType = "white_matter";
           }
           
@@ -175,6 +201,42 @@ export function generatePhantomVolume(phantomType: MRIPhantomType = "brain"): Vo
     }
   }
   
+  // Validate that we have voxels
+  const expectedVoxels = width * height * depth;
+  if (voxels.length === 0) {
+    console.error("[MRI Engine] ❌ generatePhantomVolume: No voxels generated!");
+    // Return a minimal valid volume
+    for (let z = 0; z < depth; z++) {
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          voxels.push({
+            x,
+            y,
+            z,
+            tissueType: "white_matter",
+            properties: TISSUE_PROPERTIES.white_matter,
+          });
+        }
+      }
+    }
+  }
+  
+  if (voxels.length !== expectedVoxels) {
+    console.error("[MRI Engine] ❌ Voxel count mismatch:", {
+      expected: expectedVoxels,
+      got: voxels.length,
+      dims: `${width}x${height}x${depth}`,
+    });
+    throw new Error(`Voxel count mismatch in generatePhantomVolume: expected ${expectedVoxels}, got ${voxels.length}`);
+  }
+  
+  console.log("[MRI Engine] ✅ generatePhantomVolume complete:", {
+    phantomType,
+    dims: `${width}x${height}x${depth}`,
+    voxelsLength: voxels.length,
+    sampleVoxel: voxels[0],
+  });
+  
   return {
     width,
     height,
@@ -196,22 +258,42 @@ export function getSliceImageData(
   window: number = 2000,
   level: number = 1000
 ): ImageData | null {
+  // Validate volume
   if (!volume || !volume.voxels || volume.voxels.length === 0) {
+    console.warn("getSliceImageData: Volume is empty or invalid");
     return null;
   }
   
-  const maxSlice = Math.max(0, volume.depth - 1);
+  const width = volume.width || 128;
+  const height = volume.height || 128;
+  const depth = volume.depth || 64;
+  
+  // Validate dimensions
+  if (width <= 0 || height <= 0 || depth <= 0) {
+    console.warn(`getSliceImageData: Invalid volume dimensions: ${width}x${height}x${depth}`);
+    return null;
+  }
+  
+  // Clamp sliceIndex
+  const maxSlice = Math.max(0, depth - 1);
   const sliceZ = Math.max(0, Math.min(maxSlice, sliceIndex));
   
   // Extract slice voxels
   const sliceVoxels = volume.voxels.filter((v) => v.z === sliceZ);
   
   if (sliceVoxels.length === 0) {
-    return null;
+    console.warn(`getSliceImageData: No voxels found for slice ${sliceZ}`);
+    // Return a black image instead of null
+    const imageData = new Uint8ClampedArray(width * height * 4);
+    for (let i = 0; i < imageData.length; i += 4) {
+      imageData[i] = 0;
+      imageData[i + 1] = 0;
+      imageData[i + 2] = 0;
+      imageData[i + 3] = 255;
+    }
+    return new ImageData(imageData, width, height);
   }
   
-  const width = volume.width || 64;
-  const height = volume.height || 64;
   const imageData = new Uint8ClampedArray(width * height * 4);
   
   // Initialize with black
@@ -222,33 +304,50 @@ export function getSliceImageData(
     imageData[i + 3] = 255; // Alpha
   }
   
-  // Collect signals for normalization
-  const signals = sliceVoxels.map(v => {
-    if (v.signal !== undefined) return v.signal;
-    // Calculate signal on the fly if not present
-    const result = calculateMRISignal(v.properties, tr, te, flipAngle);
-    return result.signal;
+  // Calculate signals for all voxels in slice
+  const signals: number[] = [];
+  sliceVoxels.forEach((voxel) => {
+    let signal: number;
+    if (voxel.signal !== undefined && voxel.signal !== null) {
+      signal = voxel.signal;
+    } else {
+      // Calculate signal on the fly
+      const result = calculateMRISignal(voxel.properties, tr, te, flipAngle);
+      signal = result.signal;
+    }
+    signals.push(signal);
   });
   
+  // Find min/max for normalization
   const minSignal = Math.min(...signals);
   const maxSignal = Math.max(...signals);
-  const signalRange = maxSignal - minSignal || 0.001; // Avoid division by zero
+  
+  // Ensure we have a valid range (avoid division by zero)
+  const signalRange = maxSignal - minSignal;
+  const epsilon = 1e-6;
+  const effectiveRange = signalRange < epsilon ? epsilon : signalRange;
   
   // Window/Level processing
   const windowMin = level - window / 2;
   const windowMax = level + window / 2;
-  const windowRange = windowMax - windowMin || 0.001;
+  const windowRange = windowMax - windowMin;
+  const effectiveWindowRange = windowRange < epsilon ? epsilon : windowRange;
   
   // Draw voxels
   sliceVoxels.forEach((voxel) => {
     const index = (voxel.y * width + voxel.x) * 4;
-    let signal = voxel.signal !== undefined 
-      ? voxel.signal 
-      : calculateMRISignal(voxel.properties, tr, te, flipAngle).signal;
+    
+    let signal: number;
+    if (voxel.signal !== undefined && voxel.signal !== null) {
+      signal = voxel.signal;
+    } else {
+      const result = calculateMRISignal(voxel.properties, tr, te, flipAngle);
+      signal = result.signal;
+    }
     
     // Apply window/level
-    signal = Math.max(windowMin, Math.min(windowMax, signal));
-    const normalized = (signal - windowMin) / windowRange;
+    let clampedSignal = Math.max(windowMin, Math.min(windowMax, signal));
+    const normalized = (clampedSignal - windowMin) / effectiveWindowRange;
     const intensity = Math.min(255, Math.max(0, Math.round(normalized * 255)));
     
     // Grayscale MRI appearance
@@ -265,95 +364,118 @@ export function getSliceImageData(
  * Simulate MRI acquisition
  */
 export function simulateMRI(config: MRILabConfig): MRISimulationResult {
-  try {
-    // Generate or load volume based on phantom type
-    const volume = generatePhantomVolume(config.phantomType || "brain");
-    
-    // Calculate signal for each voxel
-    const signals: number[] = [];
-    const tissueSignals: Record<string, number[]> = {};
-    
-    volume.voxels.forEach((voxel) => {
-      try {
-        const result = calculateMRISignal(
-          voxel.properties,
-          config.tr,
-          config.te,
-          config.flipAngle
-        );
-        
-        voxel.signal = result.signal;
-        signals.push(result.signal);
-        
-        if (!tissueSignals[voxel.tissueType]) {
-          tissueSignals[voxel.tissueType] = [];
-        }
-        tissueSignals[voxel.tissueType].push(result.signal);
-      } catch (error) {
-        console.error("Error calculating signal for voxel:", error);
-        voxel.signal = 0;
-        signals.push(0);
-      }
-    });
-    
-    // Calculate statistics
-    const averageSignal = signals.reduce((a, b) => a + b, 0) / signals.length;
-    const maxSignal = Math.max(...signals);
-    const minSignal = Math.min(...signals);
-    
-    // Average signal per tissue type
-    const avgTissueSignals: Record<string, number> = {};
-    Object.keys(tissueSignals).forEach((tissue) => {
-      const tissueSigs = tissueSignals[tissue];
-      avgTissueSignals[tissue] = tissueSigs.reduce((a, b) => a + b, 0) / tissueSigs.length;
-    });
-    
-    // Risk factors and recommendations
-    const riskFactors: string[] = [];
-    const recommendations: string[] = [];
-    
-    if (config.tr < 300) {
-      riskFactors.push("TR muito baixo pode reduzir contraste T1");
-      recommendations.push("Aumente TR para melhor contraste T1");
-    }
-    
-    if (config.te > 150) {
-      riskFactors.push("TE muito alto pode reduzir sinal significativamente");
-      recommendations.push("Reduza TE para melhor relação sinal/ruído");
-    }
-    
-    if (config.flipAngle > 90) {
-      riskFactors.push("Flip angle > 90° pode reduzir sinal");
-      recommendations.push("Use flip angle ≤ 90° para Spin Echo");
-    }
-    
-    return {
-      volume,
-      averageSignal,
-      maxSignal,
-      minSignal,
-      tissueSignals: avgTissueSignals,
-      riskFactors,
-      recommendations,
-    };
-  } catch (error) {
-    console.error("Error in simulateMRI:", error);
-    // Return a safe default result
-    return {
-      volume: {
-        width: 64,
-        height: 64,
-        depth: 32,
-        voxels: [],
-      },
-      averageSignal: 0,
-      maxSignal: 0,
-      minSignal: 0,
-      tissueSignals: {},
-      riskFactors: ["Erro ao simular MRI"],
-      recommendations: ["Verifique os parâmetros de configuração"],
-    };
+  console.log("[MRI Engine] simulateMRI start:", {
+    phantomType: config.phantomType || "brain",
+    tr: config.tr,
+    te: config.te,
+    flipAngle: config.flipAngle,
+    preset: config.preset,
+  });
+  
+  // NO TRY-CATCH HERE - let errors propagate to store
+  // Generate or load volume based on phantom type
+  const volume = generatePhantomVolume(config.phantomType || "brain");
+  
+  console.log("[MRI Engine] Volume generated:", {
+    dims: `${volume.width}x${volume.height}x${volume.depth}`,
+    voxelsLength: volume.voxels.length,
+    expectedVoxels: volume.width * volume.height * volume.depth,
+  });
+  
+  // STRICT VALIDATION - throw explicit errors
+  if (!volume) {
+    throw new Error("generatePhantomVolume returned null or undefined");
   }
+  
+  if (!volume.voxels || volume.voxels.length === 0) {
+    throw new Error(`Generated volume has no voxels (phantomType: ${config.phantomType || "brain"})`);
+  }
+  
+  if (volume.width <= 0 || volume.height <= 0 || volume.depth <= 0) {
+    throw new Error(`Invalid volume dimensions: ${volume.width}x${volume.height}x${volume.depth}`);
+  }
+  
+  // Validate voxel count matches dimensions
+  const expectedVoxels = volume.width * volume.height * volume.depth;
+  if (volume.voxels.length !== expectedVoxels) {
+    throw new Error(`Voxel count mismatch: expected ${expectedVoxels}, got ${volume.voxels.length}`);
+  }
+    
+  // Calculate signal for each voxel
+  const signals: number[] = [];
+  const tissueSignals: Record<string, number[]> = {};
+  
+  volume.voxels.forEach((voxel) => {
+    const result = calculateMRISignal(
+      voxel.properties,
+      config.tr,
+      config.te,
+      config.flipAngle
+    );
+    
+    voxel.signal = result.signal;
+    signals.push(result.signal);
+    
+    if (!tissueSignals[voxel.tissueType]) {
+      tissueSignals[voxel.tissueType] = [];
+    }
+    tissueSignals[voxel.tissueType].push(result.signal);
+  });
+  
+  // Calculate statistics
+  if (signals.length === 0) {
+    throw new Error("No signals calculated - all voxels failed");
+  }
+  
+  const averageSignal = signals.reduce((a, b) => a + b, 0) / signals.length;
+  const maxSignal = Math.max(...signals);
+  const minSignal = Math.min(...signals);
+  
+  // Average signal per tissue type
+  const avgTissueSignals: Record<string, number> = {};
+  Object.keys(tissueSignals).forEach((tissue) => {
+    const tissueSigs = tissueSignals[tissue];
+    avgTissueSignals[tissue] = tissueSigs.reduce((a, b) => a + b, 0) / tissueSigs.length;
+  });
+  
+  // Risk factors and recommendations
+  const riskFactors: string[] = [];
+  const recommendations: string[] = [];
+  
+  if (config.tr < 300) {
+    riskFactors.push("TR muito baixo pode reduzir contraste T1");
+    recommendations.push("Aumente TR para melhor contraste T1");
+  }
+  
+  if (config.te > 150) {
+    riskFactors.push("TE muito alto pode reduzir sinal significativamente");
+    recommendations.push("Reduza TE para melhor relação sinal/ruído");
+  }
+  
+  if (config.flipAngle > 90) {
+    riskFactors.push("Flip angle > 90° pode reduzir sinal");
+    recommendations.push("Use flip angle ≤ 90° para Spin Echo");
+  }
+  
+  console.log("[MRI Engine] ✅ simulateMRI complete:", {
+    dims: `${volume.width}x${volume.height}x${volume.depth}`,
+    voxelsLength: volume.voxels.length,
+    signalsLength: signals.length,
+    averageSignal: averageSignal.toFixed(4),
+    minSignal: minSignal.toFixed(4),
+    maxSignal: maxSignal.toFixed(4),
+  });
+  
+  // Return result with validated volume
+  return {
+    volume,
+    averageSignal,
+    maxSignal,
+    minSignal,
+    tissueSignals: avgTissueSignals,
+    riskFactors,
+    recommendations,
+  };
 }
 
 /**

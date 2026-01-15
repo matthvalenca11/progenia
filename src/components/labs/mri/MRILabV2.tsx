@@ -3,12 +3,16 @@
  * Layout similar to Ultrasound Therapy Lab
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { MRILabControlPanel } from "./MRILabControlPanel";
 import { MRILabInsightsPanel } from "./MRILabInsightsPanel";
 import { Magnetization3DViewer } from "./Magnetization3DViewer";
 import { Slice2DViewer } from "./Slice2DViewer";
 import { Volume3DViewer } from "./Volume3DViewer";
+import { DicomSlice2DViewer } from "./DicomSlice2DViewer";
+import { DicomMPRViewer } from "./DicomMPRViewer";
+import { CornerstoneStackViewer } from "./CornerstoneStackViewer";
+import { VtkVolumeViewer } from "./VtkVolumeViewer";
 import { MagnetizationGraph } from "./MagnetizationGraph";
 import { useMRILabStore } from "@/stores/mriLabStore";
 import { MRILabConfig, defaultMRILabConfig, MRIViewerType } from "@/types/mriLabConfig";
@@ -31,32 +35,93 @@ export function MRILabV2({
   showDebug = false,
 }: MRILabV2Props) {
   const navigate = useNavigate();
-  const { setLabConfig, runSimulation, config: storeConfig, updateConfig, simulationResult } = useMRILabStore();
+  const store = useMRILabStore();
+  const { 
+    setLabConfig, 
+    runSimulation, 
+    config: storeConfig, 
+    updateConfig, 
+    volume, 
+    volumeReady, 
+    simulationError,
+    initIfNeeded,
+    isSimulating,
+    dicomReady,
+    dicomVolume,
+  } = store;
+  const storeInstanceId = store.storeInstanceId || "unknown";
+  const lastSimulatedConfigHash = store.lastSimulatedConfigHash || "";
+  const lastSimulationAt = store.lastSimulationAt || null;
 
+  // Log mount and ensure initial simulation runs
   useEffect(() => {
-    if (config && typeof config === 'object' && 'tr' in config) {
+    console.log("[MRILabV2] ✅ Component mounted");
+    console.log("[MRILabV2] Current store state:", {
+      storeInstanceId,
+      volumeReady,
+      hasVolume: !!volume,
+      volumeDims: volume ? `${volume.width}×${volume.height}×${volume.depth}` : "null",
+      simulationError,
+      isSimulating,
+    });
+    
+    // CRITICAL: Initialize store on mount if needed
+    console.log("[MRILabV2] Calling initIfNeeded on mount");
+    initIfNeeded("MRILabV2 mount", config);
+  }, []); // Empty deps - only run on mount
+
+  // Run simulation when config prop changes (only once, with proper dependencies)
+  const configKey = config ? `${config.phantomType}-${config.tr}-${config.te}-${config.flipAngle}-${config.preset}` : "";
+  const prevConfigKeyRef = useRef<string>("");
+  
+  useEffect(() => {
+    if (config && typeof config === 'object' && 'tr' in config && configKey !== prevConfigKeyRef.current) {
+      prevConfigKeyRef.current = configKey;
+      console.log("[MRILabV2] useEffect (config prop) triggered - config changed");
       try {
+        console.log("[MRILabV2] Setting lab config from prop");
         setLabConfig(config);
-        // runSimulation is called automatically by setLabConfig
       } catch (error) {
-        console.error("Error setting MRI lab config:", error);
+        console.error("[MRILabV2] Error setting MRI lab config:", error);
       }
-    } else {
-      // Even if config is invalid, ensure simulation runs with defaults
-      runSimulation();
     }
-  }, [config, setLabConfig, runSimulation]);
+  }, [configKey, setLabConfig]); // Only depend on config key string
+  
+  // Run simulation when key parameters change (debounced to prevent loops)
+  // This effect only runs if parameters actually changed
+  const prevParamsRef = useRef<string>("");
+  useEffect(() => {
+    const currentParams = `${storeConfig.preset}-${storeConfig.phantomType}-${storeConfig.tr}-${storeConfig.te}-${storeConfig.flipAngle}-${storeConfig.sequenceType}`;
+    
+    if (currentParams !== prevParamsRef.current) {
+      prevParamsRef.current = currentParams;
+      console.log("[MRILabV2] useEffect (params) - parameters changed, running simulation");
+      const timeoutId = setTimeout(() => {
+        runSimulation();
+      }, 150); // Debounce to prevent rapid successive calls
+      return () => clearTimeout(timeoutId);
+    }
+  }, [
+    storeConfig.preset,
+    storeConfig.phantomType,
+    storeConfig.tr,
+    storeConfig.te,
+    storeConfig.flipAngle,
+    storeConfig.sequenceType,
+  ]); // Removed runSimulation from deps to prevent loops
   
   // Ensure sliceIndex is valid when switching to slice viewers
   useEffect(() => {
-    if ((storeConfig.activeViewer === "slice_2d" || storeConfig.activeViewer === "volume_3d") && simulationResult) {
-      const maxSlice = Math.max(0, (simulationResult.volume.depth || 32) - 1);
+    if ((storeConfig.activeViewer === "slice_2d" || storeConfig.activeViewer === "volume_3d") && volumeReady && volume) {
+      const maxSlice = Math.max(0, volume.depth - 1);
       const currentSlice = storeConfig.sliceIndex || 0;
       if (currentSlice > maxSlice || currentSlice < 0) {
-        updateConfig({ sliceIndex: Math.max(0, Math.min(maxSlice, 0)) });
+        // Set to middle slice if invalid
+        const middleSlice = Math.floor(volume.depth / 2);
+        updateConfig({ sliceIndex: Math.max(0, Math.min(maxSlice, middleSlice)) });
       }
     }
-  }, [storeConfig.activeViewer, simulationResult, storeConfig.sliceIndex, updateConfig]);
+  }, [storeConfig.activeViewer, volumeReady, volume, storeConfig.sliceIndex, updateConfig]);
 
   const resetToDefaults = () => {
     updateConfig({
@@ -77,15 +142,100 @@ export function MRILabV2({
       );
     }
     
+    // Debug overlay (admin mode)
+    const debugOverlay = showDebug && (
+      <div className="absolute top-2 left-2 z-50 bg-black/80 text-white text-xs px-3 py-2 rounded font-mono space-y-1">
+        <div>Volume Ready: {volumeReady ? "✅" : "❌"}</div>
+        <div>Volume: {volume ? `${volume.width}×${volume.height}×${volume.depth}` : "null"}</div>
+        <div>Voxels: {volume?.voxels?.length || 0}</div>
+        <div>Error: {simulationError || "none"}</div>
+        <div>Preset: {storeConfig.preset}</div>
+        <div>Phantom: {storeConfig.phantomType}</div>
+        <div>TR: {storeConfig.tr}ms | TE: {storeConfig.te}ms</div>
+      </div>
+    );
+
     switch (storeConfig.activeViewer) {
       case "magnetization":
-        return <Magnetization3DViewer />;
+        // Only show magnetization if module is enabled
+        if (!storeConfig.enabledModules?.magnetization) {
+          return (
+            <div className="w-full h-full flex items-center justify-center bg-background">
+              <div className="text-center p-4 text-muted-foreground">
+                Módulo de Magnetização não está habilitado para este lab.
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div className="relative w-full h-full">
+            {debugOverlay}
+            <Magnetization3DViewer showDebug={showDebug} />
+          </div>
+        );
       case "slice_2d":
-        return <Slice2DViewer showDebug={showDebug} />;
+        // Use DICOM/NIfTI viewer if real data is loaded, otherwise use phantom viewer
+        if ((storeConfig.dataSource === "dicom" || storeConfig.dataSource === "nifti") && dicomReady && dicomVolume) {
+          // Try Cornerstone if configured, fallback to canvas
+          const viewer2DMode = storeConfig.viewer2DMode || "canvas";
+          if (viewer2DMode === "cornerstone") {
+            // Cornerstone will return null if it fails, triggering fallback
+            const cornerstoneViewer = <CornerstoneStackViewer showDebug={showDebug} />;
+            if (cornerstoneViewer) {
+              return (
+                <div className="relative w-full h-full">
+                  {debugOverlay}
+                  {cornerstoneViewer}
+                </div>
+              );
+            }
+          }
+          // Fallback to canvas viewer
+          return (
+            <div className="relative w-full h-full">
+              {debugOverlay}
+              <DicomSlice2DViewer showDebug={showDebug} />
+            </div>
+          );
+        }
+        return (
+          <div className="relative w-full h-full">
+            {debugOverlay}
+            <Slice2DViewer showDebug={showDebug} />
+          </div>
+        );
       case "volume_3d":
-        return <Volume3DViewer showDebug={showDebug} />;
+        // Use DICOM/NIfTI viewer if real data is loaded, otherwise use phantom viewer
+        if ((storeConfig.dataSource === "dicom" || storeConfig.dataSource === "nifti") && dicomReady && dicomVolume) {
+          const viewer3DMode = storeConfig.viewer3DMode || "mpr";
+          if (viewer3DMode === "volume") {
+            return (
+              <div className="relative w-full h-full">
+                {debugOverlay}
+                <VtkVolumeViewer showDebug={showDebug} />
+              </div>
+            );
+          }
+          return (
+            <div className="relative w-full h-full">
+              {debugOverlay}
+              <DicomMPRViewer showDebug={showDebug} />
+            </div>
+          );
+        }
+        return (
+          <div className="relative w-full h-full">
+            {debugOverlay}
+            <Volume3DViewer showDebug={showDebug} />
+          </div>
+        );
       default:
-        return <Magnetization3DViewer />;
+        return (
+          <div className="relative w-full h-full">
+            {debugOverlay}
+            <Magnetization3DViewer />
+          </div>
+        );
     }
   };
 
@@ -119,17 +269,19 @@ export function MRILabV2({
               onValueChange={(v) => updateConfig({ activeViewer: v as MRIViewerType })}
               className="w-auto"
             >
-              <TabsList className="bg-muted/50">
-                <TabsTrigger value="magnetization" className="text-xs">
-                  Magnetização
-                </TabsTrigger>
-                <TabsTrigger value="slice_2d" className="text-xs">
-                  Fatia 2D
-                </TabsTrigger>
-                <TabsTrigger value="volume_3d" className="text-xs">
-                  Volume 3D
-                </TabsTrigger>
-              </TabsList>
+                    <TabsList className="bg-muted/50">
+                      {storeConfig.enabledModules?.magnetization && (
+                        <TabsTrigger value="magnetization" className="text-xs">
+                          Magnetização
+                        </TabsTrigger>
+                      )}
+                      <TabsTrigger value="slice_2d" className="text-xs">
+                        Fatia 2D
+                      </TabsTrigger>
+                      <TabsTrigger value="volume_3d" className="text-xs">
+                        {(storeConfig.dataSource === "dicom" || storeConfig.dataSource === "nifti") && dicomReady ? "MPR 3D" : "Volume 3D"}
+                      </TabsTrigger>
+                    </TabsList>
             </Tabs>
           </div>
 

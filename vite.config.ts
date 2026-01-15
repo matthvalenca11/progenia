@@ -17,5 +17,20 @@ export default defineConfig(({ mode }) => ({
   },
   optimizeDeps: {
     include: ["react", "react-dom", "react/jsx-runtime"],
+    exclude: ["@cornerstonejs/dicom-image-loader"],
+  },
+  build: {
+    commonjsOptions: {
+      include: [/node_modules/],
+      transformMixedEsModules: true,
+    },
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'cornerstone': ['@cornerstonejs/core', '@cornerstonejs/tools'],
+          'vtk': ['vtk.js'],
+        },
+      },
+    },
   },
 }));

@@ -105,9 +105,8 @@ export function FileUploadField({
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
-        onClick={handleClick}
         className={cn(
-          "relative border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer",
+          "relative border-2 border-dashed rounded-lg p-8 text-center transition-colors",
           isDragging
             ? "border-primary bg-primary/5"
             : "border-border hover:border-primary/50",
@@ -119,9 +118,15 @@ export function FileUploadField({
           type="file"
           accept={accept}
           multiple={multiple}
-          onChange={(e) => handleFiles(e.target.files)}
+          onChange={(e) => {
+            const selectedFiles = e.target.files;
+            if (selectedFiles && selectedFiles.length > 0) {
+              handleFiles(selectedFiles);
+            }
+          }}
           className="hidden"
           disabled={disabled}
+          style={{ display: 'none' }}
         />
         
         <div className="flex flex-col items-center gap-2">
@@ -132,21 +137,26 @@ export function FileUploadField({
               <p className="text-xs text-muted-foreground">{description}</p>
             )}
             <p className="text-xs text-muted-foreground">
-              Tamanho máximo: {maxSize}MB
+              Tamanho máximo: {maxSize}MB por arquivo
             </p>
           </div>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={disabled}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleClick();
-            }}
-          >
-            Selecionar arquivo{multiple ? "s" : ""}
-          </Button>
+          <div className="upload-button-container">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={disabled}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (!disabled && inputRef.current) {
+                  inputRef.current.click();
+                }
+              }}
+            >
+              Selecionar arquivo{multiple ? "s" : ""}
+            </Button>
+          </div>
         </div>
       </div>
 

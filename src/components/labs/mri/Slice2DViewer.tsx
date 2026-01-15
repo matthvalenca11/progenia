@@ -1,10 +1,10 @@
 /**
  * Viewer 2: Slice 2D
- * Visualização de uma fatia do volume com intensidade baseada no sinal calculado
- * SEMPRE renderiza algo, nunca fica em loading infinito
+ * CONTRATO FORTE: Só renderiza se volumeReady === true
+ * Se volume null, mostra erro técnico explícito (admin)
  */
 
-import { useMemo, useRef, useEffect, useState } from "react";
+import { useMemo, useRef, useEffect } from "react";
 import { useMRILabStore } from "@/stores/mriLabStore";
 import { getSliceImageData } from "@/simulation/mriEngine";
 
@@ -13,44 +13,44 @@ interface Slice2DViewerProps {
 }
 
 export function Slice2DViewer({ showDebug = false }: Slice2DViewerProps) {
-  const { config, simulationResult } = useMRILabStore();
+  const store = useMRILabStore();
+  const { 
+    volume, 
+    volumeReady, 
+    config, 
+    simulationError,
+    isSimulating,
+  } = store;
+  const storeInstanceId = store.storeInstanceId || "unknown";
+  const lastSimulatedConfigHash = store.lastSimulatedConfigHash || "";
+  const lastSimulationAt = store.lastSimulationAt || null;
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [error, setError] = useState<string | null>(null);
   
-  // Generate slice data - ALWAYS returns something
-  const sliceData = useMemo(() => {
+  // STRICT: Only proceed if volume is ready
+  if (!volumeReady || !volume) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-background">
+        <div className="text-center p-4">
+          <div className="text-red-500 font-mono text-sm mb-2">
+            ⚠ ERRO: Volume não disponível
+          </div>
+          {showDebug && simulationError && (
+            <div className="text-xs text-muted-foreground font-mono bg-red-500/10 p-2 rounded">
+              {simulationError}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+  
+  // Clamp sliceIndex to valid range
+  const maxSlice = Math.max(0, volume.depth - 1);
+  const sliceZ = Math.max(0, Math.min(maxSlice, config.sliceIndex || 0));
+  
+  // Generate slice image data
+  const sliceImageData = useMemo(() => {
     try {
-      if (!simulationResult || !simulationResult.volume) {
-        // Return placeholder data
-        return {
-          imageData: null,
-          width: 256,
-          height: 256,
-          sliceZ: 0,
-          maxSlice: 31,
-          error: "Volume não disponível",
-        };
-      }
-      
-      const { volume } = simulationResult;
-      
-      // Validate volume
-      if (!volume.voxels || volume.voxels.length === 0) {
-        return {
-          imageData: null,
-          width: volume.width || 256,
-          height: volume.height || 256,
-          sliceZ: 0,
-          maxSlice: Math.max(0, (volume.depth || 32) - 1),
-          error: "Volume vazio (sem voxels)",
-        };
-      }
-      
-      // Clamp sliceIndex to valid range
-      const maxSlice = Math.max(0, volume.depth - 1);
-      const sliceZ = Math.max(0, Math.min(maxSlice, config.sliceIndex || 0));
-      
-      // Generate image data using pure function
       const imageData = getSliceImageData(
         volume,
         sliceZ,
@@ -62,37 +62,18 @@ export function Slice2DViewer({ showDebug = false }: Slice2DViewerProps) {
       );
       
       if (!imageData) {
-        return {
-          imageData: null,
-          width: volume.width || 256,
-          height: volume.height || 256,
-          sliceZ,
-          maxSlice,
-          error: "Não foi possível gerar a fatia",
-        };
+        throw new Error("getSliceImageData returned null");
       }
       
-      setError(null);
-      return {
-        imageData,
-        width: imageData.width,
-        height: imageData.height,
-        sliceZ,
-        maxSlice,
-        error: null,
-      };
-    } catch (err: any) {
-      console.error("Error generating slice:", err);
-      return {
-        imageData: null,
-        width: 256,
-        height: 256,
-        sliceZ: 0,
-        maxSlice: 31,
-        error: err.message || "Erro ao gerar fatia",
-      };
+      return imageData;
+    } catch (error: any) {
+      console.error("Error generating slice image data:", error);
+      if (showDebug) {
+        return { error: error.message || "Failed to generate slice" };
+      }
+      return null;
     }
-  }, [simulationResult, config.sliceIndex, config.tr, config.te, config.flipAngle, config.window, config.level]);
+  }, [volume, sliceZ, config.tr, config.te, config.flipAngle, config.window, config.level, showDebug]);
   
   // Render to canvas
   useEffect(() => {
@@ -102,49 +83,47 @@ export function Slice2DViewer({ showDebug = false }: Slice2DViewerProps) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     
-    if (sliceData.imageData) {
-      // Valid image data
-      canvas.width = sliceData.width;
-      canvas.height = sliceData.height;
-      ctx.putImageData(sliceData.imageData, 0, 0);
+    if (sliceImageData && !('error' in sliceImageData)) {
+      canvas.width = sliceImageData.width;
+      canvas.height = sliceImageData.height;
+      ctx.putImageData(sliceImageData, 0, 0);
     } else {
-      // Error state - draw placeholder
-      canvas.width = sliceData.width;
-      canvas.height = sliceData.height;
+      // Error state - show error message
+      canvas.width = volume.width || 256;
+      canvas.height = volume.height || 256;
       ctx.fillStyle = "#1a1a1a";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "#666";
-      ctx.font = "16px monospace";
+      ctx.fillStyle = "#ff4444";
+      ctx.font = "14px monospace";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("Sem dados", canvas.width / 2, canvas.height / 2);
-      if (sliceData.error) {
-        ctx.font = "12px monospace";
-        ctx.fillText(sliceData.error, canvas.width / 2, canvas.height / 2 + 20);
+      ctx.fillText("ERRO ao gerar fatia", canvas.width / 2, canvas.height / 2);
+      if (sliceImageData && 'error' in sliceImageData) {
+        ctx.font = "10px monospace";
+        ctx.fillStyle = "#ff8888";
+        ctx.fillText(sliceImageData.error, canvas.width / 2, canvas.height / 2 + 20);
       }
     }
-  }, [sliceData]);
+  }, [sliceImageData, volume]);
   
   // Calculate min/max intensity for debug
   const debugInfo = useMemo(() => {
-    if (!sliceData.imageData || !simulationResult?.volume) return null;
+    if (!showDebug || !volume) return null;
     
-    const signals = simulationResult.volume.voxels
-      .filter(v => v.z === sliceData.sliceZ)
-      .map(v => v.signal || 0);
+    const sliceVoxels = volume.voxels.filter(v => v.z === sliceZ);
+    const signals = sliceVoxels.map(v => v.signal || 0);
     
     if (signals.length === 0) return null;
     
     return {
       minIntensity: Math.min(...signals),
       maxIntensity: Math.max(...signals),
-      volumeDims: {
-        w: simulationResult.volume.width,
-        h: simulationResult.volume.height,
-        d: simulationResult.volume.depth,
-      },
+      volumeDims: `${volume.width}×${volume.height}×${volume.depth}`,
+      sliceIndex: sliceZ,
+      preset: config.preset,
+      status: volumeReady ? "OK" : "ERROR",
     };
-  }, [sliceData, simulationResult]);
+  }, [volume, sliceZ, config.preset, volumeReady, showDebug]);
   
   return (
     <div className="w-full h-full flex items-center justify-center bg-background relative">
@@ -160,22 +139,30 @@ export function Slice2DViewer({ showDebug = false }: Slice2DViewerProps) {
         
         {/* Slice info overlay */}
         <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-          Slice: {sliceData.sliceZ} / {sliceData.maxSlice}
+          Slice: {sliceZ} / {maxSlice}
         </div>
         
-        {/* Debug info (admin mode only) */}
-        {showDebug && debugInfo && (
-          <div className="absolute top-2 right-2 bg-amber-500/90 text-black text-xs px-2 py-1 rounded font-mono">
-            <div>Vol: {debugInfo.volumeDims.w}×{debugInfo.volumeDims.h}×{debugInfo.volumeDims.d}</div>
-            <div>Slice: {sliceData.sliceZ}</div>
-            <div>Int: {debugInfo.minIntensity.toFixed(2)} - {debugInfo.maxIntensity.toFixed(2)}</div>
-          </div>
-        )}
-        
-        {/* Error indicator (admin mode only) */}
-        {showDebug && sliceData.error && (
-          <div className="absolute top-2 left-2 bg-red-500/90 text-white text-xs px-2 py-1 rounded">
-            ⚠ {sliceData.error}
+        {/* Debug overlay (admin mode only) */}
+        {showDebug && (
+          <div className="absolute top-2 right-2 bg-amber-500/90 text-black text-xs px-2 py-1 rounded font-mono space-y-0.5 max-w-xs">
+            <div className="font-bold border-b border-black/20 pb-0.5">Store Debug</div>
+            <div>ID: {storeInstanceId.slice(0, 12)}...</div>
+            <div>Ready: {volumeReady ? "✅" : "❌"}</div>
+            <div>Simulating: {isSimulating ? "⏳" : "✓"}</div>
+            <div>Vol: {volume ? `${volume.width}×${volume.height}×${volume.depth}` : "null"}</div>
+            <div>Voxels: {volume?.voxels?.length || 0}</div>
+            {debugInfo && (
+              <>
+                <div className="border-t border-black/20 pt-0.5 mt-0.5">Slice: {debugInfo.sliceIndex}</div>
+                <div>Int: {debugInfo.minIntensity.toFixed(2)} - {debugInfo.maxIntensity.toFixed(2)}</div>
+                <div>Preset: {debugInfo.preset}</div>
+              </>
+            )}
+            <div className="border-t border-black/20 pt-0.5 mt-0.5">Config Hash: {lastSimulatedConfigHash.slice(0, 20)}...</div>
+            <div>Last Sim: {lastSimulationAt ? new Date(lastSimulationAt).toLocaleTimeString() : "never"}</div>
+            {simulationError && (
+              <div className="text-red-600 border-t border-black/20 pt-0.5 mt-0.5">Error: {simulationError}</div>
+            )}
           </div>
         )}
       </div>

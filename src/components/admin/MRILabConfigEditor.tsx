@@ -2,6 +2,7 @@
  * MRI Lab Config Editor
  */
 
+import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -11,9 +12,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MRILabConfig, MRIPreset, MRIViewerType } from "@/types/mriLabConfig";
+import { MRILabConfig, MRIPreset, MRIViewerType, MRIDataSource, MRIModule } from "@/types/mriLabConfig";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { FileUploadField } from "@/components/ui/FileUploadField";
+import { Button } from "@/components/ui/button";
+import { parseDICOMFile, sortDICOMSlices, buildDICOMSeries } from "@/lib/dicomParser";
+import { parseNIfTIFile, buildNIfTIVolume } from "@/lib/niftiParser";
+import { toast } from "sonner";
+import { Loader2, Upload, FileText, CheckCircle2 } from "lucide-react";
+import { useMRILabStore } from "@/stores/mriLabStore";
 
 interface MRILabConfigEditorProps {
   config: MRILabConfig;
@@ -21,8 +29,131 @@ interface MRILabConfigEditorProps {
 }
 
 export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps) {
+  const [isLoadingDICOM, setIsLoadingDICOM] = useState(false);
+  const [dicomFiles, setDicomFiles] = useState<File[]>([]);
+  const { setDicomSeries, setNIfTIVolume } = useMRILabStore();
+
   const updateConfig = (updates: Partial<MRILabConfig>) => {
     onChange({ ...config, ...updates });
+  };
+
+  const handleDICOMUpload = async (files: File[]) => {
+    if (files.length === 0) return;
+    
+    setIsLoadingDICOM(true);
+    try {
+      console.log("[MRILabConfigEditor] Starting DICOM upload, files:", files.length);
+      
+      // Parse all DICOM files
+      const parsedSlices = await Promise.all(
+        files.map(async (file, index) => {
+          console.log(`[MRILabConfigEditor] Parsing file ${index + 1}/${files.length}: ${file.name}`);
+          try {
+            const { metadata, pixelData } = await parseDICOMFile(file);
+            console.log(`[MRILabConfigEditor] ✅ File ${file.name} parsed:`, {
+              rows: metadata.rows,
+              columns: metadata.columns,
+              hasPixelData: !!pixelData,
+              pixelDataLength: pixelData?.length || 0,
+            });
+            return { metadata, file, pixelData };
+          } catch (err: any) {
+            console.error(`[MRILabConfigEditor] ❌ Error parsing file ${file.name}:`, err);
+            throw new Error(`Erro ao processar ${file.name}: ${err.message}`);
+          }
+        })
+      );
+
+      console.log("[MRILabConfigEditor] All files parsed, sorting slices...");
+      
+      // Sort slices by position
+      const sortedSlices = sortDICOMSlices(parsedSlices);
+      console.log("[MRILabConfigEditor] Slices sorted:", sortedSlices.length);
+
+      // Build DICOM series
+      const series = buildDICOMSeries(sortedSlices);
+      console.log("[MRILabConfigEditor] Series built:", {
+        totalSlices: series.totalSlices,
+        rows: series.rows,
+        columns: series.columns,
+        pixelSpacing: series.pixelSpacing,
+      });
+
+      // Update store with DICOM series (this builds the volume)
+      console.log("[MRILabConfigEditor] Setting DICOM series in store...");
+      setDicomSeries(series);
+
+      // Update config with DICOM series
+      updateConfig({
+        dataSource: "dicom",
+        dicomSeries: series,
+        enabledModules: {
+          ...config.enabledModules,
+          clinicalImage: true,
+        },
+        activeViewer: "slice_2d", // Default to 2D viewer for DICOM
+      });
+
+      setDicomFiles(files);
+      toast.success(`Série DICOM carregada: ${series.totalSlices} fatia(s) - ${series.rows}×${series.columns} pixels`);
+    } catch (error: any) {
+      console.error("[MRILabConfigEditor] ❌ Error loading DICOM series:", error);
+      toast.error("Erro ao carregar série DICOM", {
+        description: error.message || "Verifique se os arquivos são DICOM válidos",
+      });
+    } finally {
+      setIsLoadingDICOM(false);
+    }
+  };
+
+  const handleNIfTIUpload = async (files: File[]) => {
+    if (files.length === 0) return;
+    
+    setIsLoadingDICOM(true);
+    try {
+      console.log("[MRILabConfigEditor] Starting NIfTI upload, file:", files[0].name);
+      
+      // Parse NIfTI file
+      const { metadata, voxels } = await parseNIfTIFile(files[0]);
+      console.log("[MRILabConfigEditor] ✅ NIfTI file parsed:", {
+        dims: metadata.dims,
+        voxelsLength: voxels.length,
+      });
+      
+      // Build volume
+      const volume = buildNIfTIVolume(metadata, voxels);
+      console.log("[MRILabConfigEditor] ✅ NIfTI volume built:", {
+        dimensions: `${volume.width}×${volume.height}×${volume.depth}`,
+        min: volume.min,
+        max: volume.max,
+      });
+
+      // Update store with NIfTI volume
+      console.log("[MRILabConfigEditor] Setting NIfTI volume in store...");
+      setNIfTIVolume(volume, metadata);
+
+      // Update config
+      updateConfig({
+        dataSource: "nifti",
+        niftiVolume: volume,
+        enabledModules: {
+          ...config.enabledModules,
+          clinicalImage: true,
+        },
+        activeViewer: "slice_2d", // Default to 2D viewer for NIfTI
+        viewer2DMode: "canvas", // Default to canvas for NIfTI
+        viewer3DMode: "mpr", // Default to MPR
+      });
+
+      toast.success(`Arquivo NIfTI carregado: ${volume.width}×${volume.height}×${volume.depth} voxels`);
+    } catch (error: any) {
+      console.error("[MRILabConfigEditor] ❌ Error loading NIfTI file:", error);
+      toast.error("Erro ao carregar arquivo NIfTI", {
+        description: error.message || "Verifique se o arquivo é NIfTI válido",
+      });
+    } finally {
+      setIsLoadingDICOM(false);
+    }
   };
 
   return (
@@ -34,7 +165,195 @@ export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Presets */}
+        {/* Data Source Mode */}
+        <div className="space-y-4">
+          <Label className="text-sm font-semibold">Fonte de Dados</Label>
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <input
+                type="radio"
+                id="dataSource-phantom"
+                name="dataSource"
+                checked={config.dataSource === "phantom"}
+                onChange={() => updateConfig({ dataSource: "phantom" })}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="dataSource-phantom" className="cursor-pointer">
+                Phantom (Procedural)
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="radio"
+                id="dataSource-dicom"
+                name="dataSource"
+                checked={config.dataSource === "dicom"}
+                onChange={() => updateConfig({ dataSource: "dicom" })}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="dataSource-dicom" className="cursor-pointer">
+                Série DICOM (Real)
+              </Label>
+            </div>
+          </div>
+        </div>
+
+        {/* Enabled Modules */}
+        <div className="space-y-4">
+          <Label className="text-sm font-semibold">Módulos Habilitados</Label>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="enable-magnetization" className="text-sm font-normal cursor-pointer">
+                Módulo Magnetização (Física/Conceitual)
+              </Label>
+              <Switch
+                id="enable-magnetization"
+                checked={config.enabledModules.magnetization}
+                onCheckedChange={(checked) =>
+                  updateConfig({
+                    enabledModules: { ...config.enabledModules, magnetization: checked },
+                  })
+                }
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="enable-clinical" className="text-sm font-normal cursor-pointer">
+                Módulo Imagem Clínica (DICOM)
+              </Label>
+              <Switch
+                id="enable-clinical"
+                checked={config.enabledModules.clinicalImage}
+                onCheckedChange={(checked) =>
+                  updateConfig({
+                    enabledModules: { ...config.enabledModules, clinicalImage: checked },
+                  })
+                }
+                disabled={config.dataSource === "phantom"}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-border my-4" />
+
+        {/* DICOM Upload Section */}
+        {config.dataSource === "dicom" && (
+          <div className="space-y-4">
+            <Label className="text-sm font-semibold">Carregar Série DICOM</Label>
+            <FileUploadField
+              accept=".dcm"
+              multiple={true}
+              maxSize={100} // 100MB per file (DICOM pode ser grande)
+              onFilesSelected={handleDICOMUpload}
+              disabled={isLoadingDICOM}
+              label="Selecione ou arraste arquivos DICOM (.dcm)"
+              description="Clique no botão abaixo para selecionar múltiplos arquivos DICOM. No diálogo, use Cmd/Ctrl+Click para selecionar vários arquivos."
+            />
+            
+            {isLoadingDICOM && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Processando arquivos DICOM...</span>
+              </div>
+            )}
+
+            {/* DICOM Metadata Display */}
+            {config.dicomSeries && (
+              <Card className="bg-muted/50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    Série DICOM Carregada
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-muted-foreground">Modalidade:</span>
+                      <span className="ml-2 font-medium">{config.dicomSeries.modality}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Descrição:</span>
+                      <span className="ml-2 font-medium">{config.dicomSeries.seriesDescription}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Fatias:</span>
+                      <span className="ml-2 font-medium">{config.dicomSeries.totalSlices}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Dimensões:</span>
+                      <span className="ml-2 font-medium">
+                        {config.dicomSeries.columns} × {config.dicomSeries.rows}
+                      </span>
+                    </div>
+                    {config.dicomSeries.pixelSpacing && (
+                      <div>
+                        <span className="text-muted-foreground">Pixel Spacing:</span>
+                        <span className="ml-2 font-medium">
+                          {config.dicomSeries.pixelSpacing[0].toFixed(2)} × {config.dicomSeries.pixelSpacing[1].toFixed(2)} mm
+                        </span>
+                      </div>
+                    )}
+                    {config.dicomSeries.sliceThickness && (
+                      <div>
+                        <span className="text-muted-foreground">Espessura:</span>
+                        <span className="ml-2 font-medium">{config.dicomSeries.sliceThickness} mm</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        <div className="border-t border-border my-4" />
+
+        {/* Viewer Mode Selection (for DICOM) */}
+        {config.dataSource === "dicom" && (
+          <div className="space-y-4">
+            <Label className="text-sm font-semibold">Modo dos Viewers</Label>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs">Viewer 2D</Label>
+                <Select
+                  value={config.viewer2DMode || "cornerstone"}
+                  onValueChange={(v) => updateConfig({ viewer2DMode: v as "cornerstone" | "canvas" })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cornerstone">Cornerstone3D (PACS-like)</SelectItem>
+                    <SelectItem value="canvas">Canvas (Compatibilidade)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Viewer 3D</Label>
+                <Select
+                  value={config.viewer3DMode || "mpr"}
+                  onValueChange={(v) => updateConfig({ viewer3DMode: v as "mpr" | "volume" })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="mpr">MPR (3 Planos)</SelectItem>
+                    <SelectItem value="volume">Volume Rendering (vtk.js)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="border-t border-border my-4" />
+
+        {/* Phantom Mode Configuration */}
+        {config.dataSource === "phantom" && (
+          <>
+            {/* Presets */}
         <div className="space-y-2">
           <Label>Preset Padrão</Label>
           <Select
@@ -360,6 +679,8 @@ export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps
             </div>
           </div>
         </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
