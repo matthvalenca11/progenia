@@ -3,7 +3,7 @@
  * Separado dos viewers para permitir evolução independente
  */
 
-import { MRILabConfig, VolumeMRI, VoxelMRI, TissueProperties, TISSUE_PROPERTIES, MRIPhantomType } from "@/types/mriLabConfig";
+import { MRILabConfig, MRIPreset, VolumeMRI, VoxelMRI, TissueProperties, TISSUE_PROPERTIES, MRIPhantomType } from "@/types/mriLabConfig";
 
 export interface MRISignalResult {
   signal: number;

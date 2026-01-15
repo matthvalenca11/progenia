@@ -167,6 +167,28 @@ export const virtualLabService = {
     }
   },
 
+  ensureUniqueSlug: async (baseSlug: string, excludeId?: string): Promise<string> => {
+    const normalizedBase = virtualLabService.generateSlug(baseSlug);
+    let candidate = normalizedBase;
+    let i = 1;
+
+    while (true) {
+      const { data, error } = await supabase
+        .from("virtual_labs")
+        .select("id")
+        .eq("slug", candidate)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!data) return candidate;
+      if (excludeId && data.id === excludeId) return candidate;
+
+      i += 1;
+      candidate = `${normalizedBase}-${i}`;
+    }
+  },
+
   generateSlug: (title: string): string => {
     return title
       .toLowerCase()
@@ -176,3 +198,4 @@ export const virtualLabService = {
       .replace(/(^-|-$)/g, "");
   },
 };
+
