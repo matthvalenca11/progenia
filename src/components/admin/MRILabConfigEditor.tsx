@@ -31,7 +31,7 @@ interface MRILabConfigEditorProps {
 export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps) {
   const [isLoadingDICOM, setIsLoadingDICOM] = useState(false);
   const [dicomFiles, setDicomFiles] = useState<File[]>([]);
-  const { setDicomSeries, setNIfTIVolume } = useMRILabStore();
+  const { setDicomSeries, setNIfTIVolume, loadVolumeFromFiles } = useMRILabStore();
 
   const updateConfig = (updates: Partial<MRILabConfig>) => {
     onChange({ ...config, ...updates });
@@ -42,63 +42,26 @@ export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps
     
     setIsLoadingDICOM(true);
     try {
-      console.log("[MRILabConfigEditor] Starting DICOM upload, files:", files.length);
+      console.log("[MRILabConfigEditor] Starting DICOM upload (new system), files:", files.length);
       
-      // Parse all DICOM files
-      const parsedSlices = await Promise.all(
-        files.map(async (file, index) => {
-          console.log(`[MRILabConfigEditor] Parsing file ${index + 1}/${files.length}: ${file.name}`);
-          try {
-            const { metadata, pixelData } = await parseDICOMFile(file);
-            console.log(`[MRILabConfigEditor] ✅ File ${file.name} parsed:`, {
-              rows: metadata.rows,
-              columns: metadata.columns,
-              hasPixelData: !!pixelData,
-              pixelDataLength: pixelData?.length || 0,
-            });
-            return { metadata, file, pixelData };
-          } catch (err: any) {
-            console.error(`[MRILabConfigEditor] ❌ Error parsing file ${file.name}:`, err);
-            throw new Error(`Erro ao processar ${file.name}: ${err.message}`);
-          }
-        })
-      );
-
-      console.log("[MRILabConfigEditor] All files parsed, sorting slices...");
+      // Usar novo sistema unificado
+      await loadVolumeFromFiles(files);
       
-      // Sort slices by position
-      const sortedSlices = sortDICOMSlices(parsedSlices);
-      console.log("[MRILabConfigEditor] Slices sorted:", sortedSlices.length);
-
-      // Build DICOM series
-      const series = buildDICOMSeries(sortedSlices);
-      console.log("[MRILabConfigEditor] Series built:", {
-        totalSlices: series.totalSlices,
-        rows: series.rows,
-        columns: series.columns,
-        pixelSpacing: series.pixelSpacing,
-      });
-
-      // Update store with DICOM series (this builds the volume)
-      console.log("[MRILabConfigEditor] Setting DICOM series in store...");
-      setDicomSeries(series);
-
-      // Update config with DICOM series
+      // Atualizar config
       updateConfig({
         dataSource: "dicom",
-        dicomSeries: series,
         enabledModules: {
           ...config.enabledModules,
           clinicalImage: true,
         },
-        activeViewer: "slice_2d", // Default to 2D viewer for DICOM
+        activeViewer: "slice_2d",
       });
 
       setDicomFiles(files);
-      toast.success(`Série DICOM carregada: ${series.totalSlices} fatia(s) - ${series.rows}×${series.columns} pixels`);
+      toast.success(`Volume DICOM carregado: ${files.length} arquivo(s)`);
     } catch (error: any) {
-      console.error("[MRILabConfigEditor] ❌ Error loading DICOM series:", error);
-      toast.error("Erro ao carregar série DICOM", {
+      console.error("[MRILabConfigEditor] ❌ Error loading DICOM volume:", error);
+      toast.error("Erro ao carregar volume DICOM", {
         description: error.message || "Verifique se os arquivos são DICOM válidos",
       });
     } finally {
@@ -111,41 +74,24 @@ export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps
     
     setIsLoadingDICOM(true);
     try {
-      console.log("[MRILabConfigEditor] Starting NIfTI upload, file:", files[0].name);
+      console.log("[MRILabConfigEditor] Starting NIfTI upload (new system), file:", files[0].name);
       
-      // Parse NIfTI file
-      const { metadata, voxels } = await parseNIfTIFile(files[0]);
-      console.log("[MRILabConfigEditor] ✅ NIfTI file parsed:", {
-        dims: metadata.dims,
-        voxelsLength: voxels.length,
-      });
-      
-      // Build volume
-      const volume = buildNIfTIVolume(metadata, voxels);
-      console.log("[MRILabConfigEditor] ✅ NIfTI volume built:", {
-        dimensions: `${volume.width}×${volume.height}×${volume.depth}`,
-        min: volume.min,
-        max: volume.max,
-      });
-
-      // Update store with NIfTI volume
-      console.log("[MRILabConfigEditor] Setting NIfTI volume in store...");
-      setNIfTIVolume(volume, metadata);
+      // Usar novo sistema unificado
+      await loadVolumeFromFiles(files);
 
       // Update config
       updateConfig({
         dataSource: "nifti",
-        niftiVolume: volume,
         enabledModules: {
           ...config.enabledModules,
           clinicalImage: true,
         },
-        activeViewer: "slice_2d", // Default to 2D viewer for NIfTI
-        viewer2DMode: "canvas", // Default to canvas for NIfTI
-        viewer3DMode: "mpr", // Default to MPR
+        activeViewer: "slice_2d",
+        viewer2DMode: "canvas",
+        viewer3DMode: "mpr",
       });
 
-      toast.success(`Arquivo NIfTI carregado: ${volume.width}×${volume.height}×${volume.depth} voxels`);
+      toast.success(`Arquivo NIfTI carregado`);
     } catch (error: any) {
       console.error("[MRILabConfigEditor] ❌ Error loading NIfTI file:", error);
       toast.error("Erro ao carregar arquivo NIfTI", {
@@ -247,7 +193,7 @@ export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps
               onFilesSelected={handleDICOMUpload}
               disabled={isLoadingDICOM}
               label="Selecione ou arraste arquivos DICOM (.dcm)"
-              description="Clique no botão abaixo para selecionar múltiplos arquivos DICOM. No diálogo, use Cmd/Ctrl+Click para selecionar vários arquivos."
+              description="Selecione múltiplos arquivos DICOM da mesma série. O sistema detectará automaticamente."
             />
             
             {isLoadingDICOM && (

@@ -13,6 +13,9 @@ import { DicomSlice2DViewer } from "./DicomSlice2DViewer";
 import { DicomMPRViewer } from "./DicomMPRViewer";
 import { CornerstoneStackViewer } from "./CornerstoneStackViewer";
 import { VtkVolumeViewer } from "./VtkVolumeViewer";
+import { Volume2DViewer } from "./Volume2DViewer";
+import { VolumeMPRViewer } from "./VolumeMPRViewer";
+import { Volume3DViewer } from "./Volume3DViewer";
 import { MagnetizationGraph } from "./MagnetizationGraph";
 import { useMRILabStore } from "@/stores/mriLabStore";
 import { MRILabConfig, defaultMRILabConfig, MRIViewerType } from "@/types/mriLabConfig";
@@ -48,6 +51,7 @@ export function MRILabV2({
     isSimulating,
     dicomReady,
     dicomVolume,
+    normalizedVolume,
   } = store;
   const storeInstanceId = store.storeInstanceId || "unknown";
   const lastSimulatedConfigHash = store.lastSimulatedConfigHash || "";
@@ -61,9 +65,17 @@ export function MRILabV2({
       volumeReady,
       hasVolume: !!volume,
       volumeDims: volume ? `${volume.width}×${volume.height}×${volume.depth}` : "null",
+      hasNormalizedVolume: !!normalizedVolume,
+      normalizedVolumeValid: normalizedVolume?.isValid,
       simulationError,
       isSimulating,
     });
+    
+    // Se já temos volume normalizado válido, não precisa re-inicializar
+    if (normalizedVolume && normalizedVolume.isValid) {
+      console.log("[MRILabV2] Volume normalizado já disponível, pulando initIfNeeded");
+      return;
+    }
     
     // CRITICAL: Initialize store on mount if needed
     console.log("[MRILabV2] Calling initIfNeeded on mount");
@@ -89,8 +101,15 @@ export function MRILabV2({
   
   // Run simulation when key parameters change (debounced to prevent loops)
   // This effect only runs if parameters actually changed
+  // MAS: não roda se temos volume normalizado (DICOM/NIfTI) - ele não precisa de simulação
   const prevParamsRef = useRef<string>("");
   useEffect(() => {
+    // Se temos volume normalizado válido, não precisa rodar simulação de phantom
+    if (normalizedVolume && normalizedVolume.isValid) {
+      console.log("[MRILabV2] Volume normalizado disponível, pulando simulação de phantom");
+      return;
+    }
+    
     const currentParams = `${storeConfig.preset}-${storeConfig.phantomType}-${storeConfig.tr}-${storeConfig.te}-${storeConfig.flipAngle}-${storeConfig.sequenceType}`;
     
     if (currentParams !== prevParamsRef.current) {
@@ -108,6 +127,7 @@ export function MRILabV2({
     storeConfig.te,
     storeConfig.flipAngle,
     storeConfig.sequenceType,
+    normalizedVolume,
   ]); // Removed runSimulation from deps to prevent loops
   
   // Ensure sliceIndex is valid when switching to slice viewers
@@ -174,23 +194,18 @@ export function MRILabV2({
           </div>
         );
       case "slice_2d":
-        // Use DICOM/NIfTI viewer if real data is loaded, otherwise use phantom viewer
+        // PRIORIDADE: Usar novo sistema unificado se disponível
+        if (normalizedVolume && normalizedVolume.isValid) {
+          return (
+            <div className="relative w-full h-full">
+              {debugOverlay}
+              <Volume2DViewer showDebug={showDebug} />
+            </div>
+          );
+        }
+        
+        // Fallback para sistema legado
         if ((storeConfig.dataSource === "dicom" || storeConfig.dataSource === "nifti") && dicomReady && dicomVolume) {
-          // Try Cornerstone if configured, fallback to canvas
-          const viewer2DMode = storeConfig.viewer2DMode || "canvas";
-          if (viewer2DMode === "cornerstone") {
-            // Cornerstone will return null if it fails, triggering fallback
-            const cornerstoneViewer = <CornerstoneStackViewer showDebug={showDebug} />;
-            if (cornerstoneViewer) {
-              return (
-                <div className="relative w-full h-full">
-                  {debugOverlay}
-                  {cornerstoneViewer}
-                </div>
-              );
-            }
-          }
-          // Fallback to canvas viewer
           return (
             <div className="relative w-full h-full">
               {debugOverlay}
@@ -198,6 +213,8 @@ export function MRILabV2({
             </div>
           );
         }
+        
+        // Phantom viewer
         return (
           <div className="relative w-full h-full">
             {debugOverlay}
@@ -205,7 +222,27 @@ export function MRILabV2({
           </div>
         );
       case "volume_3d":
-        // Use DICOM/NIfTI viewer if real data is loaded, otherwise use phantom viewer
+        // PRIORIDADE: Usar novo sistema unificado se disponível
+        if (normalizedVolume && normalizedVolume.isValid) {
+          const viewer3DMode = storeConfig.viewer3DMode || "mpr";
+          if (viewer3DMode === "mpr") {
+            return (
+              <div className="relative w-full h-full">
+                {debugOverlay}
+                <VolumeMPRViewer showDebug={showDebug} />
+              </div>
+            );
+          } else {
+            return (
+              <div className="relative w-full h-full">
+                {debugOverlay}
+                <Volume3DViewer showDebug={showDebug} />
+              </div>
+            );
+          }
+        }
+        
+        // Fallback para sistema legado
         if ((storeConfig.dataSource === "dicom" || storeConfig.dataSource === "nifti") && dicomReady && dicomVolume) {
           const viewer3DMode = storeConfig.viewer3DMode || "mpr";
           if (viewer3DMode === "volume") {
@@ -223,6 +260,8 @@ export function MRILabV2({
             </div>
           );
         }
+        
+        // Fallback para phantom
         return (
           <div className="relative w-full h-full">
             {debugOverlay}

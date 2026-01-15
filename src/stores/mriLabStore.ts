@@ -6,6 +6,8 @@
 import { create } from "zustand";
 import { MRILabConfig, defaultMRILabConfig, VolumeMRI, DICOMSeries } from "@/types/mriLabConfig";
 import { simulateMRI, MRISimulationResult, applyMRIPreset } from "@/simulation/mriEngine";
+import { NormalizedVolume, ParsedVolume } from "@/lib/mri/volumeTypes";
+import { loadVolume } from "@/lib/mri/volumeLoader";
 
 export interface DICOMVolume {
   width: number;  // Rows
@@ -30,19 +32,29 @@ interface MRILabStore {
   lastSimulatedConfigHash: string; // Hash of last config used for simulation
   lastSimulationAt: number | null; // Timestamp of last simulation
   
-  // DICOM support
+  // DICOM support (legacy - será removido gradualmente)
   dicomSeries: DICOMSeries | null;
   dicomVolume: DICOMVolume | null;
   dicomReady: boolean;
   dicomError: string | null;
   
+  // Novo sistema unificado
+  normalizedVolume: NormalizedVolume | null;
+  volumeLoadError: string | null;
+  isLoadingVolume: boolean;
+  
   initIfNeeded: (reason: string, configOverride?: MRILabConfig) => void;
   setLabConfig: (config: MRILabConfig) => void;
   updateConfig: (updates: Partial<MRILabConfig>) => void;
   runSimulation: () => void;
-    setDicomSeries: (series: DICOMSeries) => void;
-    buildDicomVolume: (series: DICOMSeries) => DICOMVolume;
-    setNIfTIVolume: (volume: DICOMVolume, metadata?: any) => void;
+  setDicomSeries: (series: DICOMSeries) => void;
+  buildDicomVolume: (series: DICOMSeries) => DICOMVolume;
+  setNIfTIVolume: (volume: DICOMVolume, metadata?: any) => void;
+  
+  // Novo sistema unificado
+  loadVolumeFromFiles: (files: File[]) => Promise<void>;
+  setNormalizedVolume: (volume: NormalizedVolume) => void;
+  clearVolume: () => void;
 }
 
 // Generate unique store instance ID (singleton - created once)
@@ -65,6 +77,11 @@ export const useMRILabStore = create<MRILabStore>((set, get) => {
     dicomVolume: null,
     dicomReady: false,
     dicomError: null,
+    
+    // Novo sistema unificado
+    normalizedVolume: null,
+    volumeLoadError: null,
+    isLoadingVolume: false,
   };
   
   // Run initial simulation immediately
@@ -477,6 +494,67 @@ export const useMRILabStore = create<MRILabStore>((set, get) => {
           dicomError: error.message || "Failed to set NIfTI volume",
         });
       }
+    },
+    
+    // Novo sistema unificado
+    loadVolumeFromFiles: async (files: File[]) => {
+      console.log('[MRI Store] loadVolumeFromFiles called with', files.length, 'files');
+      set({ isLoadingVolume: true, volumeLoadError: null });
+      
+      try {
+        const parsedVolume = await loadVolume(files);
+        
+        console.log('[MRI Store] ✅ Volume carregado e normalizado:', {
+          dimensions: `${parsedVolume.volume.width}×${parsedVolume.volume.height}×${parsedVolume.volume.depth}`,
+          source: parsedVolume.volume.source,
+          isValid: parsedVolume.volume.isValid,
+        });
+        
+        set({
+          normalizedVolume: parsedVolume.volume,
+          volumeLoadError: null,
+          isLoadingVolume: false,
+          // Atualizar também o sistema legado para compatibilidade temporária
+          dicomReady: parsedVolume.volume.isValid,
+          dicomError: null,
+        });
+      } catch (error: any) {
+        const errorMessage = error.message || 'Erro desconhecido ao carregar volume';
+        console.error('[MRI Store] ❌ Erro ao carregar volume:', error);
+        
+        set({
+          normalizedVolume: null,
+          volumeLoadError: errorMessage,
+          isLoadingVolume: false,
+          dicomReady: false,
+          dicomError: errorMessage,
+        });
+        
+        throw error; // Re-throw para que o UI possa mostrar o erro
+      }
+    },
+    
+    setNormalizedVolume: (volume: NormalizedVolume) => {
+      console.log('[MRI Store] setNormalizedVolume called');
+      set({
+        normalizedVolume: volume,
+        volumeLoadError: null,
+        dicomReady: volume.isValid,
+        dicomError: null,
+      });
+    },
+    
+    clearVolume: () => {
+      console.log('[MRI Store] clearVolume called');
+      set({
+        normalizedVolume: null,
+        volumeLoadError: null,
+        isLoadingVolume: false,
+        dicomReady: false,
+        dicomError: null,
+        dicomSeries: null,
+        dicomVolume: null,
+      });
     },
   };
 });

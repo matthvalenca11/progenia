@@ -25,7 +25,7 @@ export function MRILabPreview({
   onPreviewModeChange 
 }: MRILabPreviewProps) {
   const store = useMRILabStore();
-  const { initIfNeeded, volumeReady } = store;
+  const { initIfNeeded, volumeReady, normalizedVolume, dicomReady } = store;
   const storeInstanceId = store.storeInstanceId || "unknown";
   
   // Use default config if not provided or invalid
@@ -41,21 +41,39 @@ export function MRILabPreview({
     tr: validConfig.tr,
     te: validConfig.te,
     volumeReady,
+    normalizedVolume: !!normalizedVolume,
+    normalizedVolumeValid: normalizedVolume?.isValid,
+    dicomReady,
   });
   
   // CRITICAL: Initialize store on mount if needed
   useEffect(() => {
-    console.log("[MRILabPreview] ✅ Component mounted, calling initIfNeeded");
+    console.log("[MRILabPreview] ✅ Component mounted");
+    
+    // Se já temos volume normalizado válido, não precisa re-inicializar
+    if (normalizedVolume && normalizedVolume.isValid) {
+      console.log("[MRILabPreview] Volume normalizado já disponível, pulando initIfNeeded");
+      return;
+    }
+    
+    console.log("[MRILabPreview] Chamando initIfNeeded");
     initIfNeeded("MRILabPreview mount", validConfig);
   }, []); // Only on mount
   
-  // Re-initialize if config changes significantly
+  // Re-initialize if config changes significantly (mas não se já temos volume normalizado)
   useEffect(() => {
+    // Se já temos volume normalizado válido, não re-inicializar
+    if (normalizedVolume && normalizedVolume.isValid) {
+      console.log("[MRILabPreview] Volume normalizado disponível, pulando re-inicialização");
+      return;
+    }
+    
     const configKey = `${validConfig.dataSource}-${validConfig.phantomType}-${validConfig.tr}-${validConfig.te}-${validConfig.flipAngle}-${validConfig.preset}-${validConfig.dicomSeries ? 'hasDicom' : 'noDicom'}-${validConfig.niftiVolume ? 'hasNifti' : 'noNifti'}`;
     console.log("[MRILabPreview] Config changed, calling initIfNeeded with new config:", {
       dataSource: validConfig.dataSource,
       hasDicomSeries: !!validConfig.dicomSeries,
       hasNiftiVolume: !!validConfig.niftiVolume,
+      hasNormalizedVolume: !!normalizedVolume,
       configKey,
     });
     initIfNeeded("MRILabPreview config change", validConfig);
@@ -68,6 +86,7 @@ export function MRILabPreview({
     validConfig.preset,
     validConfig.dicomSeries,
     validConfig.niftiVolume,
+    normalizedVolume,
     initIfNeeded
   ]);
   
