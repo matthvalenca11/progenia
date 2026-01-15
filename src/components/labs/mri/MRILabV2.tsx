@@ -15,7 +15,6 @@ import { CornerstoneStackViewer } from "./CornerstoneStackViewer";
 import { VtkVolumeViewer } from "./VtkVolumeViewer";
 import { Volume2DViewer } from "./Volume2DViewer";
 import { VolumeMPRViewer } from "./VolumeMPRViewer";
-import { Volume3DViewer } from "./Volume3DViewer";
 import { MagnetizationGraph } from "./MagnetizationGraph";
 import { useMRILabStore } from "@/stores/mriLabStore";
 import { MRILabConfig, defaultMRILabConfig, MRIViewerType } from "@/types/mriLabConfig";
