@@ -54,8 +54,7 @@ export default function VirtualLabsSection() {
       ultrassom_terapeutico: "Ultrassom Terapêutico",
       electrotherapy: "Eletroterapia",
       thermal: "Térmico",
-      mri: "Ressonância Magnética",
-      other: "Outro"
+      other: "Outro",
     };
     return labels[type as keyof typeof labels] || type;
   };

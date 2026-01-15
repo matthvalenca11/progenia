@@ -86,7 +86,7 @@ export default function VirtualLabEditorUnified() {
   const handleSave = async () => {
     // For ultrasound labs, get name from Zustand store
     const labName = lab.lab_type === "ultrasound" ? ultrasoundStore.labName : lab.name;
-    
+
     // Validation
     if (!labName?.trim()) {
       toast.error("Validação", { description: "O nome do laboratório é obrigatório" });
@@ -100,11 +100,26 @@ export default function VirtualLabEditorUnified() {
 
     try {
       setLoading(true);
-      
-      // Generate slug if empty
-      const slug = lab.slug || virtualLabService.generateSlug(labName);
+
+      const userProvidedSlug = !!lab.slug?.trim();
+      const baseSlug = userProvidedSlug ? lab.slug.trim() : virtualLabService.generateSlug(labName);
+
+      // If slug was auto-generated, we can auto-fix collisions by appending -2, -3, ...
+      // If user typed the slug, we should ask them to choose another one.
+      const uniqueSlug = await virtualLabService.ensureUniqueSlug(baseSlug, isEdit ? labId : undefined);
+      if (userProvidedSlug && uniqueSlug !== baseSlug) {
+        toast.error("Erro ao salvar", { description: "Este slug já existe. Escolha outro para continuar." });
+        return;
+      }
+
+      if (!userProvidedSlug && uniqueSlug !== baseSlug) {
+        setLab((prev) => ({ ...prev, slug: uniqueSlug }));
+        toast.info("Slug ajustado automaticamente", { description: `Novo slug: ${uniqueSlug}` });
+      }
+
+      const slug = uniqueSlug;
       const title = lab.title || labName;
-      
+
       // For ultrasound labs, get config from Zustand store
       let configData = lab.config_data || {};
       if (lab.lab_type === "ultrasound") {
@@ -126,12 +141,12 @@ export default function VirtualLabEditorUnified() {
           studentControls: storeState.studentControls,
         };
       }
-      
+
       // Add video URL to config_data (applies to ALL lab types)
       if (videoUrl) {
         configData = { ...configData, videoUrl };
       }
-      
+
       const labData = {
         ...lab,
         name: labName, // Use labName which comes from store for ultrasound
@@ -139,7 +154,7 @@ export default function VirtualLabEditorUnified() {
         title,
         config_data: configData,
       } as VirtualLab;
-      
+
       if (isEdit && labId) {
         await virtualLabService.update(labId, labData);
         toast.success("Sucesso!", { description: "Laboratório atualizado com sucesso" });
