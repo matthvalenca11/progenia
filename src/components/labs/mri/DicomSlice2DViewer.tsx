@@ -15,7 +15,8 @@ interface DicomSlice2DViewerProps {
 }
 
 export function DicomSlice2DViewer({ showDebug = false }: DicomSlice2DViewerProps) {
-  const { dicomVolume, dicomSeries, dicomReady } = useMRILabStore();
+  const store = useMRILabStore();
+  const { dicomVolume, dicomSeries, dicomReady, dicomError } = store;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -43,10 +44,49 @@ export function DicomSlice2DViewer({ showDebug = false }: DicomSlice2DViewerProp
   
   // Generate ImageData for current slice
   const sliceImageData = useMemo(() => {
-    if (!dicomVolume || !dicomReady) return null;
+    if (!dicomVolume || !dicomReady) {
+      console.log("[DicomSlice2DViewer] No volume or not ready:", {
+        hasVolume: !!dicomVolume,
+        dicomReady,
+      });
+      return null;
+    }
     
-    const { width, height, voxels, min, max } = dicomVolume;
+    const { width, height, depth, voxels, min, max } = dicomVolume;
     const sliceZ = currentSlice;
+    
+    console.log("[DicomSlice2DViewer] Generating ImageData:", {
+      width,
+      height,
+      depth,
+      sliceZ,
+      voxelsLength: voxels.length,
+      expectedVoxels: width * height * depth,
+      min,
+      max,
+      window,
+      level,
+    });
+    
+    // Validate slice index
+    if (sliceZ < 0 || sliceZ >= depth) {
+      console.error("[DicomSlice2DViewer] Invalid slice index:", sliceZ, "depth:", depth);
+      return null;
+    }
+    
+    // Validate voxels array
+    if (!voxels || voxels.length === 0) {
+      console.error("[DicomSlice2DViewer] Voxels array is empty or null");
+      return null;
+    }
+    
+    const expectedTotalVoxels = width * height * depth;
+    if (voxels.length !== expectedTotalVoxels) {
+      console.warn("[DicomSlice2DViewer] Voxel count mismatch:", {
+        actual: voxels.length,
+        expected: expectedTotalVoxels,
+      });
+    }
     
     // Create ImageData
     const imageData = new ImageData(width, height);
@@ -59,17 +99,41 @@ export function DicomSlice2DViewer({ showDebug = false }: DicomSlice2DViewerProp
     const epsilon = 1e-6;
     const effectiveRange = windowRange < epsilon ? epsilon : windowRange;
     
+    let pixelsProcessed = 0;
+    let pixelsWithData = 0;
+    let minIntensity = Infinity;
+    let maxIntensity = -Infinity;
+    
     // Extract slice and apply window/level
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         // Volume index: x + y*width + z*width*height
         const volumeIndex = x + y * width + sliceZ * width * height;
+        
+        // Validate index
+        if (volumeIndex >= voxels.length) {
+          console.warn(`[DicomSlice2DViewer] Volume index ${volumeIndex} out of bounds (max: ${voxels.length - 1})`);
+          continue;
+        }
+        
         const intensity = voxels[volumeIndex];
+        
+        // Check for valid number
+        if (isNaN(intensity) || !isFinite(intensity)) {
+          console.warn(`[DicomSlice2DViewer] Invalid intensity at index ${volumeIndex}:`, intensity);
+          continue;
+        }
+        
+        pixelsProcessed++;
+        minIntensity = Math.min(minIntensity, intensity);
+        maxIntensity = Math.max(maxIntensity, intensity);
         
         // Apply window/level
         let clampedIntensity = Math.max(windowMin, Math.min(windowMax, intensity));
         const normalized = (clampedIntensity - windowMin) / effectiveRange;
         const grayValue = Math.min(255, Math.max(0, Math.round(normalized * 255)));
+        
+        pixelsWithData++;
         
         // Set RGBA
         const pixelIndex = (y * width + x) * 4;
@@ -80,16 +144,43 @@ export function DicomSlice2DViewer({ showDebug = false }: DicomSlice2DViewerProp
       }
     }
     
+    console.log("[DicomSlice2DViewer] ✅ ImageData generated:", {
+      pixelsProcessed,
+      pixelsWithData,
+      minIntensity,
+      maxIntensity,
+      imageDataWidth: imageData.width,
+      imageDataHeight: imageData.height,
+    });
+    
     return imageData;
   }, [dicomVolume, currentSlice, window, level, dicomReady]);
   
   // Render to canvas
   useEffect(() => {
-    if (!canvasRef.current || !sliceImageData) return;
+    if (!canvasRef.current) {
+      console.log("[DicomSlice2DViewer] No canvas ref");
+      return;
+    }
+    
+    if (!sliceImageData) {
+      console.log("[DicomSlice2DViewer] No sliceImageData to render");
+      return;
+    }
+    
+    console.log("[DicomSlice2DViewer] Rendering to canvas:", {
+      imageDataWidth: sliceImageData.width,
+      imageDataHeight: sliceImageData.height,
+      zoom,
+      pan,
+    });
     
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) {
+      console.error("[DicomSlice2DViewer] Failed to get 2D context");
+      return;
+    }
     
     // Set canvas size
     canvas.width = sliceImageData.width;
@@ -106,6 +197,8 @@ export function DicomSlice2DViewer({ showDebug = false }: DicomSlice2DViewerProp
     
     ctx.putImageData(sliceImageData, 0, 0);
     ctx.restore();
+    
+    console.log("[DicomSlice2DViewer] ✅ Canvas rendered successfully");
   }, [sliceImageData, zoom, pan]);
   
   // Handle wheel scroll for slice change
@@ -184,11 +277,11 @@ export function DicomSlice2DViewer({ showDebug = false }: DicomSlice2DViewerProp
       >
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 m-auto"
+          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
           style={{
             maxWidth: "100%",
             maxHeight: "100%",
-            objectFit: "contain",
+            display: sliceImageData ? "block" : "none",
           }}
         />
         
