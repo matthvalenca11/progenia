@@ -39,7 +39,7 @@ export function TensLabInsightsPanel({ onClose }: InsightsPanelProps) {
       {/* Header */}
       <div className="p-3 border-b border-border flex items-center justify-between">
         <h2 className="text-sm font-medium text-foreground">Métricas</h2>
-        {onClose && (
+        {onClose && typeof onClose === 'function' && (
           <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={onClose}>
             <X className="h-3.5 w-3.5" />
           </Button>

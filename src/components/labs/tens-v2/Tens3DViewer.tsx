@@ -5,8 +5,6 @@
 
 import { Canvas } from '@react-three/fiber';
 import { useTensLabStore, ViewerTab } from '@/stores/tensLabStore';
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Eye, Zap, Target } from "lucide-react";
 import { Tens3DSceneSetup } from '@/components/labs/tens3d/Tens3DSceneSetup';
 import { TissueLayersModel } from '@/components/labs/tens3d/TissueLayersModel';
 import { ElectricFieldVisualization } from '@/components/labs/tens3d/ElectricFieldVisualization';
@@ -97,23 +95,6 @@ export function Tens3DViewer() {
 
   return (
     <div className="relative w-full h-full bg-gradient-to-b from-slate-900 to-slate-950">
-      {/* Tabs */}
-      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10">
-        <Tabs value={viewerTab} onValueChange={(v) => setViewerTab(v as ViewerTab)}>
-          <TabsList className="bg-slate-800/90 backdrop-blur-sm h-8">
-            <TabsTrigger value="anatomy" className="gap-1 text-[11px] h-6 px-3">
-              <Eye className="h-3 w-3" />Anatomia
-            </TabsTrigger>
-            <TabsTrigger value="electric" className="gap-1 text-[11px] h-6 px-3">
-              <Zap className="h-3 w-3" />Campo Elétrico
-            </TabsTrigger>
-            <TabsTrigger value="activated" className="gap-1 text-[11px] h-6 px-3">
-              <Target className="h-3 w-3" />Região Ativada
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-
       {/* Canvas */}
       <Canvas 
         gl={{ 
