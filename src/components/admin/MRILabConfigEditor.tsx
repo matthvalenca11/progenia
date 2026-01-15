@@ -21,7 +21,9 @@ import { parseDICOMFile, sortDICOMSlices, buildDICOMSeries } from "@/lib/dicomPa
 import { parseNIfTIFile, buildNIfTIVolume } from "@/lib/niftiParser";
 import { toast } from "sonner";
 import { Loader2, Upload, FileText, CheckCircle2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { useMRILabStore } from "@/stores/mriLabStore";
+import { VolumeStatusPanel } from "./VolumeStatusPanel";
 
 interface MRILabConfigEditorProps {
   config: MRILabConfig;
@@ -30,8 +32,9 @@ interface MRILabConfigEditorProps {
 
 export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps) {
   const [isLoadingDICOM, setIsLoadingDICOM] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [dicomFiles, setDicomFiles] = useState<File[]>([]);
-  const { setDicomSeries, setNIfTIVolume, loadVolumeFromFiles } = useMRILabStore();
+  const { setDicomSeries, setNIfTIVolume, loadVolumeFromFiles, clearVolume } = useMRILabStore();
 
   const updateConfig = (updates: Partial<MRILabConfig>) => {
     onChange({ ...config, ...updates });
@@ -41,11 +44,18 @@ export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps
     if (files.length === 0) return;
     
     setIsLoadingDICOM(true);
+    setUploadProgress(0);
     try {
       console.log("[MRILabConfigEditor] Starting DICOM upload (new system), files:", files.length);
       
-      // Usar novo sistema unificado
-      await loadVolumeFromFiles(files);
+      // Calcular progresso durante o upload
+      let processedFiles = 0;
+      const totalFiles = files.length;
+      
+      // Usar novo sistema unificado com callback de progresso
+      await loadVolumeFromFiles(files, (progress) => {
+        setUploadProgress(progress);
+      });
       
       // Atualizar config
       updateConfig({
@@ -66,6 +76,7 @@ export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps
       });
     } finally {
       setIsLoadingDICOM(false);
+      setUploadProgress(0);
     }
   };
 
@@ -73,11 +84,14 @@ export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps
     if (files.length === 0) return;
     
     setIsLoadingDICOM(true);
+    setUploadProgress(0);
     try {
       console.log("[MRILabConfigEditor] Starting NIfTI upload (new system), file:", files[0].name);
       
-      // Usar novo sistema unificado
-      await loadVolumeFromFiles(files);
+      // Usar novo sistema unificado com callback de progresso
+      await loadVolumeFromFiles(files, (progress) => {
+        setUploadProgress(progress);
+      });
 
       // Update config
       updateConfig({
@@ -99,6 +113,7 @@ export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps
       });
     } finally {
       setIsLoadingDICOM(false);
+      setUploadProgress(0);
     }
   };
 
@@ -139,6 +154,19 @@ export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps
               />
               <Label htmlFor="dataSource-dicom" className="cursor-pointer">
                 Série DICOM (Real)
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="radio"
+                id="dataSource-nifti"
+                name="dataSource"
+                checked={config.dataSource === "nifti"}
+                onChange={() => updateConfig({ dataSource: "nifti" })}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="dataSource-nifti" className="cursor-pointer">
+                Arquivo NIfTI (.nii / .nii.gz)
               </Label>
             </div>
           </div>
@@ -182,26 +210,54 @@ export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps
 
         <div className="border-t border-border my-4" />
 
-        {/* DICOM Upload Section */}
-        {config.dataSource === "dicom" && (
+        {/* File Upload Section - DICOM e NIfTI */}
+        {(config.dataSource === "dicom" || config.dataSource === "nifti") && (
           <div className="space-y-4">
-            <Label className="text-sm font-semibold">Carregar Série DICOM</Label>
+            <Label className="text-sm font-semibold">
+              {config.dataSource === "dicom" ? "Carregar Série DICOM" : "Carregar Arquivo NIfTI"}
+            </Label>
             <FileUploadField
-              accept=".dcm"
-              multiple={true}
-              maxSize={100} // 100MB per file (DICOM pode ser grande)
-              onFilesSelected={handleDICOMUpload}
+              accept={config.dataSource === "dicom" ? ".dcm" : ".nii,.nii.gz"}
+              multiple={config.dataSource === "dicom"}
+              maxSize={500} // 500MB per file
+              onFilesSelected={config.dataSource === "dicom" ? handleDICOMUpload : handleNIfTIUpload}
               disabled={isLoadingDICOM}
-              label="Selecione ou arraste arquivos DICOM (.dcm)"
-              description="Selecione múltiplos arquivos DICOM da mesma série. O sistema detectará automaticamente."
+              label={
+                config.dataSource === "dicom"
+                  ? "Selecione ou arraste arquivos DICOM (.dcm)"
+                  : "Selecione ou arraste arquivo NIfTI (.nii ou .nii.gz)"
+              }
+              description={
+                config.dataSource === "dicom"
+                  ? "Selecione múltiplos arquivos DICOM da mesma série. O sistema detectará automaticamente."
+                  : "Selecione um único arquivo NIfTI (.nii ou .nii.gz comprimido)."
+              }
             />
             
             {isLoadingDICOM && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Processando arquivos DICOM...</span>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>
+                    {config.dataSource === "dicom"
+                      ? "Processando arquivos DICOM..."
+                      : "Processando arquivo NIfTI..."}
+                  </span>
+                </div>
+                {uploadProgress > 0 && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Progresso</span>
+                      <span>{uploadProgress}%</span>
+                    </div>
+                    <Progress value={uploadProgress} className="h-2" />
+                  </div>
+                )}
               </div>
             )}
+
+            {/* Volume Status Panel */}
+            <VolumeStatusPanel />
 
             {/* DICOM Metadata Display */}
             {config.dicomSeries && (

@@ -29,11 +29,30 @@ export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
 
   // Inicializar window/level do volume
   useEffect(() => {
-    if (normalizedVolume) {
-      const defaultWindow = normalizedVolume.max - normalizedVolume.min;
-      const defaultLevel = (normalizedVolume.max + normalizedVolume.min) / 2;
-      setWindow(defaultWindow);
-      setLevel(defaultLevel);
+    if (normalizedVolume && normalizedVolume.isValid) {
+      const min = normalizedVolume.min;
+      const max = normalizedVolume.max;
+      
+      // Garantir que min < max e valores são válidos
+      if (isFinite(min) && isFinite(max) && min < max) {
+        const defaultWindow = max - min;
+        const defaultLevel = (max + min) / 2;
+        
+        // Garantir valores razoáveis (não pode ser 0 ou muito pequeno)
+        if (defaultWindow > 0 && isFinite(defaultWindow) && isFinite(defaultLevel)) {
+          setWindow(defaultWindow);
+          setLevel(defaultLevel);
+        } else {
+          // Fallback: usar valores padrão se cálculo falhar
+          console.warn('[Volume2DViewer] Window/Level calculation failed, using defaults', { min, max, defaultWindow, defaultLevel });
+          setWindow(2000);
+          setLevel(1000);
+        }
+      } else {
+        console.warn('[Volume2DViewer] Invalid min/max values', { min, max });
+        setWindow(2000);
+        setLevel(1000);
+      }
       
       // Inicializar slice para o meio
       setSliceIndex(Math.floor(normalizedVolume.depth / 2));
@@ -61,6 +80,12 @@ export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
       sliceZ,
       dataLength: data.length,
       expectedTotal: width * height * normalizedVolume.depth,
+      min: normalizedVolume.min,
+      max: normalizedVolume.max,
+      window,
+      level,
+      windowMin: level - window / 2,
+      windowMax: level + window / 2,
     });
 
     // Validar slice index
@@ -93,6 +118,12 @@ export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
         const intensity = data[volumeIndex];
 
         if (isNaN(intensity) || !isFinite(intensity)) {
+          // Preencher com preto se valor inválido
+          const pixelIndex = (y * width + x) * 4;
+          imageDataArray[pixelIndex] = 0;
+          imageDataArray[pixelIndex + 1] = 0;
+          imageDataArray[pixelIndex + 2] = 0;
+          imageDataArray[pixelIndex + 3] = 255;
           continue;
         }
 
@@ -110,7 +141,53 @@ export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
       }
     }
 
-    console.log('[Volume2DViewer] ✅ ImageData generated');
+    // Calcular estatísticas da fatia para debug
+    let validPixels = 0;
+    let minSlice = Infinity;
+    let maxSlice = -Infinity;
+    let sumIntensity = 0;
+    const samplePixels: number[] = [];
+    
+    for (let i = 0; i < imageDataArray.length; i += 4) {
+      const gray = imageDataArray[i];
+      if (gray > 0 || gray === 0) { // Contar todos os pixels, mesmo zero
+        validPixels++;
+        minSlice = Math.min(minSlice, gray);
+        maxSlice = Math.max(maxSlice, gray);
+        sumIntensity += gray;
+        if (samplePixels.length < 20) {
+          samplePixels.push(gray);
+        }
+      }
+    }
+    
+    const avgIntensity = validPixels > 0 ? sumIntensity / validPixels : 0;
+    
+    // Verificar se todos os pixels têm o mesmo valor (problema!)
+    const uniqueValues = new Set(samplePixels);
+    
+    console.log('[Volume2DViewer] ✅ ImageData generated:', {
+      sliceZ,
+      validPixels,
+      totalPixels: width * height,
+      minGray: minSlice === Infinity ? 'N/A' : minSlice,
+      maxGray: maxSlice === -Infinity ? 'N/A' : maxSlice,
+      avgGray: avgIntensity.toFixed(2),
+      uniqueValues: uniqueValues.size,
+      samplePixels: samplePixels.slice(0, 10),
+      window,
+      level,
+      windowMin: level - window / 2,
+      windowMax: level + window / 2,
+      volumeMin: normalizedVolume.min,
+      volumeMax: normalizedVolume.max,
+      dataSample: Array.from(data.slice(sliceZ * width * height, sliceZ * width * height + 10)),
+    });
+    
+    if (uniqueValues.size === 1 && samplePixels[0] === 0) {
+      console.warn('[Volume2DViewer] ⚠️ TODOS OS PIXELS SÃO ZERO! Verificar dados do volume.');
+    }
+    
     return imageData;
   }, [normalizedVolume, currentSlice, window, level]);
 

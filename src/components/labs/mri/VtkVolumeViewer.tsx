@@ -19,7 +19,8 @@ interface VtkVolumeViewerProps {
 type VolumePreset = "soft_tissue" | "bone" | "angio" | "custom";
 
 export function VtkVolumeViewer({ showDebug = false }: VtkVolumeViewerProps) {
-  const { dicomVolume, dicomSeries, dicomReady } = useMRILabStore();
+  const store = useMRILabStore();
+  const { dicomVolume, dicomSeries, dicomReady, normalizedVolume } = store;
   const containerRef = useRef<HTMLDivElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,15 +32,19 @@ export function VtkVolumeViewer({ showDebug = false }: VtkVolumeViewerProps) {
   
   // Initialize thresholds from volume
   useEffect(() => {
-    if (dicomVolume) {
-      setThresholdLow(dicomVolume.min);
-      setThresholdHigh(dicomVolume.max);
+    const volume = normalizedVolume || dicomVolume;
+    if (volume) {
+      setThresholdLow(volume.min);
+      setThresholdHigh(volume.max);
     }
-  }, [dicomVolume]);
+  }, [normalizedVolume, dicomVolume]);
   
   // Initialize vtk.js and render volume
   useEffect(() => {
-    if (!dicomReady || !dicomVolume || !containerRef.current || isInitialized) return;
+    const volume = normalizedVolume || dicomVolume;
+    const isReady = normalizedVolume?.isValid || dicomReady;
+    
+    if (!isReady || !volume || !containerRef.current || isInitialized) return;
     
     const initVtk = async () => {
       try {
@@ -67,25 +72,50 @@ export function VtkVolumeViewer({ showDebug = false }: VtkVolumeViewerProps) {
         interactor.initialize();
         interactor.bindEvents(container);
         
-        // Build vtkImageData from DICOM volume
-        const { width, height, depth, voxels, pixelSpacing, spacingBetweenSlices } = dicomVolume;
+        // Build vtkImageData from volume (normalizedVolume ou dicomVolume)
+        let width: number, height: number, depth: number;
+        let voxels: Float32Array | Int16Array | Uint16Array | Uint8Array;
+        let spacing: [number, number, number];
+        
+        if (normalizedVolume && normalizedVolume.isValid) {
+          // Usar normalizedVolume (novo sistema)
+          width = normalizedVolume.width;
+          height = normalizedVolume.height;
+          depth = normalizedVolume.depth;
+          voxels = normalizedVolume.data;
+          spacing = normalizedVolume.spacing;
+        } else if (dicomVolume) {
+          // Usar dicomVolume (sistema legado)
+          width = dicomVolume.width;
+          height = dicomVolume.height;
+          depth = dicomVolume.depth;
+          voxels = dicomVolume.voxels;
+          const spacingX = dicomVolume.pixelSpacing?.[0] ?? 1.0;
+          const spacingY = dicomVolume.pixelSpacing?.[1] ?? 1.0;
+          const spacingZ = dicomVolume.spacingBetweenSlices ?? dicomVolume.sliceThickness ?? 1.0;
+          spacing = [spacingX, spacingY, spacingZ];
+        } else {
+          throw new Error('No volume data available');
+        }
+        
+        console.log('[VtkVolumeViewer] Building vtkImageData:', {
+          dimensions: `${width}×${height}×${depth}`,
+          spacing,
+          voxelsLength: voxels.length,
+          voxelsType: voxels.constructor.name,
+          min: Math.min(...Array.from(voxels.slice(0, Math.min(1000, voxels.length)))),
+          max: Math.max(...Array.from(voxels.slice(0, Math.min(1000, voxels.length)))),
+        });
         
         const imageData = vtk.Common.DataModel.vtkImageData.newInstance();
         imageData.setDimensions([width, height, depth]);
-        
-        // Set spacing
-        const spacingX = pixelSpacing?.[0] ?? 1.0;
-        const spacingY = pixelSpacing?.[1] ?? 1.0;
-        const spacingZ = spacingBetweenSlices ?? dicomVolume.sliceThickness ?? 1.0;
-        imageData.setSpacing([spacingX, spacingY, spacingZ]);
-        
-        // Set origin
+        imageData.setSpacing(spacing);
         imageData.setOrigin([0, 0, 0]);
         
-        // Create scalar array
+        // Create scalar array - vtk.js espera um array numérico
         const scalars = vtk.Common.Core.vtkDataArray.newInstance({
           numberOfComponents: 1,
-          values: voxels,
+          values: Array.from(voxels), // Converter TypedArray para Array normal
         });
         imageData.getPointData().setScalars(scalars);
         
@@ -103,8 +133,9 @@ export function VtkVolumeViewer({ showDebug = false }: VtkVolumeViewerProps) {
         const colorTransferFunction = vtk.Rendering.Core.vtkColorTransferFunction.newInstance();
         const opacityTransferFunction = vtk.Rendering.Core.vtkPiecewiseFunction.newInstance();
         
-        // Apply preset
-        applyPreset(preset, colorTransferFunction, opacityTransferFunction, dicomVolume);
+        // Apply preset - usar volume atual
+        const volumeForPreset = normalizedVolume || dicomVolume;
+        applyPreset(preset, colorTransferFunction, opacityTransferFunction, volumeForPreset);
         
         volumeProperty.setRGBTransferFunction(0, colorTransferFunction);
         volumeProperty.setScalarOpacity(0, opacityTransferFunction);
@@ -154,7 +185,7 @@ export function VtkVolumeViewer({ showDebug = false }: VtkVolumeViewerProps) {
     };
     
     initVtk();
-  }, [dicomReady, dicomVolume, isInitialized, preset, shading]);
+  }, [normalizedVolume, dicomReady, dicomVolume, isInitialized, preset, shading]);
   
   // Apply preset to transfer functions
   const applyPreset = (
@@ -221,7 +252,8 @@ export function VtkVolumeViewer({ showDebug = false }: VtkVolumeViewerProps) {
   
   // Update transfer functions when parameters change
   useEffect(() => {
-    if (!isInitialized || !containerRef.current || !dicomVolume) return;
+    const volume = normalizedVolume || dicomVolume;
+    if (!isInitialized || !containerRef.current || !volume) return;
     
     const vtkRefs = (containerRef.current as any).__vtkRefs;
     if (!vtkRefs) return;
@@ -230,7 +262,7 @@ export function VtkVolumeViewer({ showDebug = false }: VtkVolumeViewerProps) {
       const { colorTransferFunction, opacityTransferFunction, volumeProperty, renderWindow } = vtkRefs;
       
       // Reapply preset or custom
-      applyPreset(preset, colorTransferFunction, opacityTransferFunction, dicomVolume);
+      applyPreset(preset, colorTransferFunction, opacityTransferFunction, volume);
       
       // Apply global opacity
       if (preset === "custom") {
@@ -253,7 +285,7 @@ export function VtkVolumeViewer({ showDebug = false }: VtkVolumeViewerProps) {
     } catch (err) {
       console.error("[VTK] Update error:", err);
     }
-  }, [isInitialized, preset, thresholdLow, thresholdHigh, globalOpacity, shading, dicomVolume]);
+  }, [isInitialized, preset, thresholdLow, thresholdHigh, globalOpacity, shading, normalizedVolume, dicomVolume]);
   
   // Reset camera
   const handleReset = useCallback(() => {
@@ -265,11 +297,14 @@ export function VtkVolumeViewer({ showDebug = false }: VtkVolumeViewerProps) {
     }
   }, []);
   
-  if (!dicomReady || !dicomVolume) {
+  const volume = normalizedVolume || dicomVolume;
+  const isReady = normalizedVolume?.isValid || dicomReady;
+  
+  if (!isReady || !volume) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-background">
         <div className="text-center p-4 text-muted-foreground">
-          Nenhuma série DICOM carregada
+          Nenhum volume carregado
         </div>
       </div>
     );
@@ -338,8 +373,8 @@ export function VtkVolumeViewer({ showDebug = false }: VtkVolumeViewerProps) {
               <Slider
                 value={[thresholdLow]}
                 onValueChange={(v) => setThresholdLow(v[0])}
-                min={dicomVolume.min}
-                max={dicomVolume.max}
+                min={volume.min}
+                max={volume.max}
                 step={10}
               />
             </div>
@@ -351,8 +386,8 @@ export function VtkVolumeViewer({ showDebug = false }: VtkVolumeViewerProps) {
               <Slider
                 value={[thresholdHigh]}
                 onValueChange={(v) => setThresholdHigh(v[0])}
-                min={dicomVolume.min}
-                max={dicomVolume.max}
+                min={volume.min}
+                max={volume.max}
                 step={10}
               />
             </div>

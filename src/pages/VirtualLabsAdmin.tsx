@@ -94,6 +94,13 @@ export default function VirtualLabsAdmin() {
     if (!labToDelete?.id) return;
 
     try {
+      // Se for lab MRI, limpar dados do volume (se houver em memória)
+      if (labToDelete.lab_type === "mri") {
+        // Importar dinamicamente para evitar dependência circular
+        const { useMRILabStore } = await import("@/stores/mriLabStore");
+        useMRILabStore.getState().clearVolume();
+      }
+      
       await virtualLabService.deleteLab(labToDelete.id);
       toast.success("Laboratório excluído com sucesso!");
       loadLabs();

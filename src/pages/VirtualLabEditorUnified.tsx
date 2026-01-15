@@ -21,11 +21,13 @@ import { defaultMRILabConfig } from "@/types/mriLabConfig";
 import TensLabPage from "@/pages/TensLabPage";
 import MRILabPage from "@/pages/MRILabPage";
 import { useUltrasoundLabStore } from "@/stores/ultrasoundLabStore";
+import { useMRILabStore } from "@/stores/mriLabStore";
 
 export default function VirtualLabEditorUnified() {
   const navigate = useNavigate();
   const { labId } = useParams();
   const isEdit = !!labId;
+  const mriStore = useMRILabStore();
 
   const [loading, setLoading] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | undefined>();
@@ -49,7 +51,17 @@ export default function VirtualLabEditorUnified() {
     } else {
       // Reset ultrasound store for new lab
       ultrasoundStore.resetToDefaults();
+      // Limpar volume MRI se houver (novo lab)
+      mriStore.clearVolume();
     }
+    
+    // Cleanup: limpar volume quando componente desmonta ou navega sem salvar
+    return () => {
+      // Só limpar se não salvou (não há labId salvo)
+      if (!isEdit || !labId) {
+        mriStore.clearVolume();
+      }
+    };
   }, [labId, isEdit]);
 
   const loadLab = async () => {
@@ -162,6 +174,12 @@ export default function VirtualLabEditorUnified() {
         await virtualLabService.create(labData);
         toast.success("Sucesso!", { description: "Laboratório criado com sucesso" });
       }
+      
+      // Limpar volume após salvar (dados já estão no config_data)
+      if (lab.lab_type === "mri") {
+        mriStore.clearVolume();
+      }
+      
       navigate("/admin/labs");
     } catch (error: any) {
       console.error("Error saving lab:", error);
@@ -208,7 +226,17 @@ export default function VirtualLabEditorUnified() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => navigate("/admin/labs")} disabled={loading}>
+            <Button 
+              variant="ghost" 
+              onClick={() => {
+                // Limpar volume antes de navegar (se não salvou)
+                if (lab.lab_type === "mri") {
+                  mriStore.clearVolume();
+                }
+                navigate("/admin/labs");
+              }} 
+              disabled={loading}
+            >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Voltar
             </Button>

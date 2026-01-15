@@ -183,12 +183,40 @@ export function normalizeDicomVolume(series: DICOMSeries): NormalizedVolume {
       }
     }
     
-    // Se ainda não encontrou valores válidos, usar padrão
+    // Se ainda não encontrou valores válidos, tentar calcular a partir dos dados brutos
     if (!foundMin || !foundMax || globalMin >= globalMax) {
-      console.warn(`[VolumeNormalizer] Nenhum valor válido encontrado, usando padrão 0-1`);
-      globalMin = 0;
-      globalMax = 1;
-      validationErrors_final.push(`Nenhum valor válido encontrado, usando min/max padrão`);
+      console.warn(`[VolumeNormalizer] Nenhum valor válido encontrado, tentando calcular a partir dos dados brutos`);
+      
+      // Tentar calcular min/max diretamente dos dados brutos (antes do rescale)
+      let rawMin = Infinity;
+      let rawMax = -Infinity;
+      series.slices.forEach((slice) => {
+        if (slice.pixelData) {
+          const sliceData = slice.pixelData;
+          for (let i = 0; i < Math.min(sliceData.length, 10000); i++) { // Amostra para performance
+            const rawVal = sliceData[i];
+            if (isFinite(rawVal) && !isNaN(rawVal)) {
+              rawMin = Math.min(rawMin, rawVal);
+              rawMax = Math.max(rawMax, rawVal);
+            }
+          }
+        }
+      });
+      
+      if (isFinite(rawMin) && isFinite(rawMax) && rawMin < rawMax) {
+        // Aplicar rescale médio
+        const avgSlope = series.slices.reduce((sum, s) => sum + (s.rescaleSlope || 1), 0) / series.slices.length;
+        const avgIntercept = series.slices.reduce((sum, s) => sum + (s.rescaleIntercept || 0), 0) / series.slices.length;
+        globalMin = rawMin * avgSlope + avgIntercept;
+        globalMax = rawMax * avgSlope + avgIntercept;
+        console.log(`[VolumeNormalizer] ✅ Calculado min/max a partir de dados brutos: ${globalMin} - ${globalMax}`);
+      } else {
+        // Último recurso: usar valores padrão razoáveis para imagens médicas
+        console.warn(`[VolumeNormalizer] Usando valores padrão para imagens médicas`);
+        globalMin = -1000; // Típico para CT (HU)
+        globalMax = 3000;  // Típico para CT (HU)
+        validationErrors_final.push(`Nenhum valor válido encontrado, usando min/max padrão para imagens médicas`);
+      }
     } else {
       // Garantir que max > min
       if (globalMin >= globalMax) {

@@ -52,7 +52,7 @@ interface MRILabStore {
   setNIfTIVolume: (volume: DICOMVolume, metadata?: any) => void;
   
   // Novo sistema unificado
-  loadVolumeFromFiles: (files: File[]) => Promise<void>;
+  loadVolumeFromFiles: (files: File[], onProgress?: (progress: number) => void) => Promise<void>;
   setNormalizedVolume: (volume: NormalizedVolume) => void;
   clearVolume: () => void;
 }
@@ -497,12 +497,58 @@ export const useMRILabStore = create<MRILabStore>((set, get) => {
     },
     
     // Novo sistema unificado
-    loadVolumeFromFiles: async (files: File[]) => {
+    loadVolumeFromFiles: async (files: File[], onProgress?: (progress: number) => void) => {
       console.log('[MRI Store] loadVolumeFromFiles called with', files.length, 'files');
       set({ isLoadingVolume: true, volumeLoadError: null });
       
       try {
+        // Calcular progresso durante o carregamento
+        let totalBytes = 0;
+        let loadedBytes = 0;
+        
+        // Calcular tamanho total
+        files.forEach(file => {
+          totalBytes += file.size;
+        });
+        
+        // Ler arquivos com progresso
+        const fileReaders: Promise<any>[] = [];
+        files.forEach((file, index) => {
+          const reader = new FileReader();
+          const promise = new Promise((resolve, reject) => {
+            reader.onload = (e) => {
+              loadedBytes += file.size;
+              if (onProgress) {
+                const progress = Math.min(95, Math.round((loadedBytes / totalBytes) * 90)); // 90% para leitura, 10% para processamento
+                onProgress(progress);
+              }
+              resolve(e.target?.result);
+            };
+            reader.onerror = reject;
+            reader.onprogress = (e) => {
+              if (e.lengthComputable && onProgress) {
+                const fileProgress = (e.loaded / e.total) * (file.size / totalBytes) * 90;
+                const overallProgress = Math.min(95, Math.round((loadedBytes / totalBytes) * 90 + fileProgress));
+                onProgress(overallProgress);
+              }
+            };
+          });
+          reader.readAsArrayBuffer(file);
+          fileReaders.push(promise);
+        });
+        
+        // Aguardar todos os arquivos serem lidos
+        await Promise.all(fileReaders);
+        
+        if (onProgress) {
+          onProgress(95); // 95% após leitura completa
+        }
+        
         const parsedVolume = await loadVolume(files);
+        
+        if (onProgress) {
+          onProgress(100); // 100% após processamento completo
+        }
         
         console.log('[MRI Store] ✅ Volume carregado e normalizado:', {
           dimensions: `${parsedVolume.volume.width}×${parsedVolume.volume.height}×${parsedVolume.volume.depth}`,

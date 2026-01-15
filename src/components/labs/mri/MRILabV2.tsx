@@ -232,10 +232,11 @@ export function MRILabV2({
               </div>
             );
           } else {
+            // Volume rendering real com vtk.js
             return (
               <div className="relative w-full h-full">
                 {debugOverlay}
-                <Volume3DViewer showDebug={showDebug} />
+                <VtkVolumeViewer showDebug={showDebug} />
               </div>
             );
           }
