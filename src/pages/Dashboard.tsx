@@ -12,6 +12,7 @@ import { enrollmentService } from "@/services/enrollmentService";
 import { useCapsulasRecomendadas, useCapsulaInacabada } from "@/hooks/useCapsulas";
 import VirtualLabsSection from "@/components/dashboard/VirtualLabsSection";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useAuth } from "@/hooks/useAuth";
 
 interface UserProfile {
   full_name: string;
@@ -29,6 +30,7 @@ interface Module {
 }
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [modules, setModules] = useState<Module[]>([]);
@@ -285,9 +287,11 @@ const Dashboard = () => {
           </div>
           <div className="flex items-center gap-4">
             <ThemeToggle />
-            <Button variant="ghost" onClick={() => navigate("/admin")}>
-              Admin
-            </Button>
+            {isAdmin && (
+              <Button variant="ghost" onClick={() => navigate("/admin")}>
+                Admin
+              </Button>
+            )}
             <Avatar>
               <AvatarFallback className="bg-primary text-primary-foreground">
                 {profile ? getInitials(profile.full_name) : "U"}
