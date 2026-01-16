@@ -159,10 +159,15 @@ export const capsulaService = {
         .map((p) => p.capsula_id)
     );
 
-    // Filter out completed and return limited results
-    const recommended = (allCapsulas || [])
-      .filter((c) => !completedIds.has(c.id!))
-      .slice(0, limit);
+    // Filter out completed
+    const available = (allCapsulas || [])
+      .filter((c) => !completedIds.has(c.id!));
+
+    // Embaralhar aleatoriamente
+    const shuffled = [...available].sort(() => Math.random() - 0.5);
+
+    // Retornar limit cápsulas aleatórias
+    const recommended = shuffled.slice(0, limit);
 
     return recommended;
   },

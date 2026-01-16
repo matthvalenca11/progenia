@@ -768,9 +768,19 @@ const Dashboard = () => {
         {/* Cápsulas Recomendadas */}
         {!loadingRecomendadas && capsulaRecomendadas.length > 0 && (
           <div className="mb-8">
-            <div className="flex items-center gap-2 mb-6">
-              <Pill className="h-6 w-6 text-accent" />
-              <h2 className="text-3xl font-bold">Em Alta Hoje</h2>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <Pill className="h-6 w-6 text-accent" />
+                <h2 className="text-3xl font-bold">Em Alta Hoje</h2>
+              </div>
+              <Button 
+                variant="default" 
+                onClick={() => navigate("/capsulas")}
+                className="flex items-center gap-2 text-base px-4 py-2"
+              >
+                Ver tudo
+                <ArrowRight className="h-4 w-4" />
+              </Button>
             </div>
             <div className="relative">
               {/* Seta esquerda - só aparece se não estiver no início */}
