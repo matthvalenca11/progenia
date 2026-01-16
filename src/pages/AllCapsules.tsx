@@ -270,7 +270,7 @@ export default function AllCapsules() {
                         </p>
                       )}
                       <Button className="w-full" size="sm">
-                        {isCompleted ? "Revisar" : isInProgress ? "Continuar" : "Começar"}
+                        {isCompleted ? "Revisar" : isInProgress ? "Continuar" : "Conferir"}
                         <ArrowLeft className="h-4 w-4 ml-2 rotate-180" />
                       </Button>
                     </CardContent>
@@ -346,7 +346,7 @@ export default function AllCapsules() {
                         </p>
                       )}
                       <Button className="w-full" size="sm">
-                        {isCompleted ? "Revisar" : isInProgress ? "Continuar" : "Começar"}
+                        {isCompleted ? "Revisar" : isInProgress ? "Continuar" : "Conferir"}
                         <ArrowLeft className="h-4 w-4 ml-2 rotate-180" />
                       </Button>
                     </CardContent>
