@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { GraduationCap, Trophy, Clock, BookOpen, LogOut, Zap, Award, TrendingUp, UserPlus, UserMinus, Sparkles, ArrowRight, Activity, FlaskConical } from "lucide-react";
+import { GraduationCap, Trophy, Clock, BookOpen, LogOut, Zap, Award, TrendingUp, UserPlus, UserMinus, Sparkles, ArrowRight, Activity, FlaskConical, ChevronLeft, ChevronRight } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
 import { enrollmentService } from "@/services/enrollmentService";
@@ -37,9 +37,25 @@ const Dashboard = () => {
   const [enrolledModules, setEnrolledModules] = useState<Set<string>>(new Set());
   const [userId, setUserId] = useState<string | undefined>(undefined);
 
-  const { capsulas: capsulaRecomendadas, loading: loadingRecomendadas } = useCapsulasRecomendadas(userId, 3);
+  const { capsulas: capsulaRecomendadas, loading: loadingRecomendadas } = useCapsulasRecomendadas(userId, 15);
+  const [currentCapsulaIndex, setCurrentCapsulaIndex] = useState(0);
   const { capsula: capsulaInacabada, loading: loadingInacabada } = useCapsulaInacabada(userId);
   const [capaUrls, setCapaUrls] = useState<Record<string, string>>({});
+
+  // Resetar índice quando as cápsulas mudarem (ex: quando uma for concluída)
+  useEffect(() => {
+    if (capsulaRecomendadas.length > 0) {
+      const maxIndex = Math.max(0, capsulaRecomendadas.length - 3);
+      setCurrentCapsulaIndex((prevIndex) => {
+        if (prevIndex > maxIndex) {
+          return maxIndex;
+        }
+        return prevIndex;
+      });
+    } else {
+      setCurrentCapsulaIndex(0);
+    }
+  }, [capsulaRecomendadas.length]);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -329,38 +345,70 @@ const Dashboard = () => {
           <div className="mb-8">
             <div className="flex items-center gap-2 mb-6">
               <Sparkles className="h-6 w-6 text-accent" />
-              <h2 className="text-3xl font-bold">Seu Caminho Hoje</h2>
+              <h2 className="text-3xl font-bold">Em Alta Hoje</h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {capsulaRecomendadas.map((capsula) => (
-                <Card 
-                  key={capsula.id}
-                  className="cursor-pointer hover:shadow-lg transition-smooth border-border bg-card hover:border-accent overflow-hidden group"
-                  onClick={() => navigate(`/capsula/${capsula.id}`)}
+            <div className="relative">
+              {/* Seta esquerda - só aparece se não estiver no início */}
+              {currentCapsulaIndex > 0 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentCapsulaIndex(Math.max(0, currentCapsulaIndex - 1));
+                  }}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 bg-background/80 hover:bg-background border border-border rounded-full p-2 shadow-lg transition-all hover:scale-110"
+                  aria-label="Cápsula anterior"
                 >
-                  <div className="aspect-video bg-muted flex items-center justify-center overflow-hidden relative">
-                    {capaUrls[capsula.id!] ? (
-                      <img 
-                        src={capaUrls[capsula.id!]} 
-                        alt={capsula.title}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      />
-                    ) : (
-                      <Sparkles className="h-12 w-12 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="p-6">
-                    <div className="inline-block px-2 py-1 bg-accent/10 text-accent text-xs rounded-full mb-2">
-                      Cápsula Rápida
-                    </div>
-                    <h3 className="font-semibold text-lg mb-2">{capsula.title}</h3>
-                    <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{capsula.description}</p>
-                    <Button size="sm" className="w-full">
-                      Começar <ArrowRight className="h-4 w-4 ml-2" />
-                    </Button>
-                  </div>
-                </Card>
-              ))}
+                  <ChevronLeft className="h-8 w-8 text-foreground" />
+                </button>
+              )}
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {capsulaRecomendadas
+                  .slice(currentCapsulaIndex, currentCapsulaIndex + 3)
+                  .map((capsula) => (
+                    <Card 
+                      key={capsula.id}
+                      className="cursor-pointer hover:shadow-lg transition-smooth border-border bg-card hover:border-accent overflow-hidden group flex flex-col"
+                      onClick={() => navigate(`/capsula/${capsula.id}`)}
+                    >
+                      <div className="aspect-video bg-muted flex items-center justify-center overflow-hidden relative">
+                        {capaUrls[capsula.id!] ? (
+                          <img 
+                            src={capaUrls[capsula.id!]} 
+                            alt={capsula.title}
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          />
+                        ) : (
+                          <Sparkles className="h-12 w-12 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="p-6 flex flex-col flex-1">
+                        <div className="inline-block px-2 py-1 bg-accent/10 text-accent text-xs rounded-full mb-2 w-fit">
+                          Cápsula Rápida
+                        </div>
+                        <h3 className="font-semibold text-lg mb-2">{capsula.title}</h3>
+                        <p className="text-sm text-muted-foreground mb-4 line-clamp-2 flex-1">{capsula.description}</p>
+                        <Button size="sm" className="w-full mt-auto">
+                          Começar <ArrowRight className="h-4 w-4 ml-2" />
+                        </Button>
+                      </div>
+                    </Card>
+                  ))}
+              </div>
+              
+              {/* Seta direita - só aparece se houver mais cápsulas */}
+              {currentCapsulaIndex + 3 < capsulaRecomendadas.length && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentCapsulaIndex(Math.min(capsulaRecomendadas.length - 3, currentCapsulaIndex + 1));
+                  }}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 bg-background/80 hover:bg-background border border-border rounded-full p-2 shadow-lg transition-all hover:scale-110"
+                  aria-label="Próxima cápsula"
+                >
+                  <ChevronRight className="h-8 w-8 text-foreground" />
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -403,7 +451,7 @@ const Dashboard = () => {
         {/* Available Modules */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-3xl font-bold">Explorar Temas</h2>
+            <h2 className="text-3xl font-bold">Explorar Módulos</h2>
             
           </div>
 
@@ -413,18 +461,13 @@ const Dashboard = () => {
               <p className="text-muted-foreground">
                 Volte em breve! Os administradores estão preparando conteúdo de aprendizado para você.
               </p>
-            </Card> : <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            </Card> : <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {modules.map(module => <Card key={module.id} className="overflow-hidden hover:shadow-xl transition-smooth group cursor-pointer">
-                  <div className="h-48 bg-gradient-accent relative overflow-hidden">
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <GraduationCap className="h-20 w-20 text-white/30" />
-                    </div>
-                  </div>
                   <div className="p-6">
                     <h3 className="text-xl font-semibold mb-2 group-hover:text-primary transition-smooth">
                       {module.title}
                     </h3>
-                    <p className="text-muted-foreground text-sm mb-4 line-clamp-2">
+                    <p className="text-muted-foreground text-sm mb-4 line-clamp-3">
                       {module.description}
                     </p>
                     {enrolledModules.has(module.id) ? (
