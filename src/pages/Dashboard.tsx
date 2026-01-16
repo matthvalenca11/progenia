@@ -589,6 +589,68 @@ const Dashboard = () => {
         return newSet;
       });
 
+      // Recalcular estatísticas de cápsulas concluídas
+      const { count: newCapsulasCount } = await supabase
+        .from("capsula_progress")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", session.user.id)
+        .eq("status", "concluido");
+      
+      setCapsulasConcluidas(newCapsulasCount || 0);
+
+      // Recalcular minutos de estudo
+      const { data: newLessonProgress } = await supabase
+        .from("lesson_progress")
+        .select("lesson_id, status")
+        .eq("user_id", session.user.id)
+        .eq("status", "concluido");
+
+      const newLessonIds = (newLessonProgress || []).map((lp: any) => lp.lesson_id);
+      let newTotalMinutos = 0;
+
+      if (newLessonIds.length > 0) {
+        const { data: lessons } = await supabase
+          .from("lessons")
+          .select("id, duration_minutes")
+          .in("id", newLessonIds);
+
+        newTotalMinutos += (lessons || []).reduce((sum: number, lesson: any) => {
+          return sum + (lesson.duration_minutes || 0);
+        }, 0);
+      }
+
+      const { data: newCapsuleProgress } = await supabase
+        .from("capsula_progress")
+        .select("capsula_id, status")
+        .eq("user_id", session.user.id)
+        .eq("status", "concluido");
+
+      const newCapsuleIds = (newCapsuleProgress || []).map((cp: any) => cp.capsula_id);
+
+      if (newCapsuleIds.length > 0) {
+        const { data: capsules } = await supabase
+          .from("capsulas")
+          .select("id, duration_minutes")
+          .in("id", newCapsuleIds);
+
+        newTotalMinutos += (capsules || []).reduce((sum: number, capsule: any) => {
+          return sum + (capsule.duration_minutes || 0);
+        }, 0);
+      }
+
+      setMinutosEstudo(newTotalMinutos);
+
+      // Atualizar user_stats no banco de dados
+      const totalLessonsCompleted = newLessonIds.length;
+      await supabase
+        .from("user_stats")
+        .upsert({
+          user_id: session.user.id,
+          total_lessons_completed: totalLessonsCompleted,
+          total_time_spent: newTotalMinutos,
+          updated_at: new Date().toISOString()
+        }, { onConflict: "user_id" });
+
       toast.success("Módulo reiniciado", {
         description: "Seu progresso neste módulo foi apagado. Você pode começar novamente.",
       });
