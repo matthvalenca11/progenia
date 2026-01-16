@@ -265,7 +265,7 @@ export async function parseNIfTIFile(file: File): Promise<{
 export function buildNIfTIVolume(
   metadata: NIfTIMetadata,
   voxels: Float32Array | Int16Array | Uint16Array | Uint8Array
-): import('@/types/mriLabConfig').DICOMVolume {
+): import('@/stores/mriLabStore').DICOMVolume {
   const [width, height, depth, timeDim] = metadata.dims;
   
   // For now, use first time point if 4D
@@ -310,8 +310,8 @@ export function buildNIfTIVolume(
     voxels: floatVoxels,
     min,
     max,
-    spacing: [spacingX, spacingY, spacingZ],
-    origin: [0, 0, 0], // NIfTI origin is typically in the transformation matrix
-    direction: new Float32Array([1, 0, 0, 0, 1, 0]), // Default direction, can be extracted from qform/sform
+    pixelSpacing: [spacingX, spacingY] as [number, number],
+    sliceThickness: spacingZ,
+    spacingBetweenSlices: spacingZ,
   };
 }
