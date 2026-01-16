@@ -62,80 +62,55 @@ const STORE_INSTANCE_ID = `mri-store-${Math.random().toString(16).slice(2)}-${Da
 console.log(`[MRI Store] Creating store instance: ${STORE_INSTANCE_ID}`);
 
 export const useMRILabStore = create<MRILabStore>((set, get) => {
-  // Initialize with default config
-  const initialState: Partial<MRILabStore> = {
-    config: defaultMRILabConfig,
-    volume: null as VolumeMRI | null,
-    volumeReady: false,
-    simulationResult: null as MRISimulationResult | null,
-    simulationError: null as string | null,
-    isSimulating: false,
-    storeInstanceId: STORE_INSTANCE_ID,
-    lastSimulatedConfigHash: "",
-    lastSimulationAt: null,
-    dicomSeries: null,
-    dicomVolume: null,
-    dicomReady: false,
-    dicomError: null,
-    
-    // Novo sistema unificado
-    normalizedVolume: null,
-    volumeLoadError: null,
-    isLoadingVolume: false,
-  };
-  
-  // Run initial simulation immediately
-  let initialResult: MRISimulationResult | null = null;
-  let initialError: string | null = null;
+  // Run initial simulation
+  let initialVolume: VolumeMRI | null = null;
+  let initialVolumeReady = false;
+  let initialSimulationResult: MRISimulationResult | null = null;
+  let initialSimulationError: string | null = null;
+  let initialSliceIndex = 0;
   
   console.log("[MRI Store] Initializing store with default config");
   try {
     console.log("[MRI Store] Running initial simulation...");
-    initialResult = simulateMRI(defaultMRILabConfig);
+    const result = simulateMRI(defaultMRILabConfig);
     console.log("[MRI Store] Initial simulation returned:", {
-      hasResult: !!initialResult,
-      hasVolume: !!(initialResult?.volume),
-      volumeDims: initialResult?.volume ? `${initialResult.volume.width}x${initialResult.volume.height}x${initialResult.volume.depth}` : "N/A",
-      voxelsLength: initialResult?.volume?.voxels?.length || 0,
-      expectedVoxels: initialResult?.volume ? initialResult.volume.width * initialResult.volume.height * initialResult.volume.depth : 0,
-      sampleVoxel: initialResult?.volume?.voxels?.[0] || null,
+      hasResult: !!result,
+      hasVolume: !!(result?.volume),
+      volumeDims: result?.volume ? `${result.volume.width}x${result.volume.height}x${result.volume.depth}` : "N/A",
+      voxelsLength: result?.volume?.voxels?.length || 0,
+      expectedVoxels: result?.volume ? result.volume.width * result.volume.height * result.volume.depth : 0,
+      sampleVoxel: result?.volume?.voxels?.[0] || null,
     });
     
-    if (initialResult && initialResult.volume && initialResult.volume.voxels && initialResult.volume.voxels.length > 0) {
+    if (result && result.volume && result.volume.voxels && result.volume.voxels.length > 0) {
       // Additional validation
-      const expectedVoxels = initialResult.volume.width * initialResult.volume.height * initialResult.volume.depth;
-      if (initialResult.volume.voxels.length !== expectedVoxels) {
-        throw new Error(`Initial volume voxel count mismatch: expected ${expectedVoxels}, got ${initialResult.volume.voxels.length}`);
+      const expectedVoxels = result.volume.width * result.volume.height * result.volume.depth;
+      if (result.volume.voxels.length !== expectedVoxels) {
+        throw new Error(`Initial volume voxel count mismatch: expected ${expectedVoxels}, got ${result.volume.voxels.length}`);
       }
       
-      initialState.volume = initialResult.volume;
-      initialState.volumeReady = true;
-      initialState.simulationResult = initialResult;
-      // Set sliceIndex to middle slice
-      if (initialResult.volume.depth > 0) {
-        initialState.config.sliceIndex = Math.floor(initialResult.volume.depth / 2);
+      initialVolume = result.volume;
+      initialVolumeReady = true;
+      initialSimulationResult = result;
+      if (result.volume.depth > 0) {
+        initialSliceIndex = Math.floor(result.volume.depth / 2);
       }
-      console.log("[MRI Store] ✅ Initial volume set successfully, volumeReady=true, sliceIndex=" + initialState.config.sliceIndex);
+      console.log("[MRI Store] ✅ Initial volume set successfully, volumeReady=true, sliceIndex=" + initialSliceIndex);
     } else {
-      initialError = "Initial simulation returned invalid volume";
-      initialState.simulationError = initialError;
+      initialSimulationError = "Initial simulation returned invalid volume";
       console.error("[MRI Store] ❌ Initial simulation returned invalid volume:", {
-        hasResult: !!initialResult,
-        hasVolume: !!(initialResult?.volume),
-        voxelsLength: initialResult?.volume?.voxels?.length || 0,
+        hasResult: !!result,
+        hasVolume: !!(result?.volume),
+        voxelsLength: result?.volume?.voxels?.length || 0,
       });
     }
   } catch (error: any) {
-    initialError = error.message || "Failed to run initial simulation";
-    initialState.simulationError = initialError;
+    initialSimulationError = error.message || "Failed to run initial simulation";
     console.error("[MRI Store] ❌ Error running initial simulation:", {
       message: error.message,
       stack: error.stack,
       error,
     });
-    // Don't set volumeReady to true if there's an error
-    initialState.volumeReady = false;
-    initialState.volume = null;
   }
   
   // Helper to generate config hash
@@ -143,9 +118,29 @@ export const useMRILabStore = create<MRILabStore>((set, get) => {
     return `${cfg.phantomType}-${cfg.tr}-${cfg.te}-${cfg.flipAngle}-${cfg.preset}-${cfg.sequenceType}`;
   };
   
+  // Build initial config with sliceIndex set
+  const initialConfig = { ...defaultMRILabConfig, sliceIndex: initialSliceIndex };
+  
   return {
-    ...initialState,
+    // State properties
+    config: initialConfig,
+    volume: initialVolume,
+    volumeReady: initialVolumeReady,
+    simulationResult: initialSimulationResult,
+    simulationError: initialSimulationError,
+    isSimulating: false,
+    storeInstanceId: STORE_INSTANCE_ID,
+    lastSimulatedConfigHash: initialVolumeReady ? generateConfigHash(initialConfig) : "",
+    lastSimulationAt: initialVolumeReady ? Date.now() : null,
+    dicomSeries: null as DICOMSeries | null,
+    dicomVolume: null as DICOMVolume | null,
+    dicomReady: false,
+    dicomError: null as string | null,
+    normalizedVolume: null as NormalizedVolume | null,
+    volumeLoadError: null as string | null,
+    isLoadingVolume: false,
     
+    // Methods
     initIfNeeded: (reason: string, configOverride?: MRILabConfig) => {
       const state = get();
       console.log(`[MRI Store] initIfNeeded called - reason: ${reason}, volumeReady: ${state.volumeReady}, isSimulating: ${state.isSimulating}`);

@@ -4,7 +4,7 @@
  * Saída: ParsedVolume normalizado
  */
 
-import { ParsedVolume, VolumeParseError } from './volumeTypes';
+import { ParsedVolume, NormalizedVolume, VolumeParseError } from './volumeTypes';
 import { parseDICOMFile, sortDICOMSlices, buildDICOMSeries } from '@/lib/dicomParser';
 import { parseNIfTIFile, buildNIfTIVolume } from '@/lib/niftiParser';
 import { normalizeDicomVolume, normalizeNiftiVolume } from './volumeNormalizer';

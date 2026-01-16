@@ -192,7 +192,7 @@ export function VtkVolumeViewer({ showDebug = false }: VtkVolumeViewerProps) {
     presetType: VolumePreset,
     colorTF: any,
     opacityTF: any,
-    volume: DICOMVolume
+    volume: { min: number; max: number }
   ) => {
     const { min, max } = volume;
     const range = max - min;

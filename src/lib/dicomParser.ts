@@ -82,8 +82,8 @@ export async function parseDICOMFile(file: File): Promise<{
             
             // Method 3: Try floatString
             const value = dataSet.floatString(tag);
-            if (value !== undefined && value !== null && !isNaN(parseFloat(value))) {
-              return parseFloat(value);
+            if (value !== undefined && value !== null && !isNaN(parseFloat(String(value)))) {
+              return parseFloat(String(value));
             }
             
             // Method 4: Try string and parse
@@ -334,7 +334,7 @@ export async function parseDICOMFile(file: File): Promise<{
 /**
  * Sort slices by position (prefer ImagePositionPatient, fallback to InstanceNumber)
  */
-export function sortDICOMSlices(slices: Array<{ metadata: DICOMMetadata; file: File }>): Array<{ metadata: DICOMMetadata; file: File }> {
+export function sortDICOMSlices<T extends { metadata: DICOMMetadata; file: File }>(slices: T[]): T[] {
   return [...slices].sort((a, b) => {
     // Prefer ImagePositionPatient (z coordinate projected onto normal)
     if (a.metadata.imagePositionPatient && b.metadata.imagePositionPatient) {

@@ -5,7 +5,7 @@
 
 import { useRef, useState, useEffect } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, PerspectiveCamera, Grid, Line, Text, Html, ArrowHelper as DreiArrowHelper } from "@react-three/drei";
+import { OrbitControls, PerspectiveCamera, Grid, Line, Text, Html } from "@react-three/drei";
 import { useMRILabStore } from "@/stores/mriLabStore";
 import { TISSUE_PROPERTIES } from "@/types/mriLabConfig";
 import * as THREE from "three";

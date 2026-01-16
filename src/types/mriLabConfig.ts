@@ -54,7 +54,7 @@ export interface MRILabConfig {
   dicomSeries?: DICOMSeries;
   
   // NIfTI Volume (for nifti mode)
-  niftiVolume?: DICOMVolume; // Reuse DICOMVolume type for NIfTI
+  niftiVolume?: import('@/stores/mriLabStore').DICOMVolume; // Reuse DICOMVolume type for NIfTI
   
   // Enabled Controls
   enabledControls: {
