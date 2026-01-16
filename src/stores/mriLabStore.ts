@@ -3,7 +3,7 @@
  * CONTRATO FORTE: volumeReady === true significa volume válido disponível
  */
 
-import { create } from "zustand";
+import { create, StateCreator } from "zustand";
 import { MRILabConfig, defaultMRILabConfig, VolumeMRI, DICOMSeries } from "@/types/mriLabConfig";
 import { simulateMRI, MRISimulationResult, applyMRIPreset } from "@/simulation/mriEngine";
 import { NormalizedVolume, ParsedVolume } from "@/lib/mri/volumeTypes";
@@ -21,28 +21,28 @@ export interface DICOMVolume {
   spacingBetweenSlices: number | null;
 }
 
-interface MRILabStore {
+// State-only interface (properties only)
+interface MRILabState {
   config: MRILabConfig;
   volume: VolumeMRI | null;
   volumeReady: boolean;
   simulationResult: MRISimulationResult | null;
   simulationError: string | null;
-  isSimulating: boolean; // Flag to prevent recursive calls
-  storeInstanceId: string; // Unique ID for debugging store duplication
-  lastSimulatedConfigHash: string; // Hash of last config used for simulation
-  lastSimulationAt: number | null; // Timestamp of last simulation
-  
-  // DICOM support (legacy - será removido gradualmente)
+  isSimulating: boolean;
+  storeInstanceId: string;
+  lastSimulatedConfigHash: string;
+  lastSimulationAt: number | null;
   dicomSeries: DICOMSeries | null;
   dicomVolume: DICOMVolume | null;
   dicomReady: boolean;
   dicomError: string | null;
-  
-  // Novo sistema unificado
   normalizedVolume: NormalizedVolume | null;
   volumeLoadError: string | null;
   isLoadingVolume: boolean;
-  
+}
+
+// Actions interface
+interface MRILabActions {
   initIfNeeded: (reason: string, configOverride?: MRILabConfig) => void;
   setLabConfig: (config: MRILabConfig) => void;
   updateConfig: (updates: Partial<MRILabConfig>) => void;
@@ -50,18 +50,20 @@ interface MRILabStore {
   setDicomSeries: (series: DICOMSeries) => void;
   buildDicomVolume: (series: DICOMSeries) => DICOMVolume;
   setNIfTIVolume: (volume: DICOMVolume, metadata?: any) => void;
-  
-  // Novo sistema unificado
   loadVolumeFromFiles: (files: File[], onProgress?: (progress: number) => void) => Promise<void>;
   setNormalizedVolume: (volume: NormalizedVolume) => void;
   clearVolume: () => void;
 }
 
+// Combined store interface
+interface MRILabStore extends MRILabState, MRILabActions {}
+
 // Generate unique store instance ID (singleton - created once)
 const STORE_INSTANCE_ID = `mri-store-${Math.random().toString(16).slice(2)}-${Date.now()}`;
 console.log(`[MRI Store] Creating store instance: ${STORE_INSTANCE_ID}`);
-
-export const useMRILabStore = create<MRILabStore>((set, get) => {
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - Zustand v5 strict type inference with complex async stores
+export const useMRILabStore = create<MRILabStore>()((set, get) => {
   // Run initial simulation
   let initialVolume: VolumeMRI | null = null;
   let initialVolumeReady = false;
@@ -122,7 +124,7 @@ export const useMRILabStore = create<MRILabStore>((set, get) => {
   const initialConfig = { ...defaultMRILabConfig, sliceIndex: initialSliceIndex };
   
   return {
-    // State properties
+    // State properties - explicitly typed
     config: initialConfig,
     volume: initialVolume,
     volumeReady: initialVolumeReady,
@@ -467,7 +469,7 @@ export const useMRILabStore = create<MRILabStore>((set, get) => {
       }
     },
     
-    setNIfTIVolume: (volume: DICOMVolume, metadata?: any) => {
+    setNIfTIVolume: (volume: DICOMVolume, _metadata?: any) => {
       console.log("[MRI Store] setNIfTIVolume called");
       try {
         set({
@@ -508,7 +510,7 @@ export const useMRILabStore = create<MRILabStore>((set, get) => {
         
         // Ler arquivos com progresso
         const fileReaders: Promise<any>[] = [];
-        files.forEach((file, index) => {
+        files.forEach((file) => {
           const reader = new FileReader();
           const promise = new Promise((resolve, reject) => {
             reader.onload = (e) => {
@@ -597,7 +599,7 @@ export const useMRILabStore = create<MRILabStore>((set, get) => {
         dicomVolume: null,
       });
     },
-  };
+  } as MRILabStore;
 });
 
 // Export store instance ID for debugging
