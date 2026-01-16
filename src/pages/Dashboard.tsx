@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { GraduationCap, Trophy, Clock, BookOpen, LogOut, Zap, Award, TrendingUp, UserPlus, UserMinus, Sparkles, ArrowRight, Activity, FlaskConical, ChevronLeft, ChevronRight } from "lucide-react";
+import { GraduationCap, Trophy, Clock, BookOpen, LogOut, Zap, Award, TrendingUp, UserPlus, UserMinus, Sparkles, ArrowRight, Activity, FlaskConical, ChevronLeft, ChevronRight, Pill, FileText } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
 import { enrollmentService } from "@/services/enrollmentService";
@@ -41,6 +41,7 @@ const Dashboard = () => {
   const [currentCapsulaIndex, setCurrentCapsulaIndex] = useState(0);
   const { capsula: capsulaInacabada, loading: loadingInacabada } = useCapsulaInacabada(userId);
   const [capaUrls, setCapaUrls] = useState<Record<string, string>>({});
+  const [capsulasConcluidas, setCapsulasConcluidas] = useState<number>(0);
 
   // Resetar índice quando as cápsulas mudarem (ex: quando uma for concluída)
   useEffect(() => {
@@ -155,6 +156,32 @@ const Dashboard = () => {
     };
     checkAuth();
   }, [navigate]);
+
+  // Buscar contagem de cápsulas concluídas
+  useEffect(() => {
+    const loadCapsulasConcluidas = async () => {
+      if (!userId) {
+        setCapsulasConcluidas(0);
+        return;
+      }
+
+      try {
+        const { count, error } = await supabase
+          .from("capsula_progress")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .eq("status", "concluido");
+
+        if (error) throw error;
+        setCapsulasConcluidas(count || 0);
+      } catch (error) {
+        console.error("Erro ao carregar cápsulas concluídas:", error);
+        setCapsulasConcluidas(0);
+      }
+    };
+
+    loadCapsulasConcluidas();
+  }, [userId]);
 
   // Load cover images for capsules
   useEffect(() => {
@@ -288,7 +315,7 @@ const Dashboard = () => {
         <div className="grid md:grid-cols-4 gap-6 mb-8">
           <Card className="p-6">
             <div className="flex items-center justify-between mb-2">
-              <Trophy className="h-8 w-8 text-secondary" />
+              <FileText className="h-8 w-8 text-secondary" />
               <span className="text-2xl font-bold">{stats?.total_lessons_completed || 0}</span>
             </div>
             <p className="text-sm text-muted-foreground">Aulas Concluídas</p>
@@ -297,10 +324,10 @@ const Dashboard = () => {
 
           <Card className="p-6">
             <div className="flex items-center justify-between mb-2">
-              <Zap className="h-8 w-8 text-accent" />
-              <span className="text-2xl font-bold">{stats?.streak_days || 0}</span>
+              <Pill className="h-8 w-8 text-accent" />
+              <span className="text-2xl font-bold">{capsulasConcluidas}</span>
             </div>
-            <p className="text-sm text-muted-foreground">Sequência de Dias</p>
+            <p className="text-sm text-muted-foreground">Cápsulas Concluídas</p>
             <p className="text-xs text-muted-foreground mt-1">Continue assim!</p>
           </Card>
 
@@ -344,7 +371,7 @@ const Dashboard = () => {
         {!loadingRecomendadas && capsulaRecomendadas.length > 0 && (
           <div className="mb-8">
             <div className="flex items-center gap-2 mb-6">
-              <Sparkles className="h-6 w-6 text-accent" />
+              <Pill className="h-6 w-6 text-accent" />
               <h2 className="text-3xl font-bold">Em Alta Hoje</h2>
             </div>
             <div className="relative">
@@ -389,7 +416,7 @@ const Dashboard = () => {
                         <h3 className="font-semibold text-lg mb-2">{capsula.title}</h3>
                         <p className="text-sm text-muted-foreground mb-4 line-clamp-2 flex-1">{capsula.description}</p>
                         <Button size="sm" className="w-full mt-auto">
-                          Começar <ArrowRight className="h-4 w-4 ml-2" />
+                          Conferir <ArrowRight className="h-4 w-4 ml-2" />
                         </Button>
                       </div>
                     </Card>
@@ -451,8 +478,10 @@ const Dashboard = () => {
         {/* Available Modules */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-3xl font-bold">Explorar Módulos</h2>
-            
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-6 w-6 text-accent" />
+              <h2 className="text-3xl font-bold">Explorar Módulos</h2>
+            </div>
           </div>
 
           {modules.length === 0 ? <Card className="p-12 text-center">
@@ -462,50 +491,52 @@ const Dashboard = () => {
                 Volte em breve! Os administradores estão preparando conteúdo de aprendizado para você.
               </p>
             </Card> : <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {modules.map(module => <Card key={module.id} className="overflow-hidden hover:shadow-xl transition-smooth group cursor-pointer">
-                  <div className="p-6">
+              {modules.map(module => <Card key={module.id} className="overflow-hidden hover:shadow-xl transition-smooth group cursor-pointer flex flex-col">
+                  <div className="p-6 flex flex-col flex-1">
                     <h3 className="text-xl font-semibold mb-2 group-hover:text-primary transition-smooth">
                       {module.title}
                     </h3>
                     <p className="text-muted-foreground text-sm mb-4 line-clamp-3">
                       {module.description}
                     </p>
-                    {enrolledModules.has(module.id) ? (
-                      <div className="space-y-2">
+                    <div className="mt-auto">
+                      {enrolledModules.has(module.id) ? (
+                        <div className="space-y-2">
+                          <Button 
+                            className="w-full" 
+                            variant="default" 
+                            onClick={() => navigate(`/module/${module.id}/capsulas`)}
+                          >
+                            <Pill className="mr-2 h-4 w-4" />
+                            Ver Cápsulas
+                          </Button>
+                          <Button 
+                            className="w-full" 
+                            variant="outline" 
+                            onClick={() => handleStartModule(module.id)}
+                          >
+                            <FileText className="mr-2 h-4 w-4" />
+                            Ver Aulas
+                          </Button>
+                          <Button 
+                            className="w-full" 
+                            variant="ghost" 
+                            onClick={(e) => handleUnenroll(module.id, e)}
+                          >
+                            <UserMinus className="mr-2 h-4 w-4" />
+                            Cancelar Matrícula
+                          </Button>
+                        </div>
+                      ) : (
                         <Button 
                           className="w-full" 
-                          variant="default" 
-                          onClick={() => navigate(`/module/${module.id}/capsulas`)}
+                          onClick={(e) => handleEnroll(module.id, e)}
                         >
-                          <Sparkles className="mr-2 h-4 w-4" />
-                          Ver Cápsulas
+                          <UserPlus className="mr-2 h-4 w-4" />
+                          Matricular-se
                         </Button>
-                        <Button 
-                          className="w-full" 
-                          variant="outline" 
-                          onClick={() => handleStartModule(module.id)}
-                        >
-                          <BookOpen className="mr-2 h-4 w-4" />
-                          Ver Aulas
-                        </Button>
-                        <Button 
-                          className="w-full" 
-                          variant="ghost" 
-                          onClick={(e) => handleUnenroll(module.id, e)}
-                        >
-                          <UserMinus className="mr-2 h-4 w-4" />
-                          Cancelar Matrícula
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button 
-                        className="w-full" 
-                        onClick={(e) => handleEnroll(module.id, e)}
-                      >
-                        <UserPlus className="mr-2 h-4 w-4" />
-                        Matricular-se
-                      </Button>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </Card>)}
             </div>}
