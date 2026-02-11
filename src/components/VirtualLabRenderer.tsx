@@ -77,35 +77,47 @@ export function VirtualLabRenderer({ labId, className }: VirtualLabRendererProps
     const config = lab.config_data || {};
     const labType = lab.lab_type as string;
 
+    // Debug log
+    console.log('🔍 VirtualLabRenderer:', {
+      id: lab.id,
+      title: lab.title,
+      lab_type: labType,
+      hasConfig: !!config && Object.keys(config).length > 0,
+      configKeys: config ? Object.keys(config).slice(0, 10) : [],
+      hasDiagnosticKeys: !!(config.gain || config.depth || config.layers),
+      hasTherapyKeys: !!(config.era || config.dutyCycle || config.scenario),
+    });
+
     switch (labType) {
-      case "mri_viewer":
-      case "mri":
-        return <MRIViewer config={config} />;
-      
-      case "ultrassom_simulador":
+      // Ultrassom Diagnóstico
+      case "ultrassom_simulador": // legado
       case "ultrasound":
-        // Pass the complete configuration directly to UltrasoundUnifiedLab
         return <UltrasoundUnifiedLab config={config} />;
       
+      // Ultrassom Terapêutico
+      case "ultrassom_terapeutico": // legado
+      case "ultrasound_therapy":
+        return <UltrasoundTherapyLabPage config={config} />;
+      
+      // TENS
       case "tens":
         return <TensLabPage config={config} />;
       
-      case "eletroterapia_sim":
+      // MRI
+      case "mri_viewer": // legado
+      case "mri":
+        return <MRILabPage config={config} />;
+      
+      // Eletroterapia
+      case "eletroterapia_sim": // legado
       case "electrotherapy":
         return <EletroterapiaLab config={config} />;
       
       case "eletroterapia_dose":
         return <ElectrotherapyDoseLab />;
       
-      case "ultrassom_terapeutico":
-      case "ultrasound_therapy":
-        return <UltrasoundTherapyLabPage config={config} />;
-      
-      case "mri":
-      case "mri_viewer":
-        return <MRILabPage config={config} />;
-      
-      case "termico_sim":
+      // Térmico
+      case "termico_sim": // legado
       case "thermal":
         return <ThermalLab config={config} />;
       

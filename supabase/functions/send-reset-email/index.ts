@@ -38,7 +38,7 @@ serve(async (req) => {
     const fromEmail = settings?.reset_from_email || 
                      settings?.default_from_email || 
                      Deno.env.get("EMAIL_FROM_DEFAULT") || 
-                     "noreply@resend.dev";
+                     "noreply@progenia.com.br";
     
     const subject = settings?.reset_subject || "Redefinição de senha – ProGenia";
     const bodyIntro = settings?.reset_body_intro || 

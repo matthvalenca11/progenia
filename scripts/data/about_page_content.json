@@ -1,0 +1,61 @@
+[
+  {
+    "id": "52eec2c9-3b38-496f-8085-a0dc30af18a6",
+    "created_at": "2025-11-22T20:13:14.260778+00:00",
+    "updated_at": "2025-11-22T20:13:14.260778+00:00",
+    "hero_title": "Sobre a ProGenia",
+    "hero_subtitle": "Democratizando o acesso ao conhecimento científico em saúde através de aprendizado interativo, simulações práticas e tecnologia de ponta.",
+    "motivation_title": "Por Que ProGenia Existe?",
+    "motivation_description": "Profissionais de saúde frequentemente utilizam tecnologias terapêuticas e diagnósticas sem compreender profundamente os princípios físicos e fisiológicos por trás delas.",
+    "motivation_challenges": [
+      "Lacunas na formação sobre física aplicada à saúde",
+      "Riscos do uso inadequado de eletroterapias e equipamentos",
+      "Recursos de treinamento limitados e fragmentados",
+      "Dificuldade em visualizar conceitos abstratos"
+    ],
+    "solution_title": "Nossa Solução",
+    "solution_subtitle": "ProGenia oferece uma abordagem moderna e eficaz para o aprendizado científico em saúde",
+    "solution_features": [
+      {
+        "title": "Micro-Learning Estruturado",
+        "description": "Conteúdo dividido em módulos curtos e focados, facilitando a absorção do conhecimento"
+      },
+      {
+        "title": "Simulações Interativas",
+        "description": "Laboratórios virtuais onde você pode experimentar e visualizar conceitos complexos"
+      },
+      {
+        "title": "Aprendizado Personalizado",
+        "description": "IA que acompanha seu progresso e sugere conteúdos baseados nas suas necessidades"
+      }
+    ],
+    "audience_title": "Quem se Beneficia?",
+    "audience_subtitle": "ProGenia foi desenvolvido para profissionais e estudantes da área da saúde",
+    "audience_stats": [
+      {
+        "icon": "👨‍⚕️",
+        "count": "300.000+",
+        "title": "Profissionais da Saúde no Brasil",
+        "subtitle": "Registrados no COFFITO"
+      },
+      {
+        "icon": "🎓",
+        "count": "600+",
+        "title": "Cursos de Graduação",
+        "subtitle": "Fisioterapia, Fonoaudiologia e TO"
+      },
+      {
+        "icon": "🏥",
+        "count": "20.000+",
+        "title": "Clínicas e centros de reabilitação física",
+        "subtitle": "Profissionais ativos"
+      }
+    ],
+    "partners_title": "Nossos Parceiros",
+    "partners_subtitle": "Parceiros e apoiadores da nossa missão",
+    "team_title": "Nossa Equipe",
+    "team_subtitle": "Especialistas dedicados a revolucionar a educação em saúde",
+    "cta_title": "Pronto para Transformar Seu Aprendizado?",
+    "cta_subtitle": "Faça parte da nova geração de profissionais que dominam a ciência por trás da tecnologia médica"
+  }
+]

@@ -71,8 +71,28 @@ export default function LabViewer() {
   // Extract video URL from config
   const videoUrl = (lab.config_data as any)?.videoUrl;
 
+  // Debug log
+  console.log('🔍 LabViewer: Renderizando lab', {
+    id: lab.id,
+    title: lab.title,
+    name: lab.name,
+    lab_type: lab.lab_type,
+    lab_type_type: typeof lab.lab_type,
+    lab_type_length: lab.lab_type?.length,
+    lab_type_trimmed: lab.lab_type?.trim(),
+    slug: lab.slug,
+    hasConfig: !!lab.config_data,
+    configKeys: lab.config_data ? Object.keys(lab.config_data).slice(0, 10) : [],
+    isUltraSound: lab.lab_type === "ultrasound",
+    isUltraSoundTherapy: lab.lab_type === "ultrasound_therapy",
+    isUltraSomTerapeutico: lab.lab_type === "ultrassom_terapeutico",
+  });
+
   // Render based on lab type - wrapped with LabWrapper for video + disclaimer
-  if (lab.lab_type === "ultrasound") {
+  const labType = String(lab.lab_type || '').trim();
+  
+  if (labType === "ultrasound") {
+    console.log('✅ LabViewer: Renderizando UltrasoundUnifiedLab (DIAGNÓSTICO)');
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto py-8">
@@ -92,7 +112,7 @@ export default function LabViewer() {
     );
   }
 
-  if (lab.lab_type === "tens") {
+  if (labType === "tens") {
     return (
       <div className="min-h-screen bg-background">
         <LabWrapper videoUrl={videoUrl} title={lab.name}>
@@ -102,7 +122,15 @@ export default function LabViewer() {
     );
   }
 
-  if (lab.lab_type === "ultrasound_therapy" || lab.lab_type === "ultrassom_terapeutico") {
+  if (labType === "ultrasound_therapy" || labType === "ultrassom_terapeutico") {
+    console.log('✅ LabViewer: Renderizando UltrasoundTherapyLabPage (TERAPÊUTICO) para lab_type:', labType);
+    console.log('📋 LabViewer: Config recebido:', {
+      hasConfig: !!lab.config_data,
+      configKeys: lab.config_data ? Object.keys(lab.config_data).slice(0, 15) : [],
+      hasEra: !!(lab.config_data as any)?.era,
+      hasGain: !!(lab.config_data as any)?.gain,
+      hasDepth: !!(lab.config_data as any)?.depth,
+    });
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto py-8">
@@ -122,7 +150,7 @@ export default function LabViewer() {
     );
   }
 
-  if (lab.lab_type === "mri") {
+  if (labType === "mri") {
     return (
       <div className="min-h-screen bg-background">
         <LabWrapper videoUrl={videoUrl} title={lab.title || lab.name}>

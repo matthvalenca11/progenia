@@ -20,9 +20,18 @@ const VerifyEmail = () => {
   const verifyEmail = async () => {
     const token = searchParams.get("token");
 
+    // Se não tem token, pode ter vindo do link do Supabase (confirmação nativa).
+    // Nesse caso, o usuário já foi confirmado ao clicar no link.
     if (!token) {
-      setStatus("error");
-      setMessage("Token de verificação não encontrado");
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email_confirmed_at) {
+        setStatus("success");
+        setMessage("E-mail verificado com sucesso!");
+        toast.success("E-mail verificado! Você já pode fazer login.");
+        return;
+      }
+      setStatus("success");
+      setMessage("Se você clicou no link do e-mail, sua conta já foi ativada. Faça login para continuar.");
       return;
     }
 

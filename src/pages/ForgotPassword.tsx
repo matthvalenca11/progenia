@@ -27,9 +27,9 @@ const ForgotPassword = () => {
       const validated = emailSchema.parse({ email });
       setLoading(true);
 
-      // Use our custom edge function instead of Supabase's resetPasswordForEmail
-      const { error } = await supabase.functions.invoke('request-password-reset', {
-        body: { email: validated.email },
+      const redirectTo = `${window.location.origin}/reset-password`;
+      const { error } = await supabase.auth.resetPasswordForEmail(validated.email, {
+        redirectTo,
       });
 
       if (error) {
@@ -67,6 +67,9 @@ const ForgotPassword = () => {
             </p>
             <p className="text-sm text-muted-foreground">
               Verifique sua caixa de entrada e clique no link para redefinir sua senha.
+            </p>
+            <p className="text-sm text-amber-600 dark:text-amber-500 font-medium">
+              Não encontrou o e-mail? Confira a pasta de spam ou lixo eletrônico.
             </p>
             <Button
               variant="outline"

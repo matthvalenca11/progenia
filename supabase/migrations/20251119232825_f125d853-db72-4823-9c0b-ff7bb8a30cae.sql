@@ -1,5 +1,14 @@
--- Criar enum para papéis de usuário
-CREATE TYPE public.app_role AS ENUM ('admin', 'moderator', 'user');
+-- Criar enum para papéis de usuário (só se ainda não existir)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_type t
+    JOIN pg_namespace n ON t.typnamespace = n.oid
+    WHERE n.nspname = 'public' AND t.typname = 'app_role'
+  ) THEN
+    CREATE TYPE public.app_role AS ENUM ('admin', 'moderator', 'user');
+  END IF;
+END $$;
 
 -- Tabela de perfis de usuários
 CREATE TABLE public.profiles (

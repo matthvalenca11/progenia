@@ -110,7 +110,7 @@ export const EmailSettingsManager = () => {
               <Input
                 id="default_from"
                 type="email"
-                placeholder="no-reply@progenia.com"
+                placeholder="noreply@progenia.com.br"
                 value={settings.default_from_email}
                 onChange={(e) => setSettings({ ...settings, default_from_email: e.target.value })}
               />

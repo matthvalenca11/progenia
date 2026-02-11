@@ -62,11 +62,11 @@ export default function ModuleCapsules() {
       if (moduleError) throw moduleError;
       setModule(moduleData);
 
-      // Load capsulas for this module
+      // Load capsulas for this module (suporta module_id e modulo_id)
       const { data: capsulasData, error: capsulasError } = await supabase
         .from("capsulas")
         .select("*")
-        .eq("module_id", moduleId)
+        .or(`module_id.eq.${moduleId},modulo_id.eq.${moduleId}`)
         .eq("is_published", true)
         .order("order_index", { ascending: true });
 

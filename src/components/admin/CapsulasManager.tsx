@@ -302,6 +302,26 @@ export function CapsulasManager() {
     if (!deleteCapsulaId) return;
 
     try {
+      // Buscar cápsula para extrair URLs de mídia antes de excluir
+      const { data: capsula } = await supabase
+        .from("capsulas")
+        .select("thumbnail_url, content_data")
+        .eq("id", deleteCapsulaId)
+        .single();
+
+      if (capsula) {
+        const urls: string[] = [];
+        if (capsula.thumbnail_url && typeof capsula.thumbnail_url === "string") urls.push(capsula.thumbnail_url);
+        const content = capsula.content_data as any;
+        (content?.media || []).forEach((m: any) => {
+          if (m?.url && typeof m.url === "string") urls.push(m.url);
+        });
+        // Deletar mídia do storage (apenas URLs do Supabase)
+        await Promise.allSettled(
+          urls.filter((u) => u?.includes?.("/storage/v1/object/public/")).map((u) => storageService.deleteFileFromSupabaseUrl(u))
+        );
+      }
+
       const { error } = await supabase.from("capsulas").delete().eq("id", deleteCapsulaId);
       if (error) throw error;
 

@@ -95,13 +95,13 @@ export const virtualLabService = {
       .from("virtual_labs")
       .select("*")
       .eq("slug", slug)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("Error getting lab by slug:", error);
       return null;
     }
-    return data as VirtualLab;
+    return data as VirtualLab | null;
   },
 
   getPublishedLabs: async (): Promise<VirtualLab[]> => {

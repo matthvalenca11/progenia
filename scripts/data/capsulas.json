@@ -1,0 +1,176 @@
+[
+  {
+    "id": "9fc5bb63-3910-4120-b7f2-1bb4c6ea9cef",
+    "title": "Por que aumentar o ganho nem sempre melhora a imagem no ultrassom?",
+    "description": "Você realmente melhora a imagem ao aumentar o ganho? Descubra em poucos minutos como o ganho afeta contraste, ruído e interpretação clínica.",
+    "content_data": {
+      "quiz": [
+        {
+          "options": [
+            "A) Aumenta a resolução espacial da imagem",
+            "B) Melhora automaticamente a definição das bordas",
+            "C) Amplifica o ruído e reduz o contraste entre tecidos",
+            "D) Permite visualizar estruturas mais profundas sem perda de qualidade"
+          ],
+          "question": "O que pode acontecer quando o ganho está excessivamente alto no ultrassom?",
+          "correctAnswer": 2
+        }
+      ],
+      "text": " No ultrassom, o ganho é basicamente o controle de “volume” da imagem.\nEle define o quanto os ecos (os sinais que voltam depois que a onda de ultrassom bate nos tecidos) são amplificados antes de virar imagem na tela.\n\nAumentar o ganho não cria detalhes novos. Ele só deixa tudo mais claro.\n\nQuando o ganho está baixo demais (subganho), partes reais da anatomia podem simplesmente desaparecer da imagem, ficando escuras demais para serem identificadas.\nJá quando o ganho está alto demais (superganho), não é só o sinal útil que aumenta, o ruído (informação indesejada) também cresce, deixando a imagem “lavada” e com pouco contraste entre os tecidos.\n\nO ganho ideal é aquele que deixa a imagem nem escura demais, nem estourada demais, permitindo diferenciar estruturas sem mascarar detalhes importantes.\nPor isso, mais ganho nem sempre significa melhor imagem, significa apenas mais amplificação, boa ou ruim.",
+      "media": [],
+      "virtualLabId": "de18b06d-17df-41d5-88a3-1ad41b298d4d"
+    },
+    "module_id": "45e7ceb5-bc77-483e-85f0-138551b2b726",
+    "is_published": true,
+    "duration_minutes": 5,
+    "order_index": null,
+    "thumbnail_url": "https://cycthtodyhyssfirdrzh.supabase.co/storage/v1/object/public/lesson-assets/capsulas/9fc5bb63-3910-4120-b7f2-1bb4c6ea9cef/thumbnail_chatgpt-image-15-de-jan.-de-2026-21_57_18-1768525648481-it1cln.png",
+    "created_at": "2026-01-16T01:07:28.137971+00:00",
+    "updated_at": "2026-01-16T01:07:33.271852+00:00"
+  },
+  {
+    "id": "ea0146b1-4568-40a7-92c8-d37664a9b01c",
+    "title": "O que realmente muda quando você troca a frequência do transdutor?",
+    "description": "No ultrassom, a frequência está ligada ao tamanho da onda emitida pelo transdutor.\nEla influencia diretamente duas coisas importantes: resolução e profundidade.\n\nFrequências altas produzem ondas menores, o que melhora a resolução (capacidade de diferenciar estruturas muito próximas). Por isso, são ideais para examinar tecidos superficiais, como músculos, tendões e vasos mais rasos.\nO problema é que essas ondas perdem energia mais rápido e não penetram muito fundo.\n\nJá frequências baixas geram ondas maiores, que conseguem viajar mais longe dentro do corpo, alcançando estruturas profundas. Em troca, a imagem perde um pouco de detalhe fino, ficando com menor resolução.\n\nOu seja, não existe frequência “melhor”.\nExiste a frequência certa para o que você quer ver: mais detalhe ou mais profundidade.",
+    "content_data": {
+      "quiz": [
+        {
+          "options": [
+            "A) Maior resolução espacial",
+            "B) Maior penetração em tecidos profundos",
+            "C) Melhor contraste entre tecidos superficiais",
+            "D) Redução do ruído da imagem"
+          ],
+          "question": "Qual é a principal vantagem do uso de frequências mais baixas no ultrassom?",
+          "correctAnswer": 1
+        }
+      ],
+      "text": " No ultrassom, a frequência está ligada ao tamanho da onda emitida pelo transdutor.\nEla influencia diretamente duas coisas importantes: resolução e profundidade.\n\nFrequências altas produzem ondas menores, o que melhora a resolução (capacidade de diferenciar estruturas muito próximas). Por isso, são ideais para examinar tecidos superficiais, como músculos, tendões e vasos mais rasos.\nO problema é que essas ondas perdem energia mais rápido e não penetram muito fundo.\n\nJá frequências baixas geram ondas maiores, que conseguem viajar mais longe dentro do corpo, alcançando estruturas profundas. Em troca, a imagem perde um pouco de detalhe fino, ficando com menor resolução.\n\nOu seja, não existe frequência “melhor”.\nExiste a frequência certa para o que você quer ver: mais detalhe ou mais profundidade.",
+      "media": [],
+      "virtualLabId": "1aae83df-6c56-48af-a1a9-d819c4d4df5b"
+    },
+    "module_id": "45e7ceb5-bc77-483e-85f0-138551b2b726",
+    "is_published": true,
+    "duration_minutes": 6,
+    "order_index": null,
+    "thumbnail_url": "https://cycthtodyhyssfirdrzh.supabase.co/storage/v1/object/public/lesson-assets/capsulas/ea0146b1-4568-40a7-92c8-d37664a9b01c/thumbnail_chatgpt-image-15-de-jan.-de-2026-22_14_50-1768526415841-jn0eu5.png",
+    "created_at": "2026-01-16T01:20:15.657198+00:00",
+    "updated_at": "2026-01-16T01:20:19.083185+00:00"
+  },
+  {
+    "id": "14955c96-168d-4da0-8976-4d0209bb08dc",
+    "title": "Ultrassom terapêutico esquenta ou vibra o tecido?",
+    "description": "Entenda de forma simples os efeitos térmicos e mecânicos do ultrassom terapêutico e quando cada um predomina.",
+    "content_data": {
+      "quiz": [
+        {
+          "options": [
+            "A) Modo contínuo",
+            "B) Alta intensidade",
+            "C) Frequência mais baixa",
+            "D) Modo pulsado"
+          ],
+          "question": "Qual configuração do ultrassom terapêutico tende a reduzir o efeito térmico?",
+          "correctAnswer": 3
+        }
+      ],
+      "text": " O ultrassom terapêutico não faz só uma coisa.\nEle pode aquecer o tecido e também gerar vibração mecânica, tudo depende de como o aparelho está configurado.\n\nQuando o ultrassom é aplicado no modo contínuo, a energia é transmitida sem pausas, favorecendo o efeito térmico (aumento de temperatura do tecido). Esse aquecimento pode ajudar na extensibilidade do tecido e no relaxamento muscular.\n\nJá no modo pulsado, a emissão acontece em ciclos de liga e desliga. Isso reduz o aquecimento e destaca os efeitos mecânicos (micromassagem, vibração das células e dos fluidos), que atuam mesmo sem aumento significativo de temperatura.\n\nOu seja, o ultrassom terapêutico não é só calor e nem só vibração.\nO efeito predominante depende do modo de aplicação e do objetivo terapêutico.",
+      "media": [],
+      "virtualLabId": "a990ba21-d779-48ad-a93b-7ed59ce91876"
+    },
+    "module_id": "6500808b-2656-4e0a-8b5e-1a5c000918db",
+    "is_published": true,
+    "duration_minutes": 5,
+    "order_index": null,
+    "thumbnail_url": "https://cycthtodyhyssfirdrzh.supabase.co/storage/v1/object/public/lesson-assets/capsulas/14955c96-168d-4da0-8976-4d0209bb08dc/thumbnail_chatgpt-image-15-de-jan.-de-2026-22_38_29-1768527538114-cf95lt.png",
+    "created_at": "2026-01-16T01:38:57.895116+00:00",
+    "updated_at": "2026-01-16T01:39:00.674865+00:00"
+  },
+  {
+    "id": "63cb5cc6-5645-470c-a37f-4e88f109577a",
+    "title": "Por que o modo pulsado é mais seguro em algumas terapias?",
+    "description": "Veja como o duty cycle influencia energia, aquecimento e segurança terapêutica.",
+    "content_data": {
+      "quiz": [
+        {
+          "options": [
+            "A) A frequência da onda ultrassônica",
+            "B) A intensidade máxima do equipamento",
+            "C) A porcentagem do tempo em que o ultrassom fica ligado",
+            "D) A profundidade de penetração da onda"
+          ],
+          "question": "O que o duty cycle representa no ultrassom terapêutico?",
+          "correctAnswer": 2
+        }
+      ],
+      "text": " No ultrassom terapêutico, o efeito no tecido depende de como a energia é aplicada.\nDependendo do modo escolhido, o principal efeito pode ser térmico (calor) ou mecânico (vibração).\n\nQuando o ultrassom é usado de forma contínua, a energia é entregue sem pausas. Isso favorece o aumento da temperatura dos tecidos, sendo útil em situações como rigidez muscular, contraturas e tecidos que precisam de maior extensibilidade. Nesses casos, o aquecimento é desejável e faz parte do efeito terapêutico.\n\nJá no modo pulsado, o ultrassom alterna períodos em que está ligado (ON) e desligado (OFF).\nA relação entre esse tempo ligado e o tempo total é chamada de duty cycle.\n\nPor exemplo:\n• Duty cycle de 50% → metade do tempo ligado, metade desligado\n• Duty cycle de 20% → pouco tempo ligado e mais tempo desligado\n\nQuanto menor o duty cycle, menor o aquecimento e maior o predomínio do efeito mecânico, como micromassagem e vibração celular.\n\nPor isso, o ultrassom pulsado é frequentemente utilizado em situações como:\n• Fases iniciais de lesão\n• Processos inflamatórios\n• Edemas\n• Regiões onde o calor excessivo pode ser prejudicial\n\nNesses casos, busca-se estimular o tecido sem aumentar muito a temperatura.\n\nPor outro lado, o ultrassom contínuo costuma ser preferido quando o objetivo é:\n• Aumentar a extensibilidade do tecido\n• Reduzir rigidez\n• Promover relaxamento muscular profundo",
+      "media": [],
+      "virtualLabId": "26d1081d-f7f3-44a7-aa1f-5c34031a8fe8"
+    },
+    "module_id": "6500808b-2656-4e0a-8b5e-1a5c000918db",
+    "is_published": true,
+    "duration_minutes": 6,
+    "order_index": null,
+    "thumbnail_url": "https://cycthtodyhyssfirdrzh.supabase.co/storage/v1/object/public/lesson-assets/capsulas/63cb5cc6-5645-470c-a37f-4e88f109577a/thumbnail_chatgpt-image-15-de-jan.-de-2026-22_52_23-1768528608031-44rgbc.png",
+    "created_at": "2026-01-16T01:56:47.500808+00:00",
+    "updated_at": "2026-01-16T01:57:02.973353+00:00"
+  },
+  {
+    "id": "41e565b9-c167-4cba-b139-e12a27316516",
+    "title": "Por que mudar a frequência do TENS muda a sensação do paciente?",
+    "description": "Descubra como a frequência altera recrutamento neural e percepção sensorial no TENS.",
+    "content_data": {
+      "quiz": [
+        {
+          "options": [
+            "A) Porque estimula nervos sensitivos",
+            "B) Porque aquece o tecido superficial",
+            "C) Porque provoca contração muscular intensa",
+            "D) Porque bloqueia completamente os nervos"
+          ],
+          "question": "Por que o TENS costuma causar sensação de formigamento na pele?",
+          "correctAnswer": 0
+        }
+      ],
+      "text": " No TENS, a sensação de formigamento acontece porque a corrente elétrica estimula diretamente os nervos sensitivos (nervos responsáveis por levar informações de toque e sensação para o cérebro).\n\nQuando a corrente passa pelos eletrodos, ela provoca pequenas despolarizações nas fibras nervosas da pele, que o cérebro interpreta como uma sensação diferente do normal, geralmente descrita como formigamento, vibração ou “choquinho leve”.\n\nA frequência do TENS influencia muito essa percepção.\nFrequências mais altas costumam gerar um formigamento contínuo e confortável, sem contração muscular visível.\nJá frequências mais baixas podem ativar fibras motoras, causando pequenas contrações e uma sensação mais “pulsada”.\n\nPor isso, mudar a frequência não altera apenas o conforto do paciente, mas também quais fibras nervosas estão sendo estimuladas e qual será o efeito terapêutico predominante.",
+      "media": [],
+      "virtualLabId": "d40b6062-dc45-4918-8d6e-5f4032a4241d"
+    },
+    "module_id": "2945ff48-598f-471c-95bd-49299ff8ffe4",
+    "is_published": true,
+    "duration_minutes": 4,
+    "order_index": null,
+    "thumbnail_url": "https://cycthtodyhyssfirdrzh.supabase.co/storage/v1/object/public/lesson-assets/capsulas/41e565b9-c167-4cba-b139-e12a27316516/thumbnail_chatgpt-image-16-de-jan.-de-2026-00_12_26-1768533246050-cko5s5.png",
+    "created_at": "2026-01-16T03:14:05.754617+00:00",
+    "updated_at": "2026-01-16T03:14:10.068238+00:00"
+  },
+  {
+    "id": "28360456-ca5d-47e0-ad75-c6287504f11b",
+    "title": "A distância entre eletrodos realmente importa no TENS?",
+    "description": "Veja na prática como o espaçamento entre eletrodos muda o campo elétrico e o efeito terapêutico.",
+    "content_data": {
+      "quiz": [
+        {
+          "options": [
+            "A) A corrente fica mais concentrada em um único ponto",
+            "B) O estímulo cobre uma área maior do tecido",
+            "C) O TENS deixa de estimular nervos sensitivos",
+            "D) O efeito térmico aumenta significativamente"
+          ],
+          "question": "O que acontece quando os eletrodos do TENS são posicionados mais afastados?",
+          "correctAnswer": 1
+        }
+      ],
+      "text": " No TENS, não é só a intensidade ou a frequência que importam.\nO espaçamento entre os eletrodos muda completamente como a corrente elétrica se distribui no tecido.\n\nQuando os eletrodos estão muito próximos, a corrente tende a se concentrar em uma área menor. Isso gera uma sensação mais intensa e localizada, sendo útil quando o objetivo é estimular um ponto específico ou uma região pequena.\n\nQuando os eletrodos estão mais afastados, a corrente se espalha por uma área maior. O estímulo fica mais difuso, alcançando mais fibras nervosas e cobrindo uma região mais ampla do corpo.\n\nPor isso, mudar a distância entre os eletrodos altera tanto a sensação percebida pelo paciente quanto o efeito terapêutico.\nNão existe um espaçamento “correto” universal, existe o espaçamento mais adequado para cada objetivo clínico.",
+      "media": [],
+      "virtualLabId": "c6493d5d-7257-4831-afd8-378135e66420"
+    },
+    "module_id": "2945ff48-598f-471c-95bd-49299ff8ffe4",
+    "is_published": true,
+    "duration_minutes": 6,
+    "order_index": null,
+    "thumbnail_url": "https://cycthtodyhyssfirdrzh.supabase.co/storage/v1/object/public/lesson-assets/capsulas/28360456-ca5d-47e0-ad75-c6287504f11b/thumbnail_chatgpt-image-16-de-jan.-de-2026-00_54_46-1768535759916-ranfq3.png",
+    "created_at": "2026-01-16T03:55:59.750754+00:00",
+    "updated_at": "2026-01-16T03:56:02.340294+00:00"
+  }
+]

@@ -1,8 +1,7 @@
-project_id = "cycthtodyhyssfirdrzh"
+project_id = "flhhvrhcrxvxnnbrggwt"
 
 [auth]
 enable_signup = true
-enable_confirmations = false
 
 [auth.email]
 enable_signup = true
@@ -27,4 +26,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.send-contact-email]
+verify_jwt = true
+
+[functions.ai-tutor]
 verify_jwt = false

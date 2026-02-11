@@ -1,0 +1,259 @@
+[
+  {
+    "id": "b43eb8c0-a176-4bcf-bacd-79d569d1c5ae",
+    "created_at": "2025-11-22T20:35:16.367927+00:00",
+    "updated_at": "2025-11-22T22:23:19.196645+00:00",
+    "section_type": "timeline",
+    "order_index": 5,
+    "is_published": true,
+    "title": "Nossa Trajetória",
+    "subtitle": "Como estamos construindo o futuro da educação em saúde",
+    "description": null,
+    "media_url": null,
+    "media_type": null,
+    "content_data": [
+      {
+        "year": "Outubro de 2025",
+        "title": "Fundação do projeto",
+        "description": "Formação da equipe, estabelecimento de parcerias estratégicas."
+      },
+      {
+        "year": "Novembro de 2025",
+        "title": "Desenvolvimento da Plataforma",
+        "description": "Primeiro protótipo da plataforma de aprendizagem é lançado."
+      }
+    ],
+    "layout": "default",
+    "theme": "minimal",
+    "background_gradient": {
+      "to": "#f9fafb",
+      "from": "#ffffff",
+      "direction": "to-br"
+    },
+    "animation_type": "slide-right",
+    "animation_delay": 100,
+    "spacing_top": "large",
+    "spacing_bottom": "large",
+    "custom_css": null,
+    "buttons": []
+  },
+  {
+    "id": "757cd8db-c1d9-4589-a199-0065fd9abf8e",
+    "created_at": "2025-11-22T20:35:16.367927+00:00",
+    "updated_at": "2025-11-22T22:23:18.378747+00:00",
+    "section_type": "hero",
+    "order_index": 0,
+    "is_published": true,
+    "title": "Transformando a Educação em Saúde",
+    "subtitle": "Aprendizado científico interativo para profissionais que desejam dominar a tecnologia médica",
+    "description": "A ProGenia revoluciona a forma como profissionais de saúde aprendem física aplicada, eletroterapia e recursos diagnósticos através de simulações realistas e conteúdo microlearning.",
+    "media_url": null,
+    "media_type": null,
+    "content_data": {},
+    "layout": "center",
+    "theme": "gradient",
+    "background_gradient": {
+      "to": "#f9fafb",
+      "from": "#ffffff",
+      "direction": "to-br"
+    },
+    "animation_type": "fade-in",
+    "animation_delay": 0,
+    "spacing_top": "none",
+    "spacing_bottom": "large",
+    "custom_css": null,
+    "buttons": [
+      {
+        "link": "/auth",
+        "text": "Criar Conta Gratuita",
+        "style": "primary"
+      }
+    ]
+  },
+  {
+    "id": "fe96ded9-d8d0-4c47-9a22-dfd671e01d82",
+    "created_at": "2025-11-22T20:35:16.367927+00:00",
+    "updated_at": "2025-11-22T22:23:18.712336+00:00",
+    "section_type": "text",
+    "order_index": 2,
+    "is_published": true,
+    "title": "Por Que a ProGenia Existe?",
+    "subtitle": "Identificamos lacunas críticas na formação profissional",
+    "description": "Profissionais de saúde frequentemente utilizam tecnologias terapêuticas e diagnósticas sem compreender profundamente os princípios físicos e fisiológicos por trás delas. Isso gera:\n\n• **Lacunas na formação** sobre física aplicada à saúde\n• **Riscos do uso inadequado** de eletroterapias e equipamentos\n• **Recursos de treinamento limitados** e fragmentados  \n• **Dificuldade em visualizar** conceitos abstratos e complexos",
+    "media_url": null,
+    "media_type": null,
+    "content_data": {},
+    "layout": "center",
+    "theme": "accent",
+    "background_gradient": {
+      "to": "#f9fafb",
+      "from": "#ffffff",
+      "direction": "to-br"
+    },
+    "animation_type": "fade-in",
+    "animation_delay": 200,
+    "spacing_top": "large",
+    "spacing_bottom": "large",
+    "custom_css": null,
+    "buttons": []
+  },
+  {
+    "id": "e342ebbc-915e-40e5-8748-8a292a7ef9a1",
+    "created_at": "2025-11-22T20:35:16.367927+00:00",
+    "updated_at": "2025-11-22T22:23:19.037747+00:00",
+    "section_type": "text+image",
+    "order_index": 4,
+    "is_published": true,
+    "title": "Para Quem é a ProGenia?",
+    "subtitle": "Profissionais e estudantes da área da saúde",
+    "description": "Nossa plataforma foi desenvolvida especialmente para:\n\n**Estudantes de Graduação** - Fisioterapia, Fonoaudiologia e Terapia Ocupacional que desejam dominar os fundamentos científicos\n\n**Profissionais em Atuação** - Que buscam atualização e aprofundamento em recursos terapêuticos\n\n**Docentes e Pesquisadores** - Interessados em recursos didáticos inovadores para suas aulas\n\n**Gestores de Clínicas** - Que precisam capacitar suas equipes com eficiência",
+    "media_url": null,
+    "media_type": null,
+    "content_data": {},
+    "layout": "left",
+    "theme": "dark",
+    "background_gradient": {
+      "to": "#f9fafb",
+      "from": "#ffffff",
+      "direction": "to-br"
+    },
+    "animation_type": "fade-in",
+    "animation_delay": 0,
+    "spacing_top": "large",
+    "spacing_bottom": "large",
+    "custom_css": null,
+    "buttons": []
+  },
+  {
+    "id": "c37a1baa-128b-4b40-b027-ba0d88b8b086",
+    "created_at": "2025-11-22T20:35:16.367927+00:00",
+    "updated_at": "2025-11-22T22:23:18.876139+00:00",
+    "section_type": "features",
+    "order_index": 3,
+    "is_published": true,
+    "title": "Nossa Solução Inovadora",
+    "subtitle": "ProGenia oferece uma abordagem moderna e eficaz para o aprendizado científico",
+    "description": null,
+    "media_url": null,
+    "media_type": null,
+    "content_data": [
+      {
+        "icon": "BookOpen",
+        "title": "Micro-Learning Estruturado",
+        "description": "Conteúdo dividido em módulos curtos e focados, facilitando a absorção do conhecimento científico complexo"
+      },
+      {
+        "icon": "Microscope",
+        "title": "Laboratórios Virtuais",
+        "description": "Simulações interativas onde você experimenta e visualiza conceitos de física médica em tempo real"
+      },
+      {
+        "icon": "Brain",
+        "title": "IA Personalizada",
+        "description": "Sistema inteligente que acompanha seu progresso e sugere conteúdos baseados nas suas necessidades"
+      },
+      {
+        "icon": "Award",
+        "title": "Gamificação Motivadora",
+        "description": "Conquiste badges, suba no ranking e mantenha sua motivação com nosso sistema de recompensas"
+      },
+      {
+        "icon": "Users",
+        "title": "Comunidade Ativa",
+        "description": "Conecte-se com outros profissionais e compartilhe experiências de aprendizado através das nossas redes sociais"
+      },
+      {
+        "icon": "LineChart",
+        "title": "Acompanhamento de Progresso",
+        "description": "Dashboards detalhados que mostram sua evolução e áreas para desenvolvimento"
+      }
+    ],
+    "layout": "grid",
+    "theme": "default",
+    "background_gradient": {
+      "to": "#f9fafb",
+      "from": "#ffffff",
+      "direction": "to-br"
+    },
+    "animation_type": "scale-in",
+    "animation_delay": 150,
+    "spacing_top": "large",
+    "spacing_bottom": "large",
+    "custom_css": null,
+    "buttons": []
+  },
+  {
+    "id": "04f4ab8a-eb77-4132-9ffa-f62e6e9a6f8b",
+    "created_at": "2025-11-22T20:35:16.367927+00:00",
+    "updated_at": "2025-11-22T22:23:19.355405+00:00",
+    "section_type": "cta",
+    "order_index": 6,
+    "is_published": true,
+    "title": "Pronto para Transformar Seu Aprendizado?",
+    "subtitle": "Faça parte da nova geração de profissionais que dominam a ciência por trás da tecnologia médica",
+    "description": "Comece hoje mesmo sua jornada de aprendizado científico com a ProGenia",
+    "media_url": null,
+    "media_type": null,
+    "content_data": {},
+    "layout": "center",
+    "theme": "gradient",
+    "background_gradient": {
+      "to": "#8b5cf6",
+      "from": "#6366f1",
+      "direction": "to-br"
+    },
+    "animation_type": "scale-in",
+    "animation_delay": 0,
+    "spacing_top": "large",
+    "spacing_bottom": "large",
+    "custom_css": null,
+    "buttons": [
+      {
+        "url": "/auth",
+        "link": "https://www.progenia.com.br/auth",
+        "text": "Criar Conta Gratuita",
+        "variant": "default"
+      }
+    ]
+  },
+  {
+    "id": "436de6b6-b574-4c56-b295-6c5767939365",
+    "created_at": "2025-11-22T20:35:16.367927+00:00",
+    "updated_at": "2025-11-22T22:23:19.521266+00:00",
+    "section_type": "faq",
+    "order_index": 7,
+    "is_published": true,
+    "title": "Perguntas Frequentes",
+    "subtitle": "Tire suas dúvidas sobre a plataforma",
+    "description": null,
+    "media_url": null,
+    "media_type": null,
+    "content_data": [
+      {
+        "answer": "Não! Nosso conteúdo é desenvolvido do básico ao avançado, com explicações claras e progressivas.",
+        "question": "Preciso ter conhecimento prévio em física?"
+      },
+      {
+        "answer": "São simulações interativas onde você pode manipular parâmetros e visualizar em tempo real os efeitos de diferentes configurações terapêuticas.",
+        "question": "Como funcionam os laboratórios virtuais?"
+      },
+      {
+        "answer": "Sim! A plataforma é responsiva e funciona em computadores, tablets e smartphones.",
+        "question": "Posso acessar de qualquer dispositivo?"
+      }
+    ],
+    "layout": "default",
+    "theme": "default",
+    "background_gradient": {
+      "to": "#f9fafb",
+      "from": "#ffffff",
+      "direction": "to-br"
+    },
+    "animation_type": "fade-in",
+    "animation_delay": 0,
+    "spacing_top": "large",
+    "spacing_bottom": "large",
+    "custom_css": null,
+    "buttons": []
+  }
+]

@@ -175,6 +175,36 @@ export const storageService = {
   },
 
   /**
+   * Deletar arquivo a partir de URL pública do Supabase Storage.
+   * Não exibe toasts (para uso em exclusões em lote).
+   * @returns true se deletou, false se URL inválida ou fora dos buckets permitidos
+   */
+  async deleteFileFromSupabaseUrl(url: string): Promise<boolean> {
+    try {
+      const urlPattern = /\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/;
+      const match = url.match(urlPattern);
+      if (!match) return false;
+
+      const [, bucket, path] = match;
+      const allowedBuckets: StorageBucket[] = ["lesson-assets", "lesson-videos"];
+      if (!allowedBuckets.includes(bucket as StorageBucket)) return false;
+
+      const { error } = await supabase.storage
+        .from(bucket as StorageBucket)
+        .remove([decodeURIComponent(path)]);
+
+      if (error) {
+        console.error("Erro ao deletar do storage:", error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error("Erro ao deletar arquivo do storage:", e);
+      return false;
+    }
+  },
+
+  /**
    * Listar arquivos em um caminho
    */
   async listFiles(bucket: StorageBucket, path: string = "") {
@@ -198,8 +228,10 @@ export const storageService = {
    * Gerar nome de arquivo único
    */
   generateUniqueFileName(originalName: string): string {
+    // Garantir que originalName é string válida
+    const name = typeof originalName === 'string' && originalName.trim() ? originalName : 'file';
     // Remove acentos e caracteres inválidos, manter apenas [a-z0-9._-]
-    const normalized = originalName
+    const normalized = name
       .normalize('NFKD')
       .replace(/[\u0300-\u036f]/g, ''); // remover diacríticos
 

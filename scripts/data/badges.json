@@ -1,0 +1,82 @@
+[
+  {
+    "id": "c51e69f6-76ac-47a3-8c75-f7a088ecf3ef",
+    "name": "Primeiro Passo",
+    "description": "Complete sua primeira aula",
+    "icon_name": "GraduationCap",
+    "requirement_type": "lessons_completed",
+    "requirement_value": 1,
+    "points": 10,
+    "created_at": "2025-11-20T20:09:56.333398+00:00"
+  },
+  {
+    "id": "85d1a9ce-c1f6-4236-8bff-a087c3eb5dcc",
+    "name": "Estudante Dedicado",
+    "description": "Complete 10 aulas",
+    "icon_name": "BookOpen",
+    "requirement_type": "lessons_completed",
+    "requirement_value": 10,
+    "points": 50,
+    "created_at": "2025-11-20T20:09:56.333398+00:00"
+  },
+  {
+    "id": "07e50776-686e-449f-ae92-ca2b5eefad96",
+    "name": "Mestre do Conhecimento",
+    "description": "Complete 50 aulas",
+    "icon_name": "Award",
+    "requirement_type": "lessons_completed",
+    "requirement_value": 50,
+    "points": 200,
+    "created_at": "2025-11-20T20:09:56.333398+00:00"
+  },
+  {
+    "id": "a405d118-8642-4cbd-b2ac-31b3f7b3bbf4",
+    "name": "Especialista",
+    "description": "Complete um módulo inteiro",
+    "icon_name": "Trophy",
+    "requirement_type": "modules_completed",
+    "requirement_value": 1,
+    "points": 100,
+    "created_at": "2025-11-20T20:09:56.333398+00:00"
+  },
+  {
+    "id": "f42bf214-408b-428e-962e-ee1edaa667d6",
+    "name": "Persistente",
+    "description": "Mantenha uma sequência de 7 dias",
+    "icon_name": "Flame",
+    "requirement_type": "streak_days",
+    "requirement_value": 7,
+    "points": 75,
+    "created_at": "2025-11-20T20:09:56.333398+00:00"
+  },
+  {
+    "id": "b1b064e6-a660-4a4a-9841-6646a05f8584",
+    "name": "Incansável",
+    "description": "Mantenha uma sequência de 30 dias",
+    "icon_name": "Zap",
+    "requirement_type": "streak_days",
+    "requirement_value": 30,
+    "points": 300,
+    "created_at": "2025-11-20T20:09:56.333398+00:00"
+  },
+  {
+    "id": "52be87c8-b48e-44f5-8d53-7fcd810ca099",
+    "name": "Perfeccionista",
+    "description": "Tire nota máxima em um quiz",
+    "icon_name": "Star",
+    "requirement_type": "quiz_perfect",
+    "requirement_value": 1,
+    "points": 50,
+    "created_at": "2025-11-20T20:09:56.333398+00:00"
+  },
+  {
+    "id": "f15bbdf8-fe3c-4706-98aa-49bcdedf25a4",
+    "name": "Maratonista",
+    "description": "Estude por 10 horas no total",
+    "icon_name": "Clock",
+    "requirement_type": "total_time",
+    "requirement_value": 600,
+    "points": 150,
+    "created_at": "2025-11-20T20:09:56.333398+00:00"
+  }
+]

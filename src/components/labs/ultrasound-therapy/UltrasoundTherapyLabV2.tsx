@@ -31,7 +31,24 @@ export function UltrasoundTherapyLabV2({
   const { setLabConfig, runSimulation, config: storeConfig, updateConfig } = useUltrasoundTherapyStore();
 
   useEffect(() => {
-    setLabConfig(config);
+    console.log('🔧 UltrasoundTherapyLabV2: Recebendo config', {
+      hasConfig: !!config,
+      configKeys: config ? Object.keys(config).slice(0, 15) : [],
+      scenario: config?.scenario,
+      frequency: config?.frequency,
+      mode: config?.mode,
+      hasEra: config?.era !== undefined,
+      hasGain: config?.gain !== undefined, // Não deveria ter!
+      hasDepth: config?.depth !== undefined, // Não deveria ter!
+    });
+    
+    // Validar que não é config de diagnóstico
+    if (config && (config.gain !== undefined || config.depth !== undefined || config.layers !== undefined)) {
+      console.error('❌ UltrasoundTherapyLabV2: Config parece ser de DIAGNÓSTICO! Usando default.');
+      setLabConfig(defaultUltrasoundTherapyConfig);
+    } else {
+      setLabConfig(config || defaultUltrasoundTherapyConfig);
+    }
     runSimulation();
   }, [config]);
 

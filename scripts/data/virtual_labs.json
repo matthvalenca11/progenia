@@ -1,0 +1,758 @@
+[
+  {
+    "id": "a990ba21-d779-48ad-a93b-7ed59ce91876",
+    "name": "Ultrassom Terapeutico - Continuidade",
+    "title": "Ultrassom Terapeutico - Antebraço",
+    "description": "",
+    "lab_type": "ultrasound_therapy",
+    "config_data": {
+      "era": 5,
+      "mode": "continuous",
+      "ranges": {
+        "era": {
+          "max": 10,
+          "min": 3
+        },
+        "duration": {
+          "max": 30,
+          "min": 1
+        },
+        "dutyCycle": {
+          "max": 100,
+          "min": 10
+        },
+        "frequency": {
+          "max": 3,
+          "min": 1
+        },
+        "intensity": {
+          "max": 100,
+          "min": 0.1
+        },
+        "customThicknesses": {
+          "fat": {
+            "max": 2,
+            "min": 0.1
+          },
+          "skin": {
+            "max": 0.5,
+            "min": 0.1
+          },
+          "muscle": {
+            "max": 5,
+            "min": 0.5
+          },
+          "boneDepth": {
+            "max": 6,
+            "min": 1
+          }
+        }
+      },
+      "coupling": "good",
+      "duration": 8,
+      "movement": "scanning",
+      "scenario": "forearm",
+      "dutyCycle": 50,
+      "frequency": 1.1,
+      "intensity": 1,
+      "mixedLayer": {
+        "depth": 2,
+        "enabled": false,
+        "division": 50
+      },
+      "enabledControls": {
+        "era": false,
+        "mode": true,
+        "coupling": false,
+        "duration": false,
+        "movement": false,
+        "scenario": false,
+        "dutyCycle": true,
+        "frequency": false,
+        "intensity": false,
+        "customThicknesses": true
+      },
+      "customThicknesses": {
+        "fat": 0.5,
+        "skin": 0.2,
+        "muscle": 2,
+        "boneDepth": 3
+      },
+      "transducerPosition": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "thumbnail_url": null,
+    "is_published": true,
+    "created_at": "2026-01-16T01:26:11.406083+00:00",
+    "updated_at": "2026-01-16T01:59:12.021291+00:00",
+    "slug": "ultrassom-terapeutico-antebraco"
+  },
+  {
+    "id": "26d1081d-f7f3-44a7-aa1f-5c34031a8fe8",
+    "name": "Ultrassom Terapeutico - Duty Cycle",
+    "title": "Ultrassom Terapeutico - Joelho ",
+    "description": "",
+    "lab_type": "ultrasound_therapy",
+    "config_data": {
+      "era": 5,
+      "mode": "continuous",
+      "ranges": {
+        "era": {
+          "max": 10,
+          "min": 3
+        },
+        "duration": {
+          "max": 30,
+          "min": 1
+        },
+        "dutyCycle": {
+          "max": 100,
+          "min": 10
+        },
+        "frequency": {
+          "max": 3,
+          "min": 1
+        },
+        "intensity": {
+          "max": 100,
+          "min": 0.1
+        },
+        "customThicknesses": {
+          "fat": {
+            "max": 2,
+            "min": 0.1
+          },
+          "skin": {
+            "max": 0.5,
+            "min": 0.1
+          },
+          "muscle": {
+            "max": 5,
+            "min": 0.5
+          },
+          "boneDepth": {
+            "max": 6,
+            "min": 1
+          }
+        }
+      },
+      "coupling": "good",
+      "duration": 8,
+      "movement": "scanning",
+      "scenario": "knee",
+      "dutyCycle": 50,
+      "frequency": 1.1,
+      "intensity": 1,
+      "mixedLayer": {
+        "depth": 2,
+        "enabled": false,
+        "division": 50
+      },
+      "enabledControls": {
+        "era": false,
+        "mode": true,
+        "coupling": false,
+        "duration": false,
+        "movement": false,
+        "scenario": false,
+        "dutyCycle": true,
+        "frequency": false,
+        "intensity": false,
+        "customThicknesses": true
+      },
+      "customThicknesses": {
+        "fat": 0.5,
+        "skin": 0.2,
+        "muscle": 2,
+        "boneDepth": 3
+      },
+      "transducerPosition": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "thumbnail_url": null,
+    "is_published": true,
+    "created_at": "2026-01-16T01:43:56.803658+00:00",
+    "updated_at": "2026-01-16T01:58:56.944923+00:00",
+    "slug": "ultrassom-terapeutico-joelho"
+  },
+  {
+    "id": "d40b6062-dc45-4918-8d6e-5f4032a4241d",
+    "name": "TENS - Frequência",
+    "title": "TENS - Frequência",
+    "description": "",
+    "lab_type": "tens",
+    "config_data": {
+      "allowedModes": [
+        "convencional"
+      ],
+      "showWaveform": true,
+      "frequencyRange": {
+        "max": 200,
+        "min": 1
+      },
+      "intensityRange": {
+        "max": 80,
+        "min": 0
+      },
+      "tissueConfigId": "forearm_muscular",
+      "enabledControls": {
+        "mode": false,
+        "frequency": true,
+        "intensity": false,
+        "pulseWidth": false,
+        "electrodeDistance": true
+      },
+      "pulseWidthRange": {
+        "max": 400,
+        "min": 50
+      },
+      "showComfortCard": true,
+      "showRiskSection": true,
+      "showFeedbackSection": true,
+      "showWaveformSection": true,
+      "electrodeDistanceRange": {
+        "max": 12,
+        "min": 2
+      }
+    },
+    "thumbnail_url": null,
+    "is_published": true,
+    "created_at": "2026-01-16T02:08:55.924436+00:00",
+    "updated_at": "2026-01-16T02:09:38.701256+00:00",
+    "slug": "tens-frequencia"
+  },
+  {
+    "id": "c6493d5d-7257-4831-afd8-378135e66420",
+    "name": "TENS - distância",
+    "title": "TENS - distância",
+    "description": "",
+    "lab_type": "tens",
+    "config_data": {
+      "allowedModes": [
+        "convencional"
+      ],
+      "showWaveform": true,
+      "frequencyRange": {
+        "max": 200,
+        "min": 1
+      },
+      "intensityRange": {
+        "max": 80,
+        "min": 0
+      },
+      "tissueConfigId": "forearm_slim",
+      "enabledControls": {
+        "mode": false,
+        "frequency": false,
+        "intensity": false,
+        "pulseWidth": false,
+        "electrodeDistance": true
+      },
+      "pulseWidthRange": {
+        "max": 400,
+        "min": 50
+      },
+      "showComfortCard": true,
+      "showRiskSection": true,
+      "showFeedbackSection": true,
+      "showWaveformSection": true,
+      "electrodeDistanceRange": {
+        "max": 12,
+        "min": 2
+      }
+    },
+    "thumbnail_url": null,
+    "is_published": true,
+    "created_at": "2026-01-16T03:51:19.512174+00:00",
+    "updated_at": "2026-01-16T03:51:46.805289+00:00",
+    "slug": "tens-distancia"
+  },
+  {
+    "id": "1aae83df-6c56-48af-a1a9-d819c4d4df5b",
+    "name": "Ultrassom diagnóstico - Frequência",
+    "title": "Carótida transversal - Frequência",
+    "description": "",
+    "lab_type": "ultrasound",
+    "config_data": {
+      "gain": 52,
+      "mode": "b-mode",
+      "depth": 3,
+      "focus": 1.6,
+      "layers": [
+        {
+          "name": "Pele",
+          "hasFlow": false,
+          "texture": "homogeneous",
+          "depthRange": [
+            0,
+            0.03571428571428571
+          ],
+          "echogenicity": "isoechoic",
+          "reflectivity": 0.6,
+          "attenuationCoeff": 1
+        },
+        {
+          "name": "Tecido Subcutâneo",
+          "hasFlow": false,
+          "texture": "heterogeneous",
+          "depthRange": [
+            0.03571428571428571,
+            0.13988095238095236
+          ],
+          "echogenicity": "hypoechoic",
+          "reflectivity": 0.3,
+          "attenuationCoeff": 0.6
+        },
+        {
+          "name": "Platisma",
+          "hasFlow": false,
+          "texture": "striated",
+          "depthRange": [
+            0.13988095238095236,
+            0.16369047619047616
+          ],
+          "echogenicity": "isoechoic",
+          "reflectivity": 0.52,
+          "attenuationCoeff": 1.3
+        },
+        {
+          "name": "Fáscia Cervical Superficial",
+          "hasFlow": false,
+          "texture": "homogeneous",
+          "depthRange": [
+            0.16369047619047616,
+            0.16964285714285712
+          ],
+          "echogenicity": "hyperechoic",
+          "reflectivity": 1.08,
+          "attenuationCoeff": 1.8
+        },
+        {
+          "name": "M. Esternocleidomastóideo",
+          "hasFlow": false,
+          "texture": "striated",
+          "depthRange": [
+            0.16964285714285712,
+            0.3333333333333333
+          ],
+          "echogenicity": "isoechoic",
+          "reflectivity": 0.53,
+          "attenuationCoeff": 1.3
+        },
+        {
+          "name": "Bainha Carotídea",
+          "hasFlow": false,
+          "texture": "homogeneous",
+          "depthRange": [
+            0.3333333333333333,
+            0.3392857142857143
+          ],
+          "echogenicity": "hyperechoic",
+          "reflectivity": 1.05,
+          "attenuationCoeff": 1.8
+        },
+        {
+          "name": "Tecido Periarterial",
+          "hasFlow": false,
+          "texture": "heterogeneous",
+          "depthRange": [
+            0.3392857142857143,
+            0.3988095238095238
+          ],
+          "echogenicity": "hypoechoic",
+          "reflectivity": 0.35,
+          "attenuationCoeff": 0.6
+        },
+        {
+          "name": "Fáscia Pré-vertebral",
+          "hasFlow": false,
+          "texture": "homogeneous",
+          "depthRange": [
+            0.3988095238095238,
+            0.40476190476190477
+          ],
+          "echogenicity": "hyperechoic",
+          "reflectivity": 1.02,
+          "attenuationCoeff": 1.8
+        },
+        {
+          "name": "M. Longo do Pescoço",
+          "hasFlow": false,
+          "texture": "striated",
+          "depthRange": [
+            0.40476190476190477,
+            0.6428571428571428
+          ],
+          "echogenicity": "isoechoic",
+          "reflectivity": 0.5,
+          "attenuationCoeff": 1.3
+        },
+        {
+          "name": "Músculos Cervicais Profundos",
+          "hasFlow": false,
+          "texture": "striated",
+          "depthRange": [
+            0.6428571428571428,
+            1
+          ],
+          "echogenicity": "isoechoic",
+          "reflectivity": 0.48,
+          "attenuationCoeff": 1.3
+        }
+      ],
+      "presetId": "carotid_long",
+      "frequency": 7,
+      "inclusions": [
+        {
+          "id": "carotid_common_longitudinal",
+          "type": "vessel",
+          "label": "Artéria Carótida Comum",
+          "shape": "capsule",
+          "sizeCm": {
+            "width": 14,
+            "height": 0.3
+          },
+          "centerDepthCm": 1.7,
+          "wallAsymmetry": 0,
+          "mediumInsideId": "blood",
+          "hasStrongShadow": false,
+          "rotationDegrees": -2,
+          "centerLateralPos": 0.4,
+          "wallIrregularity": 0.02,
+          "borderEchogenicity": "soft",
+          "posteriorEnhancement": true
+        },
+        {
+          "id": "jugular_vein_longitudinal",
+          "type": "vessel",
+          "label": "Veia Jugular Interna",
+          "shape": "capsule",
+          "sizeCm": {
+            "width": 14,
+            "height": 0.3
+          },
+          "centerDepthCm": 2,
+          "wallAsymmetry": 0,
+          "mediumInsideId": "blood",
+          "hasStrongShadow": false,
+          "rotationDegrees": 2,
+          "centerLateralPos": 0,
+          "wallIrregularity": 0.02,
+          "borderEchogenicity": "soft",
+          "posteriorEnhancement": true
+        }
+      ],
+      "dynamicRange": 60,
+      "acousticLayers": [
+        {
+          "id": "skin",
+          "name": "Pele",
+          "mediumId": "skin",
+          "noiseScale": 1.35,
+          "thicknessCm": 0.12,
+          "reflectivityBias": 0.1
+        },
+        {
+          "id": "subcut",
+          "name": "Tecido Subcutâneo",
+          "mediumId": "fat",
+          "noiseScale": 0.62,
+          "thicknessCm": 0.35,
+          "reflectivityBias": -0.2
+        },
+        {
+          "id": "platysma",
+          "name": "Platisma",
+          "mediumId": "muscle",
+          "noiseScale": 1.18,
+          "thicknessCm": 0.08,
+          "reflectivityBias": 0.02
+        },
+        {
+          "id": "superficial_fascia",
+          "name": "Fáscia Cervical Superficial",
+          "mediumId": "fascia",
+          "noiseScale": 2.5,
+          "thicknessCm": 0.02,
+          "reflectivityBias": 0.58
+        },
+        {
+          "id": "scm",
+          "name": "M. Esternocleidomastóideo",
+          "mediumId": "muscle",
+          "noiseScale": 1.15,
+          "thicknessCm": 0.55,
+          "reflectivityBias": 0.03
+        },
+        {
+          "id": "carotid_sheath",
+          "name": "Bainha Carotídea",
+          "mediumId": "fascia",
+          "noiseScale": 2.4,
+          "thicknessCm": 0.02,
+          "reflectivityBias": 0.55
+        },
+        {
+          "id": "periarterial",
+          "name": "Tecido Periarterial",
+          "mediumId": "fat",
+          "noiseScale": 0.68,
+          "thicknessCm": 0.2,
+          "reflectivityBias": -0.15
+        },
+        {
+          "id": "prevertebral_fascia",
+          "name": "Fáscia Pré-vertebral",
+          "mediumId": "fascia",
+          "noiseScale": 2.3,
+          "thicknessCm": 0.02,
+          "reflectivityBias": 0.52
+        },
+        {
+          "id": "longus_colli",
+          "name": "M. Longo do Pescoço",
+          "mediumId": "muscle",
+          "noiseScale": 1.08,
+          "thicknessCm": 0.8,
+          "reflectivityBias": 0
+        },
+        {
+          "id": "deep_cervical",
+          "name": "Músculos Cervicais Profundos",
+          "mediumId": "muscle",
+          "noiseScale": 1.02,
+          "thicknessCm": 1.2,
+          "reflectivityBias": -0.02
+        }
+      ],
+      "transducerType": "linear",
+      "complexityLevel": "basico",
+      "studentControls": {
+        "lockGain": true,
+        "showGain": false,
+        "lockDepth": true,
+        "lockFocus": true,
+        "showDepth": false,
+        "showFocus": false,
+        "lockFrequency": false,
+        "showFrequency": true,
+        "showModeSelector": false,
+        "showTransducerSelector": false,
+        "enableTransducerMovement": true
+      },
+      "simulationFeatures": {
+        "showDepthScale": true,
+        "showFieldLines": false,
+        "showBeamOverlay": false,
+        "showFocusMarker": false,
+        "showPhysicsPanel": false,
+        "showAnatomyLabels": false,
+        "enableColorDoppler": false,
+        "showAttenuationMap": false,
+        "enableReverberation": false,
+        "showStructuralBMode": true,
+        "enableAcousticShadow": false,
+        "enableNearFieldClutter": false,
+        "enablePosteriorEnhancement": false
+      }
+    },
+    "thumbnail_url": null,
+    "is_published": true,
+    "created_at": "2026-01-16T01:15:59.593523+00:00",
+    "updated_at": "2026-01-16T02:02:05.70604+00:00",
+    "slug": "carotida-transversal-frequencia"
+  },
+  {
+    "id": "de18b06d-17df-41d5-88a3-1ad41b298d4d",
+    "name": "Ultrassom diagnóstico- Ganho",
+    "title": "Ganho - Carótida",
+    "description": "",
+    "lab_type": "ultrasound",
+    "config_data": {
+      "gain": 51,
+      "mode": "b-mode",
+      "depth": 3.6,
+      "focus": 2.4,
+      "layers": [
+        {
+          "name": "Pele",
+          "hasFlow": false,
+          "texture": "homogeneous",
+          "depthRange": [
+            0,
+            0.03234501347708895
+          ],
+          "echogenicity": "isoechoic",
+          "reflectivity": 0.6,
+          "attenuationCoeff": 1
+        },
+        {
+          "name": "Tecido Subcutâneo",
+          "hasFlow": false,
+          "texture": "heterogeneous",
+          "depthRange": [
+            0.03234501347708895,
+            0.18867924528301885
+          ],
+          "echogenicity": "hypoechoic",
+          "reflectivity": 0.3,
+          "attenuationCoeff": 0.6
+        },
+        {
+          "name": "Platisma",
+          "hasFlow": false,
+          "texture": "striated",
+          "depthRange": [
+            0.18867924528301885,
+            0.23180592991913745
+          ],
+          "echogenicity": "isoechoic",
+          "reflectivity": 0.47,
+          "attenuationCoeff": 1.3
+        },
+        {
+          "name": "ECM (Lateral)",
+          "hasFlow": false,
+          "texture": "striated",
+          "depthRange": [
+            0.23180592991913745,
+            0.4609164420485175
+          ],
+          "echogenicity": "isoechoic",
+          "reflectivity": 0.52,
+          "attenuationCoeff": 1.3
+        },
+        {
+          "name": "Músculos Profundos",
+          "hasFlow": false,
+          "texture": "striated",
+          "depthRange": [
+            0.4609164420485175,
+            1
+          ],
+          "echogenicity": "isoechoic",
+          "reflectivity": 0.5,
+          "attenuationCoeff": 1.3
+        }
+      ],
+      "presetId": "carotid_trans",
+      "frequency": 7,
+      "inclusions": [
+        {
+          "id": "carotid_artery_ellipse",
+          "type": "vessel",
+          "label": "Artéria Carótida Comum",
+          "shape": "ellipse",
+          "sizeCm": {
+            "width": 0.6,
+            "height": 0.6
+          },
+          "centerDepthCm": 2.3,
+          "mediumInsideId": "blood",
+          "hasStrongShadow": true,
+          "centerLateralPos": -0.2,
+          "borderEchogenicity": "soft",
+          "posteriorEnhancement": true
+        },
+        {
+          "id": "internal_jugular_vein",
+          "type": "vessel",
+          "label": "Veia Jugular Interna",
+          "shape": "ellipse",
+          "sizeCm": {
+            "width": 0.9,
+            "height": 0.7
+          },
+          "centerDepthCm": 1.9,
+          "mediumInsideId": "blood",
+          "hasStrongShadow": true,
+          "centerLateralPos": 0.25,
+          "borderEchogenicity": "soft",
+          "posteriorEnhancement": true
+        }
+      ],
+      "dynamicRange": 60,
+      "acousticLayers": [
+        {
+          "id": "skin",
+          "name": "Pele",
+          "mediumId": "skin",
+          "noiseScale": 1.35,
+          "thicknessCm": 0.12,
+          "reflectivityBias": 0.1
+        },
+        {
+          "id": "subcut",
+          "name": "Tecido Subcutâneo",
+          "mediumId": "fat",
+          "noiseScale": 0.68,
+          "thicknessCm": 0.58,
+          "reflectivityBias": -0.2
+        },
+        {
+          "id": "platysma",
+          "name": "Platisma",
+          "mediumId": "muscle",
+          "noiseScale": 1.12,
+          "thicknessCm": 0.16,
+          "reflectivityBias": -0.03
+        },
+        {
+          "id": "scm_lateral",
+          "name": "ECM (Lateral)",
+          "mediumId": "muscle",
+          "noiseScale": 1.1,
+          "thicknessCm": 0.85,
+          "reflectivityBias": 0.02
+        },
+        {
+          "id": "prevertebral_deep",
+          "name": "Músculos Profundos",
+          "mediumId": "muscle",
+          "noiseScale": 1.08,
+          "thicknessCm": 2,
+          "reflectivityBias": 0
+        }
+      ],
+      "transducerType": "linear",
+      "complexityLevel": "basico",
+      "studentControls": {
+        "lockGain": false,
+        "showGain": true,
+        "lockDepth": true,
+        "lockFocus": true,
+        "showDepth": false,
+        "showFocus": false,
+        "lockFrequency": true,
+        "showFrequency": false,
+        "showModeSelector": false,
+        "showTransducerSelector": false,
+        "enableTransducerMovement": true
+      },
+      "simulationFeatures": {
+        "showDepthScale": true,
+        "showFieldLines": false,
+        "showBeamOverlay": false,
+        "showFocusMarker": false,
+        "showPhysicsPanel": false,
+        "showAnatomyLabels": false,
+        "enableColorDoppler": false,
+        "showAttenuationMap": false,
+        "enableReverberation": false,
+        "showStructuralBMode": true,
+        "enableAcousticShadow": true,
+        "enableNearFieldClutter": false,
+        "enablePosteriorEnhancement": false
+      }
+    },
+    "thumbnail_url": null,
+    "is_published": true,
+    "created_at": "2026-01-16T01:00:49.740892+00:00",
+    "updated_at": "2026-01-16T02:02:43.98767+00:00",
+    "slug": "ganho-carotida"
+  }
+]

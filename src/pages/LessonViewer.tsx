@@ -140,7 +140,31 @@ export default function LessonViewer() {
       {/* Thumbnail */}
       {thumbnail && (
         <Card className="overflow-hidden">
-          <img src={thumbnail} alt={lesson.title} className="w-full h-64 object-cover" />
+          <img 
+            src={thumbnail} 
+            alt={lesson.title} 
+            className="w-full h-64 object-cover"
+            onError={(e) => {
+              console.error("Erro ao carregar thumbnail:", {
+                url: thumbnail,
+                lessonId: lesson.id,
+                error: "Thumbnail não encontrada ou sem permissão de acesso"
+              });
+              e.currentTarget.style.display = 'none';
+              const card = e.currentTarget.closest('.overflow-hidden');
+              if (card) {
+              const errorDiv = document.createElement('div');
+              errorDiv.className = 'w-full h-64 flex flex-col items-center justify-center bg-muted text-muted-foreground';
+              errorDiv.innerHTML = `
+                <svg class="h-12 w-12 mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <p class="text-sm">Thumbnail não disponível</p>
+              `;
+              card.appendChild(errorDiv);
+              }
+            }}
+          />
         </Card>
       )}
 
@@ -212,12 +236,30 @@ export default function LessonViewer() {
                           <ImageIcon className="h-5 w-5" />
                           <h3 className="font-semibold">Imagem</h3>
                         </div>
-                        {block.data.url ? (
-                          <img
-                            src={block.data.url}
-                            alt="Conteúdo da aula"
-                            className="w-full rounded-lg"
-                          />
+                        {(block.data.url || block.data.imageUrl) ? (
+                          <div className="space-y-2">
+                            <img
+                              src={block.data.url || block.data.imageUrl}
+                              alt={block.data.caption || "Conteúdo da aula"}
+                              className="w-full rounded-lg"
+                              onError={(e) => {
+                                console.error("Erro ao carregar imagem:", block.data.url || block.data.imageUrl);
+                                e.currentTarget.style.display = 'none';
+                                const parent = e.currentTarget.parentElement;
+                                if (parent) {
+                                  const errorDiv = document.createElement('div');
+                                  errorDiv.className = 'aspect-video flex items-center justify-center bg-muted rounded-lg';
+                                  errorDiv.innerHTML = '<p class="text-muted-foreground">Erro ao carregar imagem</p>';
+                                  parent.appendChild(errorDiv);
+                                }
+                              }}
+                            />
+                            {block.data.caption && (
+                              <p className="text-sm text-muted-foreground text-center italic">
+                                {block.data.caption}
+                              </p>
+                            )}
+                          </div>
                         ) : (
                           <div className="aspect-video flex items-center justify-center bg-muted rounded-lg">
                             <p className="text-muted-foreground">Imagem não disponível</p>

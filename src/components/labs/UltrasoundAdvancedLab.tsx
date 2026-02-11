@@ -50,7 +50,7 @@ function computeUltrasoundDepthProfile(
 }
 
 const UltrasoundAdvancedLab = () => {
-  // sliders (mapping igual ao que o Lovable já usa)
+  // sliders (mapeamento de controles)
   const [gainPercent, setGainPercent] = useState(60);      // 0–100
   const [focusPercent, setFocusPercent] = useState(50);    // 0–100
   const [freqPercent, setFreqPercent] = useState(50);      // 0–100

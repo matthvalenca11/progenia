@@ -38,7 +38,7 @@ serve(async (req) => {
     const fromEmail = settings?.verification_from_email || 
                      settings?.default_from_email || 
                      Deno.env.get("EMAIL_FROM_DEFAULT") || 
-                     "noreply@resend.dev";
+                     "noreply@progenia.com.br";
     
     const subject = settings?.verification_subject || "Confirme seu e-mail – ProGenia";
     const bodyIntro = settings?.verification_body_intro || 

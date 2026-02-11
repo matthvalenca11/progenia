@@ -21,7 +21,7 @@ import {
   ExternalLink, X, GripVertical, ChevronDown, ChevronUp
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { storageService } from "@/services/storageService";
+import { storageService, StorageBucket } from "@/services/storageService";
 import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
 
 type Lesson = {
@@ -175,7 +175,21 @@ export function LessonsManager() {
           const url = await uploadMedia(block.data.file, lessonId, block.type);
           return {
             ...block,
-            data: { url, source: "upload" }
+            data: {
+              ...block.data, // Preservar todos os campos existentes (caption, etc.)
+              url, // Adicionar/atualizar a URL
+              source: "upload"
+            }
+          };
+        }
+        // Se for link, garantir que url está presente
+        if ((block.type === "video" || block.type === "image") && block.data.source === "link") {
+          return {
+            ...block,
+            data: {
+              ...block.data,
+              url: block.data.url || block.data.imageUrl || block.data.videoUrl
+            }
           };
         }
         return block;
@@ -198,6 +212,7 @@ export function LessonsManager() {
           is_published: formData.is_published,
           duration_minutes: formData.duration_minutes ? parseInt(formData.duration_minutes) : null,
           content_data: { blocks: [], references: [], prerequisites: [] },
+          content_type: 'interactive', // Valor padrão para compatibilidade com schema antigo
         })
         .select()
         .single();
@@ -308,6 +323,30 @@ export function LessonsManager() {
     if (!deleteLessonId) return;
 
     try {
+      // Buscar aula para extrair URLs de mídia antes de excluir
+      const { data: lesson } = await supabase
+        .from("lessons")
+        .select("content_data")
+        .eq("id", deleteLessonId)
+        .single();
+
+      if (lesson?.content_data) {
+        const urls: string[] = [];
+        const content = lesson.content_data as any;
+        // Thumbnail
+        if (content.thumbnail && typeof content.thumbnail === "string") urls.push(content.thumbnail);
+        // Blocos de imagem/vídeo
+        (content.blocks || []).forEach((b: any) => {
+          if ((b.type === "video" || b.type === "image") && b.data?.url) urls.push(b.data.url);
+          if (b.data?.imageUrl) urls.push(b.data.imageUrl);
+          if (b.data?.videoUrl) urls.push(b.data.videoUrl);
+        });
+        // Deletar mídia do storage (apenas URLs do Supabase)
+        await Promise.allSettled(
+          urls.filter((u) => u?.includes?.("/storage/v1/object/public/")).map((u) => storageService.deleteFileFromSupabaseUrl(u))
+        );
+      }
+
       const { error } = await supabase.from("lessons").delete().eq("id", deleteLessonId);
       if (error) throw error;
 
@@ -388,6 +427,36 @@ export function LessonsManager() {
       ...formData,
       contentBlocks: formData.contentBlocks.filter(b => b.id !== blockId)
     });
+  };
+
+  const deleteMediaFromStorage = async (url: string, type: "video" | "image") => {
+    try {
+      // Extrair bucket e path da URL do Supabase Storage
+      // Formato: https://[project].supabase.co/storage/v1/object/public/[bucket]/[path]
+      const urlPattern = /\/storage\/v1\/object\/public\/([^\/]+)\/(.+)$/;
+      const match = url.match(urlPattern);
+      
+      if (!match) {
+        console.warn("URL não é do Supabase Storage:", url);
+        return;
+      }
+
+      const [, bucket, path] = match;
+      
+      // Validar que é um bucket permitido
+      const allowedBuckets = ["lesson-assets", "lesson-videos"];
+      if (!allowedBuckets.includes(bucket)) {
+        console.warn("Bucket não permitido:", bucket);
+        return;
+      }
+
+      // Deletar arquivo do storage
+      await storageService.deleteFile(bucket as StorageBucket, decodeURIComponent(path));
+      // O storageService já mostra toast, então não precisamos mostrar outro
+    } catch (error: any) {
+      console.error("Erro ao deletar arquivo do storage:", error);
+      toast.error(`Erro ao remover arquivo: ${error.message || "Erro desconhecido"}`);
+    }
   };
 
   const updateContentBlock = (blockId: string, data: any) => {
@@ -554,14 +623,88 @@ export function LessonsManager() {
 
                       <div className="col-span-2">
                         <Label>Thumbnail da Aula</Label>
+                        
+                        {/* Preview da thumbnail atual */}
+                        {(formData.thumbnail_url || formData.thumbnailFile) && (
+                          <div className="mb-4 border rounded-lg p-3 bg-muted/50">
+                            <div className="flex items-center justify-between mb-2">
+                              <Label className="text-sm font-medium">Preview da Thumbnail</Label>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={async () => {
+                                  // Se for URL do Supabase Storage, deletar do storage
+                                  if (formData.thumbnail_url && formData.thumbnail_url.includes('supabase.co/storage')) {
+                                    await deleteMediaFromStorage(formData.thumbnail_url, "image");
+                                  }
+                                  setFormData({ 
+                                    ...formData, 
+                                    thumbnail_url: "", 
+                                    thumbnailFile: null 
+                                  });
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            {formData.thumbnailFile ? (
+                              <div className="aspect-video w-full rounded-lg overflow-hidden bg-black">
+                                <img
+                                  src={URL.createObjectURL(formData.thumbnailFile)}
+                                  alt="Preview"
+                                  className="w-full h-full object-cover"
+                                />
+                                <p className="text-xs text-muted-foreground mt-2">
+                                  Novo arquivo selecionado: {formData.thumbnailFile.name}
+                                </p>
+                              </div>
+                            ) : formData.thumbnail_url ? (
+                              <div className="aspect-video w-full rounded-lg overflow-hidden bg-black">
+                                <img
+                                  src={formData.thumbnail_url}
+                                  alt="Preview"
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    console.error("Erro ao carregar thumbnail:", formData.thumbnail_url);
+                                    const img = e.currentTarget;
+                                    img.style.display = 'none';
+                                    const parent = img.parentElement;
+                                    if (parent && !parent.querySelector('.error-message')) {
+                                      const errorDiv = document.createElement('div');
+                                      errorDiv.className = 'error-message aspect-video flex flex-col items-center justify-center bg-red-50 dark:bg-red-950 rounded-lg p-4 border border-red-200 dark:border-red-800';
+                                      errorDiv.innerHTML = `
+                                        <svg class="h-8 w-8 text-red-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        <p class="text-sm text-red-600 dark:text-red-400 text-center font-medium">Erro ao carregar thumbnail</p>
+                                        <p class="text-xs text-muted-foreground mt-1 text-center break-all">${formData.thumbnail_url}</p>
+                                      `;
+                                      parent.appendChild(errorDiv);
+                                    }
+                                  }}
+                                />
+                                <p className="text-xs text-muted-foreground mt-2 break-all">
+                                  {formData.thumbnail_url}
+                                </p>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-4 mt-2">
                           <div>
                             <Label className="text-sm">Tipo</Label>
                             <Select 
                               value={formData.thumbnailSource} 
-                              onValueChange={(value: "upload" | "link") => 
-                                setFormData({ ...formData, thumbnailSource: value })
-                              }
+                              onValueChange={(value: "upload" | "link") => {
+                                // Não limpar URL se já existe uma thumbnail
+                                if (formData.thumbnail_url) {
+                                  setFormData({ ...formData, thumbnailSource: value, thumbnailFile: null });
+                                } else {
+                                  setFormData({ ...formData, thumbnailSource: value, thumbnail_url: "", thumbnailFile: null });
+                                }
+                              }}
                             >
                               <SelectTrigger>
                                 <SelectValue />
@@ -721,13 +864,121 @@ export function LessonsManager() {
 
                                 {(block.type === "video" || block.type === "image") && (
                                   <div className="space-y-3">
+                                    {/* Mostrar preview do arquivo já enviado */}
+                                    {(block.data.url || block.data.imageUrl || block.data.videoUrl) && !block.data.file && (
+                                      <div className="border rounded-lg p-3 bg-muted/50">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <Label className="text-sm font-medium">
+                                            {block.type === "video" ? "Vídeo" : "Imagem"} Atual
+                                          </Label>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={async () => {
+                                              const urlToDelete = block.data.url || block.data.imageUrl || block.data.videoUrl;
+                                              
+                                              // Deletar do storage se for URL do Supabase
+                                              if (urlToDelete && urlToDelete.includes('supabase.co/storage')) {
+                                                await deleteMediaFromStorage(urlToDelete, block.type as "video" | "image");
+                                              }
+                                              
+                                              // Remover do estado
+                                              updateContentBlock(block.id, { url: "", imageUrl: "", videoUrl: "" });
+                                            }}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                        {block.type === "video" ? (
+                                          <div className="aspect-video w-full rounded-lg overflow-hidden bg-black">
+                                            <video
+                                              src={block.data.url || block.data.videoUrl}
+                                              controls
+                                              className="w-full h-full"
+                                            >
+                                              Seu navegador não suporta vídeo.
+                                            </video>
+                                          </div>
+                                        ) : (
+                                          <div className="relative">
+                                            <img
+                                              src={block.data.url || block.data.imageUrl}
+                                              alt="Preview"
+                                              className="w-full max-h-48 object-contain rounded-lg border border-border"
+                                              onError={(e) => {
+                                                console.error("Erro ao carregar imagem:", {
+                                                  url: block.data.url || block.data.imageUrl,
+                                                  error: "Imagem não encontrada ou sem permissão de acesso"
+                                                });
+                                                const img = e.currentTarget;
+                                                img.style.display = 'none';
+                                                const parent = img.parentElement;
+                                                if (parent && !parent.querySelector('.error-message')) {
+                                                  const errorDiv = document.createElement('div');
+                                                  errorDiv.className = 'error-message aspect-video flex flex-col items-center justify-center bg-red-50 dark:bg-red-950 rounded-lg p-4 border border-red-200 dark:border-red-800';
+                                                  errorDiv.innerHTML = `
+                                                    <ImageIcon class="h-8 w-8 text-red-500 mb-2" />
+                                                    <p class="text-sm text-red-600 dark:text-red-400 text-center font-medium">Erro ao carregar imagem</p>
+                                                    <p class="text-xs text-muted-foreground mt-1 text-center break-all">Verifique as permissões do bucket no Supabase</p>
+                                                  `;
+                                                  parent.appendChild(errorDiv);
+                                                }
+                                              }}
+                                              onLoad={(e) => {
+                                                // Remover mensagem de erro se a imagem carregar com sucesso
+                                                const parent = e.currentTarget.parentElement;
+                                                if (parent) {
+                                                  const errorMsg = parent.querySelector('.error-message');
+                                                  if (errorMsg) errorMsg.remove();
+                                                }
+                                              }}
+                                            />
+                                          </div>
+                                        )}
+                                        <p className="text-xs text-muted-foreground mt-2 break-all">
+                                          {block.data.url || block.data.imageUrl || block.data.videoUrl}
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {/* Mostrar preview do arquivo selecionado mas ainda não enviado */}
+                                    {block.data.file && (
+                                      <div className="border rounded-lg p-3 bg-blue-50 dark:bg-blue-950">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <Label className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                                            Novo Arquivo Selecionado
+                                          </Label>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => updateContentBlock(block.id, { file: null })}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                        <p className="text-sm text-blue-600 dark:text-blue-400">
+                                          {block.data.file.name} ({(block.data.file.size / 1024 / 1024).toFixed(2)} MB)
+                                        </p>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          O arquivo será enviado ao salvar a aula.
+                                        </p>
+                                      </div>
+                                    )}
+
                                     <div>
                                       <Label>Origem do Arquivo</Label>
                                       <Select
                                         value={block.data.source || "link"}
-                                        onValueChange={(value: "upload" | "link") => 
-                                          updateContentBlock(block.id, { source: value, url: "", file: null })
-                                        }
+                                        onValueChange={(value: "upload" | "link") => {
+                                          // Não limpar URL se já existe um arquivo enviado
+                                          if (block.data.url || block.data.imageUrl || block.data.videoUrl) {
+                                            updateContentBlock(block.id, { source: value, file: null });
+                                          } else {
+                                            updateContentBlock(block.id, { source: value, url: "", file: null });
+                                          }
+                                        }}
                                       >
                                         <SelectTrigger>
                                           <SelectValue />
@@ -743,7 +994,7 @@ export function LessonsManager() {
                                       <div>
                                         <Label>URL do {block.type === "video" ? "Vídeo" : "Imagem"}</Label>
                                         <Input
-                                          value={block.data.url || ""}
+                                          value={block.data.url || block.data.imageUrl || block.data.videoUrl || ""}
                                           onChange={(e) => updateContentBlock(block.id, { url: e.target.value })}
                                           placeholder="https://..."
                                         />

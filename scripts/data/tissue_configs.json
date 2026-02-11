@@ -1,0 +1,18 @@
+[
+  {
+    "id": "d7fadc5e-bd0d-4edd-88ca-9c1dd8877fa6",
+    "name": "Antebraço Padrão",
+    "description": "Anatomia padrão de antebraço adulto saudável",
+    "skin_thickness": 0.15,
+    "fat_thickness": 0.25,
+    "muscle_thickness": 0.6,
+    "bone_depth": 0.85,
+    "has_metal_implant": false,
+    "metal_implant_depth": null,
+    "metal_implant_span": null,
+    "tissue_type": "muscular",
+    "enable_risk_simulation": true,
+    "created_at": "2025-11-30T18:49:28.626359+00:00",
+    "updated_at": "2025-11-30T18:49:28.626359+00:00"
+  }
+]

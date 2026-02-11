@@ -1,11 +1,18 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Brain, Send, X, Minimize2, Maximize2 } from "lucide-react";
+import { Brain, Send, X, Minimize2, Maximize2, ArrowRight, BookOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+const isProGeniaLink = (href: string) =>
+  /^\/(capsula|lesson|labs|module)\//.test(href) || href === "/capsulas";
+
+const normalizePath = (href: string) => (href.startsWith("/") ? href : `/${href}`);
 
 interface Message {
   role: "user" | "assistant";
@@ -13,12 +20,13 @@ interface Message {
 }
 
 const AITutor = () => {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Olá! Sou seu tutor de IA. Pergunte-me qualquer coisa sobre o material do curso e eu vou ajudá-lo a entender conceitos complexos!",
+      content: "Olá! Como posso te ajudar hoje?",
     },
   ]);
   const [input, setInput] = useState("");
@@ -57,6 +65,12 @@ const AITutor = () => {
           ...prev,
           { role: "assistant", content: data.response },
         ]);
+      } else if (data?.error) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: `Erro: ${data.error}` },
+        ]);
+        toast.error(data.error);
       }
     } catch (error: any) {
       console.error("Error calling AI tutor:", error);
@@ -80,12 +94,13 @@ const AITutor = () => {
           },
         ]);
       } else {
-        toast.error("Falha ao obter resposta do tutor de IA");
+        const errorMsg = error?.message || error?.error || "Erro desconhecido";
+        toast.error(errorMsg);
         setMessages((prev) => [
           ...prev,
           { 
             role: "assistant", 
-            content: "Peço desculpas, mas encontrei um erro. Por favor, tente novamente." 
+            content: `Peço desculpas, mas encontrei um erro: ${errorMsg}. Por favor, tente novamente.` 
           },
         ]);
       }
@@ -161,7 +176,43 @@ const AITutor = () => {
                         : "bg-muted"
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    {message.role === "assistant" ? (
+                      <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-a:no-underline">
+                        <ReactMarkdown
+                          components={{
+                            a: ({ href, children }) => {
+                              const path = href ? normalizePath(href) : "";
+                              if (!path) return <span>{children}</span>;
+                              if (isProGeniaLink(path)) {
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setIsOpen(false);
+                                      navigate(path);
+                                    }}
+                                    className="mt-2 inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 transition-colors text-left"
+                                  >
+                                    <BookOpen className="h-4 w-4 flex-shrink-0" />
+                                    <span>{children}</span>
+                                    <ArrowRight className="h-3.5 w-3.5 flex-shrink-0" />
+                                  </button>
+                                );
+                              }
+                              return (
+                                <a href={path} target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                                  {children}
+                                </a>
+                              );
+                            },
+                          }}
+                        >
+                          {message.content}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    )}
                   </div>
                 </div>
               ))}

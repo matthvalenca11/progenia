@@ -33,10 +33,10 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Find user with this token
+    // Find user with this token (profile.id = auth.users.id)
     const { data: profile, error: findError } = await supabase
       .from("profiles")
-      .select("id, email, password_reset_token, password_reset_expires_at")
+      .select("id, password_reset_token, password_reset_expires_at")
       .eq("password_reset_token", token)
       .single();
 
@@ -56,29 +56,9 @@ serve(async (req) => {
       );
     }
 
-    // Get user from auth
-    const { data: { users }, error: getUserError } = await supabase.auth.admin.listUsers();
-    
-    if (getUserError) {
-      console.error("Error getting users:", getUserError);
-      return new Response(
-        JSON.stringify({ error: "Failed to reset password" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const authUser = users.find(u => u.email === profile.email);
-    
-    if (!authUser) {
-      return new Response(
-        JSON.stringify({ error: "User not found" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Update password using admin API
+    // Update password using admin API (profile.id is auth user id)
     const { error: updatePasswordError } = await supabase.auth.admin.updateUserById(
-      authUser.id,
+      profile.id,
       { password: newPassword }
     );
 
@@ -103,7 +83,7 @@ serve(async (req) => {
       console.error("Error clearing token:", clearTokenError);
     }
 
-    console.log("Password reset successfully for:", profile.email);
+    console.log("Password reset successfully for user:", profile.id);
 
     return new Response(
       JSON.stringify({ success: true }),

@@ -44,14 +44,13 @@ const Auth = () => {
     // 1) Ouvir mudanças de auth primeiro
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
-        // Verificar se email foi verificado antes de navegar
+        const isEmailConfirmed = session.user.email_confirmed_at != null;
         const { data: profile } = await supabase
           .from('profiles')
           .select('email_verified')
           .eq('id', session.user.id)
           .maybeSingle();
-
-        if (profile?.email_verified) {
+        if (isEmailConfirmed || profile?.email_verified) {
           navigate('/dashboard');
         }
       }
@@ -60,13 +59,13 @@ const Auth = () => {
     // 2) Verificar estado atual com getUser
     supabase.auth.getUser().then(async ({ data }) => {
       if (data?.user) {
+        const isEmailConfirmed = data.user.email_confirmed_at != null;
         const { data: profile } = await supabase
           .from('profiles')
           .select('email_verified')
           .eq('id', data.user.id)
           .maybeSingle();
-
-        if (profile?.email_verified) {
+        if (isEmailConfirmed || profile?.email_verified) {
           navigate('/dashboard');
         }
       }
@@ -105,46 +104,14 @@ const Auth = () => {
       }
 
       if (authData.user) {
-        // Generate verification token
-        const token = crypto.randomUUID();
-        const expiresAt = new Date();
-        expiresAt.setHours(expiresAt.getHours() + 24);
-
-        // Wait a bit for the trigger to create the profile
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // Update profile with verification token
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({
-            verification_token: token,
-            verification_expires_at: expiresAt.toISOString(),
-            email_verified: false,
-          })
-          .eq('id', authData.user.id);
-
-        if (profileError) {
-          console.error('Error storing verification token:', profileError);
-          toast.error("Erro ao criar conta. Tente novamente.");
-          return;
-        }
-
-        // Send verification email via edge function
-        const { error: emailError } = await supabase.functions.invoke('send-verification-email', {
-          body: { email: validated.email, token },
-        });
-
-        if (emailError) {
-          console.error('Error sending verification email:', emailError);
-          toast.error("Erro ao enviar email de verificação. Tente novamente.");
-          return;
-        }
-
+        // Supabase envia o email de confirmação automaticamente (Resend/SMTP).
+        // O fluxo customizado (token + send-verification-email) foi removido
+        // para evitar duplicidade e mensagens de erro falsas.
         toast.success("Conta criada!", {
           description: "Verifique seu e-mail para confirmar seu cadastro.",
         });
-        
-        // Sign out the user until they verify email
+
+        // Sign out até o usuário confirmar o email
         await supabase.auth.signOut();
       }
     } catch (error) {
@@ -183,15 +150,15 @@ const Auth = () => {
         return;
       }
 
-      // Verificar se o email foi verificado no perfil
+      // Verificar se o email foi verificado (Supabase nativo ou perfil custom)
       if (data.user) {
+        const isEmailConfirmed = data.user.email_confirmed_at != null;
         const { data: profile } = await supabase
           .from('profiles')
           .select('email_verified')
           .eq('id', data.user.id)
-          .single();
-
-        if (profile && !profile.email_verified) {
+          .maybeSingle();
+        if (!isEmailConfirmed && !profile?.email_verified) {
           await supabase.auth.signOut();
           toast.error("E-mail não verificado", {
             description: "Por favor, verifique seu e-mail e clique no link de confirmação para ativar sua conta.",
@@ -201,6 +168,7 @@ const Auth = () => {
       }
 
       toast.success("Bem-vindo de volta!");
+      navigate('/dashboard');
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);

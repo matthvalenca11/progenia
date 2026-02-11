@@ -169,28 +169,76 @@ const CapsuleViewer = () => {
               )}
 
               {/* Media Content */}
-              {contentData.media && contentData.media.map((item: any, index: number) => (
-                <Card key={index} className="p-6">
-                  {item.type === 'image' && (
-                    <img 
-                      src={item.url} 
-                      alt={`Media ${index + 1}`}
-                      className="w-full rounded-lg"
-                    />
-                  )}
-                  {item.type === 'video' && (
-                    <video 
-                      controls 
-                      className="w-full rounded-lg"
-                      preload="metadata"
-                    >
-                      <source src={item.url} type="video/mp4" />
-                      <source src={item.url} type="video/webm" />
-                      Seu navegador não suporta reprodução de vídeo.
-                    </video>
-                  )}
-                </Card>
-              ))}
+              {contentData.media && contentData.media.map((item: any, index: number) => {
+                const videoUrl = item.url;
+                const isYouTube = videoUrl && (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be'));
+                const isVimeo = videoUrl && videoUrl.includes('vimeo.com');
+                
+                return (
+                  <Card key={index} className="p-6">
+                    {item.type === 'image' && (
+                      <img 
+                        src={item.url} 
+                        alt={`Media ${index + 1}`}
+                        className="w-full rounded-lg"
+                      />
+                    )}
+                    {item.type === 'video' && isYouTube && (() => {
+                      // Extract video ID from various YouTube URL formats
+                      let videoId = '';
+                      if (videoUrl.includes('youtube.com/watch?v=')) {
+                        videoId = videoUrl.split('v=')[1]?.split('&')[0] || '';
+                      } else if (videoUrl.includes('youtu.be/')) {
+                        videoId = videoUrl.split('youtu.be/')[1]?.split('?')[0] || '';
+                      } else if (videoUrl.includes('youtube.com/embed/')) {
+                        videoId = videoUrl.split('embed/')[1]?.split('?')[0] || '';
+                      }
+                      
+                      const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+                      
+                      return (
+                        <div className="aspect-video w-full rounded-lg overflow-hidden bg-muted">
+                          <iframe
+                            src={embedUrl}
+                            title={`Vídeo ${index + 1}`}
+                            className="w-full h-full"
+                            allowFullScreen
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          />
+                        </div>
+                      );
+                    })()}
+                    {item.type === 'video' && isVimeo && (() => {
+                      // Extract video ID from Vimeo URL
+                      const vimeoId = videoUrl.split('vimeo.com/')[1]?.split('?')[0] || '';
+                      const embedUrl = `https://player.vimeo.com/video/${vimeoId}`;
+                      
+                      return (
+                        <div className="aspect-video w-full rounded-lg overflow-hidden bg-muted">
+                          <iframe
+                            src={embedUrl}
+                            title={`Vídeo ${index + 1}`}
+                            className="w-full h-full"
+                            allowFullScreen
+                            allow="autoplay; fullscreen; picture-in-picture"
+                          />
+                        </div>
+                      );
+                    })()}
+                    {item.type === 'video' && !isYouTube && !isVimeo && (
+                      <video 
+                        controls 
+                        className="w-full rounded-lg"
+                        preload="metadata"
+                      >
+                        <source src={item.url} type="video/mp4" />
+                        <source src={item.url} type="video/webm" />
+                        Seu navegador não suporta reprodução de vídeo.
+                      </video>
+                    )}
+                  </Card>
+                );
+              })}
 
               {/* Virtual Lab Content */}
               {contentData.virtualLabId && (

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -22,25 +22,49 @@ const passwordSchema = z
 
 const ResetPassword = () => {
   const navigate = useNavigate();
+  const resolved = useRef(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [hasSession, setHasSession] = useState(false);
+  const [hasSession, setHasSession] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // For custom token-based reset, we don't need a Supabase session
-    // Just check if we have a token in the URL
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('token');
-    
-    if (token) {
-      setHasSession(true);
-    } else {
-      toast.error("Link inválido ou expirado", {
-        description: "Por favor, solicite um novo link de recuperação.",
+    const checkSession = () => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          resolved.current = true;
+          setHasSession(true);
+        }
       });
-      setTimeout(() => navigate("/forgot-password"), 2000);
-    }
+    };
+
+    checkSession();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        resolved.current = true;
+        setHasSession(true);
+      }
+    });
+
+    const isRecovery = window.location.hash.includes("type=recovery");
+    const fallback = setTimeout(() => {
+      if (resolved.current) return;
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session && !resolved.current) {
+          resolved.current = true;
+          setHasSession(false);
+          toast.error("Link inválido ou expirado", {
+            description: "Por favor, solicite um novo link de recuperação.",
+          });
+          setTimeout(() => navigate("/forgot-password"), 2000);
+        }
+      });
+    }, isRecovery ? 3000 : 500);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(fallback);
+    };
   }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,28 +74,17 @@ const ResetPassword = () => {
       const validated = passwordSchema.parse({ password, confirmPassword });
       setLoading(true);
 
-      // Get token from URL
-      const params = new URLSearchParams(window.location.search);
-      const token = params.get('token');
+      const { error } = await supabase.auth.updateUser({ password: validated.password });
 
-      if (!token) {
-        toast.error("Token inválido");
-        return;
-      }
-
-      // Use our custom edge function
-      const { data, error } = await supabase.functions.invoke('reset-password', {
-        body: { token, newPassword: validated.password },
-      });
-
-      if (error || data?.error) {
+      if (error) {
         toast.error("Erro ao redefinir senha", {
-          description: error?.message || data?.error || "Tente novamente",
+          description: error.message,
         });
       } else {
         toast.success("Senha redefinida com sucesso!", {
           description: "Você já pode fazer login com sua nova senha.",
         });
+        await supabase.auth.signOut();
         setTimeout(() => navigate("/auth"), 1500);
       }
     } catch (error) {
