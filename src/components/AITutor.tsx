@@ -7,12 +7,79 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Brain, Send, X, Minimize2, Maximize2, ArrowRight, BookOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 const isProGeniaLink = (href: string) =>
-  /^\/(capsula|lesson|labs|module)\//.test(href) || href === "/capsulas";
+  /^\/(capsula|lesson|labs?|module)\//.test(href) || href === "/capsulas";
 
-const normalizePath = (href: string) => (href.startsWith("/") ? href : `/${href}`);
+const normalizePath = (href: string) => {
+  let path = href?.trim().startsWith("/") ? href.trim() : `/${(href || "").trim()}`;
+  if (path.startsWith("/lab/") && !path.startsWith("/labs/")) path = path.replace("/lab/", "/labs/");
+  return path;
+};
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function norm(s: string) {
+  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+}
+
+function stripPrefix(s: string) {
+  return s.replace(/^(Cápsula|Aula|Lab de|Lab):\s*/i, "").trim();
+}
+
+/** Remove path e prefixos do texto exibido no botão (ex: "Sugerido: /capsula/uuid Título" → "Título") */
+function cleanLinkDisplayText(text: string): string {
+  if (typeof text !== "string") return "";
+  return text
+    .replace(/\s*\/capsula\/[0-9a-f-]+\s*/gi, " ")
+    .replace(/\s*\/lesson\/[0-9a-f-]+\s*/gi, " ")
+    .replace(/\s*\/module\/[0-9a-f-]+\s*/gi, " ")
+    .replace(/\s*\/labs?\/[^\s]+\s*/gi, " ")
+    .replace(/^Sugerido:\s*/i, "")
+    .trim();
+}
+
+function findMatch(label: string, items: { title: string }[]) {
+  const n = norm(stripPrefix(label));
+  for (const item of items) {
+    const tn = norm(item.title);
+    if (tn.includes(n) || n.includes(tn)) return item;
+  }
+  return null;
+}
+
+type Catalog = { capsulas: { id: string; title: string }[]; labs: { slug: string; title: string }[]; lessons: { id: string; title: string }[]; modules: { id: string; title: string }[] };
+
+function fixProGeniaLinks(text: string, catalog: Catalog): string {
+  return text
+    .replace(/\[([^\]]*)\]\(\s*(\/capsula\/[^)\s]+)\s*\)/g, (_, label, path) => {
+      const id = path.replace("/capsula/", "").trim();
+      if (UUID_REGEX.test(id)) return `[${label}](${path})`;
+      const m = findMatch(label, catalog.capsulas);
+      return m ? `[${label}](/capsula/${m.id})` : `[${label}](${path})`;
+    })
+    .replace(/\[([^\]]*)\]\(\s*(\/labs?\/[^)\s]+)\s*\)/g, (_, label, path) => {
+      const slug = path.replace(/\/labs?\//, "").trim();
+      const exists = catalog.labs.some((l) => l.slug === slug);
+      if (exists) return `[${label}](${path})`;
+      const m = findMatch(label, catalog.labs);
+      return m ? `[${label}](/labs/${m.slug})` : `[${label}](/labs/${slug})`;
+    })
+    .replace(/\[([^\]]*)\]\(\s*(\/lesson\/[^)\s]+)\s*\)/g, (_, label, path) => {
+      const id = path.replace("/lesson/", "").trim();
+      if (UUID_REGEX.test(id)) return `[${label}](${path})`;
+      const m = findMatch(label, catalog.lessons);
+      return m ? `[${label}](/lesson/${m.id})` : `[${label}](${path})`;
+    })
+    .replace(/\[([^\]]*)\]\(\s*(\/module\/[^)\s]+)\s*\)/g, (_, label, path) => {
+      const id = path.replace("/module/", "").trim();
+      if (UUID_REGEX.test(id)) return `[${label}](${path})`;
+      const m = findMatch(label, catalog.modules);
+      return m ? `[${label}](/module/${m.id})` : `[${label}](${path})`;
+    });
+}
 
 interface Message {
   role: "user" | "assistant";
@@ -21,23 +88,41 @@ interface Message {
 
 const AITutor = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content: "Olá! Como posso te ajudar hoje?",
-    },
+    { role: "assistant", content: "Olá! Como posso te ajudar hoje?" },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
+
+  const fetchCatalog = async () => {
+    const [caps, labs, lessons, modules] = await Promise.all([
+      supabase.from("capsulas").select("id, title").eq("is_published", true),
+      supabase.from("virtual_labs").select("slug, title").eq("is_published", true),
+      supabase.from("lessons").select("id, title").eq("is_published", true),
+      supabase.from("modules").select("id, title").eq("is_published", true),
+    ]);
+    const c: Catalog = {
+      capsulas: caps.data || [],
+      labs: labs.data || [],
+      lessons: lessons.data || [],
+      modules: modules.data || [],
+    };
+    setCatalog(c);
+    return c;
+  };
+
+  useEffect(() => {
+    if (isOpen && !catalog) fetchCatalog();
+  }, [isOpen]);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -48,10 +133,12 @@ const AITutor = () => {
     setLoading(true);
 
     try {
+      await fetchCatalog();
       const { data, error } = await supabase.functions.invoke("ai-tutor", {
         body: { 
           message: userMessage,
-          conversationHistory: messages.slice(-5), // Send last 5 messages for context
+          conversationHistory: messages.slice(-5),
+          userId: user?.id ?? null,
         },
       });
 
@@ -183,6 +270,8 @@ const AITutor = () => {
                             a: ({ href, children }) => {
                               const path = href ? normalizePath(href) : "";
                               if (!path) return <span>{children}</span>;
+                              const rawText = typeof children === "string" ? children : (Array.isArray(children) ? children.map((c: any) => typeof c === "string" ? c : c?.props?.children ?? "").join("") : String(children ?? ""));
+                              const displayText = cleanLinkDisplayText(rawText) || rawText;
                               if (isProGeniaLink(path)) {
                                 return (
                                   <button
@@ -194,7 +283,7 @@ const AITutor = () => {
                                     className="mt-2 inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 transition-colors text-left"
                                   >
                                     <BookOpen className="h-4 w-4 flex-shrink-0" />
-                                    <span>{children}</span>
+                                    <span>{displayText}</span>
                                     <ArrowRight className="h-3.5 w-3.5 flex-shrink-0" />
                                   </button>
                                 );
@@ -207,7 +296,7 @@ const AITutor = () => {
                             },
                           }}
                         >
-                          {message.content}
+                          {catalog ? fixProGeniaLinks(message.content, catalog) : message.content}
                         </ReactMarkdown>
                       </div>
                     ) : (

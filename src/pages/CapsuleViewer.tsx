@@ -20,9 +20,19 @@ const CapsuleViewer = () => {
   const [quizAnswers, setQuizAnswers] = useState<{ [key: number]: number }>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
 
+  const isValidUuid = (s: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+
   useEffect(() => {
     const loadCapsula = async () => {
       if (!capsulaId) return;
+
+      if (!isValidUuid(capsulaId)) {
+        toast.error("Link inválido. A cápsula deve ser acessada por um link correto.");
+        navigate("/dashboard");
+        setLoading(false);
+        return;
+      }
 
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -40,10 +50,13 @@ const CapsuleViewer = () => {
 
         setCapsula(capsulaData);
 
-        // Load progress
-        const progressData = await capsulaService.getProgress(session.user.id, capsulaId);
-        if (progressData) {
-          setProgress(progressData.progress_percentage || 0);
+        try {
+          const progressData = await capsulaService.getProgress(session.user.id, capsulaId);
+          if (progressData) {
+            setProgress(progressData.progress_percentage || 0);
+          }
+        } catch {
+          // Falha no progresso não deve impedir exibir a cápsula
         }
       } catch (error: any) {
         console.error("Error loading capsula:", error);

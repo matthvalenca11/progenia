@@ -68,7 +68,7 @@ export const capsulaService = {
       .from("capsulas")
       .select("*")
       .eq("id", id)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
     return data;

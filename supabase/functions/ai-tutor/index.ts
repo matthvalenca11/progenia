@@ -7,7 +7,11 @@ const corsHeaders = {
 };
 
 const BASE_PROMPT =
-  "Você é um tutor de tecnologia médica na ProGenia. REGRAS: (1) Seja OBJETIVO e CONCISO. (2) Responda direto ao que o aluno perguntou. (3) SEMPRE que a pergunta se relacionar com algum módulo, aula, cápsula ou lab listado abaixo, INCLUA ao final da resposta 1–2 sugestões em Markdown, no formato [Nome do conteúdo](/caminho). Ex.: [Cápsula de ultrassom](/capsula/xxx), [Lab de TENS](/labs/tens). (4) Se houver conteúdo relevante no catálogo, é OBRIGATÓRIO sugerir — não termine a resposta sem indicar pelo menos um link quando existir correspondência.";
+  "Você é um tutor de tecnologia médica na ProGenia. REGRAS: (1) Seja OBJETIVO e CONCISO. (2) Responda direto ao que o aluno perguntou. (3) SEMPRE que a pergunta se relacionar com algum módulo, aula, cápsula ou lab listado abaixo, INCLUA ao final da resposta 1–2 sugestões em Markdown, no formato [Nome do conteúdo](/caminho). Use APENAS o título descritivo no texto do link, nunca o path ou UUID. " +
+  "IMPORTANTE — USE APENAS IDs E SLUGS EXATOS DO CATÁLOGO ABAIXO. NUNCA invente ou resuma URLs. " +
+  "Formato exato: Aulas = /lesson/ID_COMPLETO. Cápsulas = /capsula/ID_COMPLETO. Labs = /labs/SLUG_EXATO. Módulos = /module/ID_COMPLETO. Copie o id ou slug EXATAMENTE como está no catálogo. " +
+  "(4) MATRÍCULA: As aulas pertencem a módulos. Se a seção MATRÍCULAS DO USUÁRIO indicar que ele NÃO está matriculado no módulo da aula que você quer sugerir, NÃO sugira o link da aula diretamente. Em vez disso, sugira que ele se matricule no módulo: 'Para acessar esta aula, matricule-se no módulo: [Nome do módulo](/module/ID_DO_MODULO)'. Cápsulas e labs podem ser sugeridos normalmente (não exigem matrícula). " +
+  "(5) Se houver conteúdo relevante no catálogo, é OBRIGATÓRIO sugerir — não termine a resposta sem indicar pelo menos um link quando existir correspondência.";
 
 async function fetchProGeniaContent(supabase: ReturnType<typeof createClient>): Promise<string> {
   const parts: string[] = [];
@@ -21,7 +25,7 @@ async function fetchProGeniaContent(supabase: ReturnType<typeof createClient>): 
   if (modules?.length) {
     parts.push("## MÓDULOS\n");
     for (const m of modules) {
-      parts.push(`- **${m.title}** (id: ${m.id})${m.description ? `: ${m.description}` : ""}`);
+      parts.push(`- **${m.title}** → URL: /module/${m.id}${m.description ? ` | ${m.description}` : ""}`);
       const { data: lessons } = await supabase
         .from("lessons")
         .select("id, title, description")
@@ -30,7 +34,7 @@ async function fetchProGeniaContent(supabase: ReturnType<typeof createClient>): 
         .order("order_index", { ascending: true });
       if (lessons?.length) {
         for (const l of lessons) {
-          parts.push(`  - Aula: **${l.title}** (id: ${l.id})${l.description ? ` - ${l.description}` : ""}`);
+          parts.push(`  - Aula: **${l.title}** → URL: /lesson/${l.id}${l.description ? ` | ${l.description}` : ""}`);
         }
       }
       const { data: capsulas } = await supabase
@@ -41,7 +45,7 @@ async function fetchProGeniaContent(supabase: ReturnType<typeof createClient>): 
         .order("order_index", { ascending: true });
       if (capsulas?.length) {
         for (const c of capsulas) {
-          parts.push(`  - Cápsula: **${c.title}** (id: ${c.id})${c.description ? ` - ${c.description}` : ""}`);
+          parts.push(`  - Cápsula: **${c.title}** → URL: /capsula/${c.id}${c.description ? ` | ${c.description}` : ""}`);
         }
       }
       parts.push("");
@@ -58,7 +62,7 @@ async function fetchProGeniaContent(supabase: ReturnType<typeof createClient>): 
   if (capsulasGerais?.length) {
     parts.push("## CÁPSULAS (sem módulo específico)\n");
     for (const c of capsulasGerais) {
-      parts.push(`- **${c.title}** (id: ${c.id})${c.description ? ` - ${c.description}` : ""}`);
+      parts.push(`- **${c.title}** → URL: /capsula/${c.id}${c.description ? ` | ${c.description}` : ""}`);
     }
     parts.push("");
   }
@@ -71,12 +75,92 @@ async function fetchProGeniaContent(supabase: ReturnType<typeof createClient>): 
   if (labs?.length) {
     parts.push("## LABS VIRTUAIS\n");
     for (const lab of labs) {
-      parts.push(`- **${lab.title}** (slug: ${lab.slug}, tipo: ${lab.lab_type})${lab.description ? ` - ${lab.description}` : ""}`);
+      parts.push(`- **${lab.title}** → URL: /labs/${lab.slug}${lab.description ? ` | ${lab.description}` : ""}`);
     }
   }
 
   if (parts.length === 0) return "";
   return "\n\n---\nCONTEÚDO DA PROGENIA (use para basear respostas e sugerir links):\n\n" + parts.join("\n");
+}
+
+async function fetchUserEnrollmentsContext(supabase: ReturnType<typeof createClient>, userId: string | null): Promise<string> {
+  if (!userId) return "\n\nMATRÍCULAS DO USUÁRIO: Não identificado. Sugira módulos para matrícula quando relevante.\n";
+
+  const { data: enrollments } = await supabase
+    .from("module_enrollments")
+    .select("module_id")
+    .eq("user_id", userId);
+
+  const moduleIds = (enrollments || []).map((e) => e.module_id).filter(Boolean);
+  if (moduleIds.length === 0) {
+    return "\n\nMATRÍCULAS DO USUÁRIO: O usuário NÃO está matriculado em nenhum módulo. Ao sugerir AULAS (que pertencem a módulos), sempre indique que ele deve se matricular no módulo primeiro: 'Para acessar esta aula, matricule-se no módulo: [Nome do módulo](/module/ID)'. Cápsulas e labs podem ser sugeridos normalmente.\n";
+  }
+  return `\n\nMATRÍCULAS DO USUÁRIO: O usuário está matriculado nos módulos com IDs: ${moduleIds.join(", ")}. Aulas desses módulos podem ser sugeridas diretamente. Aulas de módulos cujo ID NÃO está nesta lista: sugira matrícula no módulo primeiro com o link do módulo.\n`;
+}
+
+interface Catalog {
+  capsulas: { id: string; title: string }[];
+  lessons: { id: string; title: string }[];
+  modules: { id: string; title: string }[];
+  labs: { slug: string; title: string }[];
+}
+
+async function fetchCatalog(supabase: ReturnType<typeof createClient>): Promise<Catalog> {
+  const catalog: Catalog = { capsulas: [], lessons: [], modules: [], labs: [] };
+
+  const { data: modules } = await supabase.from("modules").select("id, title").eq("is_published", true);
+  if (modules) catalog.modules = modules;
+
+  const { data: lessons } = await supabase.from("lessons").select("id, title").eq("is_published", true);
+  if (lessons) catalog.lessons = lessons;
+
+  const { data: capsulas } = await supabase.from("capsulas").select("id, title").eq("is_published", true);
+  if (capsulas) catalog.capsulas = capsulas;
+
+  const { data: labs } = await supabase.from("virtual_labs").select("slug, title").eq("is_published", true);
+  if (labs) catalog.labs = labs;
+
+  return catalog;
+}
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function normalizeForMatch(s: string) {
+  let t = s.replace(/^(Cápsula|Aula|Lab de|Lab):\s*/i, "").trim();
+  return t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+}
+
+function findBestMatch<T extends { title: string }>(title: string, items: T[]): T | null {
+  const n = normalizeForMatch(title);
+  for (const item of items) {
+    if (normalizeForMatch(item.title).includes(n) || n.includes(normalizeForMatch(item.title))) return item;
+  }
+  return null;
+}
+
+function fixProGeniaLinks(text: string, catalog: Catalog): string {
+  return text.replace(/\[([^\]]*)\](\s*\(\s*)(\/capsula\/[^)\s]+)(\s*\))/g, (_, label, p2, path, p4) => {
+    const id = path.replace("/capsula/", "").trim();
+    if (UUID_REGEX.test(id)) return `[${label}]${p2}${path}${p4}`;
+    const match = findBestMatch(label, catalog.capsulas);
+    return match ? `[${label}]${p2}/capsula/${match.id}${p4}` : `[${label}]${p2}${path}${p4}`;
+  }).replace(/\[([^\]]*)\](\s*\(\s*)(\/lesson\/[^)\s]+)(\s*\))/g, (_, label, p2, path, p4) => {
+    const id = path.replace("/lesson/", "").trim();
+    if (UUID_REGEX.test(id)) return `[${label}]${p2}${path}${p4}`;
+    const match = findBestMatch(label, catalog.lessons);
+    return match ? `[${label}]${p2}/lesson/${match.id}${p4}` : `[${label}]${p2}${path}${p4}`;
+  }).replace(/\[([^\]]*)\](\s*\(\s*)(\/module\/[^)\s]+)(\s*\))/g, (_, label, p2, path, p4) => {
+    const id = path.replace("/module/", "").trim();
+    if (UUID_REGEX.test(id)) return `[${label}]${p2}${path}${p4}`;
+    const match = findBestMatch(label, catalog.modules);
+    return match ? `[${label}]${p2}/module/${match.id}${p4}` : `[${label}]${p2}${path}${p4}`;
+  }).replace(/\[([^\]]*)\](\s*\(\s*)(\/labs\/[^)\s]+)(\s*\))/g, (_, label, p2, path, p4) => {
+    const slug = path.replace("/labs/", "").trim();
+    const exists = catalog.labs.some((l) => l.slug === slug);
+    if (exists) return `[${label}]${p2}${path}${p4}`;
+    const match = findBestMatch(label, catalog.labs);
+    return match ? `[${label}]${p2}/labs/${match.slug}${p4}` : `[${label}]${p2}${path}${p4}`;
+  });
 }
 
 function toGroqMessages(
@@ -103,7 +187,7 @@ serve(async (req) => {
   }
 
   try {
-    const { message, conversationHistory } = await req.json();
+    const { message, conversationHistory, userId } = await req.json();
     const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
 
     if (!GROQ_API_KEY) {
@@ -115,7 +199,8 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const contentContext = await fetchProGeniaContent(supabase);
-    const systemPrompt = BASE_PROMPT + contentContext;
+    const enrollmentsContext = await fetchUserEnrollmentsContext(supabase, userId ?? null);
+    const systemPrompt = BASE_PROMPT + contentContext + enrollmentsContext;
 
     const history = conversationHistory || [];
     const messages = toGroqMessages(systemPrompt, history, message);
@@ -145,12 +230,15 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const text = data?.choices?.[0]?.message?.content;
+    let text = data?.choices?.[0]?.message?.content;
 
     if (!text) {
       console.error("Unexpected Groq response:", data);
       throw new Error("Invalid response from AI service");
     }
+
+    const catalog = await fetchCatalog(supabase);
+    text = fixProGeniaLinks(text, catalog);
 
     return new Response(
       JSON.stringify({ response: text }),
