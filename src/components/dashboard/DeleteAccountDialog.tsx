@@ -111,7 +111,7 @@ export function DeleteAccountDialog({ open, onOpenChange }: DeleteAccountDialogP
         <DialogHeader>
           <DialogTitle className="text-destructive">Excluir minha conta</DialogTitle>
           <DialogDescription>
-            Esta ação é irreversível. Seu cadastro será removido da plataforma e seus históricos (progresso, conclusões, dados no banco) serão apagados. Para confirmar, digite sua senha abaixo.
+            Esta ação é irreversível. Seu cadastro será removido da plataforma e seus históricos (progresso, conclusões, dados no dataset) serão apagados. Para confirmar, digite sua senha abaixo.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
