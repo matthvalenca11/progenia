@@ -5,6 +5,11 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+/** URL base do app para links em e-mails (confirmação, reset de senha). Em produção defina VITE_APP_URL no .env. */
+export const APP_URL =
+  import.meta.env.VITE_APP_URL ||
+  (typeof window !== "undefined" ? window.location.origin : "");
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 

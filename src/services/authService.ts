@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, APP_URL } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
 
 export interface SignUpData {
@@ -36,7 +36,7 @@ export const authService = {
           full_name: data.full_name,
           institution: data.institution || "",
         },
-        emailRedirectTo: `${window.location.origin}/verify-email`,
+        emailRedirectTo: `${APP_URL}/verify-email`,
       },
     });
 

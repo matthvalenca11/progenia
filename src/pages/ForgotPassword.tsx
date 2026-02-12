@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, APP_URL } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 import { ArrowLeft, Mail } from "lucide-react";
@@ -27,7 +27,7 @@ const ForgotPassword = () => {
       const validated = emailSchema.parse({ email });
       setLoading(true);
 
-      const redirectTo = `${window.location.origin}/reset-password`;
+      const redirectTo = `${APP_URL}/reset-password`;
       const { error } = await supabase.auth.resetPasswordForEmail(validated.email, {
         redirectTo,
       });
