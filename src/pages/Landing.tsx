@@ -1,9 +1,14 @@
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { GraduationCap, Brain, Award, Users, Microscope, Zap } from "lucide-react";
+import { GraduationCap, Brain, Award, Microscope, Zap, BookOpen } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import logo from "@/assets/logo.png";
+
+/* Ritmo único: padding de seção e margens de título */
+const sectionPadding = "py-20 lg:py-24";
+const sectionHeader = "mb-12";
+const eyebrow = "text-sm font-medium uppercase tracking-widest text-muted-foreground mb-2";
+const sectionTitle = "text-3xl lg:text-4xl font-bold max-w-2xl";
 
 const Landing = () => {
   return (
@@ -32,140 +37,189 @@ const Landing = () => {
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 gradient-hero opacity-10"></div>
-        <div className="container mx-auto px-4 py-20 lg:py-32 relative">
-          <div className="max-w-4xl mx-auto text-center space-y-8">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/10 border border-secondary/20 text-secondary text-sm font-medium mb-4">
-              <Zap className="h-4 w-4" />
-              Plataforma de Aprendizado Científico
-            </div>
-            
-            <h1 className="text-5xl lg:text-7xl font-bold leading-tight">
-              Domine a Tecnologia Médica com{" "}
-              <span className="text-gradient">ProGenia</span>
-            </h1>
-            
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Uma plataforma digital abrangente para profissionais de saúde compreenderem 
-              os fundamentos científicos por trás das tecnologias terapêuticas e diagnósticas.
-            </p>
-            
-            <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-              <Link to="/auth">
-                <Button size="lg" className="gradient-accent text-white shadow-xl hover:shadow-glow transition-smooth text-lg px-8">
-                  <GraduationCap className="mr-2 h-5 w-5" />
-                  Começar a Aprender
-                </Button>
-              </Link>
-              <Link to="/sobre">
-                <Button size="lg" variant="outline" className="text-lg px-8">
-                  Sobre a ProGenia
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="py-20 bg-muted/30">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">Por Que Escolher a ProGenia?</h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Recursos de ponta projetados para a educação médica moderna
-            </p>
-          </div>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <Card className="p-8 hover:shadow-xl transition-smooth border-border/50">
-              <div className="rounded-lg bg-secondary/10 w-14 h-14 flex items-center justify-center mb-4">
-                <Brain className="h-7 w-7 text-secondary" />
-              </div>
-              <h3 className="text-2xl font-semibold mb-3">Tutor de IA</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Obtenha ajuda personalizada com nosso assistente de IA contextual, disponível 24/7 para responder perguntas e fornecer explicações.
-              </p>
-            </Card>
-
-            <Card className="p-8 hover:shadow-xl transition-smooth border-border/50">
-              <div className="rounded-lg bg-primary/10 w-14 h-14 flex items-center justify-center mb-4">
-                <Microscope className="h-7 w-7 text-primary" />
-              </div>
-              <h3 className="text-2xl font-semibold mb-3">Laboratórios Virtuais</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Experimente com parâmetros terapêuticos simulados e veja respostas biológicas em tempo real em um ambiente seguro.
-              </p>
-            </Card>
-
-            <Card className="p-8 hover:shadow-xl transition-smooth border-border/50">
-              <div className="rounded-lg bg-secondary/10 w-14 h-14 flex items-center justify-center mb-4">
-                <Award className="h-7 w-7 text-secondary" />
-              </div>
-              <h3 className="text-2xl font-semibold mb-3">Gamificação</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Ganhe emblemas, suba de nível e acompanhe seu progresso ao dominar cada módulo e alcançar marcos de aprendizado.
-              </p>
-            </Card>
-
-            <Card className="p-8 hover:shadow-xl transition-smooth border-border/50">
-              <div className="rounded-lg bg-primary/10 w-14 h-14 flex items-center justify-center mb-4">
-                <GraduationCap className="h-7 w-7 text-primary" />
-              </div>
-              <h3 className="text-2xl font-semibold mb-3">Conteúdo Especializado</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Aprenda com conteúdo cientificamente preciso e revisado por pares, cobrindo eletroestimulação, imagem e muito mais.
-              </p>
-            </Card>
-
-            <Card className="p-8 hover:shadow-xl transition-smooth border-border/50">
-              <div className="rounded-lg bg-secondary/10 w-14 h-14 flex items-center justify-center mb-4">
-                <Users className="h-7 w-7 text-secondary" />
-              </div>
-              <h3 className="text-2xl font-semibold mb-3">Acompanhamento de Progresso</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Monitore sua jornada de aprendizado com análises detalhadas, taxas de conclusão e recomendações personalizadas.
-              </p>
-            </Card>
-
-            <Card className="p-8 hover:shadow-xl transition-smooth border-border/50">
-              <div className="rounded-lg bg-primary/10 w-14 h-14 flex items-center justify-center mb-4">
-                <Zap className="h-7 w-7 text-primary" />
-              </div>
-              <h3 className="text-2xl font-semibold mb-3">Aprendizado Interativo</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Envolva-se com vídeos, animações, questionários e estudos de caso projetados para maximizar a retenção e compreensão.
-              </p>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-20 relative overflow-hidden">
-        <div className="absolute inset-0 gradient-hero opacity-10"></div>
+      {/* Hero */}
+      <section className={`relative overflow-hidden ${sectionPadding}`}>
+        <div className="absolute inset-0 gradient-hero opacity-[0.06]" aria-hidden="true" />
         <div className="container mx-auto px-4 relative">
-          <div className="max-w-3xl mx-auto text-center space-y-8">
-            <h2 className="text-4xl lg:text-5xl font-bold">
-              Pronto para Transformar Seu Conhecimento Médico?
-            </h2>
-            <p className="text-xl text-muted-foreground">
-              Junte-se à ProGenia hoje e comece sua jornada rumo ao domínio da tecnologia médica.
-            </p>
-            <Link to="/auth">
-              <Button size="lg" className="gradient-accent text-white shadow-xl hover:shadow-glow transition-smooth text-lg px-12">
-                <GraduationCap className="mr-2 h-5 w-5" />
-                Começar Gratuitamente
-              </Button>
-            </Link>
+          <div className="grid lg:grid-cols-[1fr,minmax(320px,0.9fr)] gap-12 lg:gap-16 items-center">
+            <div className="space-y-8">
+              <p className={eyebrow}>
+                Educação médica baseada em evidências
+              </p>
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.1] tracking-tight">
+                Da teoria ao equipamento médico.{" "}
+                <span className="text-gradient">ProGenia</span> conecta o conhecimento científico à prática.
+              </h1>
+              <ul className="space-y-4 text-muted-foreground text-lg max-w-lg">
+                <li className="flex items-center gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary/15 text-secondary">
+                    <Zap className="h-4 w-4" />
+                  </span>
+                  Conteúdo científico revisado: eletroestimulação, imagem e terapias
+                </li>
+                <li className="flex items-center gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                    <Microscope className="h-4 w-4" />
+                  </span>
+                  Laboratórios virtuais para experimentar parâmetros em ambiente seguro
+                </li>
+                <li className="flex items-center gap-3">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary/15 text-secondary">
+                    <Brain className="h-4 w-4" />
+                  </span>
+                  Tutor de IA contextual para dúvidas 24/7
+                </li>
+              </ul>
+              <div className="flex flex-wrap gap-4 pt-2">
+                <Link to="/auth">
+                  <Button size="lg" className="gradient-accent text-white shadow-xl hover:shadow-glow transition-smooth text-base px-6">
+                    <GraduationCap className="mr-2 h-4 w-4" />
+                    Começar a aprender
+                  </Button>
+                </Link>
+                <Link to="/sobre">
+                  <Button size="lg" variant="outline" className="text-base px-6">
+                    Sobre a ProGenia
+                  </Button>
+                </Link>
+              </div>
+            </div>
+            <div className="relative hidden lg:flex h-[360px] items-center justify-center">
+              <img src={logo} alt="ProGenia" className="h-84 w-auto object-contain progenia-logo" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Jornada em 3 passos */}
+      <section className={`${sectionPadding} bg-muted/30`}>
+        <div className="container mx-auto px-4">
+          <p className={eyebrow}>Como funciona</p>
+          <h2 className={`${sectionTitle} ${sectionHeader}`}>
+            Uma jornada pensada para quem atua na saúde
+          </h2>
+          <div className="grid md:grid-cols-3 gap-10 lg:gap-12">
+            <div>
+              <span className="text-5xl lg:text-6xl font-bold text-primary/15 leading-none">01</span>
+              <h3 className="text-xl font-semibold mt-3 mb-2">Estude o fundamento</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Módulos e cápsulas com base científica: princípios, indicações e parâmetros.
+              </p>
+            </div>
+            <div>
+              <span className="text-5xl lg:text-6xl font-bold text-primary/15 leading-none">02</span>
+              <h3 className="text-xl font-semibold mt-3 mb-2">Simule e experimente</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Laboratórios virtuais para testar configurações e ver respostas em tempo real.
+              </p>
+            </div>
+            <div>
+              <span className="text-5xl lg:text-6xl font-bold text-primary/15 leading-none">03</span>
+              <h3 className="text-xl font-semibold mt-3 mb-2">Consolide com a IA</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Tire dúvidas no contexto da aula e acompanhe seu progresso com gamificação.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Bento de diferenciais */}
+      <section className={sectionPadding}>
+        <div className="container mx-auto px-4">
+          <p className={eyebrow}>Diferenciais</p>
+          <h2 className={`${sectionTitle} ${sectionHeader}`}>
+            Recursos que fazem a diferença no seu aprendizado
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-6 md:grid-rows-[200px_auto_auto] gap-5 lg:gap-6">
+            <div className="md:col-span-3 md:row-span-1 md:h-[200px] p-6 lg:p-8 rounded-2xl border border-border/50 bg-card hover:shadow-lg transition-smooth flex flex-col justify-between">
+              <div className="rounded-xl bg-secondary/10 w-12 h-12 flex items-center justify-center mb-4 shrink-0">
+                <Brain className="h-6 w-6 text-secondary" />
+              </div>
+              <div className="min-h-0">
+                <h3 className="text-xl font-semibold mb-2">Tutor de IA contextual</h3>
+                <p className="text-muted-foreground leading-relaxed text-sm lg:text-base line-clamp-3">
+                  Assistente 24/7 no conteúdo: perguntas, explicações e reforço no momento em que você estuda.
+                </p>
+              </div>
+            </div>
+            <div className="md:col-span-3 md:row-span-1 md:h-[200px] p-6 lg:p-8 rounded-2xl border border-border/50 bg-card hover:shadow-lg transition-smooth flex flex-col justify-between">
+              <div className="rounded-xl bg-primary/10 w-12 h-12 flex items-center justify-center mb-4 shrink-0">
+                <Microscope className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold mb-2">Laboratórios virtuais</h3>
+                <p className="text-muted-foreground leading-relaxed text-sm">
+                  Simule parâmetros e observe respostas biológicas em ambiente seguro.
+                </p>
+              </div>
+            </div>
+            <div className="md:col-span-3 p-6 rounded-2xl border border-border/50 bg-card hover:shadow-md transition-smooth">
+              <div className="rounded-xl bg-secondary/10 w-10 h-10 flex items-center justify-center mb-3">
+                <BookOpen className="h-5 w-5 text-secondary" />
+              </div>
+              <h3 className="font-semibold mb-1">Conteúdo especializado</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Material cientificamente preciso e revisado, de eletroestimulação a imagem.
+              </p>
+            </div>
+            <div className="md:col-span-3 p-6 rounded-2xl border border-border/50 bg-card hover:shadow-md transition-smooth">
+              <div className="rounded-xl bg-primary/10 w-10 h-10 flex items-center justify-center mb-3">
+                <Award className="h-5 w-5 text-primary" />
+              </div>
+              <h3 className="font-semibold mb-1">Gamificação</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Emblemas, níveis e progresso por módulos e marcos de aprendizado.
+              </p>
+            </div>
+            <div className="md:col-span-3 p-6 rounded-2xl border border-border/50 bg-card hover:shadow-md transition-smooth">
+              <div className="rounded-xl bg-secondary/10 w-10 h-10 flex items-center justify-center mb-3">
+                <GraduationCap className="h-5 w-5 text-secondary" />
+              </div>
+              <h3 className="font-semibold mb-1">Progresso detalhado</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Análises, taxas de conclusão e recomendações personalizadas.
+              </p>
+            </div>
+            <div className="md:col-span-3 p-6 rounded-2xl border border-border/50 bg-card hover:shadow-md transition-smooth">
+              <div className="rounded-xl bg-primary/10 w-10 h-10 flex items-center justify-center mb-3">
+                <Zap className="h-5 w-5 text-primary" />
+              </div>
+              <h3 className="font-semibold mb-1">Aprendizado interativo</h3>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Vídeos, animações, questionários e casos para maximizar retenção.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className={`${sectionPadding} bg-muted/30`}>
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-8 rounded-2xl border border-border/50 bg-card p-8 lg:p-10">
+            <div className="max-w-xl">
+              <h2 className="text-2xl lg:text-3xl font-bold mb-2 leading-tight">
+                Pronto para levar seu conhecimento médico ao próximo nível?
+              </h2>
+              <p className="text-muted-foreground leading-relaxed">
+                Comece hoje e tenha acesso a conteúdo, laboratórios e suporte de IA.
+              </p>
+            </div>
+            <div className="shrink-0">
+              <Link to="/auth">
+                <Button size="lg" className="gradient-accent text-white shadow-xl hover:shadow-glow transition-smooth text-base px-8">
+                  <GraduationCap className="mr-2 h-4 w-4" />
+                  Começar gratuitamente
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border py-12 bg-muted/30">
+      <footer className="border-t border-border/60 py-12 bg-muted/20">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3">
