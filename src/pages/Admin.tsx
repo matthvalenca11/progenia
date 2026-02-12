@@ -12,7 +12,8 @@ import {
   Beaker,
   Award,
   FlaskConical,
-  Mail
+  Mail,
+  Bug
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
@@ -24,6 +25,7 @@ import { MediaLibrary } from "@/components/admin/MediaLibrary";
 import VirtualLabsAdmin from "./VirtualLabsAdmin";
 import { EmailSettingsManager } from "@/components/admin/EmailSettingsManager";
 import { AboutManager } from "@/components/admin/AboutManager";
+import { ComplainsManager } from "@/components/admin/ComplainsManager";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 const Admin = () => {
@@ -99,7 +101,7 @@ const Admin = () => {
       {/* Conteúdo Principal */}
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="modules" className="w-full">
-          <TabsList className="grid w-full grid-cols-8 gap-1">
+          <TabsList className="grid w-full grid-cols-9 gap-1">
             <TabsTrigger value="modules">
               <BookOpen className="h-4 w-4 mr-2" />
               Módulos
@@ -123,6 +125,10 @@ const Admin = () => {
             <TabsTrigger value="users">
               <Users className="h-4 w-4 mr-2" />
               Usuários
+            </TabsTrigger>
+            <TabsTrigger value="complains">
+              <Bug className="h-4 w-4 mr-2" />
+              Complains
             </TabsTrigger>
             <TabsTrigger value="about">
               <Info className="h-4 w-4 mr-2" />
@@ -162,6 +168,11 @@ const Admin = () => {
           {/* Tab: Usuários */}
           <TabsContent value="users" className="mt-6">
             <UsersManager />
+          </TabsContent>
+
+          {/* Tab: Complains (bugs reportados) */}
+          <TabsContent value="complains" className="mt-6">
+            <ComplainsManager />
           </TabsContent>
 
           {/* Tab: Sobre (Equipe & Parceiros) */}

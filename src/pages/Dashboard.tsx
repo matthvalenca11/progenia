@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { GraduationCap, Trophy, Clock, BookOpen, LogOut, Zap, Award, TrendingUp, UserPlus, UserMinus, Sparkles, ArrowRight, Activity, FlaskConical, ChevronLeft, ChevronRight, Pill, FileText, CheckCircle2, RotateCcw } from "lucide-react";
+import { GraduationCap, Trophy, Clock, BookOpen, LogOut, Zap, Award, TrendingUp, UserPlus, UserMinus, Sparkles, ArrowRight, Activity, FlaskConical, ChevronLeft, ChevronRight, Pill, FileText, CheckCircle2, RotateCcw, User, Bug, Trash2 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
 import { enrollmentService } from "@/services/enrollmentService";
@@ -13,6 +13,15 @@ import { useCapsulasRecomendadas, useCapsulaInacabada } from "@/hooks/useCapsula
 import VirtualLabsSection from "@/components/dashboard/VirtualLabsSection";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { DeleteAccountDialog } from "@/components/dashboard/DeleteAccountDialog";
+import { ReportBugDialog } from "@/components/dashboard/ReportBugDialog";
 
 interface UserProfile {
   full_name: string;
@@ -39,6 +48,8 @@ const Dashboard = () => {
   const [enrolledModules, setEnrolledModules] = useState<Set<string>>(new Set());
   const [userId, setUserId] = useState<string | undefined>(undefined);
   const [completedModules, setCompletedModules] = useState<Set<string>>(new Set());
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
+  const [reportBugOpen, setReportBugOpen] = useState(false);
 
   const { capsulas: capsulaRecomendadas, loading: loadingRecomendadas } = useCapsulasRecomendadas(userId, 15);
   const [currentCapsulaIndex, setCurrentCapsulaIndex] = useState(0);
@@ -686,14 +697,41 @@ const Dashboard = () => {
                 Admin
               </Button>
             )}
-            <Avatar>
-              <AvatarFallback className="bg-primary text-primary-foreground">
-                {profile ? getInitials(profile.full_name) : "U"}
-              </AvatarFallback>
-            </Avatar>
-            <Button variant="ghost" size="icon" onClick={handleSignOut}>
-              <LogOut className="h-5 w-5" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" className="rounded-full focus:outline-none focus:ring-2 focus:ring-ring">
+                  <Avatar>
+                    <AvatarFallback className="bg-primary text-primary-foreground">
+                      {profile ? getInitials(profile.full_name) : "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onClick={() => navigate("/profile")}>
+                  <User className="mr-2 h-4 w-4" />
+                  Perfil
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setReportBugOpen(true)}>
+                  <Bug className="mr-2 h-4 w-4" />
+                  Relatar um bug
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setDeleteAccountOpen(true)}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Excluir conta
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sair
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DeleteAccountDialog open={deleteAccountOpen} onOpenChange={setDeleteAccountOpen} />
+            <ReportBugDialog open={reportBugOpen} onOpenChange={setReportBugOpen} />
           </div>
         </div>
       </nav>
