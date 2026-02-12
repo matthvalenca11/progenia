@@ -25,6 +25,9 @@ verify_jwt = false
 [functions.delete-user]
 verify_jwt = false
 
+[functions.confirm-delete-account]
+verify_jwt = false
+
 [functions.send-contact-email]
 verify_jwt = true
 

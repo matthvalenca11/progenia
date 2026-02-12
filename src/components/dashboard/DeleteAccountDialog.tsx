@@ -47,24 +47,48 @@ export function DeleteAccountDialog({ open, onOpenChange }: DeleteAccountDialogP
         setLoading(false);
         return;
       }
-      const token = signInData.session?.access_token ?? session.access_token;
-      const { data, error } = await supabase.functions.invoke("delete-my-account", {
-        headers: { Authorization: `Bearer ${token}` },
+      const userId = signInData.session?.user?.id;
+      if (!userId) {
+        toast.error("Não foi possível renovar a sessão. Faça login novamente.");
+        setLoading(false);
+        return;
+      }
+      const deleteToken = crypto.randomUUID();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      const { error: insertError } = await supabase
+        .from("delete_requests")
+        .insert({ user_id: userId, token: deleteToken, expires_at: expiresAt });
+      if (insertError) {
+        console.error(insertError);
+        toast.error("Erro ao preparar exclusão. Tente novamente.");
+        setLoading(false);
+        return;
+      }
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const res = await fetch(`${supabaseUrl}/functions/v1/confirm-delete-account`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: supabaseKey ?? "",
+        },
+        body: JSON.stringify({ token: deleteToken }),
       });
-      if (error) {
-        const err = error as Error & { context?: { status?: number; body?: { error?: string } } };
-        const status = err.context?.status;
-        const bodyMsg = err.context?.body && typeof err.context.body === "object" && "error" in err.context.body ? (err.context.body as { error: string }).error : null;
-        if (status === 404 || err.message?.includes("non-2xx")) {
-          toast.error("Função de exclusão não está disponível. Publique-a com: supabase functions deploy delete-my-account");
+      const body = await res.json().catch(() => ({}));
+      const bodyMsg = typeof body?.error === "string" ? body.error : null;
+      if (!res.ok) {
+        if (res.status === 404) {
+          toast.error("Função não encontrada. Rode: supabase functions deploy confirm-delete-account");
+        } else if (res.status === 401) {
+          toast.error(bodyMsg || "Não autorizado. Verifique se está logado e tente novamente.");
         } else {
-          toast.error(bodyMsg || err.message || "Falha ao excluir conta.");
+          toast.error(bodyMsg || `Erro ${res.status}. Execute: supabase db push e supabase functions deploy confirm-delete-account`);
         }
         setLoading(false);
         return;
       }
-      if (data?.error) {
-        toast.error(data.error);
+      if (body?.error) {
+        toast.error(body.error);
         setLoading(false);
         return;
       }
