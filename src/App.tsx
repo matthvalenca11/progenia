@@ -25,6 +25,7 @@ import VirtualLabEditorUnified from "@/pages/VirtualLabEditorUnified";
 import VirtualLabsAdmin from "@/pages/VirtualLabsAdmin";
 import LabViewer from "@/pages/LabViewer";
 import DeleteUserTest from "@/pages/DeleteUserTest";
+import BlogNoticias from "@/pages/BlogNoticias";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,9 +34,9 @@ const AppContent = () => {
   const { user } = useAuth();
   const location = useLocation();
 
-  // Não mostrar o tutor na landing/sobre
+  // Não mostrar o tutor na landing/sobre/blog
   const shouldShowAITutor =
-    user && location.pathname !== "/" && location.pathname !== "/sobre";
+    user && location.pathname !== "/" && location.pathname !== "/sobre" && location.pathname !== "/blog";
 
   return (
     <div
@@ -52,6 +53,7 @@ const AppContent = () => {
           <Route path="/" element={<Landing />} />
           <Route path="/sobre" element={<Sobre />} />
           <Route path="/contato" element={<Contact />} />
+          <Route path="/blog" element={<BlogNoticias />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />

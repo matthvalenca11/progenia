@@ -13,7 +13,8 @@ import {
   Award,
   FlaskConical,
   Mail,
-  Bug
+  Bug,
+  Instagram
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
@@ -26,6 +27,7 @@ import VirtualLabsAdmin from "./VirtualLabsAdmin";
 import { EmailSettingsManager } from "@/components/admin/EmailSettingsManager";
 import { AboutManager } from "@/components/admin/AboutManager";
 import { ComplainsManager } from "@/components/admin/ComplainsManager";
+import { InstagramPostsManager } from "@/components/admin/InstagramPostsManager";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 const Admin = () => {
@@ -101,7 +103,7 @@ const Admin = () => {
       {/* Conteúdo Principal */}
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="modules" className="w-full">
-          <TabsList className="grid w-full grid-cols-9 gap-1">
+          <TabsList className="grid w-full grid-cols-10 gap-1">
             <TabsTrigger value="modules">
               <BookOpen className="h-4 w-4 mr-2" />
               Módulos
@@ -137,6 +139,10 @@ const Admin = () => {
             <TabsTrigger value="email">
               <Mail className="h-4 w-4 mr-2" />
               E-mails
+            </TabsTrigger>
+            <TabsTrigger value="instagram">
+              <Instagram className="h-4 w-4 mr-2" />
+              Instagram
             </TabsTrigger>
           </TabsList>
 
@@ -183,6 +189,11 @@ const Admin = () => {
           {/* Tab: Configurações de E-mail */}
           <TabsContent value="email" className="mt-6">
             <EmailSettingsManager />
+          </TabsContent>
+
+          {/* Tab: Posts do Instagram */}
+          <TabsContent value="instagram" className="mt-6">
+            <InstagramPostsManager />
           </TabsContent>
         </Tabs>
       </div>

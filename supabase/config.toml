@@ -10,7 +10,7 @@ enable_confirmations = false
 [functions.send-verification-email]
 verify_jwt = false
 
-[functions.send-reset-email]
+[functions.send-reset-email] 
 verify_jwt = false
 
 [functions.verify-email]
@@ -32,4 +32,7 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.ai-tutor]
+verify_jwt = false
+
+[functions.get-instagram-posts]
 verify_jwt = false

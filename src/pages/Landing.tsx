@@ -27,6 +27,9 @@ const Landing = () => {
             <Link to="/contato">
               <Button variant="ghost">Contato</Button>
             </Link>
+            <Link to="/blog">
+              <Button variant="ghost">Blog e Notícias</Button>
+            </Link>
             <Link to="/auth">
               <Button variant="ghost">Entrar</Button>
             </Link>
