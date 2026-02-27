@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Search, ArrowLeft, BookOpen, GraduationCap, Pill, Loader2 } from "lucide-react";
+import { AiDisclaimerPopover } from "@/components/ai/AiDisclaimerPopover";
 import { toast } from "sonner";
 
 type ModuleItem = {
@@ -124,22 +125,89 @@ const hasTopicIntersection = (a: Set<string>, b: Set<string>) => {
   return false;
 };
 
+const queryHash = (text: string) =>
+  Array.from(text).reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) >>> 0, 7);
+
 const buildLocalInsight = (
   query: string,
   isEnglish: boolean,
   counts: { capsulas: number; lessons: number; modules: number; total: number },
 ) => {
+  const q = normalize(query);
+  const hash = queryHash(q);
+  const isUltrasound = /\bultrass|\bultras|\busg\b|\bultrasound\b/.test(q);
+  const isMri = /\bmri\b|\brm\b|resson/.test(q);
+  const isElectro = /eletro|electro|tens|corrente/.test(q);
+  const isResolution = /resolu|resolution|frequen|frequency|ganho|gain|profund|depth/.test(q);
+  const isRisk = /queim|burn|risco|safety|seguran|dano|lesao/.test(q);
+
   if (isEnglish) {
     if (counts.total === 0) {
-      return `I couldn't find direct matches for "${query}" yet. Try broader terms and explore related topics below.`;
+      return `No direct match for "${query}". Try a more technical term (e.g., frequency, gain, depth, safety) to retrieve focused results.`;
     }
-    return `Your search for "${query}" is relevant to this study path. Explore the related capsules, lessons, and modules below to deepen your understanding.`;
+    if (isUltrasound && isRisk) {
+      const variants = [
+        `For "${query}", prioritize dose and thermal/mechanical safety parameters. Review the items below for risk control in ultrasound practice.`,
+        `Query "${query}" maps to ultrasound bioeffects and exposure management. Use the results below to compare safe operating strategies.`,
+      ];
+      return variants[hash % variants.length];
+    }
+    if (isUltrasound && isResolution) {
+      const variants = [
+        `For "${query}", focus on the frequency–depth–resolution trade-off and interpretation impact. The results below cover this parameter balance.`,
+        `Query "${query}" relates to spatial resolution versus penetration in ultrasound. Use the items below to map parameter choice to image quality.`,
+      ];
+      return variants[hash % variants.length];
+    }
+    if (isMri) {
+      const variants = [
+        `For "${query}", focus on contrast, SNR, and sequence parameters. The results below highlight practical MRI optimization points.`,
+        `Query "${query}" maps to MRI parameterization and image formation constraints. Use the items below for technical decision guidance.`,
+      ];
+      return variants[hash % variants.length];
+    }
+    if (isElectro) {
+      const variants = [
+        `For "${query}", evaluate waveform, pulse width, and stimulation safety limits. The results below cover applied electrotherapy decisions.`,
+        `Query "${query}" points to electrotherapy parameter tuning and clinical safety. Use the listed content for technical calibration criteria.`,
+      ];
+      return variants[hash % variants.length];
+    }
+    return `"${query}" maps to technical parameter decisions and interpretation criteria. Use the results below to compare application-focused approaches.`;
   }
 
   if (counts.total === 0) {
-    return `Ainda não encontrei resultados diretos para "${query}". Tente termos mais amplos e explore os tópicos relacionados abaixo.`;
+    return `Sem correspondência direta para "${query}". Tente um termo mais técnico (ex.: frequência, ganho, profundidade, segurança) para resultados mais precisos.`;
   }
-  return `Sua busca por "${query}" é relevante para esta trilha de estudo. Explore as cápsulas, aulas e módulos relacionados abaixo para aprofundar seu entendimento.`;
+  if (isUltrasound && isRisk) {
+    const variants = [
+      `Em "${query}", priorize dose e segurança térmica/mecânica. Os conteúdos abaixo ajudam a controlar risco na prática com ultrassom.`,
+      `A busca "${query}" se conecta a bioefeitos do ultrassom e gestão de exposição. Use os resultados abaixo para comparar estratégias seguras.`,
+    ];
+    return variants[hash % variants.length];
+  }
+  if (isUltrasound && isResolution) {
+    const variants = [
+      `Em "${query}", o ponto central é o balanço frequência–profundidade–resolução e seu impacto na interpretação. Os resultados abaixo cobrem esse ajuste.`,
+      `A busca "${query}" envolve o trade-off entre resolução espacial e penetração no ultrassom. Use os itens abaixo para mapear parâmetro e qualidade de imagem.`,
+    ];
+    return variants[hash % variants.length];
+  }
+  if (isMri) {
+    const variants = [
+      `Em "${query}", foque em contraste, SNR e parâmetros de sequência. Os resultados abaixo trazem pontos práticos de otimização em RM.`,
+      `A busca "${query}" se relaciona à parametrização de RM e limites de formação de imagem. Use os conteúdos abaixo para decisões técnicas.`,
+    ];
+    return variants[hash % variants.length];
+  }
+  if (isElectro) {
+    const variants = [
+      `Em "${query}", avalie forma de onda, largura de pulso e limites de segurança da estimulação. Os resultados abaixo cobrem decisões aplicadas de eletroterapia.`,
+      `A busca "${query}" aponta para ajuste de parâmetros em eletroterapia e segurança clínica. Use os itens listados para critérios de calibração.`,
+    ];
+    return variants[hash % variants.length];
+  }
+  return `"${query}" se conecta a decisões técnicas de parâmetros e critérios de interpretação. Use os resultados abaixo para comparar abordagens aplicadas.`;
 };
 
 export default function ContentSearch() {
@@ -383,7 +451,7 @@ export default function ContentSearch() {
       return score;
     };
 
-    const moduleResults: ResultItem[] = modules
+    let moduleResults: ResultItem[] = modules
       .map((module) => {
         const title = normalize(module.title || "");
         const description = normalize(module.description || "");
@@ -464,6 +532,41 @@ export default function ContentSearch() {
         };
       })
       .filter((item): item is ResultItem => Boolean(item && item.score > 0));
+
+    // Regra de consistência: se uma cápsula/aula foi sugerida e pertence a um módulo,
+    // o módulo correspondente também deve aparecer na seção de módulos.
+    const requiredModuleIds = new Set<string>();
+    for (const item of [...capsulaResults, ...lessonResults]) {
+      if (item.moduleId) requiredModuleIds.add(item.moduleId);
+    }
+
+    const moduleResultById = new Map(moduleResults.map((item) => [item.id, item]));
+    for (const moduleId of requiredModuleIds) {
+      if (moduleResultById.has(moduleId)) continue;
+      const moduleData = modules.find((module) => module.id === moduleId);
+      if (!moduleData) continue;
+
+      const relatedScores = [...capsulaResults, ...lessonResults]
+        .filter((item) => item.moduleId === moduleId)
+        .map((item) => item.score);
+      const derivedScore = Math.max(...relatedScores, 1) - 0.01;
+
+      const forcedModuleResult: ResultItem = {
+        id: moduleData.id,
+        kind: "module",
+        title: moduleData.title,
+        description: moduleData.description,
+        moduleId: moduleData.id,
+        moduleTitle: moduleData.title,
+        score: derivedScore,
+        requiresEnrollment: true,
+        isEnrolled: enrolledModuleIds.has(moduleData.id),
+        thumbnailUrl: null,
+      };
+
+      moduleResults.push(forcedModuleResult);
+      moduleResultById.set(moduleId, forcedModuleResult);
+    }
 
     return [...lessonResults, ...capsulaResults, ...moduleResults].sort((a, b) => b.score - a.score);
   }, [query, searchAlternatives, modules, lessons, capsulas, englishSearchIndex, enrolledModuleIds]);
@@ -686,9 +789,18 @@ export default function ContentSearch() {
       </nav>
 
       <div className="container mx-auto px-4 py-8">
-        <Card className="mb-6">
+        <Card className="mb-6 relative">
           <CardHeader className="pb-3">
-            <CardTitle>{isEnglish ? "Suggested content" : "Conteúdos sugeridos"}</CardTitle>
+            <AiDisclaimerPopover
+              language={isEnglish ? "en" : "pt"}
+              buttonClassName="absolute right-3 top-3 h-9 w-9"
+              iconClassName="h-8 w-8"
+            />
+            <div className="flex items-center gap-2 pr-10">
+              <CardTitle className="text-orange-700 dark:text-orange-300">
+                {isEnglish ? "AI-suggested content" : "Conteúdos sugeridos pela IA"}
+              </CardTitle>
+            </div>
             <p className="text-sm text-muted-foreground">
               {query
                 ? isEnglish
@@ -699,7 +811,7 @@ export default function ContentSearch() {
                   : "Digite uma palavra ou frase para encontrar conteúdos relacionados."}
             </p>
             {query && (
-              <p className="text-sm text-foreground/90 leading-6 italic">
+              <p className="text-sm text-orange-700/90 dark:text-orange-300/90 leading-6 italic">
                 {insight}
               </p>
             )}

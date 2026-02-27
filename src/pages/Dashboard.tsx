@@ -735,7 +735,7 @@ const Dashboard = () => {
                   value={headerSearch}
                   onChange={(e) => setHeaderSearch(e.target.value)}
                   placeholder={isEnglish ? "What do you want to learn today?" : "O que você quer aprender hoje?"}
-                  className="w-[360px] pl-9 border-accent/50 bg-background focus-visible:ring-accent"
+                  className="w-[360px] pl-9 border-accent/50 bg-background font-semibold placeholder:font-semibold focus-visible:ring-accent"
                 />
               </div>
               <Button type="submit" className="gradient-accent text-white shadow-glow">

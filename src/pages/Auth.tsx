@@ -514,7 +514,7 @@ const Auth = () => {
                     Esqueceu sua senha?
                   </Button>
                   <p className="text-xs text-muted-foreground mt-2 px-4">
-                    📧 Após criar sua conta, você receberá um e-mail de verificação. Clique no link para ativar sua conta antes de fazer login.
+                    Após criar sua conta, você receberá um e-mail de verificação. Clique no link para ativar sua conta antes de fazer login.
                   </p>
                 </div>
               </form>

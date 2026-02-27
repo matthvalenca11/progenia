@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Brain, Send, X, Minimize2, Maximize2, ArrowRight, BookOpen } from "lucide-react";
+import { AiDisclaimerPopover } from "@/components/ai/AiDisclaimerPopover";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -221,6 +222,7 @@ const AITutor = () => {
           <span className="font-semibold">Tutor de IA</span>
         </div>
         <div className="flex items-center gap-2">
+          <AiDisclaimerPopover />
           <Button
             size="icon"
             variant="ghost"
@@ -260,7 +262,7 @@ const AITutor = () => {
                     className={`max-w-[80%] rounded-lg px-4 py-2 ${
                       message.role === "user"
                         ? "bg-primary text-primary-foreground"
-                        : "bg-muted"
+                        : "bg-orange-50 text-orange-900 border border-orange-200/70 dark:bg-orange-950/25 dark:text-orange-200 dark:border-orange-800/60"
                     }`}
                   >
                     {message.role === "assistant" ? (

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Users } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { DynamicSectionRenderer } from "@/components/admin/DynamicSectionRenderer";
@@ -45,14 +46,62 @@ interface AboutSection {
   buttons: any[];
 }
 
+const LEGAL_SETTINGS_ID = "00000000-0000-0000-0000-000000000002";
+const defaultLegalText = `TERMOS DE PRIVACIDADE E USO - PROGENIA
+
+1. Coleta e uso de dados
+Coletamos dados cadastrais e de uso da plataforma para oferecer uma melhor experiência educacional.
+
+2. Finalidade
+Os dados são utilizados para autenticação, personalização do conteúdo, análises internas e comunicação com o usuário.
+
+3. Compartilhamento
+Não vendemos dados pessoais. O compartilhamento ocorre apenas quando necessário para operação da plataforma e em conformidade com a legislação.
+
+4. Segurança
+Adotamos medidas técnicas e administrativas para proteção das informações.
+
+5. Direitos do titular
+Você pode solicitar atualização, correção ou exclusão dos seus dados, conforme a legislação aplicável.
+
+6. Aceite
+Ao criar sua conta, você declara que leu e concorda com estes termos de privacidade e uso.`;
+
 const Sobre = () => {
   const navigate = useNavigate();
   const [partners, setPartners] = useState<Partner[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [sections, setSections] = useState<AboutSection[]>([]);
+  const [isLegalDialogOpen, setIsLegalDialogOpen] = useState(false);
+  const [legalText, setLegalText] = useState(defaultLegalText);
+  const [loadingLegalText, setLoadingLegalText] = useState(false);
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  useEffect(() => {
+    const loadLegalText = async () => {
+      try {
+        setLoadingLegalText(true);
+        const { data, error } = await supabase
+          .from("legal_settings")
+          .select("terms_privacy_text")
+          .eq("id", LEGAL_SETTINGS_ID)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (data?.terms_privacy_text) {
+          setLegalText(data.terms_privacy_text);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar termos de privacidade e uso:", error);
+      } finally {
+        setLoadingLegalText(false);
+      }
+    };
+
+    void loadLegalText();
   }, []);
 
   const loadData = async () => {
@@ -206,8 +255,27 @@ const Sobre = () => {
             © 2026 <span className="font-semibold gradient-text">ProGenia</span> - Learn & Evolve. 
             Todos os direitos reservados.
           </p>
+          <Button
+            type="button"
+            variant="link"
+            className="mt-2 h-auto p-0 text-sm font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
+            onClick={() => setIsLegalDialogOpen(true)}
+          >
+            Termos de uso e privacidade da plataforma
+          </Button>
         </div>
       </footer>
+
+      <Dialog open={isLegalDialogOpen} onOpenChange={setIsLegalDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Termos de Privacidade e Uso</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-6">
+            {loadingLegalText ? "Carregando termos..." : legalText}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
