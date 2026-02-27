@@ -2,19 +2,149 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase, APP_URL } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 import { z } from "zod";
 
+const brazilianStates = [
+  { uf: "AC", name: "Acre" },
+  { uf: "AL", name: "Alagoas" },
+  { uf: "AP", name: "Amapá" },
+  { uf: "AM", name: "Amazonas" },
+  { uf: "BA", name: "Bahia" },
+  { uf: "CE", name: "Ceará" },
+  { uf: "DF", name: "Distrito Federal" },
+  { uf: "ES", name: "Espírito Santo" },
+  { uf: "GO", name: "Goiás" },
+  { uf: "MA", name: "Maranhão" },
+  { uf: "MT", name: "Mato Grosso" },
+  { uf: "MS", name: "Mato Grosso do Sul" },
+  { uf: "MG", name: "Minas Gerais" },
+  { uf: "PA", name: "Pará" },
+  { uf: "PB", name: "Paraíba" },
+  { uf: "PR", name: "Paraná" },
+  { uf: "PE", name: "Pernambuco" },
+  { uf: "PI", name: "Piauí" },
+  { uf: "RJ", name: "Rio de Janeiro" },
+  { uf: "RN", name: "Rio Grande do Norte" },
+  { uf: "RS", name: "Rio Grande do Sul" },
+  { uf: "RO", name: "Rondônia" },
+  { uf: "RR", name: "Roraima" },
+  { uf: "SC", name: "Santa Catarina" },
+  { uf: "SP", name: "São Paulo" },
+  { uf: "SE", name: "Sergipe" },
+  { uf: "TO", name: "Tocantins" },
+];
+
+const genderOptions = [
+  { value: "masculino", label: "Masculino" },
+  { value: "feminino", label: "Feminino" },
+  { value: "prefiro_nao_dizer", label: "Prefiro não dizer" },
+];
+
+const educationLevelOptions = [
+  "Medio incompleto",
+  "Medio completo",
+  "Superior incompleto",
+  "Superior completo",
+  "Pós-graduação",
+  "Mestrado",
+  "Doutorado",
+];
+
+const healthProfessionOptions = [
+  "Estudante",
+  "Médico(a)",
+  "Enfermeiro(a)",
+  "Fisioterapeuta",
+  "Farmacêutico(a)",
+  "Nutricionista",
+  "Psicólogo(a)",
+  "Odontólogo(a)",
+  "Fonoaudiólogo(a)",
+  "Terapeuta ocupacional",
+  "Biomédico(a)",
+  "Engenheiro(a) biomédico(a)",
+  "Engenheiro(a) eletricista",
+  "Outras engenharias",
+  "Físico(a) médico(a)",
+  "Técnico(a) em radiologia",
+  "Outra",
+];
+
+const LEGAL_SETTINGS_ID = "00000000-0000-0000-0000-000000000002";
+
+const defaultLegalText = `TERMOS DE PRIVACIDADE E USO - PROGENIA
+
+1. Coleta e uso de dados
+Coletamos dados cadastrais e de uso da plataforma para oferecer uma melhor experiência educacional.
+
+2. Finalidade
+Os dados são utilizados para autenticação, personalização do conteúdo, análises internas e comunicação com o usuário.
+
+3. Compartilhamento
+Não vendemos dados pessoais. O compartilhamento ocorre apenas quando necessário para operação da plataforma e em conformidade com a legislação.
+
+4. Segurança
+Adotamos medidas técnicas e administrativas para proteção das informações.
+
+5. Direitos do titular
+Você pode solicitar atualização, correção ou exclusão dos seus dados, conforme a legislação aplicável.
+
+6. Aceite
+Ao criar sua conta, você declara que leu e concorda com estes termos de privacidade e uso.`;
+
 const signUpSchema = z.object({
   fullName: z.string().trim().min(2, "O nome deve ter pelo menos 2 caracteres").max(100),
   email: z.string().trim().email("Endereço de e-mail inválido").max(255),
-  password: z.string().min(6, "A senha deve ter pelo menos 6 caracteres").max(100),
+  password: z.string().min(8, "A senha deve ter pelo menos 8 caracteres").max(100),
+  confirmPassword: z.string().min(1, "Confirme sua senha"),
   institution: z.string().trim().max(200).optional(),
+  birthDate: z
+    .string()
+    .min(1, "Data de nascimento é obrigatória")
+    .refine((value) => !Number.isNaN(new Date(value).getTime()), "Data de nascimento inválida")
+    .refine((value) => new Date(value) <= new Date(), "Data de nascimento não pode ser no futuro"),
+  gender: z.enum(["masculino", "feminino", "prefiro_nao_dizer"], {
+    required_error: "Gênero é obrigatório",
+  }),
+  stateUf: z.string().length(2, "Estado é obrigatório"),
+  city: z.string().trim().min(1, "Cidade é obrigatória").max(120),
+  educationLevel: z.string().trim().min(1, "Escolaridade é obrigatória").max(80),
+  profession: z.string().trim().min(1, "Profissão é obrigatória").max(80),
+  professionOther: z.string().trim().max(120).optional(),
+  termsAccepted: z.boolean(),
+}).superRefine((data, ctx) => {
+  if (data.password !== data.confirmPassword) {
+    ctx.addIssue({
+      path: ["confirmPassword"],
+      code: z.ZodIssueCode.custom,
+      message: "As senhas não coincidem",
+    });
+  }
+
+  if (!data.termsAccepted) {
+    ctx.addIssue({
+      path: ["termsAccepted"],
+      code: z.ZodIssueCode.custom,
+      message: "Você precisa aceitar os termos de privacidade e uso",
+    });
+  }
+
+  if (data.profession === "Outra" && !data.professionOther?.trim()) {
+    ctx.addIssue({
+      path: ["professionOther"],
+      code: z.ZodIssueCode.custom,
+      message: "Informe sua profissão",
+    });
+  }
 });
 
 const signInSchema = z.object({
@@ -31,8 +161,22 @@ const Auth = () => {
     fullName: "",
     email: "",
     password: "",
+    confirmPassword: "",
     institution: "",
+    birthDate: "",
+    gender: "",
+    stateUf: "",
+    city: "",
+    educationLevel: "",
+    profession: "",
+    professionOther: "",
+    termsAccepted: false,
   });
+  const [cities, setCities] = useState<string[]>([]);
+  const [citiesLoading, setCitiesLoading] = useState(false);
+  const [isLegalDialogOpen, setIsLegalDialogOpen] = useState(false);
+  const [legalText, setLegalText] = useState(defaultLegalText);
+  const [loadingLegalText, setLoadingLegalText] = useState(false);
 
   // Sign In State
   const [signInData, setSignInData] = useState({
@@ -74,11 +218,67 @@ const Auth = () => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
+  useEffect(() => {
+    const fetchCities = async () => {
+      if (!signUpData.stateUf) {
+        setCities([]);
+        setSignUpData((prev) => ({ ...prev, city: "" }));
+        return;
+      }
+
+      try {
+        setCitiesLoading(true);
+        const response = await fetch(
+          `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${signUpData.stateUf}/municipios`,
+        );
+        if (!response.ok) {
+          throw new Error("Falha ao carregar cidades");
+        }
+        const data = (await response.json()) as Array<{ nome: string }>;
+        setCities(data.map((item) => item.nome));
+      } catch (error) {
+        console.error("Erro ao buscar cidades:", error);
+        setCities([]);
+        toast.error("Não foi possível carregar as cidades desse estado.");
+      } finally {
+        setCitiesLoading(false);
+      }
+    };
+
+    void fetchCities();
+  }, [signUpData.stateUf]);
+
+  useEffect(() => {
+    const loadLegalText = async () => {
+      try {
+        setLoadingLegalText(true);
+        const { data, error } = await supabase
+          .from("legal_settings")
+          .select("terms_privacy_text")
+          .eq("id", LEGAL_SETTINGS_ID)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (data?.terms_privacy_text) {
+          setLegalText(data.terms_privacy_text);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar termos de privacidade e uso:", error);
+      } finally {
+        setLoadingLegalText(false);
+      }
+    };
+
+    void loadLegalText();
+  }, []);
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
       const validated = signUpSchema.parse(signUpData);
+      const resolvedProfession =
+        validated.profession === "Outra" ? validated.professionOther!.trim() : validated.profession;
       setLoading(true);
 
       // Create user with Supabase Auth
@@ -90,6 +290,12 @@ const Auth = () => {
           data: {
             full_name: validated.fullName,
             institution: validated.institution,
+            birth_date: validated.birthDate,
+            gender: validated.gender,
+            state_uf: validated.stateUf,
+            city: validated.city,
+            education_level: validated.educationLevel,
+            profession: resolvedProfession,
           },
         },
       });
@@ -182,7 +388,7 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-2xl">
         <div className="text-center mb-8">
           <img src={logo} alt="ProGenia" className="h-16 mx-auto mb-4 progenia-logo" />
           <h1 className="text-3xl font-bold">Bem-vindo à ProGenia</h1>
@@ -244,53 +450,228 @@ const Auth = () => {
 
             <TabsContent value="signup">
               <form onSubmit={handleSignUp} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">Nome Completo</Label>
-                  <Input
-                    id="signup-name"
-                    type="text"
-                    placeholder="João Silva"
-                    value={signUpData.fullName}
-                    onChange={(e) => setSignUpData({ ...signUpData, fullName: e.target.value })}
-                    required
-                  />
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="signup-name">Nome Completo</Label>
+                    <Input
+                      id="signup-name"
+                      type="text"
+                      placeholder="João Silva"
+                      value={signUpData.fullName}
+                      onChange={(e) => setSignUpData({ ...signUpData, fullName: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-email">E-mail</Label>
+                    <Input
+                      id="signup-email"
+                      type="email"
+                      placeholder="seu.email@exemplo.com"
+                      value={signUpData.email}
+                      onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-birthdate">Data de nascimento</Label>
+                    <Input
+                      id="signup-birthdate"
+                      type="date"
+                      value={signUpData.birthDate}
+                      onChange={(e) => setSignUpData({ ...signUpData, birthDate: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password">Senha</Label>
+                    <Input
+                      id="signup-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={signUpData.password}
+                      onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })}
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">Deve ter pelo menos 8 caracteres</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-confirm-password">Confirmar senha</Label>
+                    <Input
+                      id="signup-confirm-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={signUpData.confirmPassword}
+                      onChange={(e) =>
+                        setSignUpData({ ...signUpData, confirmPassword: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Gênero</Label>
+                    <Select
+                      value={signUpData.gender}
+                      onValueChange={(value) => setSignUpData({ ...signUpData, gender: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {genderOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Estado</Label>
+                    <Select
+                      value={signUpData.stateUf}
+                      onValueChange={(value) =>
+                        setSignUpData((prev) => ({ ...prev, stateUf: value, city: "" }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o estado" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {brazilianStates.map((state) => (
+                          <SelectItem key={state.uf} value={state.uf}>
+                            {state.name} ({state.uf})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Cidade</Label>
+                    <Select
+                      value={signUpData.city}
+                      onValueChange={(value) => setSignUpData({ ...signUpData, city: value })}
+                      disabled={!signUpData.stateUf || citiesLoading || cities.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={
+                            !signUpData.stateUf
+                              ? "Escolha um estado antes"
+                              : citiesLoading
+                                ? "Carregando cidades..."
+                                : "Selecione a cidade"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cities.map((cityName) => (
+                          <SelectItem key={cityName} value={cityName}>
+                            {cityName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Escolaridade</Label>
+                    <Select
+                      value={signUpData.educationLevel}
+                      onValueChange={(value) => setSignUpData({ ...signUpData, educationLevel: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {educationLevelOptions.map((level) => (
+                          <SelectItem key={level} value={level}>
+                            {level}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Profissão</Label>
+                    <Select
+                      value={signUpData.profession}
+                      onValueChange={(value) => setSignUpData({ ...signUpData, profession: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {healthProfessionOptions.map((profession) => (
+                          <SelectItem key={profession} value={profession}>
+                            {profession}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {signUpData.profession === "Outra" && (
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="signup-profession-other">Qual sua profissão?</Label>
+                      <Input
+                        id="signup-profession-other"
+                        type="text"
+                        placeholder="Descreva sua profissão"
+                        value={signUpData.professionOther}
+                        onChange={(e) => setSignUpData({ ...signUpData, professionOther: e.target.value })}
+                        required
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="signup-institution">Instituição onde trabalha ou estuda</Label>
+                    <Input
+                      id="signup-institution"
+                      type="text"
+                      placeholder="Universidade, hospital, clínica..."
+                      value={signUpData.institution}
+                      onChange={(e) => setSignUpData({ ...signUpData, institution: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="md:col-span-2 flex items-start gap-3 rounded-md border border-border p-3">
+                    <Checkbox
+                      id="signup-terms"
+                      checked={signUpData.termsAccepted}
+                      onCheckedChange={(checked) =>
+                        setSignUpData({ ...signUpData, termsAccepted: checked === true })
+                      }
+                    />
+                    <div className="text-sm leading-5">
+                      <Label htmlFor="signup-terms" className="cursor-pointer">
+                        Li e concordo com os{" "}
+                      </Label>
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="h-auto p-0 align-baseline text-sm font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
+                        onClick={() => setIsLegalDialogOpen(true)}
+                      >
+                        termos de privacidade e uso
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">E-mail</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="seu.email@exemplo.com"
-                    value={signUpData.email}
-                    onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-institution">Instituição (Opcional)</Label>
-                  <Input
-                    id="signup-institution"
-                    type="text"
-                    placeholder="Sua universidade ou hospital"
-                    value={signUpData.institution}
-                    onChange={(e) => setSignUpData({ ...signUpData, institution: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Senha</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={signUpData.password}
-                    onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })}
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Deve ter pelo menos 8 caracteres
-                  </p>
-                </div>
-                <Button type="submit" className="w-full gradient-accent text-white" disabled={loading}>
+                <Button
+                  type="submit"
+                  className="w-full gradient-accent text-white"
+                  disabled={loading || !signUpData.termsAccepted}
+                >
                   {loading ? "Criando conta..." : "Criar Conta"}
                 </Button>
               </form>
@@ -298,6 +679,17 @@ const Auth = () => {
           </Tabs>
         </Card>
       </div>
+
+      <Dialog open={isLegalDialogOpen} onOpenChange={setIsLegalDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Termos de Privacidade e Uso</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-6">
+            {loadingLegalText ? "Carregando termos..." : legalText}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

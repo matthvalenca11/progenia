@@ -1,7 +1,10 @@
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { GraduationCap, Brain, Award, Microscope, Zap, BookOpen } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/logo.png";
 
 /* Ritmo único: padding de seção e margens de título */
@@ -9,8 +12,56 @@ const sectionPadding = "py-20 lg:py-24";
 const sectionHeader = "mb-12";
 const eyebrow = "text-sm font-medium uppercase tracking-widest text-muted-foreground mb-2";
 const sectionTitle = "text-3xl lg:text-4xl font-bold max-w-2xl";
+const LEGAL_SETTINGS_ID = "00000000-0000-0000-0000-000000000002";
+const defaultLegalText = `TERMOS DE PRIVACIDADE E USO - PROGENIA
+
+1. Coleta e uso de dados
+Coletamos dados cadastrais e de uso da plataforma para oferecer uma melhor experiência educacional.
+
+2. Finalidade
+Os dados são utilizados para autenticação, personalização do conteúdo, análises internas e comunicação com o usuário.
+
+3. Compartilhamento
+Não vendemos dados pessoais. O compartilhamento ocorre apenas quando necessário para operação da plataforma e em conformidade com a legislação.
+
+4. Segurança
+Adotamos medidas técnicas e administrativas para proteção das informações.
+
+5. Direitos do titular
+Você pode solicitar atualização, correção ou exclusão dos seus dados, conforme a legislação aplicável.
+
+6. Aceite
+Ao criar sua conta, você declara que leu e concorda com estes termos de privacidade e uso.`;
 
 const Landing = () => {
+  const [isLegalDialogOpen, setIsLegalDialogOpen] = useState(false);
+  const [legalText, setLegalText] = useState(defaultLegalText);
+  const [loadingLegalText, setLoadingLegalText] = useState(false);
+
+  useEffect(() => {
+    const loadLegalText = async () => {
+      try {
+        setLoadingLegalText(true);
+        const { data, error } = await supabase
+          .from("legal_settings")
+          .select("terms_privacy_text")
+          .eq("id", LEGAL_SETTINGS_ID)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (data?.terms_privacy_text) {
+          setLegalText(data.terms_privacy_text);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar termos de privacidade e uso:", error);
+      } finally {
+        setLoadingLegalText(false);
+      }
+    };
+
+    void loadLegalText();
+  }, []);
+
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
@@ -228,12 +279,33 @@ const Landing = () => {
             <div className="flex items-center gap-3">
               <img src={logo} alt="ProGenia" className="h-8 progenia-logo" />
             </div>
-            <p className="text-muted-foreground text-sm">
-              © 2026 ProGenia. Todos os direitos reservados.
-            </p>
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-muted-foreground text-sm">
+                © 2026 ProGenia. Todos os direitos reservados.
+              </p>
+              <Button
+                type="button"
+                variant="link"
+                className="h-auto p-0 text-sm font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
+                onClick={() => setIsLegalDialogOpen(true)}
+              >
+                Termos de uso e privacidade da plataforma
+              </Button>
+            </div>
           </div>
         </div>
       </footer>
+
+      <Dialog open={isLegalDialogOpen} onOpenChange={setIsLegalDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Termos de Privacidade e Uso</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-6">
+            {loadingLegalText ? "Carregando termos..." : legalText}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

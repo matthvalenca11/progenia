@@ -9,7 +9,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Mail, Save, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-export const EmailSettingsManager = () => {
+interface EmailSettingsManagerProps {
+  onSaved?: () => void;
+}
+
+export const EmailSettingsManager = ({ onSaved }: EmailSettingsManagerProps) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState({
@@ -67,6 +71,7 @@ export const EmailSettingsManager = () => {
       if (error) throw error;
 
       toast.success("Configurações salvas com sucesso!");
+      onSaved?.();
     } catch (error: any) {
       console.error("Error saving settings:", error);
       toast.error("Erro ao salvar configurações");

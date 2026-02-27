@@ -6,6 +6,12 @@ export interface SignUpData {
   password: string;
   full_name: string;
   institution?: string;
+  birth_date: string;
+  gender: "masculino" | "feminino" | "prefiro_nao_dizer";
+  state_uf: string;
+  city: string;
+  education_level: string;
+  profession: string;
 }
 
 export interface SignInData {
@@ -18,6 +24,12 @@ export interface UpdateProfileData {
   avatar_url?: string;
   institution?: string;
   professional_role?: string;
+  birth_date?: string;
+  gender?: "masculino" | "feminino" | "prefiro_nao_dizer";
+  state_uf?: string;
+  city?: string;
+  education_level?: string;
+  profession?: string;
   cargo?: string;
   descricao?: string;
 }
@@ -35,6 +47,12 @@ export const authService = {
         data: {
           full_name: data.full_name,
           institution: data.institution || "",
+          birth_date: data.birth_date,
+          gender: data.gender,
+          state_uf: data.state_uf,
+          city: data.city,
+          education_level: data.education_level,
+          profession: data.profession,
         },
         emailRedirectTo: `${APP_URL}/verify-email`,
       },

@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
-  BookOpen, 
+  BookOpen,
   Users, 
   Home,
   GraduationCap,
@@ -14,7 +15,8 @@ import {
   FlaskConical,
   Mail,
   Bug,
-  Instagram
+  Instagram,
+  ShieldCheck
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
@@ -28,12 +30,17 @@ import { EmailSettingsManager } from "@/components/admin/EmailSettingsManager";
 import { AboutManager } from "@/components/admin/AboutManager";
 import { ComplainsManager } from "@/components/admin/ComplainsManager";
 import { InstagramPostsManager } from "@/components/admin/InstagramPostsManager";
+import { LegalSettingsManager } from "@/components/admin/LegalSettingsManager";
+import { AdminDashboard } from "@/components/admin/dashboard/AdminDashboard";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 const Admin = () => {
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [contentOpenItems, setContentOpenItems] = useState<string[]>([]);
+  const [usersOpenItems, setUsersOpenItems] = useState<string[]>([]);
+  const [settingsOpenItems, setSettingsOpenItems] = useState<string[]>([]);
 
   useEffect(() => {
     const checkAdminAccess = async () => {
@@ -102,98 +109,217 @@ const Admin = () => {
 
       {/* Conteúdo Principal */}
       <div className="container mx-auto px-4 py-8">
-        <Tabs defaultValue="modules" className="w-full">
-          <TabsList className="grid w-full grid-cols-10 gap-1">
-            <TabsTrigger value="modules">
+        <Tabs defaultValue="dashboard" className="w-full">
+          <TabsList className="grid w-full grid-cols-4 gap-1">
+            <TabsTrigger value="dashboard">
               <BookOpen className="h-4 w-4 mr-2" />
-              Módulos
+              Dashboard
             </TabsTrigger>
-            <TabsTrigger value="capsulas">
-              <Award className="h-4 w-4 mr-2" />
-              Cápsulas
+            <TabsTrigger value="content">
+              <BookOpen className="h-4 w-4 mr-2" />
+              Conteúdo
             </TabsTrigger>
-            <TabsTrigger value="lessons">
-              <GraduationCap className="h-4 w-4 mr-2" />
-              Aulas
-            </TabsTrigger>
-            <TabsTrigger value="labs">
-              <FlaskConical className="h-4 w-4 mr-2" />
-              Labs Virtuais
-            </TabsTrigger>
-            <TabsTrigger value="media">
-              <Beaker className="h-4 w-4 mr-2" />
-              Biblioteca
-            </TabsTrigger>
-            <TabsTrigger value="users">
+            <TabsTrigger value="users-complains">
               <Users className="h-4 w-4 mr-2" />
-              Usuários
+              Usuários e Complains
             </TabsTrigger>
-            <TabsTrigger value="complains">
-              <Bug className="h-4 w-4 mr-2" />
-              Complains
-            </TabsTrigger>
-            <TabsTrigger value="about">
-              <Info className="h-4 w-4 mr-2" />
-              Sobre
-            </TabsTrigger>
-            <TabsTrigger value="email">
-              <Mail className="h-4 w-4 mr-2" />
-              E-mails
-            </TabsTrigger>
-            <TabsTrigger value="instagram">
-              <Instagram className="h-4 w-4 mr-2" />
-              Instagram
+            <TabsTrigger value="settings">
+              <ShieldCheck className="h-4 w-4 mr-2" />
+              Configurações
             </TabsTrigger>
           </TabsList>
 
-          {/* Tab: Cápsulas */}
-          <TabsContent value="capsulas" className="mt-6">
-            <CapsulasManager />
+          <TabsContent value="dashboard" className="mt-6">
+            <AdminDashboard />
           </TabsContent>
 
-          {/* Tab: Módulos */}
-          <TabsContent value="modules" className="mt-6">
-            <ModulesManager />
+          <TabsContent value="content" className="mt-6">
+            <Accordion
+              type="multiple"
+              value={contentOpenItems}
+              onValueChange={setContentOpenItems}
+              className="w-full rounded-lg border px-4"
+            >
+              <AccordionItem value="content-modules">
+                <AccordionTrigger>
+                  <span className="inline-flex items-center gap-2">
+                    <BookOpen className="h-4 w-4" />
+                    Módulos
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-2">
+                    <ModulesManager />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="content-capsules">
+                <AccordionTrigger>
+                  <span className="inline-flex items-center gap-2">
+                    <Award className="h-4 w-4" />
+                    Cápsulas
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-2">
+                    <CapsulasManager />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="content-lessons">
+                <AccordionTrigger>
+                  <span className="inline-flex items-center gap-2">
+                    <GraduationCap className="h-4 w-4" />
+                    Aulas
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-2">
+                    <LessonsManager />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="content-labs">
+                <AccordionTrigger>
+                  <span className="inline-flex items-center gap-2">
+                    <FlaskConical className="h-4 w-4" />
+                    Labs Virtuais
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-2">
+                    <VirtualLabsAdmin />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="content-media">
+                <AccordionTrigger>
+                  <span className="inline-flex items-center gap-2">
+                    <Beaker className="h-4 w-4" />
+                    Biblioteca
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-2">
+                    <MediaLibrary />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </TabsContent>
 
-          {/* Tab: Aulas */}
-          <TabsContent value="lessons" className="mt-6">
-            <LessonsManager />
+          <TabsContent value="users-complains" className="mt-6">
+            <Accordion
+              type="multiple"
+              value={usersOpenItems}
+              onValueChange={setUsersOpenItems}
+              className="w-full rounded-lg border px-4"
+            >
+              <AccordionItem value="users-list">
+                <AccordionTrigger>
+                  <span className="inline-flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Usuários
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-2">
+                    <UsersManager />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="users-complains-list">
+                <AccordionTrigger>
+                  <span className="inline-flex items-center gap-2">
+                    <Bug className="h-4 w-4" />
+                    Complains
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-2">
+                    <ComplainsManager />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </TabsContent>
 
-          {/* Tab: Labs Virtuais */}
-          <TabsContent value="labs" className="mt-6">
-            <VirtualLabsAdmin />
-          </TabsContent>
+          <TabsContent value="settings" className="mt-6">
+            <Accordion
+              type="multiple"
+              value={settingsOpenItems}
+              onValueChange={setSettingsOpenItems}
+              className="w-full rounded-lg border px-4"
+            >
+              <AccordionItem value="settings-about">
+                <AccordionTrigger>
+                  <span className="inline-flex items-center gap-2">
+                    <Info className="h-4 w-4" />
+                    Sobre
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-2">
+                    <AboutManager />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
 
-          {/* Tab: Biblioteca de Mídia */}
-          <TabsContent value="media" className="mt-6">
-            <MediaLibrary />
-          </TabsContent>
+              <AccordionItem value="settings-email">
+                <AccordionTrigger>
+                  <span className="inline-flex items-center gap-2">
+                    <Mail className="h-4 w-4" />
+                    E-mails
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-2">
+                    <EmailSettingsManager
+                      onSaved={() =>
+                        setSettingsOpenItems((prev) => prev.filter((item) => item !== "settings-email"))
+                      }
+                    />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
 
-          {/* Tab: Usuários */}
-          <TabsContent value="users" className="mt-6">
-            <UsersManager />
-          </TabsContent>
+              <AccordionItem value="settings-instagram">
+                <AccordionTrigger>
+                  <span className="inline-flex items-center gap-2">
+                    <Instagram className="h-4 w-4" />
+                    Instagram
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-2">
+                    <InstagramPostsManager />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
 
-          {/* Tab: Complains (bugs reportados) */}
-          <TabsContent value="complains" className="mt-6">
-            <ComplainsManager />
-          </TabsContent>
-
-          {/* Tab: Sobre (Equipe & Parceiros) */}
-          <TabsContent value="about" className="mt-6">
-            <AboutManager />
-          </TabsContent>
-
-          {/* Tab: Configurações de E-mail */}
-          <TabsContent value="email" className="mt-6">
-            <EmailSettingsManager />
-          </TabsContent>
-
-          {/* Tab: Posts do Instagram */}
-          <TabsContent value="instagram" className="mt-6">
-            <InstagramPostsManager />
+              <AccordionItem value="settings-legal">
+                <AccordionTrigger>
+                  <span className="inline-flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4" />
+                    Termos
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-2">
+                    <LegalSettingsManager
+                      onSaved={() =>
+                        setSettingsOpenItems((prev) => prev.filter((item) => item !== "settings-legal"))
+                      }
+                    />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </TabsContent>
         </Tabs>
       </div>

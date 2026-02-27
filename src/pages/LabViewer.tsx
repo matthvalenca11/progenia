@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
@@ -9,12 +9,16 @@ import TensLabPage from "@/pages/TensLabPage";
 import UltrasoundTherapyLabPage from "@/pages/UltrasoundTherapyLabPage";
 import MRILabPage from "@/pages/MRILabPage";
 import { toast } from "sonner";
+import { labAnalyticsService } from "@/services/labAnalyticsService";
 
 export default function LabViewer() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [lab, setLab] = useState<VirtualLab | null>(null);
   const [loading, setLoading] = useState(true);
+  const sessionIdRef = useRef<string | null>(null);
+  const startedAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     const loadLab = async () => {
@@ -52,6 +56,51 @@ export default function LabViewer() {
 
     loadLab();
   }, [slug, navigate]);
+
+  useEffect(() => {
+    if (!lab?.id) return;
+
+    const params = new URLSearchParams(location.search);
+    const capsulaId = params.get("capsulaId");
+    const sessionId = labAnalyticsService.createSessionId();
+    sessionIdRef.current = sessionId;
+    startedAtRef.current = Date.now();
+
+    void labAnalyticsService.trackEvent({
+      labId: lab.id,
+      eventType: "open",
+      sessionId,
+      capsulaId,
+      metadata: { slug: lab.slug, labType: lab.lab_type },
+    });
+
+    // Heartbeat de interação para refletir uso real no dashboard
+    const heartbeat = window.setInterval(() => {
+      if (!sessionIdRef.current || !lab.id) return;
+      void labAnalyticsService.trackEvent({
+        labId: lab.id,
+        eventType: "interaction",
+        sessionId: sessionIdRef.current,
+        capsulaId,
+        metadata: { heartbeat: true },
+      });
+    }, 30000);
+
+    return () => {
+      window.clearInterval(heartbeat);
+      if (!sessionIdRef.current || !startedAtRef.current || !lab.id) return;
+
+      const durationSeconds = Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000));
+      void labAnalyticsService.trackEvent({
+        labId: lab.id,
+        eventType: "close",
+        sessionId: sessionIdRef.current,
+        capsulaId,
+        durationSeconds,
+        metadata: { slug: lab.slug, labType: lab.lab_type },
+      });
+    };
+  }, [lab?.id, lab?.lab_type, lab?.slug, location.search]);
 
   if (loading) {
     return (

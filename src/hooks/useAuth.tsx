@@ -13,7 +13,18 @@ interface AuthContextType {
   userRole: string | null;
   profile: any;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (data: { email: string; password: string; full_name: string; institution?: string }) => Promise<void>;
+  signUp: (data: {
+    email: string;
+    password: string;
+    full_name: string;
+    institution?: string;
+    birth_date: string;
+    gender: "masculino" | "feminino" | "prefiro_nao_dizer";
+    state_uf: string;
+    city: string;
+    education_level: string;
+    profession: string;
+  }) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (updates: any) => Promise<void>;
   refreshProfile: () => Promise<void>;

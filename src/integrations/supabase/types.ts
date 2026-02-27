@@ -360,6 +360,78 @@ export type Database = {
         }
         Relationships: []
       }
+      legal_settings: {
+        Row: {
+          created_at: string | null
+          id: string
+          terms_privacy_text: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          terms_privacy_text: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          terms_privacy_text?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      lab_usage_events: {
+        Row: {
+          capsula_id: string | null
+          created_at: string
+          duration_seconds: number | null
+          event_type: string
+          id: string
+          lab_id: string
+          metadata: Json
+          session_id: string
+          user_id: string
+        }
+        Insert: {
+          capsula_id?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          event_type: string
+          id?: string
+          lab_id: string
+          metadata?: Json
+          session_id: string
+          user_id: string
+        }
+        Update: {
+          capsula_id?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          event_type?: string
+          id?: string
+          lab_id?: string
+          metadata?: Json
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lab_usage_events_capsula_id_fkey"
+            columns: ["capsula_id"]
+            isOneToOne: false
+            referencedRelation: "capsulas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lab_usage_events_lab_id_fkey"
+            columns: ["lab_id"]
+            isOneToOne: false
+            referencedRelation: "virtual_labs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lesson_progress: {
         Row: {
           created_at: string | null
@@ -543,54 +615,72 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          birth_date: string | null
           cargo: string | null
+          city: string | null
           created_at: string | null
           descricao: string | null
+          education_level: string | null
           email: string | null
           email_verified: boolean | null
           full_name: string
+          gender: string | null
           id: string
           institution: string | null
           papel: string | null
           password_reset_expires_at: string | null
           password_reset_token: string | null
+          profession: string | null
           professional_role: string | null
+          state_uf: string | null
           updated_at: string | null
           verification_expires_at: string | null
           verification_token: string | null
         }
         Insert: {
           avatar_url?: string | null
+          birth_date?: string | null
           cargo?: string | null
+          city?: string | null
           created_at?: string | null
           descricao?: string | null
+          education_level?: string | null
           email?: string | null
           email_verified?: boolean | null
           full_name: string
+          gender?: string | null
           id: string
           institution?: string | null
           papel?: string | null
           password_reset_expires_at?: string | null
           password_reset_token?: string | null
+          profession?: string | null
           professional_role?: string | null
+          state_uf?: string | null
           updated_at?: string | null
           verification_expires_at?: string | null
           verification_token?: string | null
         }
         Update: {
           avatar_url?: string | null
+          birth_date?: string | null
           cargo?: string | null
+          city?: string | null
           created_at?: string | null
           descricao?: string | null
+          education_level?: string | null
           email?: string | null
           email_verified?: boolean | null
           full_name?: string
+          gender?: string | null
           id?: string
           institution?: string | null
           papel?: string | null
           password_reset_expires_at?: string | null
           password_reset_token?: string | null
+          profession?: string | null
           professional_role?: string | null
+          state_uf?: string | null
           updated_at?: string | null
           verification_expires_at?: string | null
           verification_token?: string | null
@@ -1038,9 +1128,132 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      admin_dashboard_overview: {
+        Row: {
+          capsula_completions: number | null
+          lab_sessions: number | null
+          lesson_completions: number | null
+          total_capsulas_published: number | null
+          total_labs_published: number | null
+          total_lessons_published: number | null
+          total_users: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      admin_dashboard_content_usage: {
+        Args: {
+          p_end: string
+          p_gender?: string | null
+          p_profession?: string | null
+          p_start: string
+          p_state_uf?: string | null
+        }
+        Returns: {
+          content_type: string
+          status: string
+          total: number
+        }[]
+      }
+      admin_dashboard_demographics: {
+        Args: {
+          p_end: string
+          p_start: string
+        }
+        Returns: {
+          dimension: string
+          label: string
+          total: number
+        }[]
+      }
+      admin_dashboard_engagement_series: {
+        Args: {
+          p_end: string
+          p_gender?: string | null
+          p_profession?: string | null
+          p_start: string
+          p_state_uf?: string | null
+        }
+        Returns: {
+          capsula_completions: number
+          dau: number
+          lesson_completions: number
+          period: string
+          quiz_attempts: number
+        }[]
+      }
+      admin_dashboard_kpis: {
+        Args: {
+          p_end: string
+          p_gender?: string | null
+          p_profession?: string | null
+          p_start: string
+          p_state_uf?: string | null
+        }
+        Returns: {
+          active_users: number
+          avg_lesson_progress: number
+          capsula_completions: number
+          lesson_completions: number
+          new_users: number
+          total_lab_sessions: number
+          total_lab_time_seconds: number
+          total_users: number
+        }[]
+      }
+      admin_dashboard_lab_usage: {
+        Args: {
+          p_end: string
+          p_gender?: string | null
+          p_limit?: number
+          p_profession?: string | null
+          p_start: string
+          p_state_uf?: string | null
+        }
+        Returns: {
+          avg_time_seconds: number
+          completes: number
+          interactions: number
+          lab_id: string
+          lab_name: string
+          opens: number
+          sessions: number
+          total_time_seconds: number
+          unique_users: number
+        }[]
+      }
+      admin_dashboard_signups_series: {
+        Args: {
+          p_end: string
+          p_gender?: string | null
+          p_profession?: string | null
+          p_start: string
+          p_state_uf?: string | null
+        }
+        Returns: {
+          period: string
+          signups: number
+        }[]
+      }
+      admin_dashboard_top_content: {
+        Args: {
+          p_end: string
+          p_gender?: string | null
+          p_limit?: number
+          p_profession?: string | null
+          p_start: string
+          p_state_uf?: string | null
+        }
+        Returns: {
+          completion_rate: number
+          completions: number
+          content_id: string
+          content_type: string
+          starts: number
+          title: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

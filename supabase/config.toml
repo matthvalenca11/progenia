@@ -36,3 +36,6 @@ verify_jwt = false
 
 [functions.get-instagram-posts]
 verify_jwt = false
+
+[functions.refresh-instagram-token]
+verify_jwt = false
