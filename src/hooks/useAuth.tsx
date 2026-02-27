@@ -20,8 +20,9 @@ interface AuthContextType {
     institution?: string;
     birth_date: string;
     gender: "masculino" | "feminino" | "prefiro_nao_dizer";
-    state_uf: string;
-    city: string;
+    state_uf?: string | null;
+    city?: string | null;
+    country?: string | null;
     education_level: string;
     profession: string;
   }) => Promise<void>;

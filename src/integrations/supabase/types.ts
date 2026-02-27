@@ -381,6 +381,75 @@ export type Database = {
         }
         Relationships: []
       }
+      translation_cache: {
+        Row: {
+          created_at: string
+          id: string
+          source_lang: string
+          source_text: string
+          target_lang: string
+          translated_text: string
+          updated_at: string
+          usage_count: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          source_lang: string
+          source_text: string
+          target_lang: string
+          translated_text: string
+          updated_at?: string
+          usage_count?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          source_lang?: string
+          source_text?: string
+          target_lang?: string
+          translated_text?: string
+          updated_at?: string
+          usage_count?: number
+        }
+        Relationships: []
+      }
+      translation_glossary: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          priority: number
+          source_lang: string
+          source_text: string
+          target_lang: string
+          target_text: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          priority?: number
+          source_lang: string
+          source_text: string
+          target_lang: string
+          target_text: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          priority?: number
+          source_lang?: string
+          source_text?: string
+          target_lang?: string
+          target_text?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       lab_usage_events: {
         Row: {
           capsula_id: string | null
@@ -618,6 +687,7 @@ export type Database = {
           birth_date: string | null
           cargo: string | null
           city: string | null
+          country: string | null
           created_at: string | null
           descricao: string | null
           education_level: string | null
@@ -642,6 +712,7 @@ export type Database = {
           birth_date?: string | null
           cargo?: string | null
           city?: string | null
+          country?: string | null
           created_at?: string | null
           descricao?: string | null
           education_level?: string | null
@@ -666,6 +737,7 @@ export type Database = {
           birth_date?: string | null
           cargo?: string | null
           city?: string | null
+          country?: string | null
           created_at?: string | null
           descricao?: string | null
           education_level?: string | null

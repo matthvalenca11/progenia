@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { LanguageProvider } from "./contexts/LanguageContext";
 import AITutor from "@/components/AITutor";
 import Landing from "@/pages/Landing";
 import Sobre from "@/pages/Sobre";
@@ -26,6 +27,7 @@ import VirtualLabsAdmin from "@/pages/VirtualLabsAdmin";
 import LabViewer from "@/pages/LabViewer";
 import DeleteUserTest from "@/pages/DeleteUserTest";
 import BlogNoticias from "@/pages/BlogNoticias";
+import ContentSearch from "@/pages/ContentSearch";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -66,6 +68,7 @@ const AppContent = () => {
           <Route path="/lesson/:lessonId" element={<LessonViewer />} />
           <Route path="/capsula/:capsulaId" element={<CapsuleViewer />} />
           <Route path="/capsulas" element={<AllCapsules />} />
+          <Route path="/search" element={<ContentSearch />} />
           <Route path="/admin/labs" element={<VirtualLabsAdmin />} />
           <Route path="/admin/labs/novo" element={<VirtualLabEditorUnified />} />
           <Route path="/admin/labs/editar/:labId" element={<VirtualLabEditorUnified />} />
@@ -94,17 +97,19 @@ const AppContent = () => {
 
 const App = () => (
   <ThemeProvider>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AppContent />
-          </BrowserRouter>
-        </TooltipProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <LanguageProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <AppContent />
+            </BrowserRouter>
+          </TooltipProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </LanguageProvider>
   </ThemeProvider>
 );
 

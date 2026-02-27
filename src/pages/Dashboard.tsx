@@ -2,16 +2,18 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { GraduationCap, Trophy, Clock, BookOpen, LogOut, Zap, Award, TrendingUp, UserPlus, UserMinus, Sparkles, ArrowRight, Activity, FlaskConical, ChevronLeft, ChevronRight, Pill, FileText, CheckCircle2, RotateCcw, User, Bug, Trash2 } from "lucide-react";
+import { GraduationCap, Trophy, Clock, BookOpen, LogOut, Zap, Award, TrendingUp, UserPlus, UserMinus, Sparkles, ArrowRight, Activity, FlaskConical, ChevronLeft, ChevronRight, Pill, FileText, CheckCircle2, RotateCcw, User, Bug, Trash2, Search } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
 import { enrollmentService } from "@/services/enrollmentService";
 import { useCapsulasRecomendadas, useCapsulaInacabada } from "@/hooks/useCapsulas";
 import VirtualLabsSection from "@/components/dashboard/VirtualLabsSection";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import {
   DropdownMenu,
@@ -26,6 +28,11 @@ import { ReportBugDialog } from "@/components/dashboard/ReportBugDialog";
 interface UserProfile {
   full_name: string;
   institution?: string;
+  profession?: string | null;
+  education_level?: string | null;
+  city?: string | null;
+  state_uf?: string | null;
+  country?: string | null;
 }
 interface UserStats {
   streak_days: number;
@@ -40,6 +47,8 @@ interface Module {
 const Dashboard = () => {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
+  const { language } = useLanguage();
+  const isEnglish = language === "en";
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [modules, setModules] = useState<Module[]>([]);
@@ -50,6 +59,7 @@ const Dashboard = () => {
   const [completedModules, setCompletedModules] = useState<Set<string>>(new Set());
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [reportBugOpen, setReportBugOpen] = useState(false);
+  const [headerSearch, setHeaderSearch] = useState("");
 
   const { capsulas: capsulaRecomendadas, loading: loadingRecomendadas } = useCapsulasRecomendadas(userId, 15);
   const [currentCapsulaIndex, setCurrentCapsulaIndex] = useState(0);
@@ -675,6 +685,24 @@ const Dashboard = () => {
   const getInitials = (name: string) => {
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
+  const handleHeaderSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const term = headerSearch.trim();
+    navigate(term ? `/search?q=${encodeURIComponent(term)}` : "/search");
+  };
+  const getUserLocation = (profileData: UserProfile | null) => {
+    if (!profileData) return null;
+
+    const country = profileData.country?.trim();
+    const city = profileData.city?.trim();
+    const stateUf = profileData.state_uf?.trim();
+
+    if (country && country !== "Brasil") return country;
+    if (city && stateUf) return `${city}, ${stateUf}`;
+    if (stateUf) return stateUf;
+    if (country) return country;
+    return null;
+  };
   if (loading) {
     return <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -683,6 +711,12 @@ const Dashboard = () => {
         </div>
       </div>;
   }
+  const profileHighlights = [
+    profile?.profession?.trim(),
+    profile?.education_level?.trim(),
+    getUserLocation(profile),
+  ].filter((item): item is string => Boolean(item));
+
   return <div className="min-h-screen bg-background">
       {/* Navigation */}
       <nav className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
@@ -691,6 +725,23 @@ const Dashboard = () => {
             <img src={logo} alt="ProGenia" className="h-10 progenia-logo" />
           </div>
           <div className="flex items-center gap-4">
+            <form
+              onSubmit={handleHeaderSearch}
+              className="hidden md:flex items-center gap-2"
+            >
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-accent" />
+                <Input
+                  value={headerSearch}
+                  onChange={(e) => setHeaderSearch(e.target.value)}
+                  placeholder={isEnglish ? "What do you want to learn today?" : "O que você quer aprender hoje?"}
+                  className="w-[360px] pl-9 border-accent/50 bg-background focus-visible:ring-accent"
+                />
+              </div>
+              <Button type="submit" className="gradient-accent text-white shadow-glow">
+                {isEnglish ? "Search" : "Buscar"}
+              </Button>
+            </form>
             <ThemeToggle />
             {isAdmin && (
               <Button variant="ghost" onClick={() => navigate("/admin")}>
@@ -745,6 +796,11 @@ const Dashboard = () => {
           <p className="text-muted-foreground text-lg">
             Continue sua jornada de aprendizado
           </p>
+          {profileHighlights.length > 0 && (
+            <p className="text-sm text-muted-foreground mt-2">
+              {profileHighlights.join(" • ")}
+            </p>
+          )}
         </div>
 
         {/* Stats Grid */}

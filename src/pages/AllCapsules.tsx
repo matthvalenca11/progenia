@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Module {
   id: string;
@@ -26,6 +27,8 @@ interface Module {
 export default function AllCapsules() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { language } = useLanguage();
+  const isEnglish = language === "en";
   const [capsulas, setCapsulas] = useState<Capsula[]>([]);
   const [loading, setLoading] = useState(true);
   const [progressMap, setProgressMap] = useState<Record<string, any>>({});
@@ -33,7 +36,105 @@ export default function AllCapsules() {
   const [modules, setModules] = useState<Module[]>([]);
   const [selectedModuleId, setSelectedModuleId] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [searchAlternatives, setSearchAlternatives] = useState<string[]>([]);
   const [shuffledCapsulas, setShuffledCapsulas] = useState<Capsula[]>([]);
+  const [englishSearchIndex, setEnglishSearchIndex] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!capsulas.length) {
+      setEnglishSearchIndex({});
+      return;
+    }
+
+    const buildEnglishIndex = async () => {
+      try {
+        const uniqueTexts = Array.from(
+          new Set(
+            capsulas
+              .flatMap((capsula) => [capsula.title || "", capsula.description || ""])
+              .map((item) => item.trim())
+              .filter(Boolean),
+          ),
+        );
+
+        if (uniqueTexts.length === 0) {
+          setEnglishSearchIndex({});
+          return;
+        }
+
+        const { data, error } = await supabase.functions.invoke("translate-text", {
+          body: {
+            source: "pt",
+            target: "en",
+            texts: uniqueTexts,
+          },
+        });
+
+        if (error || !data?.translations) {
+          setEnglishSearchIndex({});
+          return;
+        }
+
+        const translations = data.translations as Record<string, string>;
+        const nextIndex: Record<string, string> = {};
+        for (const capsula of capsulas) {
+          const title = (capsula.title || "").trim();
+          const description = (capsula.description || "").trim();
+          const titleEn = (translations[title] || title).toLowerCase();
+          const descEn = (translations[description] || description).toLowerCase();
+          nextIndex[capsula.id || ""] = `${titleEn} ${descEn}`.trim();
+        }
+        setEnglishSearchIndex(nextIndex);
+      } catch {
+        setEnglishSearchIndex({});
+      }
+    };
+
+    void buildEnglishIndex();
+  }, [capsulas]);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchAlternatives([]);
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const term = searchQuery.trim();
+        const [ptRes, enRes] = await Promise.all([
+          supabase.functions.invoke("translate-text", {
+            body: { source: "en", target: "pt", texts: [term] },
+          }),
+          supabase.functions.invoke("translate-text", {
+            body: { source: "pt", target: "en", texts: [term] },
+          }),
+        ]);
+
+        const alternatives = new Set<string>();
+        const normalizedTerm = term.toLowerCase();
+
+        const maybeAddTranslation = (payload: unknown) => {
+          if (!payload || typeof payload !== "object" || !("translations" in payload)) return;
+          const map = (payload as { translations?: Record<string, string> }).translations;
+          if (!map) return;
+          const translated = (map[term] || "").toLowerCase().trim();
+          if (translated && translated !== normalizedTerm) {
+            alternatives.add(translated);
+          }
+        };
+
+        if (!ptRes.error) maybeAddTranslation(ptRes.data);
+        if (!enRes.error) maybeAddTranslation(enRes.data);
+
+        setSearchAlternatives(Array.from(alternatives));
+      } catch {
+        setSearchAlternatives([]);
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -115,9 +216,16 @@ export default function AllCapsules() {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
       filtered = filtered.filter(c => {
-        const titleMatch = c.title?.toLowerCase().includes(query);
-        const descMatch = c.description?.toLowerCase().includes(query);
-        return titleMatch || descMatch;
+        const title = c.title?.toLowerCase() || "";
+        const desc = c.description?.toLowerCase() || "";
+        const englishBlob = englishSearchIndex[c.id || ""] || "";
+
+        const rawMatch = title.includes(query) || desc.includes(query) || englishBlob.includes(query);
+        if (rawMatch) return true;
+
+        return searchAlternatives.some((alternative) =>
+          title.includes(alternative) || desc.includes(alternative) || englishBlob.includes(alternative)
+        );
       });
     }
 
@@ -160,7 +268,7 @@ export default function AllCapsules() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Buscar cápsulas..."
+                placeholder={isEnglish ? "Search capsules..." : "Buscar cápsulas..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 w-[300px] text-base placeholder:font-semibold"
@@ -170,10 +278,10 @@ export default function AllCapsules() {
             <Filter className="h-4 w-4 text-muted-foreground" />
             <Select value={selectedModuleId} onValueChange={setSelectedModuleId}>
               <SelectTrigger className="w-[200px] text-base">
-                <SelectValue placeholder="Filtrar por módulo" />
+                <SelectValue placeholder={isEnglish ? "Filter by module" : "Filtrar por módulo"} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os módulos</SelectItem>
+                <SelectItem value="all">{isEnglish ? "All modules" : "Todos os módulos"}</SelectItem>
                 {modules.map((module) => (
                   <SelectItem key={module.id} value={module.id}>
                     {module.title}

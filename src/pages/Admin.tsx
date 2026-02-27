@@ -16,7 +16,8 @@ import {
   Mail,
   Bug,
   Instagram,
-  ShieldCheck
+  ShieldCheck,
+  Languages,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
@@ -31,6 +32,7 @@ import { AboutManager } from "@/components/admin/AboutManager";
 import { ComplainsManager } from "@/components/admin/ComplainsManager";
 import { InstagramPostsManager } from "@/components/admin/InstagramPostsManager";
 import { LegalSettingsManager } from "@/components/admin/LegalSettingsManager";
+import { TranslationGlossaryManager } from "@/components/admin/TranslationGlossaryManager";
 import { AdminDashboard } from "@/components/admin/dashboard/AdminDashboard";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -314,6 +316,24 @@ const Admin = () => {
                     <LegalSettingsManager
                       onSaved={() =>
                         setSettingsOpenItems((prev) => prev.filter((item) => item !== "settings-legal"))
+                      }
+                    />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="settings-glossary">
+                <AccordionTrigger>
+                  <span className="inline-flex items-center gap-2">
+                    <Languages className="h-4 w-4" />
+                    Glossário de Tradução
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-2">
+                    <TranslationGlossaryManager
+                      onSaved={() =>
+                        setSettingsOpenItems((prev) => prev.filter((item) => item !== "settings-glossary"))
                       }
                     />
                   </div>

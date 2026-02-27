@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase, APP_URL } from "@/integrations/supabase/client";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 import { z } from "zod";
@@ -50,13 +51,50 @@ const genderOptions = [
 ];
 
 const educationLevelOptions = [
-  "Medio incompleto",
-  "Medio completo",
-  "Superior incompleto",
-  "Superior completo",
-  "Pós-graduação",
-  "Mestrado",
-  "Doutorado",
+  { value: "Médio incompleto", labelPt: "Médio incompleto", labelEn: "Incomplete high school" },
+  { value: "Médio completo", labelPt: "Médio completo", labelEn: "Complete high school" },
+  { value: "Superior incompleto", labelPt: "Superior incompleto", labelEn: "Incomplete undergraduate" },
+  { value: "Superior completo", labelPt: "Superior completo", labelEn: "Complete undergraduate" },
+  { value: "Pós-graduação", labelPt: "Pós-graduação", labelEn: "Postgraduate" },
+  { value: "Mestrado", labelPt: "Mestrado", labelEn: "Master's degree" },
+  { value: "Doutorado", labelPt: "Doutorado", labelEn: "Doctorate" },
+];
+
+const countryOptions = [
+  { value: "Alemanha", labelPt: "Alemanha", labelEn: "Germany" },
+  { value: "Argentina", labelPt: "Argentina", labelEn: "Argentina" },
+  { value: "Austrália", labelPt: "Austrália", labelEn: "Australia" },
+  { value: "Áustria", labelPt: "Áustria", labelEn: "Austria" },
+  { value: "Bélgica", labelPt: "Bélgica", labelEn: "Belgium" },
+  { value: "Bolívia", labelPt: "Bolívia", labelEn: "Bolivia" },
+  { value: "Canadá", labelPt: "Canadá", labelEn: "Canada" },
+  { value: "Chile", labelPt: "Chile", labelEn: "Chile" },
+  { value: "China", labelPt: "China", labelEn: "China" },
+  { value: "Colômbia", labelPt: "Colômbia", labelEn: "Colombia" },
+  { value: "Coreia do Sul", labelPt: "Coreia do Sul", labelEn: "South Korea" },
+  { value: "Dinamarca", labelPt: "Dinamarca", labelEn: "Denmark" },
+  { value: "Espanha", labelPt: "Espanha", labelEn: "Spain" },
+  { value: "Estados Unidos", labelPt: "Estados Unidos", labelEn: "United States" },
+  { value: "Finlândia", labelPt: "Finlândia", labelEn: "Finland" },
+  { value: "França", labelPt: "França", labelEn: "France" },
+  { value: "Grécia", labelPt: "Grécia", labelEn: "Greece" },
+  { value: "Holanda", labelPt: "Holanda", labelEn: "Netherlands" },
+  { value: "Índia", labelPt: "Índia", labelEn: "India" },
+  { value: "Inglaterra", labelPt: "Inglaterra", labelEn: "England" },
+  { value: "Irlanda", labelPt: "Irlanda", labelEn: "Ireland" },
+  { value: "Israel", labelPt: "Israel", labelEn: "Israel" },
+  { value: "Itália", labelPt: "Itália", labelEn: "Italy" },
+  { value: "Japão", labelPt: "Japão", labelEn: "Japan" },
+  { value: "México", labelPt: "México", labelEn: "Mexico" },
+  { value: "Noruega", labelPt: "Noruega", labelEn: "Norway" },
+  { value: "Paraguai", labelPt: "Paraguai", labelEn: "Paraguay" },
+  { value: "Peru", labelPt: "Peru", labelEn: "Peru" },
+  { value: "Portugal", labelPt: "Portugal", labelEn: "Portugal" },
+  { value: "Suécia", labelPt: "Suécia", labelEn: "Sweden" },
+  { value: "Suíça", labelPt: "Suíça", labelEn: "Switzerland" },
+  { value: "Uruguai", labelPt: "Uruguai", labelEn: "Uruguay" },
+  { value: "Venezuela", labelPt: "Venezuela", labelEn: "Venezuela" },
+  { value: "Outro país", labelPt: "Outro país", labelEn: "Other country" },
 ];
 
 const healthProfessionOptions = [
@@ -115,8 +153,10 @@ const signUpSchema = z.object({
   gender: z.enum(["masculino", "feminino", "prefiro_nao_dizer"], {
     required_error: "Gênero é obrigatório",
   }),
-  stateUf: z.string().length(2, "Estado é obrigatório"),
-  city: z.string().trim().min(1, "Cidade é obrigatória").max(120),
+  isBrazil: z.boolean(),
+  stateUf: z.string().trim().max(2).optional(),
+  city: z.string().trim().max(120).optional(),
+  country: z.string().trim().max(120).optional(),
   educationLevel: z.string().trim().min(1, "Escolaridade é obrigatória").max(80),
   profession: z.string().trim().min(1, "Profissão é obrigatória").max(80),
   professionOther: z.string().trim().max(120).optional(),
@@ -145,6 +185,29 @@ const signUpSchema = z.object({
       message: "Informe sua profissão",
     });
   }
+
+  if (data.isBrazil) {
+    if (!data.stateUf || data.stateUf.length !== 2) {
+      ctx.addIssue({
+        path: ["stateUf"],
+        code: z.ZodIssueCode.custom,
+        message: "Estado é obrigatório",
+      });
+    }
+    if (!data.city?.trim()) {
+      ctx.addIssue({
+        path: ["city"],
+        code: z.ZodIssueCode.custom,
+        message: "Cidade é obrigatória",
+      });
+    }
+  } else if (!data.country?.trim()) {
+    ctx.addIssue({
+      path: ["country"],
+      code: z.ZodIssueCode.custom,
+      message: "País é obrigatório",
+    });
+  }
 });
 
 const signInSchema = z.object({
@@ -154,6 +217,8 @@ const signInSchema = z.object({
 
 const Auth = () => {
   const navigate = useNavigate();
+  const { language } = useLanguage();
+  const isEnglish = language === "en";
   const [loading, setLoading] = useState(false);
   
   // Sign Up State
@@ -165,8 +230,10 @@ const Auth = () => {
     institution: "",
     birthDate: "",
     gender: "",
+    isBrazil: true,
     stateUf: "",
     city: "",
+    country: "",
     educationLevel: "",
     profession: "",
     professionOther: "",
@@ -220,9 +287,13 @@ const Auth = () => {
 
   useEffect(() => {
     const fetchCities = async () => {
-      if (!signUpData.stateUf) {
+      if (!signUpData.isBrazil || !signUpData.stateUf) {
         setCities([]);
-        setSignUpData((prev) => ({ ...prev, city: "" }));
+        if (!signUpData.isBrazil) {
+          setSignUpData((prev) => ({ ...prev, stateUf: "", city: "" }));
+        } else {
+          setSignUpData((prev) => ({ ...prev, city: "" }));
+        }
         return;
       }
 
@@ -246,7 +317,7 @@ const Auth = () => {
     };
 
     void fetchCities();
-  }, [signUpData.stateUf]);
+  }, [signUpData.isBrazil, signUpData.stateUf]);
 
   useEffect(() => {
     const loadLegalText = async () => {
@@ -292,8 +363,9 @@ const Auth = () => {
             institution: validated.institution,
             birth_date: validated.birthDate,
             gender: validated.gender,
-            state_uf: validated.stateUf,
-            city: validated.city,
+            state_uf: validated.isBrazil ? validated.stateUf : null,
+            city: validated.isBrazil ? validated.city : null,
+            country: validated.isBrazil ? "Brasil" : validated.country,
             education_level: validated.educationLevel,
             profession: resolvedProfession,
           },
@@ -411,7 +483,7 @@ const Auth = () => {
                   <Input
                     id="signin-email"
                     type="email"
-                    placeholder="seu.email@exemplo.com"
+                    placeholder={isEnglish ? "your.email@example.com" : "seu.email@exemplo.com"}
                     value={signInData.email}
                     onChange={(e) => setSignInData({ ...signInData, email: e.target.value })}
                     required
@@ -456,7 +528,7 @@ const Auth = () => {
                     <Input
                       id="signup-name"
                       type="text"
-                      placeholder="João Silva"
+                      placeholder={isEnglish ? "John Smith" : "João Silva"}
                       value={signUpData.fullName}
                       onChange={(e) => setSignUpData({ ...signUpData, fullName: e.target.value })}
                       required
@@ -468,7 +540,7 @@ const Auth = () => {
                     <Input
                       id="signup-email"
                       type="email"
-                      placeholder="seu.email@exemplo.com"
+                      placeholder={isEnglish ? "your.email@example.com" : "seu.email@exemplo.com"}
                       value={signUpData.email}
                       onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })}
                       required
@@ -520,7 +592,7 @@ const Auth = () => {
                       onValueChange={(value) => setSignUpData({ ...signUpData, gender: value })}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione" />
+                        <SelectValue placeholder={isEnglish ? "Select" : "Selecione"} />
                       </SelectTrigger>
                       <SelectContent>
                         {genderOptions.map((option) => (
@@ -532,68 +604,117 @@ const Auth = () => {
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Estado</Label>
+                  <div className="space-y-2" data-no-auto-translate="true">
+                    <Label>{isEnglish ? "Do you live in Brazil?" : "Você mora no Brasil?"}</Label>
                     <Select
-                      value={signUpData.stateUf}
+                      value={signUpData.isBrazil ? "br" : "intl"}
                       onValueChange={(value) =>
-                        setSignUpData((prev) => ({ ...prev, stateUf: value, city: "" }))
+                        setSignUpData((prev) => ({
+                          ...prev,
+                          isBrazil: value === "br",
+                          stateUf: "",
+                          city: "",
+                          country: value === "br" ? "" : prev.country,
+                        }))
                       }
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione o estado" />
+                        <SelectValue placeholder={isEnglish ? "Select" : "Selecione"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {brazilianStates.map((state) => (
-                          <SelectItem key={state.uf} value={state.uf}>
-                            {state.name} ({state.uf})
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="br">{isEnglish ? "Yes, I live in Brazil" : "Sim, moro no Brasil"}</SelectItem>
+                        <SelectItem value="intl">
+                          {isEnglish ? "No, I live outside Brazil" : "Não, moro fora do Brasil"}
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Cidade</Label>
-                    <Select
-                      value={signUpData.city}
-                      onValueChange={(value) => setSignUpData({ ...signUpData, city: value })}
-                      disabled={!signUpData.stateUf || citiesLoading || cities.length === 0}
-                    >
-                      <SelectTrigger>
-                        <SelectValue
-                          placeholder={
-                            !signUpData.stateUf
-                              ? "Escolha um estado antes"
-                              : citiesLoading
-                                ? "Carregando cidades..."
-                                : "Selecione a cidade"
+                  {signUpData.isBrazil ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Estado</Label>
+                        <Select
+                          value={signUpData.stateUf}
+                          onValueChange={(value) =>
+                            setSignUpData((prev) => ({ ...prev, stateUf: value, city: "" }))
                           }
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {cities.map((cityName) => (
-                          <SelectItem key={cityName} value={cityName}>
-                            {cityName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={isEnglish ? "Select state" : "Selecione o estado"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {brazilianStates.map((state) => (
+                              <SelectItem key={state.uf} value={state.uf}>
+                                {state.name} ({state.uf})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                  <div className="space-y-2">
-                    <Label>Escolaridade</Label>
+                      <div className="space-y-2">
+                        <Label>Cidade</Label>
+                        <Select
+                          value={signUpData.city}
+                          onValueChange={(value) => setSignUpData({ ...signUpData, city: value })}
+                          disabled={!signUpData.stateUf || citiesLoading || cities.length === 0}
+                        >
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={
+                                !signUpData.stateUf
+                                  ? (isEnglish ? "Choose a state first" : "Escolha um estado antes")
+                                  : citiesLoading
+                                    ? (isEnglish ? "Loading cities..." : "Carregando cidades...")
+                                    : (isEnglish ? "Select city" : "Selecione a cidade")
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {cities.map((cityName) => (
+                              <SelectItem key={cityName} value={cityName}>
+                                {cityName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-2" data-no-auto-translate="true">
+                      <Label>{isEnglish ? "Country" : "País"}</Label>
+                      <Select
+                        value={signUpData.country}
+                        onValueChange={(value) => setSignUpData((prev) => ({ ...prev, country: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={isEnglish ? "Select your country" : "Selecione seu país"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {countryOptions.map((country) => (
+                            <SelectItem key={country.value} value={country.value}>
+                              {isEnglish ? country.labelEn : country.labelPt}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  <div className="space-y-2" data-no-auto-translate="true">
+                    <Label>{isEnglish ? "Education" : "Escolaridade"}</Label>
                     <Select
                       value={signUpData.educationLevel}
                       onValueChange={(value) => setSignUpData({ ...signUpData, educationLevel: value })}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione" />
+                        <SelectValue placeholder={language === "en" ? "Select" : "Selecione"} />
                       </SelectTrigger>
                       <SelectContent>
                         {educationLevelOptions.map((level) => (
-                          <SelectItem key={level} value={level}>
-                            {level}
+                          <SelectItem key={level.value} value={level.value}>
+                            {language === "en" ? level.labelEn : level.labelPt}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -607,7 +728,7 @@ const Auth = () => {
                       onValueChange={(value) => setSignUpData({ ...signUpData, profession: value })}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione" />
+                        <SelectValue placeholder={isEnglish ? "Select" : "Selecione"} />
                       </SelectTrigger>
                       <SelectContent>
                         {healthProfessionOptions.map((profession) => (
@@ -625,7 +746,7 @@ const Auth = () => {
                       <Input
                         id="signup-profession-other"
                         type="text"
-                        placeholder="Descreva sua profissão"
+                        placeholder={isEnglish ? "Describe your profession" : "Descreva sua profissão"}
                         value={signUpData.professionOther}
                         onChange={(e) => setSignUpData({ ...signUpData, professionOther: e.target.value })}
                         required
@@ -638,7 +759,7 @@ const Auth = () => {
                     <Input
                       id="signup-institution"
                       type="text"
-                      placeholder="Universidade, hospital, clínica..."
+                      placeholder={isEnglish ? "University, hospital, clinic..." : "Universidade, hospital, clínica..."}
                       value={signUpData.institution}
                       onChange={(e) => setSignUpData({ ...signUpData, institution: e.target.value })}
                     />

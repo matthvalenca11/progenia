@@ -8,8 +8,9 @@ export interface SignUpData {
   institution?: string;
   birth_date: string;
   gender: "masculino" | "feminino" | "prefiro_nao_dizer";
-  state_uf: string;
-  city: string;
+  state_uf?: string | null;
+  city?: string | null;
+  country?: string | null;
   education_level: string;
   profession: string;
 }
@@ -28,6 +29,7 @@ export interface UpdateProfileData {
   gender?: "masculino" | "feminino" | "prefiro_nao_dizer";
   state_uf?: string;
   city?: string;
+  country?: string;
   education_level?: string;
   profession?: string;
   cargo?: string;
@@ -49,8 +51,9 @@ export const authService = {
           institution: data.institution || "",
           birth_date: data.birth_date,
           gender: data.gender,
-          state_uf: data.state_uf,
-          city: data.city,
+          state_uf: data.state_uf ?? null,
+          city: data.city ?? null,
+          country: data.country ?? null,
           education_level: data.education_level,
           profession: data.profession,
         },
