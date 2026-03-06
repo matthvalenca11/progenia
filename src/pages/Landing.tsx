@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { GraduationCap, Brain, Award, Microscope, Zap, BookOpen } from "lucide-react";
+import { GraduationCap, Brain, Award, Microscope, Zap, BookOpen, Newspaper } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/logo.png";
+import { PostCard } from "@/components/blog/PostCard";
+import { PostDetailModal } from "@/components/blog/PostDetailModal";
+import type { InstagramPost } from "@/pages/BlogNoticias";
 
 /* Ritmo único: padding de seção e margens de título */
 const sectionPadding = "py-20 lg:py-24";
@@ -37,6 +40,9 @@ const Landing = () => {
   const [isLegalDialogOpen, setIsLegalDialogOpen] = useState(false);
   const [legalText, setLegalText] = useState(defaultLegalText);
   const [loadingLegalText, setLoadingLegalText] = useState(false);
+  const [blogPosts, setBlogPosts] = useState<InstagramPost[]>([]);
+  const [blogLoading, setBlogLoading] = useState(true);
+  const [selectedPost, setSelectedPost] = useState<InstagramPost | null>(null);
 
   useEffect(() => {
     const loadLegalText = async () => {
@@ -60,6 +66,23 @@ const Landing = () => {
     };
 
     void loadLegalText();
+  }, []);
+
+  useEffect(() => {
+    const loadBlogPosts = async () => {
+      try {
+        setBlogLoading(true);
+        const { data, error } = await supabase.functions.invoke("get-instagram-posts", { body: {} });
+        if (!error && data?.posts?.length) {
+          setBlogPosts((data.posts as InstagramPost[]).slice(0, 3));
+        }
+      } catch {
+        setBlogPosts([]);
+      } finally {
+        setBlogLoading(false);
+      }
+    };
+    void loadBlogPosts();
   }, []);
 
   return (
@@ -142,6 +165,41 @@ const Landing = () => {
               <img src={logo} alt="ProGenia" className="h-84 w-auto object-contain progenia-logo" />
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Blog e Notícias */}
+      <section className="py-12 lg:py-14">
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+            <div>
+              <p className={eyebrow}>Novidades</p>
+              <h2 className={sectionTitle}>Blog e Notícias</h2>
+            </div>
+            <Link to="/blog" className="shrink-0">
+              <Button variant="outline" className="gap-2">
+                <Newspaper className="h-4 w-4" />
+                Todas as notícias
+              </Button>
+            </Link>
+          </div>
+          {blogLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="rounded-lg border border-border bg-muted/30 aspect-square animate-pulse" />
+              ))}
+            </div>
+          ) : blogPosts.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {blogPosts.map((post) => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  onClick={() => setSelectedPost(post)}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -295,6 +353,14 @@ const Landing = () => {
           </div>
         </div>
       </footer>
+
+      {selectedPost && (
+        <PostDetailModal
+          post={selectedPost}
+          open={!!selectedPost}
+          onOpenChange={(open) => !open && setSelectedPost(null)}
+        />
+      )}
 
       <Dialog open={isLegalDialogOpen} onOpenChange={setIsLegalDialogOpen}>
         <DialogContent className="max-w-3xl">

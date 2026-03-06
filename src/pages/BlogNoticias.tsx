@@ -8,7 +8,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Link } from "react-router-dom";
 import logo from "@/assets/logo.png";
 
-interface InstagramPost {
+export interface InstagramPost {
   id: string;
   media_type: string;
   media_url: string;
