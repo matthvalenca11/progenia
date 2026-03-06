@@ -169,9 +169,9 @@ const Landing = () => {
       </section>
 
       {/* Blog e Notícias */}
-      <section className="py-12 lg:py-14">
+      <section className="pt-6 pb-2 lg:pt-8 lg:pb-4">
         <div className="container mx-auto px-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
             <div>
               <p className={eyebrow}>Novidades</p>
               <h2 className={sectionTitle}>Blog e Notícias</h2>
@@ -184,13 +184,13 @@ const Landing = () => {
             </Link>
           </div>
           {blogLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="rounded-lg border border-border bg-muted/30 aspect-square animate-pulse" />
               ))}
             </div>
           ) : blogPosts.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               {blogPosts.map((post) => (
                 <PostCard
                   key={post.id}
@@ -204,7 +204,7 @@ const Landing = () => {
       </section>
 
       {/* Jornada em 3 passos */}
-      <section className={`${sectionPadding} bg-muted/30`}>
+      <section className="pt-10 pb-20 lg:pt-12 lg:pb-24 bg-muted/30">
         <div className="container mx-auto px-4">
           <p className={eyebrow}>Como funciona</p>
           <h2 className={`${sectionTitle} ${sectionHeader}`}>
