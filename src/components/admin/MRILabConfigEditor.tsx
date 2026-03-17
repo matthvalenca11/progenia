@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { parseDICOMFile, sortDICOMSlices, buildDICOMSeries } from "@/lib/dicomParser";
 import { parseNIfTIFile, buildNIfTIVolume } from "@/lib/niftiParser";
 import { toast } from "sonner";
-import { Loader2, Upload, FileText, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, Loader2, Upload, FileText, CheckCircle2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useMRILabStore } from "@/stores/mriLabStore";
 import { VolumeStatusPanel } from "./VolumeStatusPanel";
@@ -101,7 +101,6 @@ export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps
           clinicalImage: true,
         },
         activeViewer: "slice_2d",
-        viewer2DMode: "canvas",
         viewer3DMode: "mpr",
       });
 
@@ -120,29 +119,25 @@ export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Configuração do Lab de MRI</CardTitle>
-        <CardDescription>
-          Configure os parâmetros de aquisição e visualização do simulador de ressonância magnética
-        </CardDescription>
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <CardTitle>Configuração do Lab de MRI</CardTitle>
+            <CardDescription>
+              Configure os parâmetros de aquisição e visualização do simulador de ressonância magnética
+            </CardDescription>
+          </div>
+          {config.dataSource === "dicom" && (
+            <div className="inline-flex items-center rounded-full border border-cyan-400/50 bg-cyan-500/10 px-3 py-1 text-[11px] font-medium text-cyan-300">
+              MODO: SIMULAÇÃO CLÍNICA (INTERPOLAÇÃO)
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Data Source Mode */}
+        {/* Data Source Mode - focado em dados reais (DICOM/NIfTI) */}
         <div className="space-y-4">
           <Label className="text-sm font-semibold">Fonte de Dados</Label>
           <div className="space-y-3">
-            <div className="flex items-center space-x-2">
-              <input
-                type="radio"
-                id="dataSource-phantom"
-                name="dataSource"
-                checked={config.dataSource === "phantom"}
-                onChange={() => updateConfig({ dataSource: "phantom" })}
-                className="h-4 w-4"
-              />
-              <Label htmlFor="dataSource-phantom" className="cursor-pointer">
-                Phantom (Procedural)
-              </Label>
-            </div>
             <div className="flex items-center space-x-2">
               <input
                 type="radio"
@@ -172,24 +167,10 @@ export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps
           </div>
         </div>
 
-        {/* Enabled Modules */}
+        {/* Enabled Modules (magnetização em hold, apenas Imagem Clínica visível) */}
         <div className="space-y-4">
           <Label className="text-sm font-semibold">Módulos Habilitados</Label>
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="enable-magnetization" className="text-sm font-normal cursor-pointer">
-                Módulo Magnetização (Física/Conceitual)
-              </Label>
-              <Switch
-                id="enable-magnetization"
-                checked={config.enabledModules.magnetization}
-                onCheckedChange={(checked) =>
-                  updateConfig({
-                    enabledModules: { ...config.enabledModules, magnetization: checked },
-                  })
-                }
-              />
-            </div>
             <div className="flex items-center justify-between">
               <Label htmlFor="enable-clinical" className="text-sm font-normal cursor-pointer">
                 Módulo Imagem Clínica (DICOM)
@@ -216,6 +197,19 @@ export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps
             <Label className="text-sm font-semibold">
               {config.dataSource === "dicom" ? "Carregar Série DICOM" : "Carregar Arquivo NIfTI"}
             </Label>
+
+            {config.dataSource === "dicom" && (
+              <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-500" />
+                  <div className="text-xs leading-relaxed">
+                    <span className="font-medium">Atenção:</span> Volumes carregados no preview ficam salvos apenas nesta sessão.
+                    Para uso permanente, salve o caso clínico após o upload.
+                  </div>
+                </div>
+              </div>
+            )}
+
             <FileUploadField
               accept={config.dataSource === "dicom" ? ".dcm" : ".nii,.nii.gz"}
               multiple={config.dataSource === "dicom"}
@@ -315,374 +309,27 @@ export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps
         {config.dataSource === "dicom" && (
           <div className="space-y-4">
             <Label className="text-sm font-semibold">Modo dos Viewers</Label>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs">Viewer 2D</Label>
-                <Select
-                  value={config.viewer2DMode || "cornerstone"}
-                  onValueChange={(v) => updateConfig({ viewer2DMode: v as "cornerstone" | "canvas" })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cornerstone">Cornerstone3D (PACS-like)</SelectItem>
-                    <SelectItem value="canvas">Canvas (Compatibilidade)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs">Viewer 3D</Label>
-                <Select
-                  value={config.viewer3DMode || "mpr"}
-                  onValueChange={(v) => updateConfig({ viewer3DMode: v as "mpr" | "volume" })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="mpr">MPR (3 Planos)</SelectItem>
-                    <SelectItem value="volume">Volume Rendering (vtk.js)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Viewer 3D</Label>
+              <Select
+                value={config.viewer3DMode || "mpr"}
+                onValueChange={(v) => updateConfig({ viewer3DMode: v as "mpr" | "volume" })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mpr">MPR (3 Planos)</SelectItem>
+                  <SelectItem value="volume">Volume Rendering (vtk.js)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         )}
 
         <div className="border-t border-border my-4" />
 
-        {/* Phantom Mode Configuration */}
-        {config.dataSource === "phantom" && (
-          <>
-            {/* Presets */}
-        <div className="space-y-2">
-          <Label>Preset Padrão</Label>
-          <Select
-            value={config.preset}
-            onValueChange={(v) => updateConfig({ preset: v as MRIPreset })}
-            disabled={!config.enabledControls.preset}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="t1_weighted">T1-weighted</SelectItem>
-              <SelectItem value="t2_weighted">T2-weighted</SelectItem>
-              <SelectItem value="proton_density">Proton Density</SelectItem>
-              <SelectItem value="custom">Personalizado</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Acquisition Parameters */}
-        <div className="space-y-4">
-          <Label className="text-sm font-semibold">Parâmetros de Aquisição</Label>
-
-          {config.enabledControls.tr && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>TR (Repetition Time)</Label>
-                <span className="text-sm text-muted-foreground">
-                  {config.tr} ms
-                </span>
-              </div>
-              <Slider
-                value={[config.tr]}
-                onValueChange={(v) => updateConfig({ tr: v[0] })}
-                min={config.ranges.tr.min}
-                max={config.ranges.tr.max}
-                step={10}
-              />
-            </div>
-          )}
-
-          {config.enabledControls.te && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>TE (Echo Time)</Label>
-                <span className="text-sm text-muted-foreground">
-                  {config.te} ms
-                </span>
-              </div>
-              <Slider
-                value={[config.te]}
-                onValueChange={(v) => updateConfig({ te: v[0] })}
-                min={config.ranges.te.min}
-                max={config.ranges.te.max}
-                step={1}
-              />
-            </div>
-          )}
-
-          {config.enabledControls.flipAngle && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Flip Angle</Label>
-                <span className="text-sm text-muted-foreground">
-                  {config.flipAngle}°
-                </span>
-              </div>
-              <Slider
-                value={[config.flipAngle]}
-                onValueChange={(v) => updateConfig({ flipAngle: v[0] })}
-                min={config.ranges.flipAngle.min}
-                max={config.ranges.flipAngle.max}
-                step={5}
-              />
-            </div>
-          )}
-
-          {config.enabledControls.sequenceType && (
-            <div className="space-y-2">
-              <Label>Tipo de Sequência</Label>
-              <Select
-                value={config.sequenceType}
-                onValueChange={(v) => updateConfig({ sequenceType: v as any })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="spin_echo">Spin Echo</SelectItem>
-                  <SelectItem value="gradient_echo">Gradient Echo</SelectItem>
-                  <SelectItem value="inversion_recovery">Inversion Recovery</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-        </div>
-
-        {/* Viewer Selection */}
-        {config.enabledControls.viewer && (
-          <div className="space-y-2">
-            <Label>Visualização Padrão</Label>
-            <Select
-              value={config.activeViewer}
-              onValueChange={(v) => updateConfig({ activeViewer: v as MRIViewerType })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="magnetization">Magnetização 3D</SelectItem>
-                <SelectItem value="slice_2d">Fatia 2D</SelectItem>
-                <SelectItem value="volume_3d">Volume 3D</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {/* Enabled Controls */}
-        <div className="space-y-4">
-          <Label className="text-sm font-semibold">Controles Habilitados</Label>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="enable-preset" className="text-sm font-normal">
-                Preset
-              </Label>
-              <Switch
-                id="enable-preset"
-                checked={config.enabledControls.preset}
-                onCheckedChange={(checked) =>
-                  updateConfig({
-                    enabledControls: { ...config.enabledControls, preset: checked },
-                  })
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="enable-tr" className="text-sm font-normal">
-                TR
-              </Label>
-              <Switch
-                id="enable-tr"
-                checked={config.enabledControls.tr}
-                onCheckedChange={(checked) =>
-                  updateConfig({
-                    enabledControls: { ...config.enabledControls, tr: checked },
-                  })
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="enable-te" className="text-sm font-normal">
-                TE
-              </Label>
-              <Switch
-                id="enable-te"
-                checked={config.enabledControls.te}
-                onCheckedChange={(checked) =>
-                  updateConfig({
-                    enabledControls: { ...config.enabledControls, te: checked },
-                  })
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="enable-flip" className="text-sm font-normal">
-                Flip Angle
-              </Label>
-              <Switch
-                id="enable-flip"
-                checked={config.enabledControls.flipAngle}
-                onCheckedChange={(checked) =>
-                  updateConfig({
-                    enabledControls: { ...config.enabledControls, flipAngle: checked },
-                  })
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="enable-sequence" className="text-sm font-normal">
-                Tipo de Sequência
-              </Label>
-              <Switch
-                id="enable-sequence"
-                checked={config.enabledControls.sequenceType}
-                onCheckedChange={(checked) =>
-                  updateConfig({
-                    enabledControls: { ...config.enabledControls, sequenceType: checked },
-                  })
-                }
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="enable-viewer" className="text-sm font-normal">
-                Seleção de Viewer
-              </Label>
-              <Switch
-                id="enable-viewer"
-                checked={config.enabledControls.viewer}
-                onCheckedChange={(checked) =>
-                  updateConfig({
-                    enabledControls: { ...config.enabledControls, viewer: checked },
-                  })
-                }
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Ranges */}
-        <div className="space-y-4">
-          <Label className="text-sm font-semibold">Faixas de Valores</Label>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-xs">TR (ms)</Label>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Label className="text-xs text-muted-foreground">Min</Label>
-                  <input
-                    type="number"
-                    value={config.ranges.tr.min}
-                    onChange={(e) =>
-                      updateConfig({
-                        ranges: {
-                          ...config.ranges,
-                          tr: { ...config.ranges.tr, min: Number(e.target.value) },
-                        },
-                      })
-                    }
-                    className="w-full px-2 py-1 text-sm border border-border rounded bg-background"
-                  />
-                </div>
-                <div className="flex-1">
-                  <Label className="text-xs text-muted-foreground">Max</Label>
-                  <input
-                    type="number"
-                    value={config.ranges.tr.max}
-                    onChange={(e) =>
-                      updateConfig({
-                        ranges: {
-                          ...config.ranges,
-                          tr: { ...config.ranges.tr, max: Number(e.target.value) },
-                        },
-                      })
-                    }
-                    className="w-full px-2 py-1 text-sm border border-border rounded bg-background"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs">TE (ms)</Label>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Label className="text-xs text-muted-foreground">Min</Label>
-                  <input
-                    type="number"
-                    value={config.ranges.te.min}
-                    onChange={(e) =>
-                      updateConfig({
-                        ranges: {
-                          ...config.ranges,
-                          te: { ...config.ranges.te, min: Number(e.target.value) },
-                        },
-                      })
-                    }
-                    className="w-full px-2 py-1 text-sm border border-border rounded bg-background"
-                  />
-                </div>
-                <div className="flex-1">
-                  <Label className="text-xs text-muted-foreground">Max</Label>
-                  <input
-                    type="number"
-                    value={config.ranges.te.max}
-                    onChange={(e) =>
-                      updateConfig({
-                        ranges: {
-                          ...config.ranges,
-                          te: { ...config.ranges.te, max: Number(e.target.value) },
-                        },
-                      })
-                    }
-                    className="w-full px-2 py-1 text-sm border border-border rounded bg-background"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs">Flip Angle (°)</Label>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Label className="text-xs text-muted-foreground">Min</Label>
-                  <input
-                    type="number"
-                    value={config.ranges.flipAngle.min}
-                    onChange={(e) =>
-                      updateConfig({
-                        ranges: {
-                          ...config.ranges,
-                          flipAngle: { ...config.ranges.flipAngle, min: Number(e.target.value) },
-                        },
-                      })
-                    }
-                    className="w-full px-2 py-1 text-sm border border-border rounded bg-background"
-                  />
-                </div>
-                <div className="flex-1">
-                  <Label className="text-xs text-muted-foreground">Max</Label>
-                  <input
-                    type="number"
-                    value={config.ranges.flipAngle.max}
-                    onChange={(e) =>
-                      updateConfig({
-                        ranges: {
-                          ...config.ranges,
-                          flipAngle: { ...config.ranges.flipAngle, max: Number(e.target.value) },
-                        },
-                      })
-                    }
-                    className="w-full px-2 py-1 text-sm border border-border rounded bg-background"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-          </>
-        )}
+        {/* Phantom Mode Configuration removida da UI principal (modo clínico é o foco) */}
       </CardContent>
     </Card>
   );

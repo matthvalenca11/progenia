@@ -51,6 +51,9 @@ export function Slice2DViewer({ showDebug = false }: Slice2DViewerProps) {
   // Generate slice image data
   const sliceImageData = useMemo(() => {
     try {
+      const matrixSize = config.matrixSize ?? 128;
+      const nex = config.nex ?? 1;
+      const snrRelative = Math.sqrt(Math.max(nex, 1)) / ((matrixSize || 128) / 128);
       const imageData = getSliceImageData(
         volume,
         sliceZ,
@@ -58,7 +61,9 @@ export function Slice2DViewer({ showDebug = false }: Slice2DViewerProps) {
         config.te,
         config.flipAngle,
         config.window || 2000,
-        config.level || 1000
+        config.level || 1000,
+        snrRelative,
+        !!config.simulateArtifacts
       );
       
       if (!imageData) {
@@ -73,7 +78,19 @@ export function Slice2DViewer({ showDebug = false }: Slice2DViewerProps) {
       }
       return null;
     }
-  }, [volume, sliceZ, config.tr, config.te, config.flipAngle, config.window, config.level, showDebug]);
+  }, [
+    volume,
+    sliceZ,
+    config.tr,
+    config.te,
+    config.flipAngle,
+    config.window,
+    config.level,
+    config.matrixSize,
+    config.nex,
+    config.simulateArtifacts,
+    showDebug,
+  ]);
   
   // Render to canvas
   useEffect(() => {

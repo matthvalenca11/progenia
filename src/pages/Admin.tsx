@@ -4,9 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
+import {
   BookOpen,
-  Users, 
+  Users,
   Home,
   GraduationCap,
   Info,
@@ -18,6 +18,7 @@ import {
   Instagram,
   ShieldCheck,
   Languages,
+  Settings,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
@@ -114,7 +115,7 @@ const Admin = () => {
         <Tabs defaultValue="dashboard" className="w-full">
           <TabsList className="grid w-full grid-cols-4 gap-1">
             <TabsTrigger value="dashboard">
-              <BookOpen className="h-4 w-4 mr-2" />
+              <Home className="h-4 w-4 mr-2" />
               Dashboard
             </TabsTrigger>
             <TabsTrigger value="content">
@@ -126,7 +127,7 @@ const Admin = () => {
               Usuários e Complains
             </TabsTrigger>
             <TabsTrigger value="settings">
-              <ShieldCheck className="h-4 w-4 mr-2" />
+              <Settings className="h-4 w-4 mr-2" />
               Configurações
             </TabsTrigger>
           </TabsList>

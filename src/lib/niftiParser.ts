@@ -18,6 +18,71 @@ export interface NIfTIMetadata {
   calMax?: number; // Calibration maximum
 }
 
+/** NIfTI-1: bytes per voxel por datatype (offset 70) */
+const NIFTI_DATATYPE_BYTES: Record<number, number> = {
+  1: 1, 2: 1, 4: 2, 8: 4, 16: 4, 32: 8, 64: 8, 128: 4, 256: 1, 512: 2, 768: 4,
+};
+
+/**
+ * Lê voxels do buffer quando a lib não retorna dados.
+ * NIfTI-1: datatype em 72 (int16), vox_offset em 108 (float).
+ * overrideBytesPerVoxel: quando o header diz float mas o arquivo tem int16, o parser passa 2.
+ */
+function readVoxelsFromBuffer(
+  arrayBuffer: ArrayBuffer,
+  totalVoxels: number,
+  overrideBytesPerVoxel?: number
+): Float32Array | Int16Array | Uint16Array | Uint8Array {
+  const dataView = new DataView(arrayBuffer);
+  const le = true;
+  const fileLen = arrayBuffer.byteLength;
+  let voxOffset = dataView.getFloat32(108, le);
+  if (!Number.isFinite(voxOffset) || voxOffset < 0 || voxOffset > fileLen || voxOffset > 1e6) {
+    voxOffset = 352;
+  }
+  voxOffset = Math.floor(voxOffset);
+  const availableBytes = fileLen - voxOffset;
+  const datatype = dataView.getInt16(72, le);
+  const bytesPerVoxel = overrideBytesPerVoxel ?? (NIFTI_DATATYPE_BYTES[datatype] ?? 2);
+  let numBytes = totalVoxels * bytesPerVoxel;
+  if (numBytes > availableBytes) {
+    numBytes = availableBytes;
+  }
+  const buf = arrayBuffer.slice(voxOffset, voxOffset + numBytes);
+  const actualVoxels = numBytes / bytesPerVoxel;
+  if (actualVoxels < totalVoxels) {
+    console.warn("[NIfTI Parser] Lendo apenas", actualVoxels, "voxels (arquivo tem", availableBytes, "bytes, header pedia", totalVoxels, ")");
+  }
+  if (overrideBytesPerVoxel === 2 || bytesPerVoxel === 2) {
+    return new Int16Array(buf);
+  }
+  if (overrideBytesPerVoxel === 1 || bytesPerVoxel === 1) {
+    return new Uint8Array(buf);
+  }
+  if (overrideBytesPerVoxel === 4 || bytesPerVoxel === 4) {
+    if (buf.byteLength % 4 === 0) return new Float32Array(buf);
+    return new Int16Array(buf);
+  }
+  switch (datatype) {
+    case 2:
+      return new Uint8Array(buf);
+    case 4:
+      return new Int16Array(buf);
+    case 8: {
+      const i32 = new Int32Array(buf);
+      const out = new Float32Array(i32.length);
+      for (let i = 0; i < i32.length; i++) out[i] = i32[i];
+      return out;
+    }
+    case 16:
+      return new Float32Array(buf);
+    case 512:
+      return new Uint16Array(buf);
+    default:
+      return new Int16Array(buf);
+  }
+}
+
 /**
  * Parse a NIfTI file and extract metadata and voxel data
  */
@@ -187,30 +252,74 @@ export async function parseNIfTIFile(file: File): Promise<{
   }
   
   console.log("[NIfTI Parser] Extracted dimensions:", { dims, pixDims });
-  
+
+  // Fallback: se a biblioteca retornar dims vazios/zero, ler do header binário NIfTI-1 (offset 40: 8 x int16)
+  if (dims[0] === 0 || dims[1] === 0 || dims[2] === 0) {
+    if (arrayBuffer.byteLength >= 56) {
+      const dataView = new DataView(arrayBuffer);
+      const littleEndian = true;
+      const ndim = dataView.getInt16(40, littleEndian);
+      const d1 = dataView.getInt16(42, littleEndian);
+      const d2 = dataView.getInt16(44, littleEndian);
+      const d3 = dataView.getInt16(46, littleEndian);
+      const d4 = dataView.getInt16(48, littleEndian) || 1;
+      if (ndim >= 1 && d1 > 0 && d2 > 0 && d3 > 0) {
+        dims[0] = d1;
+        dims[1] = d2;
+        dims[2] = d3;
+        dims[3] = ndim >= 4 ? d4 : 1;
+        console.log("[NIfTI Parser] Dimensões lidas do header binário:", { dims });
+      }
+    }
+  }
+
   // Validate dimensions
   if (dims[0] === 0 || dims[1] === 0 || dims[2] === 0) {
     throw new Error(`NIfTI file has invalid dimensions: ${dims[0]}×${dims[1]}×${dims[2]}`);
   }
-  
+
+  // Se formos ler do buffer, garantir que não pedimos mais voxels do que o arquivo tem
+  // (ex.: header diz 4D com dim[4]=2 mas o arquivo tem só um volume 3D)
+  const dataViewForSize = new DataView(arrayBuffer);
+  const le = true;
+  let voxOffsetForSize = dataViewForSize.getFloat32(108, le);
+  if (!Number.isFinite(voxOffsetForSize) || voxOffsetForSize < 0 || voxOffsetForSize > arrayBuffer.byteLength) {
+    voxOffsetForSize = 352;
+  }
+  voxOffsetForSize = Math.floor(voxOffsetForSize);
+  const datatypeForSize = dataViewForSize.getInt16(72, le);
+  const bytesPerVoxel = NIFTI_DATATYPE_BYTES[datatypeForSize] ?? 2;
+  const availableBytes = arrayBuffer.byteLength - voxOffsetForSize;
+  let totalVoxels = dims[0] * dims[1] * dims[2] * dims[3];
+  let bytesPerVoxelToUse = bytesPerVoxel;
+  if (totalVoxels * bytesPerVoxel > availableBytes) {
+    const totalVoxels3D = dims[0] * dims[1] * dims[2];
+    const inferredBpv = Math.floor(availableBytes / totalVoxels3D);
+    if (dims[3] > 1) {
+      dims[3] = 1;
+      totalVoxels = totalVoxels3D;
+    }
+    if (totalVoxels * bytesPerVoxel > availableBytes && (inferredBpv === 1 || inferredBpv === 2 || inferredBpv === 4)) {
+      bytesPerVoxelToUse = inferredBpv;
+    }
+  }
+
   // Extract voxel data
-  const totalVoxels = dims[0] * dims[1] * dims[2] * dims[3];
   let voxels: Float32Array | Int16Array | Uint16Array | Uint8Array;
-  
-  // Get raw data array based on datatype
+
   const rawData = nifti.data;
-  
-  if (rawData instanceof Float32Array) {
-    voxels = rawData;
-  } else if (rawData instanceof Int16Array) {
-    voxels = rawData;
-  } else if (rawData instanceof Uint16Array) {
-    voxels = rawData;
-  } else if (rawData instanceof Uint8Array) {
-    voxels = rawData;
+  const dataLengthOk = rawData && (rawData.length === totalVoxels || rawData.length >= totalVoxels);
+
+  if (dataLengthOk && rawData instanceof Float32Array) {
+    voxels = totalVoxels === rawData.length ? rawData : rawData.slice(0, totalVoxels);
+  } else if (dataLengthOk && rawData instanceof Int16Array) {
+    voxels = totalVoxels === rawData.length ? rawData : rawData.slice(0, totalVoxels) as Int16Array;
+  } else if (dataLengthOk && rawData instanceof Uint16Array) {
+    voxels = totalVoxels === rawData.length ? rawData : rawData.slice(0, totalVoxels);
+  } else if (dataLengthOk && rawData instanceof Uint8Array) {
+    voxels = totalVoxels === rawData.length ? rawData : rawData.slice(0, totalVoxels);
   } else {
-    // Convert to Float32Array as fallback
-    voxels = new Float32Array(rawData);
+    voxels = readVoxelsFromBuffer(arrayBuffer, totalVoxels, bytesPerVoxelToUse);
   }
   
   // Apply scale slope/intercept if available

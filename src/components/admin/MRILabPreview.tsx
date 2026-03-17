@@ -3,7 +3,7 @@
  * Uses the same renderer as the student mode for accurate preview
  */
 
-import { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { MRILabV2 } from "@/components/labs/mri/MRILabV2";
 import { MRILabConfig, defaultMRILabConfig } from "@/types/mriLabConfig";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,16 +17,19 @@ interface MRILabPreviewProps {
   config?: MRILabConfig;
   previewMode?: "student" | "admin";
   onPreviewModeChange?: (mode: "student" | "admin") => void;
+  onConfigChange?: (nextConfig: MRILabConfig) => void;
 }
 
 export function MRILabPreview({ 
   config, 
   previewMode = "student",
-  onPreviewModeChange 
+  onPreviewModeChange,
+  onConfigChange,
 }: MRILabPreviewProps) {
   const store = useMRILabStore();
-  const { initIfNeeded, volumeReady, normalizedVolume, dicomReady } = store;
+  const { initIfNeeded, volumeReady, normalizedVolume, dicomReady, config: storeConfig, loadClinicalCase } = store;
   const storeInstanceId = store.storeInstanceId || "unknown";
+  const initializedRef = useRef(false);
   
   // Use default config if not provided or invalid
   const validConfig = config && typeof config === 'object' && 'tr' in config 
@@ -50,45 +53,31 @@ export function MRILabPreview({
   useEffect(() => {
     console.log("[MRILabPreview] ✅ Component mounted");
     
+    if (initializedRef.current) {
+      console.log("[MRILabPreview] Já inicializado, ignorando nova chamada.");
+      return;
+    }
+
+    // Sempre carregar caso clínico BraTS (nifti, dicom ou phantom legado)
+    const useClinical = storeConfig.dataSource === "nifti" || storeConfig.dataSource === "dicom" || storeConfig.dataSource === "phantom";
+    if (useClinical) {
+      console.log("[MRILabPreview] Carregando caso clínico BraTS (case01_brain_normal). dataSource:", storeConfig.dataSource);
+      void loadClinicalCase("case01_brain_normal");
+      initializedRef.current = true;
+      return;
+    }
+
     // Se já temos volume normalizado válido, não precisa re-inicializar
     if (normalizedVolume && normalizedVolume.isValid) {
       console.log("[MRILabPreview] Volume normalizado já disponível, pulando initIfNeeded");
+      initializedRef.current = true;
       return;
     }
     
     console.log("[MRILabPreview] Chamando initIfNeeded");
     initIfNeeded("MRILabPreview mount", validConfig);
+    initializedRef.current = true;
   }, []); // Only on mount
-  
-  // Re-initialize if config changes significantly (mas não se já temos volume normalizado)
-  useEffect(() => {
-    // Se já temos volume normalizado válido, não re-inicializar
-    if (normalizedVolume && normalizedVolume.isValid) {
-      console.log("[MRILabPreview] Volume normalizado disponível, pulando re-inicialização");
-      return;
-    }
-    
-    const configKey = `${validConfig.dataSource}-${validConfig.phantomType}-${validConfig.tr}-${validConfig.te}-${validConfig.flipAngle}-${validConfig.preset}-${validConfig.dicomSeries ? 'hasDicom' : 'noDicom'}-${validConfig.niftiVolume ? 'hasNifti' : 'noNifti'}`;
-    console.log("[MRILabPreview] Config changed, calling initIfNeeded with new config:", {
-      dataSource: validConfig.dataSource,
-      hasDicomSeries: !!validConfig.dicomSeries,
-      hasNiftiVolume: !!validConfig.niftiVolume,
-      hasNormalizedVolume: !!normalizedVolume,
-      configKey,
-    });
-    initIfNeeded("MRILabPreview config change", validConfig);
-  }, [
-    validConfig.dataSource,
-    validConfig.phantomType, 
-    validConfig.tr, 
-    validConfig.te, 
-    validConfig.flipAngle, 
-    validConfig.preset,
-    validConfig.dicomSeries,
-    validConfig.niftiVolume,
-    normalizedVolume,
-    initIfNeeded
-  ]);
   
   // MRILabV2 will handle updating the store when config prop changes
   // But we ensure initialization happens here too
@@ -138,6 +127,7 @@ export function MRILabPreview({
                 showBackButton={false}
                 labName="Preview"
                 showDebug={previewMode === "admin"}
+                onConfigChange={onConfigChange}
               />
             ) : (
               <div className="h-full w-full flex items-center justify-center">

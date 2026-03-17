@@ -25,6 +25,7 @@ export function MagnetizationGraph() {
     
     const flipAngleRad = (config.flipAngle * Math.PI) / 180;
     const tr = config.tr;
+    const ti = config.ti ?? Math.min(tissue.t1 * 1.2, tr * 0.8);
     const te = config.te;
     
     // Simulate over 2 TR cycles
@@ -35,14 +36,27 @@ export function MagnetizationGraph() {
       const t = (i / numPoints) * maxTime;
       timePoints.push(t);
       
-      // T1 recovery (longitudinal)
-      const mz0 = pd; // Initial magnetization
-      const mzEquilibrium = pd;
-      const mz = mzEquilibrium - (mzEquilibrium - mz0 * Math.cos(flipAngleRad)) * Math.exp(-t / t1);
+      let mz: number;
+      // Inversion recovery: start em -Mz e recuperar com TI
+      if (config.sequenceType === "inversion_recovery") {
+        // Mz(t) após pulso de inversão (partindo de -Mz0 em t=0)
+        // Mz(t) = M0 * (1 - 2 e^{-t/T1})
+        const mzLong = pd * (1 - 2 * Math.exp(-t / t1));
+        mz = mzLong;
+      } else {
+        // T1 recovery (longitudinal) com pulso de excitação simples
+        const mz0 = pd; // magnetização em equilíbrio antes do pulso
+        const mzEquilibrium = pd;
+        mz = mzEquilibrium - (mzEquilibrium - mz0 * Math.cos(flipAngleRad)) * Math.exp(-t / t1);
+      }
       
-      // T2 decay (transverse)
+      // T2 ou T2* decay (transversal)
+      let t2Eff = t2;
+      if (config.isGradientEcho && config.sequenceType === "gradient_echo") {
+        t2Eff = t2 * 0.6;
+      }
       const mxy0 = pd * Math.sin(flipAngleRad);
-      const mxy = mxy0 * Math.exp(-t / t2);
+      const mxy = mxy0 * Math.exp(-te / t2Eff) * Math.exp(-t / t2Eff);
       
       mzPoints.push(mz);
       mxyPoints.push(mxy);

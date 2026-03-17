@@ -2,6 +2,7 @@
  * MRI Lab Control Panel
  */
 
+import React, { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -12,8 +13,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useMRILabStore } from "@/stores/mriLabStore";
-import { MRIPreset, MRIViewerType, MRIPhantomType } from "@/types/mriLabConfig";
-import { Magnet, Radio, Settings } from "lucide-react";
+import { MRILabConfig } from "@/types/mriLabConfig";
+import { Magnet, Settings, Loader2 } from "lucide-react";
 
 interface SliderControlProps {
   label: string;
@@ -57,8 +58,66 @@ function SliderControl({
   );
 }
 
-export function MRILabControlPanel() {
-  const { config, updateConfig, simulationResult } = useMRILabStore();
+interface MRILabControlPanelProps {
+  isAdmin?: boolean;
+  onConfigChange?: (nextConfig: MRILabConfig) => void;
+}
+
+export function MRILabControlPanel({ isAdmin = false, onConfigChange }: MRILabControlPanelProps) {
+  const {
+    config,
+    updateConfig,
+    simulationResult,
+    dicomSeries,
+    realVolumeTR,
+    realVolumeTE,
+    currentCaseId,
+    loadingCase,
+    caseError,
+    loadClinicalCase,
+  } = useMRILabStore();
+
+  const [displayTrSidebar, setDisplayTrSidebar] = useState<number | null>(null);
+  const [displayTeSidebar, setDisplayTeSidebar] = useState<number | null>(null);
+
+  // Transição suave TR/TE na sidebar
+  useEffect(() => {
+    const targetTr = realVolumeTR ?? config.tr;
+    const targetTe = realVolumeTE ?? config.te;
+
+    let frameId: number | null = null;
+    const duration = 300;
+    const start = performance.now();
+    const startTr = displayTrSidebar ?? targetTr;
+    const startTe = displayTeSidebar ?? targetTe;
+
+    const animate = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const lerp = (a: number, b: number, f: number) => a + (b - a) * f;
+      setDisplayTrSidebar(lerp(startTr, targetTr, t));
+      setDisplayTeSidebar(lerp(startTe, targetTe, t));
+      if (t < 1) frameId = requestAnimationFrame(animate);
+    };
+
+    frameId = requestAnimationFrame(animate);
+    return () => {
+      if (frameId != null) cancelAnimationFrame(frameId);
+    };
+  }, [realVolumeTR, realVolumeTE, config.tr, config.te]);
+  
+  const applyConfigUpdate = (updates: Partial<MRILabConfig>) => {
+    updateConfig(updates);
+    if (!isAdmin || !onConfigChange) return;
+
+    // Só sincronizar mudanças relevantes de configuração (evitar poluir com estado de navegação do preview)
+    const shouldSync =
+      "tr" in updates || "te" in updates || "flipAngle" in updates || "sequenceType" in updates;
+    if (!shouldSync) return;
+
+    // Pegar o config real pós-update (inclui regras internas da store, se houver)
+    const nextConfig = useMRILabStore.getState().config;
+    onConfigChange(nextConfig);
+  };
   
   if (!config) {
     return (
@@ -81,144 +140,129 @@ export function MRILabControlPanel() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-5">
-        {/* Presets */}
+        {/* Caso Clínico */}
         <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground uppercase tracking-wide">Presets</Label>
+          <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+            Caso Clínico
+          </Label>
           <Select
-            value={config.preset}
-            onValueChange={(v) => updateConfig({ preset: v as MRIPreset })}
-            disabled={!config.enabledControls.preset}
+            value={currentCaseId ?? "case01_brain_normal"}
+            onValueChange={(v) => {
+              void loadClinicalCase(v);
+            }}
           >
             <SelectTrigger className="bg-muted border-border text-sm">
-              <SelectValue />
+              <SelectValue placeholder="Selecione um caso" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="t1_weighted">T1-weighted</SelectItem>
-              <SelectItem value="t2_weighted">T2-weighted</SelectItem>
-              <SelectItem value="proton_density">Proton Density</SelectItem>
-              <SelectItem value="custom">Personalizado</SelectItem>
+              <SelectItem value="case01_brain_normal">
+                Caso 01: Encéfalo (Normal)
+              </SelectItem>
             </SelectContent>
           </Select>
+          {loadingCase && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Carregando caso clínico (T1/T2)...</span>
+            </div>
+          )}
+          {caseError && !loadingCase && (
+            <p className="text-xs text-red-500">{caseError}</p>
+          )}
         </div>
 
         <div className="h-px bg-border" />
 
-        {/* Phantom Type */}
-        <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground uppercase tracking-wide">Phantom</Label>
-          <Select
-            value={config.phantomType || "brain"}
-            onValueChange={(v) => updateConfig({ phantomType: v as MRIPhantomType })}
-          >
-            <SelectTrigger className="bg-muted border-border text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="brain">Cérebro</SelectItem>
-              <SelectItem value="knee">Joelho</SelectItem>
-              <SelectItem value="abdomen">Abdômen</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="h-px bg-border" />
-
-        {/* Acquisition Parameters */}
+        {/* Parâmetros de Aquisição (Simulação) */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Radio className="h-3.5 w-3.5 text-cyan-500" />
+          <div>
             <Label className="text-xs text-muted-foreground uppercase tracking-wide">
-              Parâmetros de Aquisição
+              Parâmetros de Aquisição (Simulação)
             </Label>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              TR e TE controlam o blend entre T1 e T2 na Fatia 2D (valores mais altos → mais ponderação T2).
+              Em sequências de inversão (ex.: FLAIR), o TI controla o “nulled” do LCR.
+            </p>
           </div>
-
-          {config.enabledControls.tr && (
+          <SliderControl
+            label="TR (Repetition Time)"
+            value={config.tr}
+            onChange={(v) => applyConfigUpdate({ tr: v })}
+            min={config.ranges.tr.min}
+            max={config.ranges.tr.max}
+            step={10}
+            unit="ms"
+          />
+          <SliderControl
+            label="TE (Echo Time)"
+            value={config.te}
+            onChange={(v) => applyConfigUpdate({ te: v })}
+            min={config.ranges.te.min}
+            max={config.ranges.te.max}
+            step={1}
+            unit="ms"
+          />
+          {config.ranges.ti && (
             <SliderControl
-              label="TR (Repetition Time)"
-              value={config.tr}
-              onChange={(v) => updateConfig({ tr: v })}
-              min={config.ranges.tr.min}
-              max={config.ranges.tr.max}
+              label="TI (Inversion Time)"
+              value={config.ti ?? config.ranges.ti.min}
+              onChange={(v) => applyConfigUpdate({ ti: v })}
+              min={config.ranges.ti.min}
+              max={config.ranges.ti.max}
               step={10}
               unit="ms"
             />
           )}
-
-          {config.enabledControls.te && (
-            <SliderControl
-              label="TE (Echo Time)"
-              value={config.te}
-              onChange={(v) => updateConfig({ te: v })}
-              min={config.ranges.te.min}
-              max={config.ranges.te.max}
-              step={1}
-              unit="ms"
-            />
-          )}
-
-          {config.enabledControls.flipAngle && (
-            <SliderControl
-              label="Flip Angle"
-              value={config.flipAngle}
-              onChange={(v) => updateConfig({ flipAngle: v })}
-              min={config.ranges.flipAngle.min}
-              max={config.ranges.flipAngle.max}
-              step={5}
-              unit="°"
-            />
-          )}
-
-          {config.enabledControls.sequenceType && (
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Tipo de Sequência</Label>
-              <Select
-                value={config.sequenceType}
-                onValueChange={(v) =>
-                  updateConfig({ sequenceType: v as any })
-                }
-              >
-                <SelectTrigger className="bg-muted border-border text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="spin_echo">Spin Echo</SelectItem>
-                  <SelectItem value="gradient_echo">Gradient Echo</SelectItem>
-                  <SelectItem value="inversion_recovery">Inversion Recovery</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <SliderControl
+            label="Flip Angle"
+            value={config.flipAngle}
+            onChange={(v) => applyConfigUpdate({ flipAngle: v })}
+            min={config.ranges.flipAngle.min}
+            max={config.ranges.flipAngle.max}
+            step={5}
+            unit="°"
+          />
         </div>
 
         <div className="h-px bg-border" />
 
-        {/* Viewer Selection */}
-        {config.enabledControls.viewer && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Settings className="h-3.5 w-3.5 text-purple-500" />
-              <Label className="text-xs text-muted-foreground uppercase tracking-wide">
-                Visualização
-              </Label>
+        {/* Metadados da Imagem (somente leitura, extraídos do volume/caso) */}
+        <div className="space-y-3">
+          <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+            Metadados da Imagem
+          </Label>
+          <div className="grid grid-cols-2 gap-2 text-[11px]">
+            <div className="flex flex-col">
+              <span className="text-muted-foreground">TR</span>
+              <span className="font-mono">
+                {(displayTrSidebar ?? realVolumeTR ?? config.tr).toFixed(0)} ms
+              </span>
             </div>
-            <Select
-              value={config.activeViewer}
-              onValueChange={(v) => updateConfig({ activeViewer: v as MRIViewerType })}
-            >
-              <SelectTrigger className="bg-muted border-border text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="magnetization">Magnetização 3D</SelectItem>
-                <SelectItem value="slice_2d">Fatia 2D</SelectItem>
-                <SelectItem value="volume_3d">Volume 3D</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex flex-col">
+              <span className="text-muted-foreground">TE</span>
+              <span className="font-mono">
+                {(displayTeSidebar ?? realVolumeTE ?? config.te).toFixed(0)} ms
+              </span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-muted-foreground">Flip Angle</span>
+              <span className="font-mono">{config.flipAngle.toFixed(0)}°</span>
+            </div>
+            {dicomSeries?.sliceThickness != null && (
+              <div className="flex flex-col">
+                <span className="text-muted-foreground">Espessura de Corte</span>
+                <span className="font-mono">{dicomSeries.sliceThickness} mm</span>
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
-        {/* Slice Index (for 2D and 3D viewers) */}
-        {(config.activeViewer === "slice_2d" || config.activeViewer === "volume_3d") && (
+        <div className="h-px bg-border" />
+
+        {/* Visualização: apenas pelas Tabs do topo */}
+
+        {/* Navegação de Fatias - aplica para Fatia 2D e Planos 2D (MPR) */}
+        {(config.activeViewer === "slice_2d" || config.activeViewer === "mpr_2d") && (
           <>
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">Índice da Fatia</Label>
@@ -227,7 +271,7 @@ export function MRILabControlPanel() {
                 value={config.sliceIndex || 0}
                 onChange={(v) => {
                   const clamped = Math.max(0, Math.min(maxSlice, v));
-                  updateConfig({ sliceIndex: clamped });
+                  applyConfigUpdate({ sliceIndex: clamped });
                 }}
                 min={0}
                 max={maxSlice}
@@ -238,7 +282,7 @@ export function MRILabControlPanel() {
             
             <div className="h-px bg-border" />
             
-            {/* Window/Level Controls */}
+            {/* Controles de Visualização (Window/Level) */}
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <Settings className="h-3.5 w-3.5 text-cyan-500" />
@@ -249,7 +293,7 @@ export function MRILabControlPanel() {
               <SliderControl
                 label="Window"
                 value={config.window || 2000}
-                onChange={(v) => updateConfig({ window: v })}
+                onChange={(v) => applyConfigUpdate({ window: v })}
                 min={100}
                 max={5000}
                 step={100}
@@ -258,7 +302,7 @@ export function MRILabControlPanel() {
               <SliderControl
                 label="Level"
                 value={config.level || 1000}
-                onChange={(v) => updateConfig({ level: v })}
+                onChange={(v) => applyConfigUpdate({ level: v })}
                 min={0}
                 max={3000}
                 step={50}

@@ -4,7 +4,7 @@
 
 export type MRISequenceType = "spin_echo" | "gradient_echo" | "inversion_recovery";
 
-export type MRIViewerType = "magnetization" | "slice_2d" | "volume_3d";
+export type MRIViewerType = "magnetization" | "slice_2d" | "mpr_2d" | "volume_3d";
 
 export type MRIPreset = "t1_weighted" | "t2_weighted" | "proton_density" | "custom";
 
@@ -33,8 +33,15 @@ export interface MRILabConfig {
   // Acquisition Parameters (for phantom mode)
   tr: number; // Repetition Time (ms)
   te: number; // Echo Time (ms)
+  ti?: number; // Inversion Time (ms) - only for inversion recovery
   flipAngle: number; // Flip angle (degrees)
   sequenceType: MRISequenceType;
+  isGradientEcho?: boolean; // If true, simulate T2* decay instead of pure T2
+
+  // Geometric / acquisition parameters
+  matrixSize?: 64 | 128 | 256; // Phase-encoding matrix (relative to 128 base)
+  nex?: number; // Number of excitations (averages)
+  simulateArtifacts?: boolean; // Enable motion / chemical shift artifacts in 2D rendering
   
   // Active Viewer
   activeViewer: MRIViewerType;
@@ -61,6 +68,7 @@ export interface MRILabConfig {
     preset: boolean;
     tr: boolean;
     te: boolean;
+  ti?: boolean;
     flipAngle: boolean;
     sequenceType: boolean;
     viewer: boolean;
@@ -70,6 +78,8 @@ export interface MRILabConfig {
   ranges: {
     tr: { min: number; max: number };
     te: { min: number; max: number };
+    ti?: { min: number; max: number };
+    nex?: { min: number; max: number };
     flipAngle: { min: number; max: number };
   };
 }
@@ -84,8 +94,12 @@ export const defaultMRILabConfig: MRILabConfig = {
   phantomType: "brain",
   tr: 500,
   te: 20,
+  ti: 1200,
   flipAngle: 90,
   sequenceType: "spin_echo",
+  isGradientEcho: false,
+  matrixSize: 128,
+  nex: 1,
   activeViewer: "magnetization",
   viewer2DMode: "cornerstone",
   viewer3DMode: "mpr",
@@ -96,6 +110,7 @@ export const defaultMRILabConfig: MRILabConfig = {
     preset: true,
     tr: true,
     te: true,
+    ti: true,
     flipAngle: true,
     sequenceType: true,
     viewer: true,
@@ -103,6 +118,8 @@ export const defaultMRILabConfig: MRILabConfig = {
   ranges: {
     tr: { min: 100, max: 5000 },
     te: { min: 10, max: 200 },
+    ti: { min: 100, max: 4000 },
+    nex: { min: 1, max: 4 },
     flipAngle: { min: 10, max: 180 },
   },
 };

@@ -347,11 +347,16 @@ export function normalizeNiftiVolume(
   }
 
   const totalVoxels = width * height * depth;
-  
-  // Converter para Float32Array
+
+  // Garantir array com tamanho exato totalVoxels (parser/lib pode retornar menos em alguns NIfTIs)
   let data: Float32Array;
   if (voxels instanceof Float32Array) {
-    data = voxels.slice(0, totalVoxels); // Para 4D, usar primeiro time point
+    if (voxels.length >= totalVoxels) {
+      data = voxels.slice(0, totalVoxels);
+    } else {
+      data = new Float32Array(totalVoxels);
+      data.set(voxels.subarray(0, voxels.length));
+    }
   } else {
     data = new Float32Array(totalVoxels);
     const sourceLength = Math.min(voxels.length, totalVoxels);
@@ -360,7 +365,7 @@ export function normalizeNiftiVolume(
     }
   }
 
-  // Calcular min/max e validar
+  // Calcular min/max e contagens
   let min = Infinity;
   let max = -Infinity;
   let nanCount = 0;
@@ -386,8 +391,12 @@ export function normalizeNiftiVolume(
     validationErrors.push(`Tamanho do array não corresponde às dimensões (${data.length} !== ${totalVoxels})`);
   }
 
-  if (!isFinite(min) || !isFinite(max) || min >= max) {
+  if (!isFinite(min) || !isFinite(max)) {
     validationErrors.push(`Valores min/max inválidos (min: ${min}, max: ${max})`);
+  } else if (min >= max) {
+    // Volume constante ou vazio: permitir exibição com range 0–1
+    min = 0;
+    max = 1;
   }
 
   if (nanCount > 0) {

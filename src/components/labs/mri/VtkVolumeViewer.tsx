@@ -1,428 +1,409 @@
 /**
- * vtk.js Volume Rendering Viewer
- * Real 3D volume rendering with transfer functions and presets
+ * VTK Surface Viewer (Isosurface)
+ * Renderiza uma superfície 3D real (marching cubes) a partir do volume.
+ *
+ * Motivo: volume ray-casting é sensível a TF/opacity e pode “sumir”.
+ * A isosurface é mais previsível e entrega “superfície cerebral”.
  */
 
-import { useEffect, useRef, useState, useCallback } from "react";
-import { useMRILabStore, DICOMVolume } from "@/stores/mriLabStore";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMRILabStore } from "@/stores/mriLabStore";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { RotateCcw } from "lucide-react";
+
+import vtkGenericRenderWindow from "vtk.js/Sources/Rendering/Misc/GenericRenderWindow";
+import vtkInteractorStyleTrackballCamera from "vtk.js/Sources/Interaction/Style/InteractorStyleTrackballCamera";
+import vtkImageData from "vtk.js/Sources/Common/DataModel/ImageData";
+import vtkDataArray from "vtk.js/Sources/Common/Core/DataArray";
+import vtkImageMarchingCubes from "vtk.js/Sources/Filters/General/ImageMarchingCubes";
+import vtkMapper from "vtk.js/Sources/Rendering/Core/Mapper";
+import vtkActor from "vtk.js/Sources/Rendering/Core/Actor";
+
+import "vtk.js/Sources/Rendering/OpenGL/Profiles/Geometry";
+
+type TypedVoxels = Float32Array | Int16Array | Uint16Array | Uint8Array;
 
 interface VtkVolumeViewerProps {
   showDebug?: boolean;
 }
 
-type VolumePreset = "soft_tissue" | "bone" | "angio" | "custom";
-
 export function VtkVolumeViewer({ showDebug = false }: VtkVolumeViewerProps) {
-  const store = useMRILabStore();
-  const { dicomVolume, dicomSeries, dicomReady, normalizedVolume } = store;
+  const { dicomVolume, dicomReady, normalizedVolume } = useMRILabStore();
+
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [preset, setPreset] = useState<VolumePreset>("soft_tissue");
-  const [thresholdLow, setThresholdLow] = useState(0);
-  const [thresholdHigh, setThresholdHigh] = useState(1000);
-  const [globalOpacity, setGlobalOpacity] = useState(1.0);
-  const [shading, setShading] = useState(true);
-  
-  // Initialize thresholds from volume
-  useEffect(() => {
-    const volume = normalizedVolume || dicomVolume;
-    if (volume) {
-      setThresholdLow(volume.min);
-      setThresholdHigh(volume.max);
-    }
-  }, [normalizedVolume, dicomVolume]);
-  
-  // Initialize vtk.js and render volume
-  useEffect(() => {
-    const volume = normalizedVolume || dicomVolume;
-    const isReady = normalizedVolume?.isValid || dicomReady;
-    
-    if (!isReady || !volume || !containerRef.current || isInitialized) return;
-    
-    const initVtk = async () => {
-      try {
-        // Dynamic import
-        const vtk = await import('vtk.js');
-        
-        // Get container
-        const container = containerRef.current!;
-        
-        // Create render window
-        const renderWindow = vtk.Rendering.Core.vtkRenderWindow.newInstance();
-        const renderer = vtk.Rendering.Core.vtkRenderer.newInstance({ background: [0.1, 0.1, 0.1] });
-        renderWindow.addRenderer(renderer);
-        
-        // Create OpenGL render window
-        const openGLRenderWindow = vtk.Rendering.OpenGL.vtkRenderWindow.newInstance();
-        renderWindow.addView(openGLRenderWindow);
-        
-        // Set container
-        openGLRenderWindow.setContainer(container);
-        
-        // Create interactor
-        const interactor = vtk.Rendering.Core.vtkRenderWindowInteractor.newInstance();
-        interactor.setView(openGLRenderWindow);
-        interactor.initialize();
-        interactor.bindEvents(container);
-        
-        // Build vtkImageData from volume (normalizedVolume ou dicomVolume)
-        let width: number, height: number, depth: number;
-        let voxels: Float32Array | Int16Array | Uint16Array | Uint8Array;
-        let spacing: [number, number, number];
-        
-        if (normalizedVolume && normalizedVolume.isValid) {
-          // Usar normalizedVolume (novo sistema)
-          width = normalizedVolume.width;
-          height = normalizedVolume.height;
-          depth = normalizedVolume.depth;
-          voxels = normalizedVolume.data;
-          spacing = normalizedVolume.spacing;
-        } else if (dicomVolume) {
-          // Usar dicomVolume (sistema legado)
-          width = dicomVolume.width;
-          height = dicomVolume.height;
-          depth = dicomVolume.depth;
-          voxels = dicomVolume.voxels;
-          const spacingX = dicomVolume.pixelSpacing?.[0] ?? 1.0;
-          const spacingY = dicomVolume.pixelSpacing?.[1] ?? 1.0;
-          const spacingZ = dicomVolume.spacingBetweenSlices ?? dicomVolume.sliceThickness ?? 1.0;
-          spacing = [spacingX, spacingY, spacingZ];
-        } else {
-          throw new Error('No volume data available');
-        }
-        
-        console.log('[VtkVolumeViewer] Building vtkImageData:', {
-          dimensions: `${width}×${height}×${depth}`,
-          spacing,
-          voxelsLength: voxels.length,
-          voxelsType: voxels.constructor.name,
-          min: Math.min(...Array.from(voxels.slice(0, Math.min(1000, voxels.length)))),
-          max: Math.max(...Array.from(voxels.slice(0, Math.min(1000, voxels.length)))),
-        });
-        
-        const imageData = vtk.Common.DataModel.vtkImageData.newInstance();
-        imageData.setDimensions([width, height, depth]);
-        imageData.setSpacing(spacing);
-        imageData.setOrigin([0, 0, 0]);
-        
-        // Create scalar array - vtk.js espera um array numérico
-        const scalars = vtk.Common.Core.vtkDataArray.newInstance({
-          numberOfComponents: 1,
-          values: Array.from(voxels), // Converter TypedArray para Array normal
-        });
-        imageData.getPointData().setScalars(scalars);
-        
-        // Create volume mapper
-        const mapper = vtk.Rendering.Core.vtkVolumeMapper.newInstance();
-        mapper.setInputData(imageData);
-        
-        // Create volume property
-        const volumeProperty = vtk.Rendering.Core.vtkVolumeProperty.newInstance();
-        volumeProperty.setIndependentComponents(true);
-        volumeProperty.setShade(shading);
-        volumeProperty.setInterpolationTypeToLinear();
-        
-        // Create transfer functions
-        const colorTransferFunction = vtk.Rendering.Core.vtkColorTransferFunction.newInstance();
-        const opacityTransferFunction = vtk.Rendering.Core.vtkPiecewiseFunction.newInstance();
-        
-        // Apply preset - usar volume atual
-        const volumeForPreset = normalizedVolume || dicomVolume;
-        applyPreset(preset, colorTransferFunction, opacityTransferFunction, volumeForPreset);
-        
-        volumeProperty.setRGBTransferFunction(0, colorTransferFunction);
-        volumeProperty.setScalarOpacity(0, opacityTransferFunction);
-        volumeProperty.setScalarOpacityUnitDistance(0, 1.0);
-        
-        // Create volume
-        const volume = vtk.Rendering.Core.vtkVolume.newInstance();
-        volume.setMapper(mapper);
-        volume.setProperty(volumeProperty);
-        
-        // Add to renderer
-        renderer.addVolume(volume);
-        
-        // Reset camera
-        renderer.resetCamera();
-        renderWindow.render();
-        
-        // Store references for updates
-        const vtkRefs = {
-          renderWindow,
-          renderer,
-          volume,
-          volumeProperty,
-          colorTransferFunction,
-          opacityTransferFunction,
-          mapper,
-        };
-        
-        (container as any).__vtkRefs = vtkRefs;
-        
-        setIsInitialized(true);
-        setError(null);
-        
-        // Cleanup
-        return () => {
-          if (vtkRefs) {
-            renderWindow.delete();
-            renderer.delete();
-            volume.delete();
-            mapper.delete();
-          }
-        };
-      } catch (err: any) {
-        console.error("[VTK] Initialization error:", err);
-        setError(`Erro ao inicializar vtk.js: ${err.message}`);
-      }
-    };
-    
-    initVtk();
-  }, [normalizedVolume, dicomReady, dicomVolume, isInitialized, preset, shading]);
-  
-  // Apply preset to transfer functions
-  const applyPreset = (
-    presetType: VolumePreset,
-    colorTF: any,
-    opacityTF: any,
-    volume: { min: number; max: number }
-  ) => {
-    const { min, max } = volume;
-    const range = max - min;
-    
-    // Clear existing points
-    colorTF.removeAllPoints();
-    opacityTF.removeAllPoints();
-    
-    if (presetType === "soft_tissue") {
-      // Soft tissue: low opacity, medium range
-      const center = (min + max) / 2;
-      colorTF.addRGBPoint(min, 0.0, 0.0, 0.0);
-      colorTF.addRGBPoint(center - range * 0.2, 0.3, 0.3, 0.5);
-      colorTF.addRGBPoint(center, 0.5, 0.5, 0.7);
-      colorTF.addRGBPoint(center + range * 0.2, 0.7, 0.7, 0.9);
-      colorTF.addRGBPoint(max, 1.0, 1.0, 1.0);
-      
-      opacityTF.addPoint(min, 0.0);
-      opacityTF.addPoint(center - range * 0.3, 0.1);
-      opacityTF.addPoint(center, 0.3);
-      opacityTF.addPoint(center + range * 0.3, 0.2);
-      opacityTF.addPoint(max, 0.1);
-    } else if (presetType === "bone") {
-      // Bone: high threshold, higher opacity
-      const boneMin = min + range * 0.6;
-      colorTF.addRGBPoint(min, 0.0, 0.0, 0.0);
-      colorTF.addRGBPoint(boneMin, 0.8, 0.8, 0.8);
-      colorTF.addRGBPoint(max, 1.0, 1.0, 1.0);
-      
-      opacityTF.addPoint(min, 0.0);
-      opacityTF.addPoint(boneMin, 0.0);
-      opacityTF.addPoint(boneMin + range * 0.1, 0.3);
-      opacityTF.addPoint(max, 0.8);
-    } else if (presetType === "angio") {
-      // Angio: emphasize high signals
-      const angioMin = min + range * 0.7;
-      colorTF.addRGBPoint(min, 0.0, 0.0, 0.0);
-      colorTF.addRGBPoint(angioMin, 0.0, 0.0, 0.0);
-      colorTF.addRGBPoint(angioMin + range * 0.1, 1.0, 0.0, 0.0);
-      colorTF.addRGBPoint(max, 1.0, 1.0, 0.0);
-      
-      opacityTF.addPoint(min, 0.0);
-      opacityTF.addPoint(angioMin, 0.0);
-      opacityTF.addPoint(angioMin + range * 0.05, 0.5);
-      opacityTF.addPoint(max, 1.0);
-    } else {
-      // Custom: use threshold range
-      colorTF.addRGBPoint(thresholdLow, 0.0, 0.0, 0.0);
-      colorTF.addRGBPoint((thresholdLow + thresholdHigh) / 2, 0.5, 0.5, 0.5);
-      colorTF.addRGBPoint(thresholdHigh, 1.0, 1.0, 1.0);
-      
-      opacityTF.addPoint(thresholdLow, 0.0);
-      opacityTF.addPoint((thresholdLow + thresholdHigh) / 2, 0.5);
-      opacityTF.addPoint(thresholdHigh, 1.0);
-    }
-  };
-  
-  // Update transfer functions when parameters change
-  useEffect(() => {
-    const volume = normalizedVolume || dicomVolume;
-    if (!isInitialized || !containerRef.current || !volume) return;
-    
-    const vtkRefs = (containerRef.current as any).__vtkRefs;
-    if (!vtkRefs) return;
-    
-    try {
-      const { colorTransferFunction, opacityTransferFunction, volumeProperty, renderWindow } = vtkRefs;
-      
-      // Reapply preset or custom
-      applyPreset(preset, colorTransferFunction, opacityTransferFunction, volume);
-      
-      // Apply global opacity
-      if (preset === "custom") {
-        opacityTransferFunction.removeAllPoints();
-        opacityTransferFunction.addPoint(thresholdLow, 0.0);
-        opacityTransferFunction.addPoint((thresholdLow + thresholdHigh) / 2, 0.5 * globalOpacity);
-        opacityTransferFunction.addPoint(thresholdHigh, 1.0 * globalOpacity);
-      } else {
-        // Scale existing opacity by globalOpacity
-        const points = opacityTransferFunction.getDataPointer();
-        for (let i = 0; i < points.length; i += 2) {
-          opacityTransferFunction.setNodeValue(i / 2, [points[i], points[i + 1] * globalOpacity]);
-        }
-      }
-      
-      // Update shading
-      volumeProperty.setShade(shading);
-      
-      renderWindow.render();
-    } catch (err) {
-      console.error("[VTK] Update error:", err);
-    }
-  }, [isInitialized, preset, thresholdLow, thresholdHigh, globalOpacity, shading, normalizedVolume, dicomVolume]);
-  
-  // Reset camera
-  const handleReset = useCallback(() => {
-    if (!containerRef.current) return;
-    const vtkRefs = (containerRef.current as any).__vtkRefs;
-    if (vtkRefs?.renderer) {
-      vtkRefs.renderer.resetCamera();
-      vtkRefs.renderWindow.render();
-    }
-  }, []);
-  
+  const vtkRefs = useRef<{
+    generic: any;
+    renderer: any;
+    renderWindow: any;
+    interactor: any;
+    marching: any;
+    mapper: any;
+    actor: any;
+    resizeObserver?: ResizeObserver;
+  } | null>(null);
+
   const volume = normalizedVolume || dicomVolume;
   const isReady = normalizedVolume?.isValid || dicomReady;
-  
+
+  const [error, setError] = useState<string | null>(null);
+  const [initStep, setInitStep] = useState("Inicializando Superfície 3D...");
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  const range = useMemo(() => {
+    if (!volume) return { min: 0, max: 1 };
+    const min = Number.isFinite(volume.min) ? volume.min : 0;
+    const max0 = Number.isFinite(volume.max) ? volume.max : min + 1;
+    const max = max0 === min ? min + 1 : max0;
+    return { min, max };
+  }, [volume]);
+
+  // Iso default: acima do fundo, mas não tão alto
+  const [isoValue, setIsoValue] = useState(() => range.min + (range.max - range.min) * 0.35);
+  const [opacity, setOpacity] = useState(1.0);
+  const [shading, setShading] = useState(false);
+  const [debugStats, setDebugStats] = useState<{ cells: number; bounds: number[] } | null>(null);
+
+  useEffect(() => {
+    if (!volume) return;
+    const defaultIso = range.min + (range.max - range.min) * 0.35;
+    setIsoValue(defaultIso);
+    setOpacity(0.9);
+  }, [volume, range.min, range.max]);
+
+  const volumeKey = useMemo(() => {
+    if (!isReady || !volume) return "none";
+    return `${volume.width}x${volume.height}x${volume.depth}|${range.min}|${range.max}|${normalizedVolume?.isValid ? "norm" : "dicom"}`;
+  }, [isReady, volume, range.min, range.max, normalizedVolume?.isValid]);
+
+  const cleanup = useCallback(() => {
+    if (!vtkRefs.current) return;
+    const r = vtkRefs.current;
+    try {
+      r.resizeObserver?.disconnect();
+      r.generic?.setContainer?.(null);
+      r.generic?.delete?.();
+      r.interactor?.delete?.();
+      r.actor?.delete?.();
+      r.mapper?.delete?.();
+      r.marching?.delete?.();
+      r.renderWindow?.delete?.();
+      r.renderer?.delete?.();
+    } catch {
+      // ignore
+    }
+    vtkRefs.current = null;
+    setIsInitialized(false);
+  }, []);
+
+  // Init VTK (somente quando o volume mudar)
+  useEffect(() => {
+    if (!isReady || !volume || !containerRef.current) return;
+
+    cleanup();
+    setError(null);
+
+    try {
+      setInitStep("Criando renderer...");
+      const container = containerRef.current;
+
+      const generic = vtkGenericRenderWindow.newInstance({ background: [0.02, 0.02, 0.03] });
+      generic.setContainer(container);
+      generic.resize();
+
+      const renderer = generic.getRenderer();
+      const renderWindow = generic.getRenderWindow();
+      const interactor = generic.getInteractor();
+      interactor.setInteractorStyle(vtkInteractorStyleTrackballCamera.newInstance());
+      interactor.setCurrentRenderer(renderer);
+
+      setInitStep("Montando vtkImageData...");
+      let width: number, height: number, depth: number;
+      let voxels: TypedVoxels;
+      let spacing: [number, number, number];
+
+      if (normalizedVolume && normalizedVolume.isValid) {
+        width = normalizedVolume.width;
+        height = normalizedVolume.height;
+        depth = normalizedVolume.depth;
+        voxels = normalizedVolume.data as any;
+        spacing = normalizedVolume.spacing;
+      } else if (dicomVolume) {
+        width = dicomVolume.width;
+        height = dicomVolume.height;
+        depth = dicomVolume.depth;
+        voxels = dicomVolume.voxels as any;
+        const sx = dicomVolume.pixelSpacing?.[0] ?? 1.0;
+        const sy = dicomVolume.pixelSpacing?.[1] ?? 1.0;
+        const sz = dicomVolume.spacingBetweenSlices ?? dicomVolume.sliceThickness ?? 1.0;
+        spacing = [sx, sy, sz];
+      } else {
+        throw new Error("No volume data available");
+      }
+
+      const imageData = vtkImageData.newInstance();
+      imageData.setDimensions([width, height, depth]);
+      imageData.setSpacing(spacing);
+      imageData.setOrigin([0, 0, 0]);
+
+      imageData.getPointData().setScalars(
+        vtkDataArray.newInstance({
+          numberOfComponents: 1,
+          values: voxels as any,
+        }),
+      );
+
+      setInitStep("Extraindo superfície (Marching Cubes)...");
+      const marching = vtkImageMarchingCubes.newInstance({
+        computeNormals: true,
+        mergePoints: true,
+      });
+      marching.setInputData(imageData);
+      // Garantir que o primeiro iso esteja no range
+      const initialIso = Number.isFinite(isoValue) ? isoValue : (range.min + (range.max - range.min) * 0.35);
+      marching.setContourValue(0, initialIso);
+      // Forçar execução do filtro agora (senão pode ficar com output vazio até a primeira render)
+      marching.update();
+
+      const mapper = vtkMapper.newInstance();
+      mapper.setInputConnection(marching.getOutputPort());
+      // Garantir cor fixa (não mapear por escalares)
+      mapper.setScalarVisibility(false);
+
+      const actor = vtkActor.newInstance();
+      actor.setMapper(mapper);
+      actor.getProperty().setColor(0.95, 0.95, 0.98);
+      actor.getProperty().setOpacity(opacity);
+      actor.getProperty().setInterpolationToPhong();
+      actor.getProperty().setLighting(!!shading);
+      actor.getProperty().setAmbient(0.2);
+      actor.getProperty().setDiffuse(0.8);
+      actor.getProperty().setSpecular(0.25);
+      actor.getProperty().setSpecularPower(12);
+
+      renderer.addActor(actor);
+      // Se o iso inicial gerar malha vazia, procurar automaticamente um iso melhor
+      const getCellCount = () => {
+        try {
+          const out = marching.getOutputData();
+          const polys = out?.getPolys?.();
+          return polys?.getNumberOfCells?.() ?? 0;
+        } catch {
+          return 0;
+        }
+      };
+      const getBounds = () => {
+        try {
+          return marching.getOutputData()?.getBounds?.() ?? [];
+        } catch {
+          return [];
+        }
+      };
+
+      if (getCellCount() === 0) {
+        const samples = 24;
+        let bestIso = initialIso;
+        let bestCells = 0;
+        for (let i = 1; i < samples; i++) {
+          const t = i / samples;
+          const candidate = range.min + (range.max - range.min) * t;
+          marching.setContourValue(0, candidate);
+          marching.update();
+          const cells = getCellCount();
+          if (cells > bestCells) {
+            bestCells = cells;
+            bestIso = candidate;
+          }
+        }
+        if (bestCells > 0) {
+          marching.setContourValue(0, bestIso);
+          marching.update();
+          setIsoValue(bestIso);
+        }
+      }
+
+      setDebugStats({ cells: getCellCount(), bounds: getBounds() });
+      renderer.resetCamera();
+      renderWindow.render();
+
+      const ro = new ResizeObserver(() => {
+        generic.resize();
+        renderWindow.render();
+      });
+      ro.observe(container);
+
+      vtkRefs.current = { generic, renderer, renderWindow, interactor, marching, mapper, actor, resizeObserver: ro };
+      setIsInitialized(true);
+      setInitStep("Pronto");
+    } catch (err: any) {
+      console.error("[VTK] Surface init error:", err);
+      setError(`Erro ao inicializar Superfície 3D: ${err?.message ?? String(err)}`);
+      setIsInitialized(false);
+    }
+
+    return () => {
+      cleanup();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [volumeKey]);
+
+  // Updates (iso / opacity / shading)
+  useEffect(() => {
+    if (!vtkRefs.current) return;
+    const r = vtkRefs.current;
+    try {
+      r.marching.setContourValue(0, isoValue);
+      r.marching.update();
+      r.actor.getProperty().setOpacity(opacity);
+      r.actor.getProperty().setLighting(!!shading);
+      // Se o iso mudou muito, a câmera pode ficar ruim; manter clipping atualizado
+      r.renderer.resetCameraClippingRange();
+      r.renderWindow.render();
+      try {
+        const out = r.marching.getOutputData();
+        const polys = out?.getPolys?.();
+        const cells = polys?.getNumberOfCells?.() ?? 0;
+        const bounds = out?.getBounds?.() ?? [];
+        setDebugStats({ cells, bounds });
+      } catch {
+        // ignore
+      }
+    } catch (err) {
+      console.error("[VTK] Surface update error:", err);
+    }
+  }, [isoValue, opacity, shading]);
+
+  // Fallback de rotação por teclado (global), independente do mouse
+  useEffect(() => {
+    if (!isInitialized) return;
+    const handler = (e: KeyboardEvent) => {
+      const r = vtkRefs.current;
+      if (!r) return;
+      const cam = r.renderer.getActiveCamera();
+      const step = e.shiftKey ? 10 : 3;
+      switch (e.key) {
+        case "ArrowLeft":
+          e.preventDefault();
+          cam.azimuth(-step);
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          cam.azimuth(step);
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          cam.elevation(step);
+          break;
+        case "ArrowDown":
+          e.preventDefault();
+          cam.elevation(-step);
+          break;
+        default:
+          return;
+      }
+      cam.orthogonalizeViewUp();
+      r.renderer.resetCameraClippingRange();
+      r.renderWindow.render();
+    };
+    window.addEventListener("keydown", handler, { passive: false } as any);
+    return () => window.removeEventListener("keydown", handler as any);
+  }, [isInitialized]);
+
+  const handleReset = useCallback(() => {
+    const r = vtkRefs.current;
+    if (!r) return;
+    r.renderer.resetCamera();
+    r.renderWindow.render();
+  }, []);
+
   if (!isReady || !volume) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-background">
-        <div className="text-center p-4 text-muted-foreground">
-          Nenhum volume carregado
-        </div>
+        <div className="text-center p-4 text-muted-foreground">Nenhum volume carregado</div>
       </div>
     );
   }
-  
+
   if (error) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-background">
         <div className="text-center p-4">
           <div className="text-red-500 text-sm mb-2">{error}</div>
-          <div className="text-xs text-muted-foreground">
-            Usando modo MPR (canvas) como fallback
-          </div>
+          <div className="text-xs text-muted-foreground">Veja o console do navegador.</div>
         </div>
       </div>
     );
   }
-  
-  if (!isInitialized) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-background">
-        <div className="text-center p-4 text-muted-foreground">
-          Inicializando Volume Rendering...
-        </div>
-      </div>
-    );
-  }
-  
+
   return (
     <div className="w-full h-full flex flex-col bg-background">
-      {/* Viewer Container */}
       <div className="flex-1 relative bg-black overflow-hidden">
         <div
           ref={containerRef}
           className="w-full h-full"
-          style={{ minHeight: '400px' }}
+          style={{ minHeight: 400, touchAction: "none", pointerEvents: "auto" }}
+          onContextMenu={(e) => e.preventDefault()}
         />
-      </div>
-      
-      {/* Controls */}
-      <div className="border-t border-border bg-card p-4 space-y-4">
-        {/* Preset */}
-        <div className="space-y-2">
-          <Label>Preset</Label>
-          <Select value={preset} onValueChange={(v) => setPreset(v as VolumePreset)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="soft_tissue">Tecido Mole</SelectItem>
-              <SelectItem value="bone">Osso</SelectItem>
-              <SelectItem value="angio">Alto Contraste</SelectItem>
-              <SelectItem value="custom">Personalizado</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        
-        {/* Threshold (only for custom) */}
-        {preset === "custom" && (
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs">Threshold Low</Label>
-                <span className="text-xs text-muted-foreground">{thresholdLow.toFixed(0)}</span>
-              </div>
-              <Slider
-                value={[thresholdLow]}
-                onValueChange={(v) => setThresholdLow(v[0])}
-                min={volume.min}
-                max={volume.max}
-                step={10}
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs">Threshold High</Label>
-                <span className="text-xs text-muted-foreground">{thresholdHigh.toFixed(0)}</span>
-              </div>
-              <Slider
-                value={[thresholdHigh]}
-                onValueChange={(v) => setThresholdHigh(v[0])}
-                min={volume.min}
-                max={volume.max}
-                step={10}
-              />
-            </div>
+        {!isInitialized && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center p-4 text-muted-foreground text-sm">{initStep}</div>
           </div>
         )}
-        
-        {/* Global Opacity */}
+        {isInitialized && (
+          <div className="pointer-events-none absolute bottom-2 left-2 bg-black/60 text-white text-[11px] px-2 py-1 rounded font-mono">
+            Setas rotacionam · Shift + setas = rápido
+          </div>
+        )}
+        {isInitialized && (
+          <div className="pointer-events-none absolute bottom-2 right-2 bg-black/60 text-white text-[11px] px-2 py-1 rounded font-mono text-right max-w-[55%]">
+            iso: {isoValue.toFixed(2)} · cells: {debugStats?.cells ?? "?"}
+            {showDebug && debugStats?.bounds?.length === 6 && (
+              <div className="text-[10px] text-white/80">
+                b: [{debugStats.bounds.map((v) => v.toFixed(1)).join(", ")}]
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-border bg-card p-4 space-y-4">
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label className="text-xs">Opacidade Global</Label>
-            <span className="text-xs text-muted-foreground">{(globalOpacity * 100).toFixed(0)}%</span>
+            <Label>Iso (limiar da superfície)</Label>
+            <span className="text-sm text-muted-foreground">{isoValue.toFixed(2)}</span>
           </div>
-          <Slider
-            value={[globalOpacity]}
-            onValueChange={(v) => setGlobalOpacity(v[0])}
-            min={0}
-            max={1}
-            step={0.05}
-          />
+          <Slider value={[isoValue]} onValueChange={(v) => setIsoValue(v[0])} min={range.min} max={range.max} step={(range.max - range.min) / 200} />
         </div>
-        
-        {/* Shading */}
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label>Opacidade</Label>
+            <span className="text-sm text-muted-foreground">{opacity.toFixed(2)}</span>
+          </div>
+          <Slider value={[opacity]} onValueChange={(v) => setOpacity(v[0])} min={0.05} max={1.0} step={0.05} />
+        </div>
+
         <div className="flex items-center justify-between">
-          <Label className="text-xs">Shading (Iluminação)</Label>
+          <Label>Sombreamento</Label>
           <Switch checked={shading} onCheckedChange={setShading} />
         </div>
-        
-        {/* Reset */}
+
         <div className="flex justify-end">
           <Button variant="outline" size="sm" onClick={handleReset}>
             <RotateCcw className="h-4 w-4 mr-2" />
-            Resetar Câmera
+            Reset Camera
           </Button>
         </div>
+
+        {showDebug && (
+          <div className="text-[11px] text-muted-foreground font-mono">
+            dims: {volume.width}×{volume.height}×{volume.depth} · range: {range.min.toFixed(3)}..{range.max.toFixed(3)}
+          </div>
+        )}
       </div>
     </div>
   );
 }
+

@@ -44,6 +44,8 @@ export interface ParsedVolume {
     seriesDescription?: string;
     patientId?: string;
     studyDate?: string;
+    tr?: number;
+    te?: number;
     [key: string]: any;
   };
 }

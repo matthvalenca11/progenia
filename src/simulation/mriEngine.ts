@@ -23,6 +23,63 @@ export interface MRISimulationResult {
 }
 
 /**
+ * Hybrid synthetic contrast for real volumes (per-voxel, brightness-space)
+ * originalValue: intensidade normalizada 0..1
+ */
+export function calculateSyntheticVoxel(
+  originalValueNormalized: number,
+  targetTR: number,
+  targetTE: number,
+  originalTR: number = 500,
+  originalTE: number = 15,
+): number {
+  // Clamp brilho para [0,1]
+  const v = Math.min(1, Math.max(0, originalValueNormalized));
+
+  // Ar/osso: praticamente sem sinal e sem alteração relevante
+  if (v < 0.05) {
+    return v;
+  }
+
+  // Classificação aproximada de tecido para T1 original
+  let T1 = 600;
+  let T2 = 80;
+
+  if (v < 0.15) {
+    // CSF
+    T1 = 4000;
+    T2 = 2000;
+  } else if (v < 0.45) {
+    // Substância cinzenta
+    T1 = 900;
+    T2 = 100;
+  } else if (v < 0.75) {
+    // Substância branca
+    T1 = 600;
+    T2 = 80;
+  } else {
+    // Gordura
+    T1 = 250;
+    T2 = 60;
+  }
+
+  const signalModel = (tr: number, te: number) => {
+    const t1Rec = 1 - Math.exp(-tr / T1);
+    const t2Dec = Math.exp(-te / T2);
+    return t1Rec * t2Dec;
+  };
+
+  const sOrig = signalModel(originalTR, originalTE);
+  const sTarget = signalModel(targetTR, targetTE);
+
+  const denom = Math.max(sOrig, 1e-6);
+  const factor = sTarget / denom;
+
+  const synthetic = v * factor;
+  return Math.min(1, Math.max(0, synthetic));
+}
+
+/**
  * Calculate MRI signal for a voxel using simplified model
  * S ≈ PD * (1 - exp(-TR/T1)) * exp(-TE/T2) * sin(flipAngle)
  */
@@ -30,25 +87,42 @@ export function calculateMRISignal(
   tissue: TissueProperties,
   tr: number,
   te: number,
-  flipAngle: number
+  flipAngle: number,
+  sequenceType: MRISequenceType,
+  ti?: number,
+  isGradientEcho?: boolean,
 ): MRISignalResult {
   const flipAngleRad = (flipAngle * Math.PI) / 180;
-  
-  // T1 recovery factor
+
+  // T1 recovery factor for non-IR sequences
   const t1Recovery = 1 - Math.exp(-tr / tissue.t1);
-  
-  // T2 decay factor
-  const t2Decay = Math.exp(-te / tissue.t2);
-  
+
+  // Base T2 decay
+  let t2Effective = tissue.t2;
+  // For gradient echo, simulate T2* with faster decay (empirical factor)
+  if (isGradientEcho && sequenceType === "gradient_echo") {
+    t2Effective = tissue.t2 * 0.6;
+  }
+  const t2Decay = Math.exp(-te / t2Effective);
+
   // Flip angle effect
   const flipEffect = Math.sin(flipAngleRad);
-  
-  // Magnetization (before T2 decay)
-  const magnetization = tissue.pd * t1Recovery * flipEffect;
-  
-  // Final signal
-  const signal = tissue.pd * t1Recovery * t2Decay * flipEffect;
-  
+
+  let magnetization: number;
+  let signal: number;
+
+  if (sequenceType === "inversion_recovery" && ti != null) {
+    // Inversion recovery longitudinal term: Mz ≈ 1 - 2e^{-TI/T1} + e^{-TR/T1}
+    const mzLongitudinal =
+      tissue.pd * Math.abs(1 - 2 * Math.exp(-ti / tissue.t1) + Math.exp(-tr / tissue.t1));
+    magnetization = mzLongitudinal * flipEffect;
+    signal = mzLongitudinal * t2Decay * flipEffect;
+  } else {
+    // Standard SE / GE model: S ≈ PD * (1 - e^{-TR/T1}) * e^{-TE/T2} * sin(α)
+    magnetization = tissue.pd * t1Recovery * flipEffect;
+    signal = tissue.pd * t1Recovery * t2Decay * flipEffect;
+  }
+
   return {
     signal: Math.max(0, signal),
     magnetization,
@@ -256,7 +330,9 @@ export function getSliceImageData(
   te: number,
   flipAngle: number,
   window: number = 2000,
-  level: number = 1000
+  level: number = 1000,
+  snrRelative: number = 1,
+  simulateArtifacts: boolean = false
 ): ImageData | null {
   // Validate volume
   if (!volume || !volume.voxels || volume.voxels.length === 0) {
@@ -332,11 +408,22 @@ export function getSliceImageData(
   const windowMax = level + window / 2;
   const windowRange = windowMax - windowMin;
   const effectiveWindowRange = windowRange < epsilon ? epsilon : windowRange;
+
+  // Noise model: base sigma modulado por SNR relativo
+  const snrSafe = Math.max(snrRelative, 0.1);
+  const baseSigma = 0.06; // intensidade relativa de ruído
+  const noiseSigma = (baseSigma / snrSafe) * 255;
+
+  // Simple Gaussian RNG (Box-Muller)
+  const gaussian = () => {
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+  };
   
-  // Draw voxels
+  // Draw voxels (with optional chemical shift)
   sliceVoxels.forEach((voxel) => {
-    const index = (voxel.y * width + voxel.x) * 4;
-    
     let signal: number;
     if (voxel.signal !== undefined && voxel.signal !== null) {
       signal = voxel.signal;
@@ -348,15 +435,52 @@ export function getSliceImageData(
     // Apply window/level
     let clampedSignal = Math.max(windowMin, Math.min(windowMax, signal));
     const normalized = (clampedSignal - windowMin) / effectiveWindowRange;
-    const intensity = Math.min(255, Math.max(0, Math.round(normalized * 255)));
+    let intensity = Math.min(255, Math.max(0, Math.round(normalized * 255)));
+
+    // Add Gaussian noise inversamente proporcional ao SNR relativo
+    const noise = gaussian() * noiseSigma;
+    intensity = Math.min(255, Math.max(0, Math.round(intensity + noise)));
     
+    // Chemical shift: deslocar gordura no eixo de frequência (x)
+    let drawX = voxel.x;
+    let drawY = voxel.y;
+    if (simulateArtifacts && voxel.tissueType === "fat") {
+      drawX = Math.min(width - 1, Math.max(0, voxel.x + 3));
+    }
+
+    const clampedX = Math.min(width - 1, Math.max(0, drawX));
+    const clampedY = Math.min(height - 1, Math.max(0, drawY));
+    const index = (clampedY * width + clampedX) * 4;
+
     // Grayscale MRI appearance
     imageData[index] = intensity;     // R
     imageData[index + 1] = intensity; // G
     imageData[index + 2] = intensity; // B
     imageData[index + 3] = 255;       // Alpha
   });
-  
+
+  // Motion / ghosting artifact along phase-encoding (vertical) axis
+  if (simulateArtifacts) {
+    const ghostCopies = 2;
+    const alphaFactor = 0.4;
+    for (let g = 1; g <= ghostCopies; g++) {
+      const offsetY = g * 4;
+      for (let y = 0; y < height - offsetY; y++) {
+        for (let x = 0; x < width; x++) {
+          const srcIdx = (y * width + x) * 4;
+          const dstIdx = ((y + offsetY) * width + x) * 4;
+          const srcR = imageData[srcIdx];
+          const srcG = imageData[srcIdx + 1];
+          const srcB = imageData[srcIdx + 2];
+          // Alpha blend fantasma sobre o pixel existente
+          imageData[dstIdx] = Math.min(255, imageData[dstIdx] + srcR * alphaFactor);
+          imageData[dstIdx + 1] = Math.min(255, imageData[dstIdx + 1] + srcG * alphaFactor);
+          imageData[dstIdx + 2] = Math.min(255, imageData[dstIdx + 2] + srcB * alphaFactor);
+        }
+      }
+    }
+  }
+
   return new ImageData(imageData, width, height);
 }
 
@@ -410,7 +534,10 @@ export function simulateMRI(config: MRILabConfig): MRISimulationResult {
       voxel.properties,
       config.tr,
       config.te,
-      config.flipAngle
+      config.flipAngle,
+      config.sequenceType,
+      config.ti,
+      config.isGradientEcho,
     );
     
     voxel.signal = result.signal;
@@ -422,7 +549,23 @@ export function simulateMRI(config: MRILabConfig): MRISimulationResult {
     tissueSignals[voxel.tissueType].push(result.signal);
   });
   
-  // Calculate statistics
+  // Apply relative SNR scaling based on Matrix Size and NEX
+  const matrixSize = config.matrixSize ?? 128;
+  const nex = config.nex ?? 1;
+  const safeMatrix = matrixSize || 128;
+  const safeNex = Math.max(nex, 1);
+  const snrRelative = Math.sqrt(safeNex) / (safeMatrix / 128);
+
+  const scaledSignals: number[] = [];
+  volume.voxels.forEach((voxel, idx) => {
+    if (voxel.signal == null) return;
+    const scaled = voxel.signal * snrRelative;
+    voxel.signal = scaled;
+    scaledSignals.push(scaled);
+    signals[idx] = scaled;
+  });
+
+  // Calculate statistics with scaled signals
   if (signals.length === 0) {
     throw new Error("No signals calculated - all voxels failed");
   }

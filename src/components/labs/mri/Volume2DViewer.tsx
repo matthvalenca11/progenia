@@ -5,6 +5,7 @@
 
 import { useMemo, useRef, useEffect, useState, useCallback } from "react";
 import { useMRILabStore } from "@/stores/mriLabStore";
+import { calculateSyntheticVoxel } from "@/simulation/mriEngine";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ interface Volume2DViewerProps {
 
 export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
   const store = useMRILabStore();
-  const { normalizedVolume, volumeLoadError, isLoadingVolume } = store;
+  const { normalizedVolume, volumeLoadError, isLoadingVolume, config, realVolumeTR, realVolumeTE } = store;
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [sliceIndex, setSliceIndex] = useState(0);
@@ -104,7 +105,17 @@ export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
     const windowRange = windowMax - windowMin;
     const effectiveRange = windowRange < 1e-6 ? 1 : windowRange;
 
-    // Extrair fatia e aplicar window/level
+    const volMin = normalizedVolume.min;
+    const volMax = normalizedVolume.max;
+    const volRange = Math.max(1e-6, volMax - volMin);
+
+    // TR/TE originais (se conhecidos) ou defaults T1
+    const originalTR = realVolumeTR ?? 500;
+    const originalTE = realVolumeTE ?? 15;
+    const targetTR = config.tr;
+    const targetTE = config.te;
+
+    // Extrair fatia, aplicar contraste sintético e depois window/level
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         // Volume index: x + y*width + z*width*height
@@ -127,8 +138,19 @@ export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
           continue;
         }
 
-        // Aplicar window/level
-        let clampedIntensity = Math.max(windowMin, Math.min(windowMax, intensity));
+        // Normalizar intensidade para 0..1 para o modelo sintético
+        const baseNorm = (intensity - volMin) / volRange;
+        const syntheticNorm = calculateSyntheticVoxel(
+          baseNorm,
+          targetTR,
+          targetTE,
+          originalTR,
+          originalTE,
+        );
+        const syntheticIntensity = syntheticNorm * volRange + volMin;
+
+        // Aplicar window/level sobre o sinal sintético
+        let clampedIntensity = Math.max(windowMin, Math.min(windowMax, syntheticIntensity));
         const normalized = (clampedIntensity - windowMin) / effectiveRange;
         const grayValue = Math.min(255, Math.max(0, Math.round(normalized * 255)));
 
@@ -189,7 +211,7 @@ export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
     }
     
     return imageData;
-  }, [normalizedVolume, currentSlice, window, level]);
+  }, [normalizedVolume, currentSlice, window, level, config.tr, config.te]);
 
   // Renderizar no canvas
   useEffect(() => {
@@ -347,6 +369,11 @@ export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
               Spacing: {normalizedVolume.spacing[0].toFixed(2)} × {normalizedVolume.spacing[1].toFixed(2)} × {normalizedVolume.spacing[2].toFixed(2)} mm
             </div>
           )}
+        </div>
+
+        {/* Hybrid physics label */}
+        <div className="absolute bottom-2 right-2 bg-emerald-500/15 text-emerald-300 text-[10px] px-2 py-1 rounded font-mono border border-emerald-500/40">
+          Física Híbrida Ativa (1.5T Simulated)
         </div>
       </div>
       

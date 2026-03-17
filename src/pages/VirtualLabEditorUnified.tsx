@@ -609,6 +609,7 @@ export default function VirtualLabEditorUnified() {
                 config={lab.config_data || defaultMRILabConfig}
                 previewMode={mriPreviewMode}
                 onPreviewModeChange={setMriPreviewMode}
+                onConfigChange={(nextConfig) => setLab({ ...lab, config_data: nextConfig })}
               />
             </div>
           </div>

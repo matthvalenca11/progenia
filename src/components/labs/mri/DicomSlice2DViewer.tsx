@@ -249,10 +249,10 @@ export function DicomSlice2DViewer({ showDebug = false }: DicomSlice2DViewerProp
   
   if (!dicomReady || !dicomVolume) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-background">
+      <div className="w-full h-full flex items-center justify-center bg-background min-h-[200px]">
         <div className="text-center p-4">
           <div className="text-muted-foreground text-sm">
-            {dicomVolume ? "Carregando..." : "Nenhuma série DICOM carregada"}
+            {dicomVolume ? "Preparando fatia 2D..." : "Nenhum volume carregado. Selecione um caso clínico no painel à esquerda."}
           </div>
         </div>
       </div>

@@ -5,6 +5,7 @@
 
 import { useMemo, useRef, useEffect, useState, useCallback } from "react";
 import { useMRILabStore } from "@/stores/mriLabStore";
+import { calculateSyntheticVoxel } from "@/simulation/mriEngine";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 
@@ -14,7 +15,7 @@ interface VolumeMPRViewerProps {
 
 export function VolumeMPRViewer({ showDebug = false }: VolumeMPRViewerProps) {
   const store = useMRILabStore();
-  const { normalizedVolume, volumeLoadError, isLoadingVolume } = store;
+  const { normalizedVolume, volumeLoadError, isLoadingVolume, config, realVolumeTR, realVolumeTE } = store;
   
   const axialCanvasRef = useRef<HTMLCanvasElement>(null);
   const sagittalCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -74,6 +75,15 @@ export function VolumeMPRViewer({ showDebug = false }: VolumeMPRViewerProps) {
     const windowMin = level - window / 2;
     const windowMax = level + window / 2;
     const effectiveRange = Math.max(1, windowMax - windowMin);
+
+    const volMin = normalizedVolume.min;
+    const volMax = normalizedVolume.max;
+    const volRange = Math.max(1e-6, volMax - volMin);
+
+    const originalTR = realVolumeTR ?? 500;
+    const originalTE = realVolumeTE ?? 15;
+    const targetTR = config.tr;
+    const targetTE = config.te;
     
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
@@ -82,8 +92,18 @@ export function VolumeMPRViewer({ showDebug = false }: VolumeMPRViewerProps) {
         
         const intensity = data[volumeIndex];
         if (isNaN(intensity) || !isFinite(intensity)) continue;
-        
-        let clampedIntensity = Math.max(windowMin, Math.min(windowMax, intensity));
+
+        const baseNorm = (intensity - volMin) / volRange;
+        const syntheticNorm = calculateSyntheticVoxel(
+          baseNorm,
+          targetTR,
+          targetTE,
+          originalTR,
+          originalTE,
+        );
+        const syntheticIntensity = syntheticNorm * volRange + volMin;
+
+        let clampedIntensity = Math.max(windowMin, Math.min(windowMax, syntheticIntensity));
         const normalized = (clampedIntensity - windowMin) / effectiveRange;
         const grayValue = Math.min(255, Math.max(0, Math.round(normalized * 255)));
         
@@ -96,7 +116,7 @@ export function VolumeMPRViewer({ showDebug = false }: VolumeMPRViewerProps) {
     }
     
     return imageData;
-  }, [normalizedVolume, axialIndex, window, level]);
+  }, [normalizedVolume, axialIndex, window, level, config.tr, config.te, realVolumeTR, realVolumeTE]);
 
   // Gerar ImageData para fatia Sagittal (YZ plane, X = slice)
   const sagittalImageData = useMemo(() => {
@@ -111,6 +131,15 @@ export function VolumeMPRViewer({ showDebug = false }: VolumeMPRViewerProps) {
     const windowMin = level - window / 2;
     const windowMax = level + window / 2;
     const effectiveRange = Math.max(1, windowMax - windowMin);
+
+    const volMin = normalizedVolume.min;
+    const volMax = normalizedVolume.max;
+    const volRange = Math.max(1e-6, volMax - volMin);
+
+    const originalTR = realVolumeTR ?? 500;
+    const originalTE = realVolumeTE ?? 15;
+    const targetTR = config.tr;
+    const targetTE = config.te;
     
     for (let y = 0; y < height; y++) {
       for (let z = 0; z < depth; z++) {
@@ -119,8 +148,18 @@ export function VolumeMPRViewer({ showDebug = false }: VolumeMPRViewerProps) {
         
         const intensity = data[volumeIndex];
         if (isNaN(intensity) || !isFinite(intensity)) continue;
-        
-        let clampedIntensity = Math.max(windowMin, Math.min(windowMax, intensity));
+
+        const baseNorm = (intensity - volMin) / volRange;
+        const syntheticNorm = calculateSyntheticVoxel(
+          baseNorm,
+          targetTR,
+          targetTE,
+          originalTR,
+          originalTE,
+        );
+        const syntheticIntensity = syntheticNorm * volRange + volMin;
+
+        let clampedIntensity = Math.max(windowMin, Math.min(windowMax, syntheticIntensity));
         const normalized = (clampedIntensity - windowMin) / effectiveRange;
         const grayValue = Math.min(255, Math.max(0, Math.round(normalized * 255)));
         
@@ -133,7 +172,7 @@ export function VolumeMPRViewer({ showDebug = false }: VolumeMPRViewerProps) {
     }
     
     return imageData;
-  }, [normalizedVolume, sagittalIndex, window, level]);
+  }, [normalizedVolume, sagittalIndex, window, level, config.tr, config.te, realVolumeTR, realVolumeTE]);
 
   // Gerar ImageData para fatia Coronal (XZ plane, Y = slice)
   const coronalImageData = useMemo(() => {
@@ -148,6 +187,15 @@ export function VolumeMPRViewer({ showDebug = false }: VolumeMPRViewerProps) {
     const windowMin = level - window / 2;
     const windowMax = level + window / 2;
     const effectiveRange = Math.max(1, windowMax - windowMin);
+
+    const volMin = normalizedVolume.min;
+    const volMax = normalizedVolume.max;
+    const volRange = Math.max(1e-6, volMax - volMin);
+
+    const originalTR = realVolumeTR ?? 500;
+    const originalTE = realVolumeTE ?? 15;
+    const targetTR = config.tr;
+    const targetTE = config.te;
     
     for (let x = 0; x < width; x++) {
       for (let z = 0; z < depth; z++) {
@@ -156,8 +204,18 @@ export function VolumeMPRViewer({ showDebug = false }: VolumeMPRViewerProps) {
         
         const intensity = data[volumeIndex];
         if (isNaN(intensity) || !isFinite(intensity)) continue;
-        
-        let clampedIntensity = Math.max(windowMin, Math.min(windowMax, intensity));
+
+        const baseNorm = (intensity - volMin) / volRange;
+        const syntheticNorm = calculateSyntheticVoxel(
+          baseNorm,
+          targetTR,
+          targetTE,
+          originalTR,
+          originalTE,
+        );
+        const syntheticIntensity = syntheticNorm * volRange + volMin;
+
+        let clampedIntensity = Math.max(windowMin, Math.min(windowMax, syntheticIntensity));
         const normalized = (clampedIntensity - windowMin) / effectiveRange;
         const grayValue = Math.min(255, Math.max(0, Math.round(normalized * 255)));
         
@@ -170,7 +228,7 @@ export function VolumeMPRViewer({ showDebug = false }: VolumeMPRViewerProps) {
     }
     
     return imageData;
-  }, [normalizedVolume, coronalIndex, window, level]);
+  }, [normalizedVolume, coronalIndex, window, level, config.tr, config.te, realVolumeTR, realVolumeTE]);
 
   // Renderizar Axial
   useEffect(() => {
