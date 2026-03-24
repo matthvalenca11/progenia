@@ -29,6 +29,7 @@ interface AboutSection {
   id: string;
   section_type: string;
   order_index: number;
+  is_published?: boolean;
   title: string | null;
   subtitle: string | null;
   description: string | null;
@@ -118,6 +119,7 @@ const Sobre = () => {
     const { data: sectionsData } = await supabase
       .from('about_page_sections')
       .select('*')
+      .eq('is_published', true)
       .order('order_index', { ascending: true });
 
     if (partnersData) setPartners(partnersData);
@@ -152,101 +154,111 @@ const Sobre = () => {
         </div>
       </nav>
 
-      {/* Dynamic Sections */}
-      {/* Dynamic Sections, Parceiros e Equipe */}
-      {sections.map((section) => {
-        // Renderiza Parceiros antes da seção com order_index específico
-        if (section.order_index === 6) {
-          return (
-            <>
-              {partners.length > 0 && (
-                <section key="partners" className="py-20 px-4 bg-gradient-to-b from-background to-muted/20">
-                  <div className="container mx-auto max-w-7xl">
-                    <div className="text-center mb-16 animate-fade-in">
-                      <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                        Parceiros & Apoiadores
-                      </h2>
-                      <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-                        Organizações que acreditam na transformação da educação em saúde
-                      </p>
-                    </div>
+      {/* Dynamic Sections — Parceiros/Equipe só uma vez, imediatamente antes do primeiro CTA */}
+      {(() => {
+        const firstCtaId = sections.find((s) => s.section_type === "cta")?.id;
+        return sections.map((section) => {
+          const showPartnersAndTeamBeforeCta =
+            section.section_type === "cta" && section.id === firstCtaId;
 
-                    <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-8 animate-fade-in" style={{ animationDelay: '100ms' }}>
-                      {partners.map((partner, index) => (
-                        <a 
-                          key={partner.id} 
-                          href={partner.website_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="group flex flex-col items-center justify-center p-8 bg-card border border-border/50 rounded-xl hover:border-primary/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
-                          style={{ animationDelay: `${(index + 1) * 50}ms` }}
-                        >
-                          <div className="w-full h-20 flex items-center justify-center mb-4">
-                            <img 
-                              src={partner.logo_url} 
-                              alt={partner.name} 
-                              className="max-h-16 max-w-full object-contain group-hover:scale-110 transition-all duration-300" 
-                            />
-                          </div>
-                          <p className="font-semibold text-center text-sm mb-1">{partner.name}</p>
-                          {partner.description && (
-                            <p className="text-xs text-muted-foreground text-center leading-relaxed">
-                              {partner.description}
-                            </p>
-                          )}
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-              )}
+          if (section.section_type === "cta") {
+            return (
+              <div key={section.id}>
+                {showPartnersAndTeamBeforeCta && partners.length > 0 && (
+                  <section className="py-20 px-4 bg-gradient-to-b from-background to-muted/20">
+                    <div className="container mx-auto max-w-7xl">
+                      <div className="text-center mb-16 animate-fade-in">
+                        <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                          Parceiros & Apoiadores
+                        </h2>
+                        <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
+                          Organizações que acreditam na transformação da educação em saúde
+                        </p>
+                      </div>
 
-              {team.length > 0 && (
-                <section key="team" className="py-20 px-4 bg-gradient-to-b from-muted/20 to-background">
-                  <div className="container mx-auto max-w-7xl">
-                    <div className="text-center mb-16 animate-fade-in">
-                      <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                        Nossa Equipe
-                      </h2>
-                      <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-                        Especialistas dedicados à revolução da educação científica em saúde
-                      </p>
-                    </div>
-
-                    <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-8 animate-fade-in" style={{ animationDelay: '100ms' }}>
-                      {team.map((member, index) => (
-                        <Card 
-                          key={member.id} 
-                          className="p-8 text-center hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 border-border/50 group"
-                          style={{ animationDelay: `${(index + 1) * 50}ms` }}
-                        >
-                          {member.photo_url ? (
-                            <img 
-                              src={member.photo_url} 
-                              alt={member.name} 
-                              className="w-32 h-32 rounded-full mx-auto mb-6 object-cover border-4 border-primary/10 group-hover:border-primary/30 transition-all shadow-lg" 
-                            />
-                          ) : (
-                            <div className="w-32 h-32 rounded-full bg-gradient-to-br from-primary/20 via-primary/10 to-secondary/20 mx-auto mb-6 flex items-center justify-center border-4 border-primary/10 group-hover:border-primary/30 transition-all shadow-lg">
-                              <Users className="h-14 w-14 text-primary" />
+                      <div
+                        className="grid md:grid-cols-3 lg:grid-cols-4 gap-8 animate-fade-in"
+                        style={{ animationDelay: "100ms" }}
+                      >
+                        {partners.map((partner, index) => (
+                          <a
+                            key={partner.id}
+                            href={partner.website_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group flex flex-col items-center justify-center p-8 bg-card border border-border/50 rounded-xl hover:border-primary/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
+                            style={{ animationDelay: `${(index + 1) * 50}ms` }}
+                          >
+                            <div className="w-full h-20 flex items-center justify-center mb-4">
+                              <img
+                                src={partner.logo_url}
+                                alt={partner.name}
+                                className="max-h-16 max-w-full object-contain group-hover:scale-110 transition-all duration-300"
+                              />
                             </div>
-                          )}
-                          <h3 className="font-bold text-lg mb-2">{member.name}</h3>
-                          <p className="text-sm text-muted-foreground leading-relaxed">{member.role}</p>
-                        </Card>
-                      ))}
+                            <p className="font-semibold text-center text-sm mb-1">{partner.name}</p>
+                            {partner.description && (
+                              <p className="text-xs text-muted-foreground text-center leading-relaxed">
+                                {partner.description}
+                              </p>
+                            )}
+                          </a>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                </section>
-              )}
+                  </section>
+                )}
 
-              <DynamicSectionRenderer key={section.id} section={section} />
-            </>
-          );
-        }
-        
-        return <DynamicSectionRenderer key={section.id} section={section} />;
-      })}
+                {showPartnersAndTeamBeforeCta && team.length > 0 && (
+                  <section className="py-20 px-4 bg-gradient-to-b from-muted/20 to-background">
+                    <div className="container mx-auto max-w-7xl">
+                      <div className="text-center mb-16 animate-fade-in">
+                        <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                          Nossa Equipe
+                        </h2>
+                        <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
+                          Especialistas dedicados à revolução da educação científica em saúde
+                        </p>
+                      </div>
+
+                      <div
+                        className="grid md:grid-cols-3 lg:grid-cols-4 gap-8 animate-fade-in"
+                        style={{ animationDelay: "100ms" }}
+                      >
+                        {team.map((member, index) => (
+                          <Card
+                            key={member.id}
+                            className="p-8 text-center hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 border-border/50 group"
+                            style={{ animationDelay: `${(index + 1) * 50}ms` }}
+                          >
+                            {member.photo_url ? (
+                              <img
+                                src={member.photo_url}
+                                alt={member.name}
+                                className="w-32 h-32 rounded-full mx-auto mb-6 object-cover border-4 border-primary/10 group-hover:border-primary/30 transition-all shadow-lg"
+                              />
+                            ) : (
+                              <div className="w-32 h-32 rounded-full bg-gradient-to-br from-primary/20 via-primary/10 to-secondary/20 mx-auto mb-6 flex items-center justify-center border-4 border-primary/10 group-hover:border-primary/30 transition-all shadow-lg">
+                                <Users className="h-14 w-14 text-primary" />
+                              </div>
+                            )}
+                            <h3 className="font-bold text-lg mb-2">{member.name}</h3>
+                            <p className="text-sm text-muted-foreground leading-relaxed">{member.role}</p>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                <DynamicSectionRenderer section={section} />
+              </div>
+            );
+          }
+
+          return <DynamicSectionRenderer key={section.id} section={section} />;
+        });
+      })()}
 
       {/* Footer */}
       <footer className="border-t border-border/50 bg-muted/10 py-12 px-4">

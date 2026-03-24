@@ -1,43 +1,5 @@
 [
   {
-    "id": "b43eb8c0-a176-4bcf-bacd-79d569d1c5ae",
-    "created_at": "2025-11-22T20:35:16.367927+00:00",
-    "updated_at": "2025-11-22T22:23:19.196645+00:00",
-    "section_type": "timeline",
-    "order_index": 5,
-    "is_published": true,
-    "title": "Nossa Trajetória",
-    "subtitle": "Como estamos construindo o futuro da educação em saúde",
-    "description": null,
-    "media_url": null,
-    "media_type": null,
-    "content_data": [
-      {
-        "year": "Outubro de 2025",
-        "title": "Fundação do projeto",
-        "description": "Formação da equipe, estabelecimento de parcerias estratégicas."
-      },
-      {
-        "year": "Novembro de 2025",
-        "title": "Desenvolvimento da Plataforma",
-        "description": "Primeiro protótipo da plataforma de aprendizagem é lançado."
-      }
-    ],
-    "layout": "default",
-    "theme": "minimal",
-    "background_gradient": {
-      "to": "#f9fafb",
-      "from": "#ffffff",
-      "direction": "to-br"
-    },
-    "animation_type": "slide-right",
-    "animation_delay": 100,
-    "spacing_top": "large",
-    "spacing_bottom": "large",
-    "custom_css": null,
-    "buttons": []
-  },
-  {
     "id": "757cd8db-c1d9-4589-a199-0065fd9abf8e",
     "created_at": "2025-11-22T20:35:16.367927+00:00",
     "updated_at": "2025-11-22T22:23:18.378747+00:00",
@@ -74,17 +36,41 @@
     "id": "fe96ded9-d8d0-4c47-9a22-dfd671e01d82",
     "created_at": "2025-11-22T20:35:16.367927+00:00",
     "updated_at": "2025-11-22T22:23:18.712336+00:00",
-    "section_type": "text",
+    "section_type": "justification",
     "order_index": 2,
     "is_published": true,
-    "title": "Por Que a ProGenia Existe?",
-    "subtitle": "Identificamos lacunas críticas na formação profissional",
-    "description": "Profissionais de saúde frequentemente utilizam tecnologias terapêuticas e diagnósticas sem compreender profundamente os princípios físicos e fisiológicos por trás delas. Isso gera:\n\n• **Lacunas na formação** sobre física aplicada à saúde\n• **Riscos do uso inadequado** de eletroterapias e equipamentos\n• **Recursos de treinamento limitados** e fragmentados  \n• **Dificuldade em visualizar** conceitos abstratos e complexos",
+    "title": "Por Que o ProGenia Existe?",
+    "subtitle": null,
+    "description": "Profissionais de saúde frequentemente utilizam tecnologias terapêuticas e diagnósticas sem compreender profundamente os princípios físicos e fisiológicos por trás delas.",
     "media_url": null,
     "media_type": null,
-    "content_data": {},
+    "content_data": {
+      "kicker": "Justificativa",
+      "cards": [
+        {
+          "label": "A dor",
+          "title": "Equipamentos complexos tratados como “caixas pretas”",
+          "description": "Muitos profissionais operam sem dominar o impacto clínico de cada parâmetro."
+        },
+        {
+          "label": "A consequência",
+          "title": "Erro técnico vira risco clínico",
+          "description": "Resultado: artefatos, pior qualidade diagnóstica e mais risco terapêutico."
+        },
+        {
+          "label": "A lacuna formativa",
+          "title": "Graduação insuficiente e acesso desigual à atualização",
+          "description": "Muitas graduações não aprofundam o ensino de novas tecnologias, e a formação continuada é escassa fora dos grandes centros."
+        },
+        {
+          "label": "A solução ProGenia",
+          "title": "Simulação visual para prática clínica segura",
+          "description": "Transformamos teoria em prática segura: testar, interpretar e corrigir condutas."
+        }
+      ]
+    },
     "layout": "center",
-    "theme": "accent",
+    "theme": "gradient",
     "background_gradient": {
       "to": "#f9fafb",
       "from": "#ffffff",
@@ -92,26 +78,59 @@
     },
     "animation_type": "fade-in",
     "animation_delay": 200,
-    "spacing_top": "large",
-    "spacing_bottom": "large",
+    "spacing_top": "lg",
+    "spacing_bottom": "lg",
     "custom_css": null,
     "buttons": []
   },
   {
-    "id": "e342ebbc-915e-40e5-8748-8a292a7ef9a1",
+    "id": "9c1f2e8a-6d4b-4c1e-a9f2-0b7e6d5c4b3a",
     "created_at": "2025-11-22T20:35:16.367927+00:00",
-    "updated_at": "2025-11-22T22:23:19.037747+00:00",
-    "section_type": "text+image",
-    "order_index": 4,
+    "updated_at": "2025-11-22T20:35:16.367927+00:00",
+    "section_type": "mvv",
+    "order_index": 3,
     "is_published": true,
-    "title": "Para Quem é a ProGenia?",
-    "subtitle": "Profissionais e estudantes da área da saúde",
-    "description": "Nossa plataforma foi desenvolvida especialmente para:\n\n**Estudantes de Graduação** - Fisioterapia, Fonoaudiologia e Terapia Ocupacional que desejam dominar os fundamentos científicos\n\n**Profissionais em Atuação** - Que buscam atualização e aprofundamento em recursos terapêuticos\n\n**Docentes e Pesquisadores** - Interessados em recursos didáticos inovadores para suas aulas\n\n**Gestores de Clínicas** - Que precisam capacitar suas equipes com eficiência",
+    "title": "Missão, Visão e Valores",
+    "subtitle": "O que nos move e como conduzimos nosso trabalho",
+    "description": null,
     "media_url": null,
     "media_type": null,
-    "content_data": {},
-    "layout": "left",
-    "theme": "dark",
+    "content_data": {
+      "mission_title": "Missão",
+      "mission_body": "Aprimorar a educação em saúde através do rigor científico e de simulações realistas, reduzindo o erro técnico e apoiando a tomada de decisão clínica com segurança. Nosso propósito é desmistificar equipamentos complexos, convertendo a base teórica em prática clínica segura e mensurável, em constante atualização com as novas tecnologias.",
+      "vision_title": "Visão",
+      "vision_body": "Ser um elo entre o conhecimento teórico e a prática segura em saúde, tornando-se uma referência institucional na formação por competências e na atualização clínica contínua. Buscamos ampliar o acesso à educação de alta tecnologia, rompendo barreiras geográficas para formar profissionais que compreendem, interpretam e decidem com base na ciência.",
+      "values_title": "Valores",
+      "values": [
+        {
+          "title": "Segurança Clínica em Primeiro Lugar",
+          "description": "Acreditamos que o erro técnico gera risco clínico. Por isso, oferecemos um ambiente de experimentação seguro onde o erro atua como ferramenta de ensino antes do contato com o paciente real.",
+          "icon": "Shield"
+        },
+        {
+          "title": "Rigor Científico e Evidência",
+          "description": "Substituímos a memorização de protocolos pela compreensão real. Nosso ensino e nossos feedbacks são ancorados em princípios sólidos de física médica e literatura técnica.",
+          "icon": "Microscope"
+        },
+        {
+          "title": "Evolução e Atualização Contínua",
+          "description": "Mantemos uma rotina ativa de atualização de conteúdos. Exploramos e integramos o ensino de novas tecnologias, garantindo que o profissional esteja alinhado com as inovações da área.",
+          "icon": "RefreshCw"
+        },
+        {
+          "title": "Inteligência Pedagógica",
+          "description": "Não entregamos respostas prontas. Utilizamos a tecnologia para provocar o questionamento técnico e fortalecer a construção do raciocínio clínico autônomo do profissional.",
+          "icon": "Brain"
+        },
+        {
+          "title": "Acesso e Escalabilidade",
+          "description": "Trabalhamos para descentralizar o conhecimento, garantindo que a capacitação tecnológica não seja uma exclusividade dos grandes centros urbanos.",
+          "icon": "Globe"
+        }
+      ]
+    },
+    "layout": "default",
+    "theme": "gradient",
     "background_gradient": {
       "to": "#f9fafb",
       "from": "#ffffff",
@@ -119,8 +138,66 @@
     },
     "animation_type": "fade-in",
     "animation_delay": 0,
-    "spacing_top": "large",
-    "spacing_bottom": "large",
+    "spacing_top": "lg",
+    "spacing_bottom": "lg",
+    "custom_css": null,
+    "buttons": []
+  },
+  {
+    "id": "e342ebbc-915e-40e5-8748-8a292a7ef9a1",
+    "created_at": "2025-11-22T20:35:16.367927+00:00",
+    "updated_at": "2025-11-22T22:23:19.037747+00:00",
+    "section_type": "features",
+    "order_index": 5,
+    "is_published": true,
+    "title": "Para quem o ProGenia gera valor direto",
+    "subtitle": null,
+    "description": null,
+    "media_url": null,
+    "media_type": null,
+    "content_data": [
+      {
+        "icon": "Landmark",
+        "title": "Instituições de ensino em saúde",
+        "description": "Padronizam o ensino prático e escalam formação com evidência de desempenho."
+      },
+      {
+        "icon": "SquareUser",
+        "title": "Coordenações e docentes",
+        "description": "Rastreiam evolução por competência e direcionam intervenções pedagógicas com mais precisão."
+      },
+      {
+        "icon": "Hospital",
+        "title": "Serviços de imagem e hospitais-escola",
+        "description": "Treinam equipes com menor risco e fortalecem decisões antes da prática em paciente real."
+      },
+      {
+        "icon": "Brain",
+        "title": "Clínicas de reabilitação",
+        "description": "Padronizam condutas com ciência aplicada e reduzem a variabilidade entre profissionais."
+      },
+      {
+        "icon": "GraduationCap",
+        "title": "Estudantes e recém-formados",
+        "description": "Reduzem a distância entre teoria e prática, com mais segurança para interpretar e decidir."
+      },
+      {
+        "icon": "Globe",
+        "title": "Formação continuada em regiões afastadas",
+        "description": "Ampliam acesso à atualização em novas tecnologias sem barreira geográfica."
+      }
+    ],
+    "layout": "default",
+    "theme": "gradient",
+    "background_gradient": {
+      "to": "#f9fafb",
+      "from": "#ffffff",
+      "direction": "to-br"
+    },
+    "animation_type": "fade-in",
+    "animation_delay": 0,
+    "spacing_top": "lg",
+    "spacing_bottom": "lg",
     "custom_css": null,
     "buttons": []
   },
@@ -129,7 +206,7 @@
     "created_at": "2025-11-22T20:35:16.367927+00:00",
     "updated_at": "2025-11-22T22:23:18.876139+00:00",
     "section_type": "features",
-    "order_index": 3,
+    "order_index": 4,
     "is_published": true,
     "title": "Nossa Solução Inovadora",
     "subtitle": "ProGenia oferece uma abordagem moderna e eficaz para o aprendizado científico",
@@ -187,7 +264,7 @@
     "created_at": "2025-11-22T20:35:16.367927+00:00",
     "updated_at": "2025-11-22T22:23:19.355405+00:00",
     "section_type": "cta",
-    "order_index": 6,
+    "order_index": 7,
     "is_published": true,
     "title": "Pronto para Transformar Seu Aprendizado?",
     "subtitle": "Faça parte da nova geração de profissionais que dominam a ciência por trás da tecnologia médica",
@@ -221,7 +298,7 @@
     "created_at": "2025-11-22T20:35:16.367927+00:00",
     "updated_at": "2025-11-22T22:23:19.521266+00:00",
     "section_type": "faq",
-    "order_index": 7,
+    "order_index": 8,
     "is_published": true,
     "title": "Perguntas Frequentes",
     "subtitle": "Tire suas dúvidas sobre a plataforma",

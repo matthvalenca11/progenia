@@ -9,6 +9,20 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { storageService } from "@/services/storageService";
 import { toast } from "sonner";
 import { Upload, Trash2, ArrowUp, ArrowDown, Plus, X, Palette, Sparkles, Layout, Link as LinkIcon, Eye, EyeOff } from "lucide-react";
+import {
+  DEFAULT_MVV_CONTENT_DATA,
+  normalizeMvvContentData,
+  isMvvContentData,
+  type MvvContentData,
+  type MvvValueItem,
+} from "@/data/aboutMvvDefaults";
+import {
+  DEFAULT_JUSTIFICATION_CONTENT,
+  normalizeJustificationContentData,
+  isJustificationContentData,
+  type JustificationContentData,
+  type JustificationCard,
+} from "@/data/aboutJustificationDefaults";
 
 interface AboutSection {
   id: string;
@@ -56,6 +70,7 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
   const sectionTypes = [
     { value: "hero", label: "🎯 Hero (Destaque Principal)" },
     { value: "text", label: "📝 Texto Simples" },
+    { value: "justification", label: "📋 Justificativa (Por que existe?)" },
     { value: "text_image", label: "🖼️ Texto + Imagem" },
     { value: "text_video", label: "🎥 Texto + Vídeo" },
     { value: "features", label: "⭐ Grade de Funcionalidades" },
@@ -65,6 +80,7 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
     { value: "timeline", label: "📅 Linha do Tempo" },
     { value: "testimonials", label: "💬 Depoimentos" },
     { value: "faq", label: "❓ FAQ (Perguntas Frequentes)" },
+    { value: "mvv", label: "🎯 Missão, Visão e Valores" },
   ];
 
   const themes = [
@@ -200,6 +216,72 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
     handleContentDataUpdate(items.filter((_: any, i: number) => i !== index));
   };
 
+  const getMvvData = (): MvvContentData =>
+    editingSection ? normalizeMvvContentData(editingSection.content_data) : normalizeMvvContentData(null);
+
+  const patchMvvContent = (patch: Partial<MvvContentData>) => {
+    if (!editingSection) return;
+    const cur = normalizeMvvContentData(editingSection.content_data);
+    handleContentDataUpdate({ ...cur, ...patch });
+  };
+
+  const updateMvvValueItem = (index: number, field: keyof MvvValueItem, value: string) => {
+    if (!editingSection) return;
+    const cur = normalizeMvvContentData(editingSection.content_data);
+    const values = [...cur.values];
+    values[index] = { ...values[index], [field]: value };
+    handleContentDataUpdate({ ...cur, values });
+  };
+
+  const addMvvValueItem = () => {
+    if (!editingSection) return;
+    const cur = normalizeMvvContentData(editingSection.content_data);
+    handleContentDataUpdate({
+      ...cur,
+      values: [...cur.values, { title: "", description: "", icon: "Sparkles" }],
+    });
+  };
+
+  const removeMvvValueItem = (index: number) => {
+    if (!editingSection) return;
+    const cur = normalizeMvvContentData(editingSection.content_data);
+    handleContentDataUpdate({
+      ...cur,
+      values: cur.values.filter((_: MvvValueItem, i: number) => i !== index),
+    });
+  };
+
+  const getJustificationData = (): JustificationContentData =>
+    editingSection
+      ? normalizeJustificationContentData(editingSection.content_data)
+      : normalizeJustificationContentData(null);
+
+  const updateJustificationCard = (index: number, field: keyof JustificationCard, value: string) => {
+    if (!editingSection) return;
+    const cur = normalizeJustificationContentData(editingSection.content_data);
+    const cards = [...cur.cards];
+    cards[index] = { ...cards[index], [field]: value };
+    handleContentDataUpdate({ ...cur, cards });
+  };
+
+  const addJustificationCard = () => {
+    if (!editingSection) return;
+    const cur = normalizeJustificationContentData(editingSection.content_data);
+    handleContentDataUpdate({
+      ...cur,
+      cards: [...cur.cards, { label: "", title: "", description: "" }],
+    });
+  };
+
+  const removeJustificationCard = (index: number) => {
+    if (!editingSection) return;
+    const cur = normalizeJustificationContentData(editingSection.content_data);
+    handleContentDataUpdate({
+      ...cur,
+      cards: cur.cards.filter((_: JustificationCard, i: number) => i !== index),
+    });
+  };
+
   // Button management
   const addButton = () => {
     if (!editingSection) return;
@@ -247,9 +329,28 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
                       <Label>Tipo de Seção</Label>
                       <Select
                         value={editingSection.section_type}
-                        onValueChange={(value) =>
-                          setEditingSection({ ...editingSection, section_type: value })
-                        }
+                        onValueChange={(value) => {
+                          let next = { ...editingSection, section_type: value };
+                          if (value === "mvv" && !isMvvContentData(editingSection.content_data)) {
+                            next = {
+                              ...next,
+                              content_data: {
+                                ...DEFAULT_MVV_CONTENT_DATA,
+                                values: DEFAULT_MVV_CONTENT_DATA.values.map((v) => ({ ...v })),
+                              },
+                            };
+                          }
+                          if (value === "justification" && !isJustificationContentData(editingSection.content_data)) {
+                            next = {
+                              ...next,
+                              content_data: {
+                                ...DEFAULT_JUSTIFICATION_CONTENT,
+                                cards: DEFAULT_JUSTIFICATION_CONTENT.cards.map((c) => ({ ...c })),
+                              },
+                            };
+                          }
+                          setEditingSection(next);
+                        }}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -286,35 +387,59 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
                   </div>
 
                   <div>
-                    <Label>Título</Label>
+                    <Label>
+                      {editingSection.section_type === "justification"
+                        ? "Título (acima dos cartões)"
+                        : "Título"}
+                    </Label>
                     <Input
                       value={editingSection.title || ""}
                       onChange={(e) =>
                         setEditingSection({ ...editingSection, title: e.target.value })
                       }
-                    />
-                  </div>
-
-                  <div>
-                    <Label>Subtítulo</Label>
-                    <Input
-                      value={editingSection.subtitle || ""}
-                      onChange={(e) =>
-                        setEditingSection({ ...editingSection, subtitle: e.target.value })
+                      placeholder={
+                        editingSection.section_type === "justification"
+                          ? "Ex.: Por Que o ProGenia Existe?"
+                          : undefined
                       }
                     />
                   </div>
 
-                  <div>
-                    <Label>Descrição</Label>
-                    <Textarea
-                      value={editingSection.description || ""}
-                      onChange={(e) =>
-                        setEditingSection({ ...editingSection, description: e.target.value })
-                      }
-                      rows={3}
-                    />
-                  </div>
+                  {editingSection.section_type !== "justification" && (
+                    <div>
+                      <Label>Subtítulo</Label>
+                      <Input
+                        value={editingSection.subtitle || ""}
+                        onChange={(e) =>
+                          setEditingSection({ ...editingSection, subtitle: e.target.value })
+                        }
+                      />
+                    </div>
+                  )}
+
+                  {editingSection.section_type === "justification" ? (
+                    <div>
+                      <Label>Texto introdutório (ao lado da imagem / ícone)</Label>
+                      <Textarea
+                        value={editingSection.description || ""}
+                        onChange={(e) =>
+                          setEditingSection({ ...editingSection, description: e.target.value })
+                        }
+                        rows={5}
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <Label>Descrição</Label>
+                      <Textarea
+                        value={editingSection.description || ""}
+                        onChange={(e) =>
+                          setEditingSection({ ...editingSection, description: e.target.value })
+                        }
+                        rows={3}
+                      />
+                    </div>
+                  )}
                 </AccordionContent>
               </AccordionItem>
 
@@ -510,7 +635,8 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
               {/* Mídia */}
               {(editingSection.section_type === "text_image" ||
                 editingSection.section_type === "text_video" ||
-                editingSection.section_type === "hero") && (
+                editingSection.section_type === "hero" ||
+                editingSection.section_type === "justification") && (
                 <AccordionItem value="media">
                   <AccordionTrigger>Upload de Mídia</AccordionTrigger>
                   <AccordionContent className="space-y-4 pt-4">
@@ -698,6 +824,128 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
                   </AccordionContent>
                 </AccordionItem>
               )}
+
+              {editingSection.section_type === "justification" && (
+                <AccordionItem value="justification">
+                  <AccordionTrigger>Justificativa — cartões</AccordionTrigger>
+                  <AccordionContent className="space-y-4 pt-4">
+                    <p className="text-sm text-muted-foreground">
+                      Abaixo do título e texto introdutório (configurados em Configurações Básicas e Mídia).
+                    </p>
+                    {getJustificationData().cards.map((card, index) => (
+                      <div key={index} className="p-4 border rounded space-y-2">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="font-medium">Cartão {index + 1}</span>
+                          <Button variant="destructive" size="sm" onClick={() => removeJustificationCard(index)}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <Input
+                            placeholder="Etiqueta (ex.: A dor)"
+                            value={card.label}
+                            onChange={(e) => updateJustificationCard(index, "label", e.target.value)}
+                        />
+                        <Input
+                          placeholder="Título"
+                          value={card.title}
+                          onChange={(e) => updateJustificationCard(index, "title", e.target.value)}
+                        />
+                        <Textarea
+                          placeholder="Descrição (aparece em itálico no site)"
+                          value={card.description}
+                          onChange={(e) => updateJustificationCard(index, "description", e.target.value)}
+                          rows={3}
+                        />
+                      </div>
+                    ))}
+                    <Button variant="outline" onClick={addJustificationCard}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Adicionar cartão
+                    </Button>
+                  </AccordionContent>
+                </AccordionItem>
+              )}
+
+              {editingSection.section_type === "mvv" && (
+                <AccordionItem value="mvv">
+                  <AccordionTrigger>Missão, Visão e Valores</AccordionTrigger>
+                  <AccordionContent className="space-y-6 pt-4">
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <Label>Título da missão</Label>
+                        <Input
+                          value={getMvvData().mission_title}
+                          onChange={(e) => patchMvvContent({ mission_title: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Título da visão</Label>
+                        <Input
+                          value={getMvvData().vision_title}
+                          onChange={(e) => patchMvvContent({ vision_title: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Texto da missão</Label>
+                      <Textarea
+                        value={getMvvData().mission_body}
+                        onChange={(e) => patchMvvContent({ mission_body: e.target.value })}
+                        rows={5}
+                      />
+                    </div>
+                    <div>
+                      <Label>Texto da visão</Label>
+                      <Textarea
+                        value={getMvvData().vision_body}
+                        onChange={(e) => patchMvvContent({ vision_body: e.target.value })}
+                        rows={5}
+                      />
+                    </div>
+                    <div>
+                      <Label>Título do bloco de valores</Label>
+                      <Input
+                        value={getMvvData().values_title}
+                        onChange={(e) => patchMvvContent({ values_title: e.target.value })}
+                        placeholder="Valores"
+                      />
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Cada valor pode ter um ícone Lucide (ex.: Shield, Brain) ou emoji; se vazio, usamos ícones padrão na página pública.
+                    </p>
+                    {getMvvData().values.map((item, index) => (
+                      <div key={index} className="p-4 border rounded space-y-2">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="font-medium">Valor {index + 1}</span>
+                          <Button variant="destructive" size="sm" onClick={() => removeMvvValueItem(index)}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <Input
+                          placeholder="Ícone (Lucide ou emoji)"
+                          value={item.icon || ""}
+                          onChange={(e) => updateMvvValueItem(index, "icon", e.target.value)}
+                        />
+                        <Input
+                          placeholder="Título do valor"
+                          value={item.title}
+                          onChange={(e) => updateMvvValueItem(index, "title", e.target.value)}
+                        />
+                        <Textarea
+                          placeholder="Descrição"
+                          value={item.description}
+                          onChange={(e) => updateMvvValueItem(index, "description", e.target.value)}
+                          rows={3}
+                        />
+                      </div>
+                    ))}
+                    <Button variant="outline" onClick={addMvvValueItem}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Adicionar valor
+                    </Button>
+                  </AccordionContent>
+                </AccordionItem>
+              )}
             </Accordion>
 
             <div className="flex gap-2 pt-4">
@@ -760,7 +1008,24 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setEditingSection(section)}
+                      onClick={() => {
+                        if (section.section_type === "mvv" && !isMvvContentData(section.content_data)) {
+                          setEditingSection({
+                            ...section,
+                            content_data: normalizeMvvContentData(null),
+                          });
+                        } else if (
+                          section.section_type === "justification" &&
+                          !isJustificationContentData(section.content_data)
+                        ) {
+                          setEditingSection({
+                            ...section,
+                            content_data: normalizeJustificationContentData(null),
+                          });
+                        } else {
+                          setEditingSection(section);
+                        }
+                      }}
                     >
                       Editar
                     </Button>

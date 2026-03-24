@@ -1,6 +1,9 @@
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, Sparkles, TrendingUp, CheckCircle2, ArrowRight, Quote } from "lucide-react";
+import { GraduationCap, Sparkles, CheckCircle2, ArrowRight, Quote, Target, Eye } from "lucide-react";
+import { normalizeMvvContentData } from "@/data/aboutMvvDefaults";
+import { normalizeJustificationContentData } from "@/data/aboutJustificationDefaults";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import * as LucideIcons from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -55,6 +58,19 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
     return themes[theme] || themes.default;
   };
 
+  /** Fundos legíveis com `text-foreground` / `text-muted-foreground` (evita `bg-accent` em tela cheia nesta seção). */
+  const getJustificationSurfaceClasses = (theme: string) => {
+    const map: Record<string, string> = {
+      default: "bg-background text-foreground",
+      dark: "bg-gray-950 text-white",
+      gradient: "bg-gradient-to-br from-primary/[0.07] via-background to-secondary/[0.07] text-foreground",
+      accent: "bg-muted/40 text-foreground dark:bg-muted/25",
+      minimal: "bg-background text-foreground",
+      glass: "bg-background/85 backdrop-blur-md text-foreground",
+    };
+    return map[theme] || map.default;
+  };
+
   const getAnimationClass = (animType: string) => {
     const animations: Record<string, string> = {
       none: "",
@@ -73,8 +89,12 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
       return <span className="text-4xl">{iconName}</span>;
     }
 
+    // Aliases: nomes usados em seeds/DB que não existem nesta versão do Lucide
+    const lucideKey =
+      iconName.trim() === "Globe2" ? "Globe" : iconName.trim();
+
     // Tenta renderizar ícone Lucide
-    const IconComponent = (LucideIcons as any)[iconName];
+    const IconComponent = (LucideIcons as any)[lucideKey];
     if (IconComponent) {
       return <IconComponent className="h-12 w-12 text-primary" />;
     }
@@ -455,6 +475,188 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
     );
   };
 
+  const renderJustificationSection = () => {
+    const jd = normalizeJustificationContentData(section.content_data);
+    const outer = [
+      getSpacingClass(section.spacing_top),
+      getSpacingClass(section.spacing_bottom),
+      getJustificationSurfaceClasses(section.theme),
+      getAnimationClass(section.animation_type),
+      section.custom_css || "",
+      "px-4",
+    ]
+      .join(" ")
+      .trim();
+
+    const hasIntroBlock =
+      Boolean(section.title?.trim()) ||
+      Boolean(section.description?.trim()) ||
+      Boolean(section.media_url);
+
+    return (
+      <section className={outer} style={animationStyle}>
+        <div className="container mx-auto max-w-6xl">
+          {hasIntroBlock && (
+            <div className="grid md:grid-cols-2 gap-10 lg:gap-14 items-center mb-12 md:mb-16">
+              <div className="min-w-0">
+                {section.title?.trim() ? (
+                  <h2 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight mb-4">
+                    {section.title}
+                  </h2>
+                ) : null}
+                {section.description?.trim() ? (
+                  <p className="text-lg md:text-xl text-muted-foreground leading-relaxed">
+                    {section.description}
+                  </p>
+                ) : null}
+              </div>
+              <div className="min-w-0">
+                {section.media_url && section.media_type === "image" ? (
+                  <img
+                    src={section.media_url}
+                    alt={section.title || ""}
+                    className="w-full rounded-2xl border border-border/50 shadow-lg object-cover"
+                  />
+                ) : section.media_url && section.media_type === "video" ? (
+                  <video
+                    src={section.media_url}
+                    controls
+                    className="w-full rounded-2xl border border-border/50 shadow-lg"
+                  />
+                ) : (
+                  <div className="flex aspect-[4/3] w-full items-center justify-center rounded-2xl border border-border/40 bg-gradient-to-br from-muted/90 via-muted/50 to-primary/10 shadow-md">
+                    <GraduationCap className="h-24 w-24 text-primary/45 md:h-32 md:w-32" />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="grid sm:grid-cols-2 gap-6 md:gap-8">
+            {jd.cards.map((card, i) => (
+              <Card
+                key={i}
+                className="relative h-full overflow-hidden border-border/60 bg-card p-6 md:p-8 shadow-sm transition-all duration-300 hover:border-primary/25 hover:shadow-md"
+              >
+                <div
+                  className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-primary/40"
+                  aria-hidden
+                />
+                {card.label ? (
+                  <Badge
+                    variant="outline"
+                    className="mb-4 w-fit border-primary/30 bg-primary/10 font-semibold uppercase tracking-wide text-primary"
+                  >
+                    {card.label}
+                  </Badge>
+                ) : null}
+                <h3 className="text-lg md:text-xl font-bold text-foreground leading-snug mb-3">{card.title}</h3>
+                <p className="text-base italic text-muted-foreground leading-relaxed">{card.description}</p>
+              </Card>
+            ))}
+          </div>
+
+          {renderButtons()}
+        </div>
+      </section>
+    );
+  };
+
+  const renderMVVSection = () => {
+    const mvv = normalizeMvvContentData(section.content_data);
+    const valueFallbackIcons = ["Shield", "Microscope", "RefreshCw", "Brain", "Globe", "HeartHandshake"];
+
+    return (
+      <section className={wrapperClasses} style={animationStyle}>
+        <div className="container mx-auto max-w-7xl relative">
+          <div className="pointer-events-none absolute -top-24 left-1/2 h-72 w-[min(90vw,42rem)] -translate-x-1/2 rounded-full bg-primary/15 blur-3xl" />
+          <div className="pointer-events-none absolute top-40 right-0 h-48 w-48 rounded-full bg-secondary/20 blur-3xl" />
+
+          <div className="relative text-center mb-14 md:mb-16">
+            {section.title && (
+              <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary via-primary/85 to-primary/60 bg-clip-text text-transparent">
+                {section.title}
+              </h2>
+            )}
+            {section.subtitle && (
+              <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+                {section.subtitle}
+              </p>
+            )}
+            {section.description && (
+              <p className="mt-6 text-base md:text-lg text-muted-foreground/90 max-w-3xl mx-auto leading-relaxed">
+                {section.description}
+              </p>
+            )}
+          </div>
+
+          <div className="relative grid lg:grid-cols-2 gap-6 lg:gap-8 mb-14 md:mb-16">
+            <Card className="group relative overflow-hidden border border-primary/20 bg-gradient-to-br from-card via-card to-primary/[0.06] p-8 md:p-10 shadow-lg hover:shadow-xl hover:border-primary/35 transition-all duration-300">
+              <div className="absolute top-0 right-0 w-40 h-40 bg-primary/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 group-hover:bg-primary/15 transition-colors" />
+              <div className="relative flex items-start gap-4 mb-5">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-white shadow-lg">
+                  <Target className="h-7 w-7" />
+                </div>
+                <div className="pt-1">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-primary/80 mb-1">Propósito</p>
+                  <h3 className="text-2xl md:text-3xl font-bold text-foreground">{mvv.mission_title}</h3>
+                </div>
+              </div>
+              <p className="relative text-muted-foreground leading-relaxed text-base md:text-lg">{mvv.mission_body}</p>
+            </Card>
+
+            <Card className="group relative overflow-hidden border border-secondary/25 bg-gradient-to-br from-card via-card to-secondary/[0.08] p-8 md:p-10 shadow-lg hover:shadow-xl hover:border-secondary/40 transition-all duration-300">
+              <div className="absolute bottom-0 left-0 w-44 h-44 bg-secondary/15 rounded-full blur-2xl translate-y-1/2 -translate-x-1/4 group-hover:bg-secondary/20 transition-colors" />
+              <div className="relative flex items-start gap-4 mb-5">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-secondary to-secondary/80 text-secondary-foreground shadow-lg">
+                  <Eye className="h-7 w-7" />
+                </div>
+                <div className="pt-1">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-secondary-foreground/80 mb-1">Horizonte</p>
+                  <h3 className="text-2xl md:text-3xl font-bold text-foreground">{mvv.vision_title}</h3>
+                </div>
+              </div>
+              <p className="relative text-muted-foreground leading-relaxed text-base md:text-lg">{mvv.vision_body}</p>
+            </Card>
+          </div>
+
+          <div className="relative">
+            <div className="text-center mb-10">
+              <h3 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+                {mvv.values_title}
+              </h3>
+              <div className="mx-auto mt-4 h-1 w-16 rounded-full bg-gradient-to-r from-primary to-secondary" />
+            </div>
+
+            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-6">
+              {mvv.values.map((item, i) => {
+                const iconName = item.icon?.trim() || valueFallbackIcons[i % valueFallbackIcons.length];
+                return (
+                  <Card
+                    key={i}
+                    className="relative h-full border-l-4 border-l-primary/70 border-y border-r border-border/60 bg-card/80 backdrop-blur-sm p-6 md:p-7 hover:shadow-lg hover:border-l-primary hover:-translate-y-0.5 transition-all duration-300 group"
+                  >
+                    <div className="flex gap-4">
+                      <div className="shrink-0 text-primary group-hover:scale-110 transition-transform duration-300 [&_svg]:h-9 [&_svg]:w-9 [&>span]:text-3xl">
+                        {renderIcon(iconName)}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-lg md:text-xl text-foreground mb-2 leading-snug">{item.title}</h4>
+                        <p className="text-sm md:text-base text-muted-foreground leading-relaxed">{item.description}</p>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+
+          {renderButtons()}
+        </div>
+      </section>
+    );
+  };
+
   const renderCTASection = () => {
     const gradientStyle = section.background_gradient 
       ? { background: `linear-gradient(${section.background_gradient.direction || 'to-br'}, ${section.background_gradient.from}, ${section.background_gradient.to})` }
@@ -480,7 +682,10 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
       return renderHeroSection();
     case "text":
       return renderTextSection();
+    case "justification":
+      return renderJustificationSection();
     case "text_image":
+    case "text+image":
     case "text_video":
       return renderTextImageSection();
     case "features":
@@ -497,6 +702,8 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
       return renderGallerySection();
     case "cta":
       return renderCTASection();
+    case "mvv":
+      return renderMVVSection();
     default:
       return null;
   }
