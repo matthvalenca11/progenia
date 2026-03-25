@@ -140,7 +140,7 @@ const Landing = () => {
                 Educação médica baseada em evidências
               </p>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.1] tracking-tight">
-                Da teoria ao equipamento médico.{" "}
+                Da teoria ao equipamento.{" "}
                 <span className="text-gradient">ProGenia</span> conecta o conhecimento científico à prática.
               </h1>
               <ul className="space-y-4 text-muted-foreground text-lg max-w-lg">
