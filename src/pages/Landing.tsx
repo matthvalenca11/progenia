@@ -5,6 +5,7 @@ import { GraduationCap, Brain, Award, Microscope, Zap, BookOpen, Newspaper } fro
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/contexts/LanguageContext";
 import logo from "@/assets/logo.png";
 import landingHeroVideoPoster from "@/assets/landing-hero-video-poster.png";
 import { PostCard } from "@/components/blog/PostCard";
@@ -17,8 +18,6 @@ const sectionHeader = "mb-12";
 const eyebrow = "text-sm font-medium uppercase tracking-widest text-muted-foreground mb-2";
 const sectionTitle = "text-3xl lg:text-4xl font-bold max-w-2xl";
 const LEGAL_SETTINGS_ID = "00000000-0000-0000-0000-000000000002";
-/** Vídeo do hero no Storage (bucket público `public-marketing`). Upload: `supabase storage cp --experimental ./arquivo.mp4 ss:///public-marketing/landing/hero.mp4` */
-const LANDING_HERO_VIDEO_STORAGE_PATH = "landing/hero.mp4";
 
 const defaultLegalText = `TERMOS DE PRIVACIDADE E USO - PROGENIA
 
@@ -49,12 +48,17 @@ const Landing = () => {
   const [selectedPost, setSelectedPost] = useState<InstagramPost | null>(null);
   const [heroVideoFailed, setHeroVideoFailed] = useState(false);
 
+  const { language } = useLanguage();
+
   const landingHeroVideoUrl = useMemo(
-    () =>
-      supabase.storage.from("public-marketing").getPublicUrl(LANDING_HERO_VIDEO_STORAGE_PATH).data
-        .publicUrl,
-    []
+    () => `/videos/${language === "en" ? "landing-hero-video-en.mp4" : "landing-hero-video-pt.mp4"}`,
+    [language]
   );
+
+  useEffect(() => {
+    // Se o usuário alternar idioma e o vídeo anterior falhou, mostramos novamente o vídeo do novo idioma.
+    setHeroVideoFailed(false);
+  }, [language]);
 
   useEffect(() => {
     const loadLegalText = async () => {
@@ -173,21 +177,25 @@ const Landing = () => {
                 </Link>
               </div>
             </div>
-            <div className="relative hidden lg:flex min-h-[280px] h-[min(420px,50vh)] max-h-[480px] w-full items-center justify-center">
+            <div className="relative hidden lg:block w-full">
               {!heroVideoFailed ? (
-                <video
-                  className="h-full w-full max-h-[480px] rounded-2xl border border-border/60 bg-muted/20 object-cover shadow-xl"
-                  controls
-                  playsInline
-                  preload="metadata"
-                  poster={landingHeroVideoPoster}
-                  aria-label="Vídeo de apresentação da ProGenia"
-                  onError={() => setHeroVideoFailed(true)}
-                >
-                  <source src={landingHeroVideoUrl} type="video/mp4" />
-                </video>
+                <div className="aspect-video w-full overflow-hidden border border-border/60 bg-muted/20 shadow-xl">
+                  <video
+                    className="h-full w-full object-cover"
+                    controls
+                    playsInline
+                    preload="metadata"
+                    poster={landingHeroVideoPoster}
+                    aria-label="Vídeo de apresentação da ProGenia"
+                    onError={() => setHeroVideoFailed(true)}
+                  >
+                    <source src={landingHeroVideoUrl} type="video/mp4" />
+                  </video>
+                </div>
               ) : (
-                <img src={logo} alt="ProGenia" className="h-84 w-auto max-h-[420px] object-contain progenia-logo" />
+                <div className="aspect-video w-full overflow-hidden border border-border/60 bg-muted/20 shadow-xl">
+                  <img src={landingHeroVideoPoster} alt="ProGenia" className="h-full w-full object-cover" />
+                </div>
               )}
             </div>
           </div>

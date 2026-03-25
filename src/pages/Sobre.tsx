@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Users } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { DynamicSectionRenderer } from "@/components/admin/DynamicSectionRenderer";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface Partner {
   id: string;
@@ -143,7 +144,8 @@ const Sobre = () => {
             <img src={logo} alt="ProGenia" className="h-12 progenia-logo" />
             <span className="text-2xl font-bold gradient-text">ProGenia</span>
           </div>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-4 items-center justify-end">
+            <ThemeToggle />
             <Button variant="ghost" className="font-medium" onClick={() => navigate("/auth")}>
               Entrar
             </Button>

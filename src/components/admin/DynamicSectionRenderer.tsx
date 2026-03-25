@@ -7,6 +7,8 @@ import { normalizeJustificationContentData } from "@/data/aboutJustificationDefa
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import * as LucideIcons from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useLanguage } from "@/contexts/LanguageContext";
+import landingHeroVideoPoster from "@/assets/landing-hero-video-poster.png";
 
 interface AboutSection {
   id: string;
@@ -34,6 +36,18 @@ interface Props {
 
 export const DynamicSectionRenderer = ({ section }: Props) => {
   const navigate = useNavigate();
+  const { language } = useLanguage();
+
+  const resolveVideoSrc = (mediaUrl: string | null) => {
+    if (!mediaUrl) return mediaUrl;
+
+    // DB pode guardar apenas o path ou a URL pública completa do Supabase.
+    if (mediaUrl.includes("landing/hero.mp4")) {
+      return `/videos/${language === "en" ? "landing-hero-video-en.mp4" : "landing-hero-video-pt.mp4"}`;
+    }
+
+    return mediaUrl;
+  };
 
   const getSpacingClass = (spacing: string) => {
     const map: Record<string, string> = {
@@ -176,7 +190,11 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
           </p>
         )}
         {section.media_url && section.media_type === "video" && (
-          <video src={section.media_url} controls className="w-full max-w-4xl mx-auto rounded-2xl shadow-2xl mb-8" />
+          <video
+            src={resolveVideoSrc(section.media_url)}
+            controls
+            className="w-full max-w-4xl mx-auto rounded-2xl shadow-2xl mb-8"
+          />
         )}
         {section.media_url && section.media_type === "image" && (
           <img src={section.media_url} alt={section.title || ""} className="w-full max-w-4xl mx-auto rounded-2xl shadow-2xl mb-8" />
@@ -274,7 +292,7 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
                 <img src={section.media_url} alt={section.title || ""} className="w-full rounded-2xl shadow-2xl" />
               )}
               {section.media_url && section.media_type === "video" && (
-                <video src={section.media_url} controls className="w-full rounded-2xl shadow-2xl" />
+                <video src={resolveVideoSrc(section.media_url)} controls className="w-full rounded-2xl shadow-2xl" />
               )}
               {!section.media_url && (
                 <div className="aspect-video bg-gradient-to-br from-primary/30 via-primary/10 to-secondary/30 rounded-2xl shadow-xl flex items-center justify-center">
@@ -519,13 +537,25 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
                   />
                 ) : section.media_url && section.media_type === "video" ? (
                   <video
-                    src={section.media_url}
+                    src={resolveVideoSrc(section.media_url)}
                     controls
                     className="w-full rounded-2xl border border-border/50 shadow-lg"
                   />
                 ) : (
-                  <div className="flex aspect-[4/3] w-full items-center justify-center rounded-2xl border border-border/40 bg-gradient-to-br from-muted/90 via-muted/50 to-primary/10 shadow-md">
-                    <GraduationCap className="h-24 w-24 text-primary/45 md:h-32 md:w-32" />
+                  <div className="aspect-video w-full overflow-hidden rounded-2xl border border-border/40 bg-muted/20 shadow-md">
+                    <video
+                      controls
+                      playsInline
+                      preload="metadata"
+                      poster={landingHeroVideoPoster}
+                      className="h-full w-full object-cover"
+                      aria-label="Vídeo de apresentação da ProGenia"
+                    >
+                      <source
+                        src={`/videos/${language === "en" ? "landing-hero-video-en.mp4" : "landing-hero-video-pt.mp4"}`}
+                        type="video/mp4"
+                      />
+                    </video>
                   </div>
                 )}
               </div>
