@@ -160,6 +160,10 @@ const Sobre = () => {
       {(() => {
         const firstCtaId = sections.find((s) => s.section_type === "cta")?.id;
         return sections.map((section) => {
+          if (section.section_type === "hero") {
+            return null;
+          }
+
           const showPartnersAndTeamBeforeCta =
             section.section_type === "cta" && section.id === firstCtaId;
 
