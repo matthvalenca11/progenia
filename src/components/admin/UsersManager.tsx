@@ -193,7 +193,9 @@ export function UsersManager() {
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground">{user.email}</p>
+                      <p className="text-sm font-medium text-foreground/70 break-all">
+                        {user.email?.trim() ? user.email : "E-mail não informado"}
+                      </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         Cadastrado em {new Date(user.created_at).toLocaleDateString("pt-BR")}
                       </p>

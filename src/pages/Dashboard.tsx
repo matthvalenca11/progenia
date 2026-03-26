@@ -685,6 +685,12 @@ const Dashboard = () => {
   const getInitials = (name: string) => {
     return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
   };
+
+  const getFirstName = (name?: string | null) => {
+    if (!name) return "";
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    return parts[0] || "";
+  };
   const handleHeaderSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const term = headerSearch.trim();
@@ -791,7 +797,7 @@ const Dashboard = () => {
         {/* Welcome Section */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">
-            Bem-vindo de volta, {profile?.full_name}!
+            Bem-vindo de volta, {getFirstName(profile?.full_name)}!
           </h1>
           <p className="text-muted-foreground text-lg">
             Continue sua jornada de aprendizado

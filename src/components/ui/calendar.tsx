@@ -13,10 +13,19 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
       showOutsideDays={showOutsideDays}
       className={cn("p-3", className)}
       classNames={{
+        // Hide visually but keep accessible text (react-day-picker uses this for aria-labels)
+        vhidden: "sr-only",
+        // Keep the native selects interactive, but visually hidden.
+        // This makes the caption + icon open the dropdown when clicked.
+        dropdown: "absolute inset-0 opacity-0 cursor-pointer",
+        caption_dropdowns: "flex items-center justify-center gap-3",
+        dropdown_month: "relative inline-flex items-center gap-1",
+        dropdown_year: "relative inline-flex items-center gap-1",
+        dropdown_icon: "inline-block h-3.5 w-3.5 opacity-70",
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
         caption: "flex justify-center pt-1 relative items-center",
-        caption_label: "text-sm font-medium",
+        caption_label: "flex items-center justify-center gap-1 text-sm font-medium",
         nav: "space-x-1 flex items-center",
         nav_button: cn(
           buttonVariants({ variant: "outline" }),

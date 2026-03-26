@@ -13,6 +13,9 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 import { z } from "zod";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { enUS, ptBR } from "date-fns/locale";
 
 const brazilianStates = [
   { uf: "AC", name: "Acre" },
@@ -140,7 +143,8 @@ Você pode solicitar atualização, correção ou exclusão dos seus dados, conf
 Ao criar sua conta, você declara que leu e concorda com estes termos de privacidade e uso.`;
 
 const signUpSchema = z.object({
-  fullName: z.string().trim().min(2, "O nome deve ter pelo menos 2 caracteres").max(100),
+  firstName: z.string().trim().min(1, "Nome é obrigatório").max(60),
+  lastName: z.string().trim().min(1, "Sobrenome é obrigatório").max(60),
   email: z.string().trim().email("Endereço de e-mail inválido").max(255),
   password: z.string().min(8, "A senha deve ter pelo menos 8 caracteres").max(100),
   confirmPassword: z.string().min(1, "Confirme sua senha"),
@@ -162,6 +166,22 @@ const signUpSchema = z.object({
   professionOther: z.string().trim().max(120).optional(),
   termsAccepted: z.boolean(),
 }).superRefine((data, ctx) => {
+  const fullName = `${data.firstName} ${data.lastName}`.trim();
+  if (fullName.length < 2) {
+    ctx.addIssue({
+      path: ["lastName"],
+      code: z.ZodIssueCode.custom,
+      message: "Informe seu nome e sobrenome",
+    });
+  }
+  if (fullName.length > 100) {
+    ctx.addIssue({
+      path: ["lastName"],
+      code: z.ZodIssueCode.custom,
+      message: "Nome completo muito longo",
+    });
+  }
+
   if (data.password !== data.confirmPassword) {
     ctx.addIssue({
       path: ["confirmPassword"],
@@ -215,15 +235,53 @@ const signInSchema = z.object({
   password: z.string().min(1, "A senha é obrigatória"),
 });
 
+const formatIsoDateForInput = (iso: string, isEnglish: boolean) => {
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+  const [, yyyy, mm, dd] = match;
+  return isEnglish ? `${mm}/${dd}/${yyyy}` : `${dd}/${mm}/${yyyy}`;
+};
+
+const parseBirthDateInputToIso = (input: string, isEnglish: boolean) => {
+  const trimmed = input.trim();
+  if (!trimmed) return undefined;
+
+  // Suporte caso já venha como ISO.
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) return trimmed;
+
+  const match = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return undefined;
+
+  const [, a, b, yyyy] = match;
+  const day = isEnglish ? Number(b) : Number(a);
+  const month = isEnglish ? Number(a) : Number(b);
+  const year = Number(yyyy);
+
+  if (!year || month < 1 || month > 12 || day < 1 || day > 31) return undefined;
+
+  // Cria data em UTC e valida se "bate" (evita 31/02 virar 03/03).
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    return undefined;
+  }
+
+  const isoMonth = String(month).padStart(2, "0");
+  const isoDay = String(day).padStart(2, "0");
+  return `${year}-${isoMonth}-${isoDay}`;
+};
+
 const Auth = () => {
   const navigate = useNavigate();
   const { language } = useLanguage();
   const isEnglish = language === "en";
   const [loading, setLoading] = useState(false);
+  const [activeAuthTab, setActiveAuthTab] = useState<"signin" | "signup">("signin");
   
   // Sign Up State
   const [signUpData, setSignUpData] = useState({
-    fullName: "",
+    firstName: "",
+    lastName: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -239,11 +297,21 @@ const Auth = () => {
     professionOther: "",
     termsAccepted: false,
   });
+  const [birthDateInput, setBirthDateInput] = useState("");
   const [cities, setCities] = useState<string[]>([]);
   const [citiesLoading, setCitiesLoading] = useState(false);
   const [isLegalDialogOpen, setIsLegalDialogOpen] = useState(false);
   const [legalText, setLegalText] = useState(defaultLegalText);
   const [loadingLegalText, setLoadingLegalText] = useState(false);
+  const [isEmailConfirmDialogOpen, setIsEmailConfirmDialogOpen] = useState(false);
+
+  useEffect(() => {
+    setBirthDateInput(formatIsoDateForInput(signUpData.birthDate, isEnglish));
+  }, [signUpData.birthDate, isEnglish]);
+
+  const selectedBirthDate = signUpData.birthDate
+    ? new Date(`${signUpData.birthDate}T00:00:00`)
+    : undefined;
 
   // Sign In State
   const [signInData, setSignInData] = useState({
@@ -347,7 +415,11 @@ const Auth = () => {
     e.preventDefault();
     
     try {
-      const validated = signUpSchema.parse(signUpData);
+      const parsedBirthDateIso = parseBirthDateInputToIso(birthDateInput, isEnglish);
+      const validated = signUpSchema.parse({
+        ...signUpData,
+        birthDate: parsedBirthDateIso ?? signUpData.birthDate,
+      });
       const resolvedProfession =
         validated.profession === "Outra" ? validated.professionOther!.trim() : validated.profession;
       setLoading(true);
@@ -359,7 +431,7 @@ const Auth = () => {
         options: {
           emailRedirectTo: `${APP_URL}/verify-email`,
           data: {
-            full_name: validated.fullName,
+            full_name: `${validated.firstName} ${validated.lastName}`.replace(/\s+/g, " ").trim(),
             institution: validated.institution,
             birth_date: validated.birthDate,
             gender: validated.gender,
@@ -385,9 +457,7 @@ const Auth = () => {
         // Supabase envia o email de confirmação automaticamente (Resend/SMTP).
         // O fluxo customizado (token + send-verification-email) foi removido
         // para evitar duplicidade e mensagens de erro falsas.
-        toast.success("Conta criada!", {
-          description: "Verifique seu e-mail para confirmar seu cadastro.",
-        });
+        setIsEmailConfirmDialogOpen(true);
 
         // Sign out até o usuário confirmar o email
         await supabase.auth.signOut();
@@ -470,7 +540,7 @@ const Auth = () => {
         </div>
 
         <Card className="p-6">
-          <Tabs defaultValue="signin" className="w-full">
+          <Tabs value={activeAuthTab} onValueChange={(v) => setActiveAuthTab(v as "signin" | "signup")} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="signin">Entrar</TabsTrigger>
               <TabsTrigger value="signup">Cadastrar</TabsTrigger>
@@ -523,14 +593,26 @@ const Auth = () => {
             <TabsContent value="signup">
               <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="signup-name">Nome Completo</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-first-name">{isEnglish ? "First name" : "Nome"}</Label>
                     <Input
-                      id="signup-name"
+                      id="signup-first-name"
                       type="text"
-                      placeholder={isEnglish ? "John Smith" : "João Silva"}
-                      value={signUpData.fullName}
-                      onChange={(e) => setSignUpData({ ...signUpData, fullName: e.target.value })}
+                      placeholder={isEnglish ? "John" : "João"}
+                      value={signUpData.firstName}
+                      onChange={(e) => setSignUpData({ ...signUpData, firstName: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-last-name">{isEnglish ? "Last name" : "Sobrenome"}</Label>
+                    <Input
+                      id="signup-last-name"
+                      type="text"
+                      placeholder={isEnglish ? "Smith" : "Silva"}
+                      value={signUpData.lastName}
+                      onChange={(e) => setSignUpData({ ...signUpData, lastName: e.target.value })}
                       required
                     />
                   </div>
@@ -549,13 +631,41 @@ const Auth = () => {
 
                   <div className="space-y-2">
                     <Label htmlFor="signup-birthdate">Data de nascimento</Label>
-                    <Input
-                      id="signup-birthdate"
-                      type="date"
-                      value={signUpData.birthDate}
-                      onChange={(e) => setSignUpData({ ...signUpData, birthDate: e.target.value })}
-                      required
-                    />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full justify-start text-left font-normal"
+                        >
+                          {birthDateInput || (isEnglish ? "MM/DD/YYYY" : "DD/MM/AAAA")}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={selectedBirthDate}
+                          onSelect={(date) => {
+                            if (!date) {
+                              setSignUpData((prev) => ({ ...prev, birthDate: "" }));
+                              return;
+                            }
+                            const yyyy = date.getFullYear();
+                            const mm = String(date.getMonth() + 1).padStart(2, "0");
+                            const dd = String(date.getDate()).padStart(2, "0");
+                            setSignUpData((prev) => ({
+                              ...prev,
+                              birthDate: `${yyyy}-${mm}-${dd}`,
+                            }));
+                          }}
+                          locale={isEnglish ? enUS : ptBR}
+                          captionLayout="dropdown"
+                          fromDate={new Date(1900, 0, 1)}
+                          toDate={new Date()}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <input type="hidden" id="signup-birthdate" value={signUpData.birthDate} />
                   </div>
 
                   <div className="space-y-2">
@@ -808,6 +918,40 @@ const Auth = () => {
           </DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-6">
             {loadingLegalText ? "Carregando termos..." : legalText}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEmailConfirmDialogOpen} onOpenChange={setIsEmailConfirmDialogOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{isEnglish ? "Check your email" : "Verifique seu e-mail"}</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm leading-relaxed text-muted-foreground">
+            {isEnglish ? (
+              <>
+                Your confirmation email may take up to <span className="font-semibold text-foreground">3 minutes</span>{" "}
+                to be sent. Please also check your spam folder.
+              </>
+            ) : (
+              <>
+                O e-mail de confirmação pode levar até{" "}
+                <span className="font-semibold text-foreground">3 minutos</span> para ser enviado. Verifique também a
+                pasta de spam.
+              </>
+            )}
+          </div>
+          <div className="flex justify-end pt-4">
+            <Button
+              type="button"
+              className="gradient-accent text-white"
+              onClick={() => {
+                setIsEmailConfirmDialogOpen(false);
+                setActiveAuthTab("signin");
+              }}
+            >
+              OK
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
