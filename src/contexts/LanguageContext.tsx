@@ -331,6 +331,18 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       void processTranslations(nodes, attributes);
     };
 
+    const handleGlossaryUpdated = () => {
+      // Limpa caches locais para garantir que a tradução atual reflita o glossário atualizado.
+      cacheRef.current.clear();
+      pendingTextsRef.current.clear();
+      try {
+        localStorage.removeItem(TRANSLATION_CACHE_KEY);
+      } catch {
+        // ignore
+      }
+      runTranslation();
+    };
+
     runTranslation();
 
     observerRef.current = new MutationObserver(() => {
@@ -348,6 +360,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       characterData: true,
     });
 
+    // Permite que o glossário atualize traduções sem reload manual.
+    window.addEventListener("progenia_translation_glossary_updated", handleGlossaryUpdated);
+
     return () => {
       if (observerRef.current) {
         observerRef.current.disconnect();
@@ -357,6 +372,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         window.clearTimeout(debounceTimerRef.current);
         debounceTimerRef.current = null;
       }
+
+      window.removeEventListener("progenia_translation_glossary_updated", handleGlossaryUpdated);
     };
   }, [language]);
 

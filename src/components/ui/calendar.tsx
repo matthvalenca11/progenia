@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { DayPicker } from "react-day-picker";
 
 import { cn } from "@/lib/utils";
@@ -15,17 +15,16 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
       classNames={{
         // Hide visually but keep accessible text (react-day-picker uses this for aria-labels)
         vhidden: "sr-only",
-        // Keep the native selects interactive, but visually hidden.
-        // This makes the caption + icon open the dropdown when clicked.
-        dropdown: "absolute inset-0 opacity-0 cursor-pointer",
-        caption_dropdowns: "flex items-center justify-center gap-3",
-        dropdown_month: "relative inline-flex items-center gap-1",
-        dropdown_year: "relative inline-flex items-center gap-1",
-        dropdown_icon: "inline-block h-3.5 w-3.5 opacity-70",
+        // We provide a custom Dropdown component below (so `dropdown` styles are minimal).
+        dropdown: "",
+        caption_dropdowns: "flex items-center justify-end gap-3",
+        dropdown_month: "inline-flex",
+        dropdown_year: "inline-flex",
+        dropdown_icon: "h-3.5 w-3.5 opacity-70",
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
         caption: "flex justify-center pt-1 relative items-center",
-        caption_label: "flex items-center justify-center gap-1 text-sm font-medium",
+        caption_label: "text-sm font-medium",
         nav: "space-x-1 flex items-center",
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
@@ -53,6 +52,21 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
       components={{
         IconLeft: ({ ..._props }) => <ChevronLeft className="h-4 w-4" />,
         IconRight: ({ ..._props }) => <ChevronRight className="h-4 w-4" />,
+        // Custom dropdown to make month/year selection intuitive and aligned.
+        Dropdown: ({ className, style, value, onChange, name, children, "aria-label": ariaLabel }: any) => (
+          <div className={cn("relative inline-flex", className)} style={style}>
+            <select
+              name={name}
+              aria-label={ariaLabel}
+              value={value}
+              onChange={onChange}
+              className="appearance-none bg-transparent pr-5 pl-2 py-1 text-sm font-medium cursor-pointer"
+            >
+              {children}
+            </select>
+            <ChevronDown className="absolute right-1 top-1/2 -translate-y-1 h-4 w-4 text-muted-foreground pointer-events-none" />
+          </div>
+        ),
       }}
       {...props}
     />

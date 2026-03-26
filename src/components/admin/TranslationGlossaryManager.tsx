@@ -20,7 +20,6 @@ type GlossaryRow = {
   target_lang: string;
   source_text: string;
   target_text: string;
-  priority: number;
   is_active: boolean;
   updated_at?: string | null;
 };
@@ -30,7 +29,6 @@ type NewTermForm = {
   target_lang: string;
   source_text: string;
   target_text: string;
-  priority: number;
   is_active: boolean;
 };
 
@@ -39,7 +37,6 @@ const defaultNewTerm: NewTermForm = {
   target_lang: "en",
   source_text: "",
   target_text: "",
-  priority: 10,
   is_active: true,
 };
 
@@ -60,8 +57,7 @@ export const TranslationGlossaryManager = ({ onSaved }: TranslationGlossaryManag
       setLoading(true);
       const { data, error } = await supabase
         .from("translation_glossary")
-        .select("id, source_lang, target_lang, source_text, target_text, priority, is_active, updated_at")
-        .order("priority", { ascending: true })
+        .select("id, source_lang, target_lang, source_text, target_text, is_active, updated_at")
         .order("source_text", { ascending: true });
 
       if (error) throw error;
@@ -93,7 +89,6 @@ export const TranslationGlossaryManager = ({ onSaved }: TranslationGlossaryManag
           target_lang: row.target_lang.trim().toLowerCase(),
           source_text: row.source_text.trim(),
           target_text: row.target_text.trim(),
-          priority: Number.isFinite(row.priority) ? row.priority : 100,
           is_active: row.is_active,
           updated_at: new Date().toISOString(),
         })
@@ -101,6 +96,16 @@ export const TranslationGlossaryManager = ({ onSaved }: TranslationGlossaryManag
 
       if (error) throw error;
       toast.success("Termo atualizado com sucesso");
+
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.removeItem("progenia_translation_cache_en");
+        } catch {
+          // ignore
+        }
+        window.dispatchEvent(new Event("progenia_translation_glossary_updated"));
+      }
+
       onSaved?.();
       await loadGlossary();
     } catch (error: unknown) {
@@ -139,7 +144,6 @@ export const TranslationGlossaryManager = ({ onSaved }: TranslationGlossaryManag
         target_lang: newTerm.target_lang.trim().toLowerCase(),
         source_text: newTerm.source_text.trim(),
         target_text: newTerm.target_text.trim(),
-        priority: Number.isFinite(newTerm.priority) ? newTerm.priority : 100,
         is_active: newTerm.is_active,
       });
 
@@ -147,6 +151,16 @@ export const TranslationGlossaryManager = ({ onSaved }: TranslationGlossaryManag
 
       toast.success("Termo adicionado com sucesso");
       setNewTerm(defaultNewTerm);
+
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.removeItem("progenia_translation_cache_en");
+        } catch {
+          // ignore
+        }
+        window.dispatchEvent(new Event("progenia_translation_glossary_updated"));
+      }
+
       onSaved?.();
       await loadGlossary();
     } catch (error: unknown) {
@@ -180,6 +194,15 @@ export const TranslationGlossaryManager = ({ onSaved }: TranslationGlossaryManag
 
       setRows((prev) => prev.filter((item) => item.id !== row.id));
       toast.success("Termo removido com sucesso");
+
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.removeItem("progenia_translation_cache_en");
+        } catch {
+          // ignore
+        }
+        window.dispatchEvent(new Event("progenia_translation_glossary_updated"));
+      }
     } catch (error: unknown) {
       console.error("Erro ao remover termo:", error);
       const message =
@@ -260,20 +283,6 @@ export const TranslationGlossaryManager = ({ onSaved }: TranslationGlossaryManag
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="glossary-priority">Prioridade (menor = mais forte)</Label>
-            <Input
-              id="glossary-priority"
-              type="number"
-              value={newTerm.priority}
-              onChange={(e) =>
-                setNewTerm((prev) => ({
-                  ...prev,
-                  priority: Number(e.target.value),
-                }))
-              }
-            />
-          </div>
           <div className="flex items-end justify-between rounded-md border p-3">
             <span className="text-sm font-medium">Termo ativo</span>
             <Switch
@@ -299,7 +308,6 @@ export const TranslationGlossaryManager = ({ onSaved }: TranslationGlossaryManag
               <TableHead className="w-20">Destino</TableHead>
               <TableHead>Termo origem</TableHead>
               <TableHead>Traducao</TableHead>
-              <TableHead className="w-28">Prioridade</TableHead>
               <TableHead className="w-24 text-center">Ativo</TableHead>
               <TableHead className="w-40 text-right">Acoes</TableHead>
             </TableRow>
@@ -307,7 +315,7 @@ export const TranslationGlossaryManager = ({ onSaved }: TranslationGlossaryManag
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                <TableCell colSpan={6} className="text-center text-muted-foreground">
                   Nenhum termo cadastrado.
                 </TableCell>
               </TableRow>
@@ -338,13 +346,6 @@ export const TranslationGlossaryManager = ({ onSaved }: TranslationGlossaryManag
                     <Input
                       value={row.target_text}
                       onChange={(e) => updateLocalRow(row.id, { target_text: e.target.value })}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      value={row.priority}
-                      onChange={(e) => updateLocalRow(row.id, { priority: Number(e.target.value) })}
                     />
                   </TableCell>
                   <TableCell>
