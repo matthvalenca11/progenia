@@ -313,6 +313,15 @@ const Auth = () => {
     ? new Date(`${signUpData.birthDate}T00:00:00`)
     : undefined;
 
+  const [calendarMonth, setCalendarMonth] = useState<Date>(() => new Date());
+
+  // Mantém o mês exibido consistente enquanto o usuário navega.
+  // Só sincroniza quando a pessoa efetivamente selecionar uma data (birthDate muda).
+  useEffect(() => {
+    if (!signUpData.birthDate) return;
+    setCalendarMonth(new Date(`${signUpData.birthDate}T00:00:00`));
+  }, [signUpData.birthDate]);
+
   // Sign In State
   const [signInData, setSignInData] = useState({
     email: "",
@@ -645,6 +654,7 @@ const Auth = () => {
                         <Calendar
                           mode="single"
                           selected={selectedBirthDate}
+                          month={calendarMonth}
                           onSelect={(date) => {
                             if (!date) {
                               setSignUpData((prev) => ({ ...prev, birthDate: "" }));
@@ -658,6 +668,7 @@ const Auth = () => {
                               birthDate: `${yyyy}-${mm}-${dd}`,
                             }));
                           }}
+                          onMonthChange={setCalendarMonth}
                           locale={isEnglish ? enUS : ptBR}
                           captionLayout="dropdown"
                           fromDate={new Date(1900, 0, 1)}
