@@ -97,27 +97,54 @@ const countryOptions = [
   { value: "Suíça", labelPt: "Suíça", labelEn: "Switzerland" },
   { value: "Uruguai", labelPt: "Uruguai", labelEn: "Uruguay" },
   { value: "Venezuela", labelPt: "Venezuela", labelEn: "Venezuela" },
+  // África (principais países)
+  { value: "Angola", labelPt: "Angola", labelEn: "Angola" },
+  { value: "Argélia", labelPt: "Argélia", labelEn: "Algeria" },
+  { value: "África do Sul", labelPt: "África do Sul", labelEn: "South Africa" },
+  { value: "Camarões", labelPt: "Camarões", labelEn: "Cameroon" },
+  { value: "Costa do Marfim", labelPt: "Costa do Marfim", labelEn: "Côte d'Ivoire" },
+  { value: "Egito", labelPt: "Egito", labelEn: "Egypt" },
+  { value: "Etiópia", labelPt: "Etiópia", labelEn: "Ethiopia" },
+  { value: "Gana", labelPt: "Gana", labelEn: "Ghana" },
+  { value: "Quênia", labelPt: "Quênia", labelEn: "Kenya" },
+  { value: "Marrocos", labelPt: "Marrocos", labelEn: "Morocco" },
+  { value: "Namíbia", labelPt: "Namíbia", labelEn: "Namibia" },
+  { value: "Moçambique", labelPt: "Moçambique", labelEn: "Mozambique" },
+  { value: "Nigéria", labelPt: "Nigéria", labelEn: "Nigeria" },
+  { value: "República Democrática do Congo", labelPt: "República Democrática do Congo", labelEn: "Democratic Republic of the Congo" },
+  { value: "Ruanda", labelPt: "Ruanda", labelEn: "Rwanda" },
+  { value: "Senegal", labelPt: "Senegal", labelEn: "Senegal" },
+  { value: "Sudão", labelPt: "Sudão", labelEn: "Sudan" },
+  { value: "Tanzânia", labelPt: "Tanzânia", labelEn: "Tanzania" },
+  { value: "Tunísia", labelPt: "Tunísia", labelEn: "Tunisia" },
+  { value: "Uganda", labelPt: "Uganda", labelEn: "Uganda" },
+  { value: "Zâmbia", labelPt: "Zâmbia", labelEn: "Zambia" },
+  { value: "Zimbábue", labelPt: "Zimbábue", labelEn: "Zimbabwe" },
   { value: "Outro país", labelPt: "Outro país", labelEn: "Other country" },
 ];
 
 const healthProfessionOptions = [
-  "Estudante",
-  "Médico(a)",
-  "Enfermeiro(a)",
-  "Fisioterapeuta",
-  "Farmacêutico(a)",
-  "Nutricionista",
-  "Psicólogo(a)",
-  "Odontólogo(a)",
-  "Fonoaudiólogo(a)",
-  "Terapeuta ocupacional",
-  "Biomédico(a)",
-  "Engenheiro(a) biomédico(a)",
-  "Engenheiro(a) eletricista",
-  "Outras engenharias",
-  "Físico(a) médico(a)",
-  "Técnico(a) em radiologia",
-  "Outra",
+  { value: "Estudante", labelPt: "Estudante", labelEn: "Student" },
+  { value: "Médico(a)", labelPt: "Médico(a)", labelEn: "Physician" },
+  { value: "Enfermeiro(a)", labelPt: "Enfermeiro(a)", labelEn: "Nurse" },
+  { value: "Fisioterapeuta", labelPt: "Fisioterapeuta", labelEn: "Physiotherapist" },
+  { value: "Farmacêutico(a)", labelPt: "Farmacêutico(a)", labelEn: "Pharmacist" },
+  { value: "Nutricionista", labelPt: "Nutricionista", labelEn: "Nutritionist" },
+  { value: "Psicólogo(a)", labelPt: "Psicólogo(a)", labelEn: "Psychologist" },
+  { value: "Odontólogo(a)", labelPt: "Odontólogo(a)", labelEn: "Dentist" },
+  { value: "Fonoaudiólogo(a)", labelPt: "Fonoaudiólogo(a)", labelEn: "Speech Therapist" },
+  { value: "Terapeuta ocupacional", labelPt: "Terapeuta ocupacional", labelEn: "Occupational Therapist" },
+  { value: "Biomédico(a)", labelPt: "Biomédico(a)", labelEn: "Biomedical Scientist" },
+  {
+    value: "Engenheiro(a) biomédico(a)",
+    labelPt: "Engenheiro(a) biomédico(a)",
+    labelEn: "Biomedical engineer",
+  },
+  { value: "Engenheiro(a) eletricista", labelPt: "Engenheiro(a) eletricista", labelEn: "Electrical Engineer" },
+  { value: "Outras engenharias", labelPt: "Outras engenharias", labelEn: "Other Engineering" },
+  { value: "Físico(a) médico(a)", labelPt: "Físico(a) médico(a)", labelEn: "Medical Physicist" },
+  { value: "Técnico(a) em radiologia", labelPt: "Técnico(a) em radiologia", labelEn: "Radiology Technician" },
+  { value: "Outra", labelPt: "Outra", labelEn: "Other" },
 ];
 
 const LEGAL_SETTINGS_ID = "00000000-0000-0000-0000-000000000002";
@@ -312,6 +339,12 @@ const Auth = () => {
   const selectedBirthDate = signUpData.birthDate
     ? new Date(`${signUpData.birthDate}T00:00:00`)
     : undefined;
+
+  const sortedCountryOptions = [...countryOptions].sort((a, b) => {
+    const left = isEnglish ? a.labelEn : a.labelPt;
+    const right = isEnglish ? b.labelEn : b.labelPt;
+    return left.localeCompare(right, isEnglish ? "en" : "pt-BR", { sensitivity: "base" });
+  });
 
   // Sign In State
   const [signInData, setSignInData] = useState({
@@ -802,7 +835,7 @@ const Auth = () => {
                           <SelectValue placeholder={isEnglish ? "Select your country" : "Selecione seu país"} />
                         </SelectTrigger>
                         <SelectContent>
-                          {countryOptions.map((country) => (
+                          {sortedCountryOptions.map((country) => (
                             <SelectItem key={country.value} value={country.value}>
                               {isEnglish ? country.labelEn : country.labelPt}
                             </SelectItem>
@@ -831,7 +864,7 @@ const Auth = () => {
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2" data-no-auto-translate="true">
                     <Label>Profissão</Label>
                     <Select
                       value={signUpData.profession}
@@ -840,10 +873,10 @@ const Auth = () => {
                       <SelectTrigger>
                         <SelectValue placeholder={isEnglish ? "Select" : "Selecione"} />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent data-no-auto-translate="true">
                         {healthProfessionOptions.map((profession) => (
-                          <SelectItem key={profession} value={profession}>
-                            {profession}
+                          <SelectItem key={profession.value} value={profession.value}>
+                            {isEnglish ? profession.labelEn : profession.labelPt}
                           </SelectItem>
                         ))}
                       </SelectContent>
