@@ -332,6 +332,23 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     };
 
     const handleGlossaryUpdated = () => {
+      // Reaplica o tradutor a partir do texto original (PT).
+      // Sem isso, o DOM já pode estar com o valor traduzido antigo (ex.: "To Go out")
+      // e o motor passa a traduzir o texto traduzido.
+      for (const [node, original] of originalTextByNodeRef.current.entries()) {
+        if (node.isConnected) {
+          node.data = original;
+        }
+      }
+
+      for (const element of trackedAttributeElementsRef.current) {
+        const attrMap = originalAttributesRef.current.get(element);
+        if (!attrMap || !element.isConnected) continue;
+        for (const [attr, original] of attrMap.entries()) {
+          element.setAttribute(attr, original);
+        }
+      }
+
       // Limpa caches locais para garantir que a tradução atual reflita o glossário atualizado.
       cacheRef.current.clear();
       pendingTextsRef.current.clear();
@@ -340,6 +357,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // ignore
       }
+
       runTranslation();
     };
 

@@ -25,6 +25,28 @@ export function DeleteAccountDialog({ open, onOpenChange }: DeleteAccountDialogP
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const getUUID = () => {
+    // Alguns navegadores/ambientes não implementam `crypto.randomUUID`.
+    // Usamos fallback com `crypto.getRandomValues` para gerar UUID v4.
+    if (typeof crypto !== "undefined") {
+      const c = crypto as Crypto & { randomUUID?: () => string };
+      if (typeof c.randomUUID === "function") return c.randomUUID();
+      if (typeof c.getRandomValues === "function") {
+        const bytes = new Uint8Array(16);
+        c.getRandomValues(bytes);
+        // UUID v4: set version (4) and variant (10xx)
+        bytes[6] = (bytes[6] & 0x0f) | 0x40;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        const hex = Array.from(bytes).map((b) => b.toString(16).padStart(2, "0"));
+        return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex
+          .slice(8, 10)
+          .join("")}-${hex.slice(10, 16).join("")}`;
+      }
+    }
+    // Último recurso: não criptograficamente seguro (mas evita quebrar o fluxo).
+    return `fallback-${Math.random().toString(16).slice(2)}-${Date.now()}`;
+  };
+
   const handleDelete = async () => {
     if (!password.trim()) {
       toast.error("Digite sua senha para confirmar.");
@@ -53,7 +75,7 @@ export function DeleteAccountDialog({ open, onOpenChange }: DeleteAccountDialogP
         setLoading(false);
         return;
       }
-      const deleteToken = crypto.randomUUID();
+      const deleteToken = getUUID();
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
       const { error: insertError } = await supabase
         .from("delete_requests")

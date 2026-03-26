@@ -218,6 +218,11 @@ Deno.serve(async (req) => {
         );
       }
 
+      // Se o termo existe no glossário, não use tradução vindo do cache legado.
+      // Isso garante que alterações manuais no glossário (ex.: "Sair" -> "Log Out")
+      // sejam aplicadas imediatamente, mesmo quando translation_cache já tem um valor antigo.
+      const glossarySourceSet = new Set(glossary.map((g) => normalizeText(g.source_text)));
+
       const { data: cachedRows } = await supabaseAdmin
         .from("translation_cache")
         .select("source_text, translated_text")
@@ -229,6 +234,9 @@ Deno.serve(async (req) => {
         for (const row of cachedRows) {
           const sourceText = row.source_text as string;
           const translatedText = row.translated_text as string;
+          if (glossarySourceSet.has(normalizeText(sourceText))) {
+            continue;
+          }
           if (shouldBypassCachedTranslation(sourceText, translatedText)) {
             continue;
           }
