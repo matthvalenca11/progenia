@@ -56,9 +56,9 @@ const genderOptions = [
 const educationLevelOptions = [
   { value: "Médio incompleto", labelPt: "Médio incompleto", labelEn: "Incomplete high school" },
   { value: "Médio completo", labelPt: "Médio completo", labelEn: "Complete high school" },
+  { value: "Técnico completo", labelPt: "Técnico completo", labelEn: "Completed technical education" },
   { value: "Superior incompleto", labelPt: "Superior incompleto", labelEn: "Incomplete undergraduate" },
   { value: "Superior completo", labelPt: "Superior completo", labelEn: "Complete undergraduate" },
-  { value: "Pós-graduação", labelPt: "Pós-graduação", labelEn: "Postgraduate" },
   { value: "Mestrado", labelPt: "Mestrado", labelEn: "Master's degree" },
   { value: "Doutorado", labelPt: "Doutorado", labelEn: "Doctorate" },
 ];
@@ -341,6 +341,12 @@ const Auth = () => {
     : undefined;
 
   const sortedCountryOptions = [...countryOptions].sort((a, b) => {
+    const left = isEnglish ? a.labelEn : a.labelPt;
+    const right = isEnglish ? b.labelEn : b.labelPt;
+    return left.localeCompare(right, isEnglish ? "en" : "pt-BR", { sensitivity: "base" });
+  });
+
+  const sortedHealthProfessionOptions = [...healthProfessionOptions].sort((a, b) => {
     const left = isEnglish ? a.labelEn : a.labelPt;
     const right = isEnglish ? b.labelEn : b.labelPt;
     return left.localeCompare(right, isEnglish ? "en" : "pt-BR", { sensitivity: "base" });
@@ -874,7 +880,7 @@ const Auth = () => {
                         <SelectValue placeholder={isEnglish ? "Select" : "Selecione"} />
                       </SelectTrigger>
                       <SelectContent data-no-auto-translate="true">
-                        {healthProfessionOptions.map((profession) => (
+                        {sortedHealthProfessionOptions.map((profession) => (
                           <SelectItem key={profession.value} value={profession.value}>
                             {isEnglish ? profession.labelEn : profession.labelPt}
                           </SelectItem>
