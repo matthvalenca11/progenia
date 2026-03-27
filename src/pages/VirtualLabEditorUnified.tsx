@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Save, Loader2, Waves, Activity, Thermometer, Magnet } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Waves, Activity, Thermometer, Magnet, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { virtualLabService, VirtualLab, VirtualLabType } from "@/services/virtualLabService";
 import { UltrasoundLabBuilder } from "@/components/admin/ultrasound/UltrasoundLabBuilder";
@@ -22,6 +22,26 @@ import TensLabPage from "@/pages/TensLabPage";
 import MRILabPage from "@/pages/MRILabPage";
 import { useUltrasoundLabStore } from "@/stores/ultrasoundLabStore";
 import { useMRILabStore } from "@/stores/mriLabStore";
+import PhotobioLabPage from "@/pages/PhotobioLabPage";
+import { Switch } from "@/components/ui/switch";
+
+const defaultPhotobioConfig = {
+  wavelength: 660 as const,
+  power: 100,
+  spotSize: 0.5,
+  exposureTime: 30,
+  mode: "CW" as const,
+  dutyCycle: 50,
+  controlModes: {
+    showWavelength: "show" as const,
+    showPower: "show" as const,
+    showSpotSize: "show" as const,
+    showExposureTime: "show" as const,
+    showMode: "show" as const,
+    showAnatomyPresets: "show" as const,
+    showCustomAnatomy: "show" as const,
+  },
+};
 
 export default function VirtualLabEditorUnified() {
   const navigate = useNavigate();
@@ -32,6 +52,7 @@ export default function VirtualLabEditorUnified() {
   const [loading, setLoading] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | undefined>();
   const [mriPreviewMode, setMriPreviewMode] = useState<"student" | "admin">("student");
+  const [photobioAdminTab, setPhotobioAdminTab] = useState<"preview" | "controls">("preview");
   const [lab, setLab] = useState<Partial<VirtualLab>>({
     name: "",
     slug: "",
@@ -159,6 +180,43 @@ export default function VirtualLabEditorUnified() {
         configData = { ...configData, videoUrl };
       }
 
+      // Silent migration (Photobiomodulation):
+      // Persist only controlModes and remove legacy visibility fields.
+      if (lab.lab_type === "photobiomodulation") {
+        const cfg = (configData || {}) as Record<string, any>;
+        const mergedControlModes = {
+          ...defaultPhotobioConfig.controlModes,
+          ...(cfg.controlModes || {}),
+        };
+
+        // Backward compatibility read -> new shape (only while saving old labs)
+        if (cfg.visibleControls && typeof cfg.visibleControls === "object") {
+          const fallbackMode =
+            cfg.controlDisplayMode === "disabled" || cfg.controlDisplayMode === "hidden"
+              ? cfg.controlDisplayMode
+              : "hidden";
+          (Object.keys(cfg.visibleControls) as Array<keyof typeof mergedControlModes>).forEach((key) => {
+            const visible = cfg.visibleControls[key];
+            if (typeof visible === "boolean") {
+              mergedControlModes[key] = visible ? "show" : fallbackMode;
+            }
+          });
+        }
+
+        const {
+          visibleControls: _legacyVisibleControls,
+          controlDisplayMode: _legacyControlDisplayMode,
+          ...restConfig
+        } = cfg;
+        void _legacyVisibleControls;
+        void _legacyControlDisplayMode;
+
+        configData = {
+          ...restConfig,
+          controlModes: mergedControlModes,
+        };
+      }
+
       const labData = {
         ...lab,
         name: labName, // Use labName which comes from store for ultrasound
@@ -204,6 +262,8 @@ export default function VirtualLabEditorUnified() {
     } else if (newType === "mri") {
       // Deep clone to avoid reference issues
       updates.config_data = JSON.parse(JSON.stringify(defaultMRILabConfig));
+    } else if (newType === "photobiomodulation") {
+      updates.config_data = JSON.parse(JSON.stringify(defaultPhotobioConfig));
     }
 
     setLab({ ...lab, ...updates });
@@ -278,6 +338,7 @@ export default function VirtualLabEditorUnified() {
                   { value: "tens", label: "TENS", desc: "Estimulação Elétrica Transcutânea", icon: Activity },
                   { value: "ultrasound_therapy", label: "Ultrassom Terapêutico", desc: "Simulador de ultrassom terapêutico com análise de penetração e aquecimento", icon: Thermometer },
                   { value: "mri", label: "Ressonância Magnética", desc: "Simulador de MRI com visualização de magnetização e fatias", icon: Magnet },
+                  { value: "photobiomodulation", label: "Fotobiomodulação", desc: "Simulador de dose, penetração tecidual e zona Arndt-Schulz", icon: Sun },
                 ].map((type) => {
                   const Icon = type.icon;
                   return (
@@ -307,8 +368,11 @@ export default function VirtualLabEditorUnified() {
           />
         )}
 
-        {/* Basic Info for non-ultrasound labs (but not TENS, ultrasound_therapy, or MRI - they have their own editors) */}
-        {lab.lab_type && lab.lab_type !== "ultrasound" && lab.lab_type !== "ultrasound_therapy" && lab.lab_type !== "tens" && lab.lab_type !== "mri" && (
+        {/* Basic Info for generic labs only (types without dedicated editors) */}
+        {lab.lab_type &&
+          !["ultrasound", "ultrasound_therapy", "tens", "mri", "photobiomodulation"].includes(
+            lab.lab_type
+          ) && (
           <>
             <Card>
               <CardHeader>
@@ -615,7 +679,186 @@ export default function VirtualLabEditorUnified() {
           </div>
         )}
 
-        {!["ultrasound", "tens", "ultrasound_therapy", "mri"].includes(lab.lab_type || "") && (
+        {/* Basic Info for Photobiomodulation */}
+        {lab.lab_type === "photobiomodulation" && (
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle>Informações Básicas</CardTitle>
+                <CardDescription>Dados gerais do laboratório de fotobiomodulação</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="name">Nome do Laboratório *</Label>
+                    <Input
+                      id="name"
+                      value={lab.name}
+                      onChange={(e) => setLab({ ...lab, name: e.target.value })}
+                      placeholder="Ex: Fotobiomodulação - Janela Terapêutica"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="slug">Slug (URL) *</Label>
+                    <Input
+                      id="slug"
+                      value={lab.slug}
+                      onChange={(e) => setLab({ ...lab, slug: e.target.value })}
+                      placeholder="Ex: fotobiomodulacao-v2"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Será gerado automaticamente se deixar vazio
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="description">Descrição</Label>
+                  <Textarea
+                    id="description"
+                    value={lab.description}
+                    onChange={(e) => setLab({ ...lab, description: e.target.value })}
+                    placeholder="Descreva os objetivos de aprendizado do laboratório FBM..."
+                    rows={3}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <LabVideoUploader
+              videoUrl={videoUrl}
+              onVideoChange={setVideoUrl}
+              disabled={loading}
+            />
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Pré-visualização Fotobiomodulação</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-3 grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={photobioAdminTab === "preview" ? "default" : "outline"}
+                    onClick={() => setPhotobioAdminTab("preview")}
+                  >
+                    Pré-visualização
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={photobioAdminTab === "controls" ? "default" : "outline"}
+                    onClick={() => setPhotobioAdminTab("controls")}
+                  >
+                    Controles do Estudante
+                  </Button>
+                </div>
+
+                {photobioAdminTab === "preview" ? (
+                  <div className="rounded-xl border bg-slate-50 p-2">
+                    <PhotobioLabPage config={(lab.config_data || defaultPhotobioConfig) as Record<string, unknown>} />
+                  </div>
+                ) : (
+                  <div className="space-y-5 rounded-xl border bg-muted/20 p-4">
+                    <div className="space-y-2 rounded-lg border bg-card p-3">
+                      <p className="text-sm font-medium">Controles disponíveis para estudantes</p>
+                      {[
+                        { key: "showWavelength", label: "Comprimento de onda" },
+                        { key: "showPower", label: "Potência" },
+                        { key: "showSpotSize", label: "Área do spot" },
+                        { key: "showExposureTime", label: "Tempo de exposição" },
+                        { key: "showMode", label: "Modo CW/Pulsed" },
+                        { key: "showAnatomyPresets", label: "Presets anatômicos" },
+                        { key: "showCustomAnatomy", label: "Anatomia customizada" },
+                      ].map((item) => {
+                        const controlModes = {
+                          ...defaultPhotobioConfig.controlModes,
+                          ...((lab.config_data as any)?.controlModes || {}),
+                        };
+                        const mode = controlModes[item.key as keyof typeof controlModes] || "show";
+                        const checked = mode === "show";
+                        return (
+                          <div
+                            key={item.key}
+                            className="space-y-2 rounded-md border px-3 py-2"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <Label className="text-sm">{item.label}</Label>
+                              <Switch
+                                checked={checked}
+                                onCheckedChange={(enabled) => {
+                                  setLab((prev) => ({
+                                    ...prev,
+                                    config_data: {
+                                      ...(prev.config_data || {}),
+                                      controlModes: {
+                                        ...defaultPhotobioConfig.controlModes,
+                                        ...((prev.config_data as any)?.controlModes || {}),
+                                        [item.key]: enabled ? "show" : "hidden",
+                                      },
+                                    },
+                                  }));
+                                }}
+                              />
+                            </div>
+                            {!checked && (
+                              <div className="grid grid-cols-2 gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant={mode === "hidden" ? "default" : "outline"}
+                                  onClick={() =>
+                                    setLab((prev) => ({
+                                      ...prev,
+                                      config_data: {
+                                        ...(prev.config_data || {}),
+                                        controlModes: {
+                                          ...defaultPhotobioConfig.controlModes,
+                                          ...((prev.config_data as any)?.controlModes || {}),
+                                          [item.key]: "hidden",
+                                        },
+                                      },
+                                    }))
+                                  }
+                                >
+                                  Ocultar
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant={mode === "disabled" ? "default" : "outline"}
+                                  onClick={() =>
+                                    setLab((prev) => ({
+                                      ...prev,
+                                      config_data: {
+                                        ...(prev.config_data || {}),
+                                        controlModes: {
+                                          ...defaultPhotobioConfig.controlModes,
+                                          ...((prev.config_data as any)?.controlModes || {}),
+                                          [item.key]: "disabled",
+                                        },
+                                      },
+                                    }))
+                                  }
+                                >
+                                  Desabilitar
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
+
+        {!["ultrasound", "tens", "ultrasound_therapy", "mri", "photobiomodulation"].includes(lab.lab_type || "") && (
           <Card>
             <CardContent className="py-12 text-center">
               <p className="text-muted-foreground">

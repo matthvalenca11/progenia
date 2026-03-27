@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FlaskConical, Activity, Waves, Thermometer, Magnet, ArrowRight, Loader2 } from "lucide-react";
+import { FlaskConical, Activity, Waves, Thermometer, Magnet, Sun, ArrowRight, Loader2 } from "lucide-react";
 import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
 import { toast } from "sonner";
 
@@ -40,6 +40,8 @@ export default function VirtualLabsSection() {
         return <Thermometer className="h-24 w-24 text-primary/40 absolute" />;
       case "mri":
         return <Magnet className="h-24 w-24 text-primary/40 absolute" />;
+      case "photobiomodulation":
+        return <Sun className="h-24 w-24 text-primary/40 absolute" />;
       default:
         return <FlaskConical className="h-24 w-24 text-primary/40 absolute" />;
     }
@@ -51,6 +53,7 @@ export default function VirtualLabsSection() {
       tens: "Eletroterapia TENS",
       ultrasound_therapy: "Ultrassom Terapêutico",
       mri: "Ressonância Magnética",
+      photobiomodulation: "Fotobiomodulação",
       ultrassom_terapeutico: "Ultrassom Terapêutico",
       electrotherapy: "Eletroterapia",
       thermal: "Térmico",
@@ -103,6 +106,8 @@ export default function VirtualLabsSection() {
                     <Waves className="h-4 w-4" />
                   ) : lab.lab_type === "ultrasound_therapy" || lab.lab_type === "ultrassom_terapeutico" ? (
                     <Thermometer className="h-4 w-4" />
+                  ) : lab.lab_type === "photobiomodulation" ? (
+                    <Sun className="h-4 w-4" />
                   ) : (
                     <FlaskConical className="h-4 w-4" />
                   )}

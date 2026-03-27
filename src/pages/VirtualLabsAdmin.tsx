@@ -38,6 +38,7 @@ import { UltrasoundUnifiedLab } from "@/components/labs/UltrasoundUnifiedLab";
 import TensLabPage from "@/pages/TensLabPage";
 import UltrasoundTherapyLabPage from "@/pages/UltrasoundTherapyLabPage";
 import MRILabPage from "@/pages/MRILabPage";
+import PhotobioLabPage from "@/pages/PhotobioLabPage";
 
 export default function VirtualLabsAdmin() {
   const navigate = useNavigate();
@@ -142,6 +143,7 @@ export default function VirtualLabsAdmin() {
       tens: { label: "TENS", variant: "default" as const },
       ultrasound_therapy: { label: "Ultrassom Terapêutico", variant: "default" as const },
       mri: { label: "Ressonância Magnética", variant: "default" as const },
+      photobiomodulation: { label: "Fotobiomodulação", variant: "default" as const },
       electrotherapy: { label: "Eletroterapia", variant: "default" as const },
       thermal: { label: "Térmico", variant: "outline" as const },
       other: { label: "Outro", variant: "outline" as const },
@@ -357,6 +359,11 @@ export default function VirtualLabsAdmin() {
             {labToTest?.lab_type === "mri" && labToTest.config_data && (
               <div className="rounded-xl border bg-slate-50 p-4">
                 <MRILabPage config={labToTest.config_data as any} />
+              </div>
+            )}
+            {labToTest?.lab_type === "photobiomodulation" && labToTest.config_data && (
+              <div className="rounded-xl border bg-slate-50 p-4">
+                <PhotobioLabPage config={labToTest.config_data as Record<string, unknown>} />
               </div>
             )}
             {labToTest?.lab_type === "electrotherapy" && (

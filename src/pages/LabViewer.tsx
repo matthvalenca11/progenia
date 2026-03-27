@@ -8,6 +8,7 @@ import { LabWrapper } from "@/components/labs/LabWrapper";
 import TensLabPage from "@/pages/TensLabPage";
 import UltrasoundTherapyLabPage from "@/pages/UltrasoundTherapyLabPage";
 import MRILabPage from "@/pages/MRILabPage";
+import PhotobioLabPage from "@/pages/PhotobioLabPage";
 import { toast } from "sonner";
 import { labAnalyticsService } from "@/services/labAnalyticsService";
 
@@ -204,6 +205,16 @@ export default function LabViewer() {
       <div className="min-h-screen bg-background">
         <LabWrapper videoUrl={videoUrl} title={lab.title || lab.name}>
           <MRILabPage config={lab.config_data} />
+        </LabWrapper>
+      </div>
+    );
+  }
+
+  if (labType === "photobiomodulation" || labType === "fbm") {
+    return (
+      <div className="min-h-screen bg-background">
+        <LabWrapper videoUrl={videoUrl} title={lab.title || lab.name}>
+          <PhotobioLabPage config={lab.config_data as Record<string, unknown>} />
         </LabWrapper>
       </div>
     );

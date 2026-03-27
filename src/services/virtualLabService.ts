@@ -1,6 +1,15 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export type VirtualLabType = "ultrasound" | "tens" | "ultrasound_therapy" | "ultrassom_terapeutico" | "mri" | "thermal" | "electrotherapy" | "other";
+export type VirtualLabType =
+  | "ultrasound"
+  | "tens"
+  | "ultrasound_therapy"
+  | "ultrassom_terapeutico"
+  | "mri"
+  | "thermal"
+  | "electrotherapy"
+  | "photobiomodulation"
+  | "other";
 
 export interface VirtualLab {
   id?: string;
