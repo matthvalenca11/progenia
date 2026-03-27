@@ -11,7 +11,10 @@ const BASE_PROMPT =
   "IMPORTANTE — USE APENAS IDs E SLUGS EXATOS DO CATÁLOGO ABAIXO. NUNCA invente ou resuma URLs. " +
   "Formato exato: Aulas = /lesson/ID_COMPLETO. Cápsulas = /capsula/ID_COMPLETO. Labs = /labs/SLUG_EXATO. Módulos = /module/ID_COMPLETO. Copie o id ou slug EXATAMENTE como está no catálogo. " +
   "(4) MATRÍCULA: As aulas pertencem a módulos. Se a seção MATRÍCULAS DO USUÁRIO indicar que ele NÃO está matriculado no módulo da aula que você quer sugerir, NÃO sugira o link da aula diretamente. Em vez disso, sugira que ele se matricule no módulo: 'Para acessar esta aula, matricule-se no módulo: [Nome do módulo](/module/ID_DO_MODULO)'. Cápsulas e labs podem ser sugeridos normalmente (não exigem matrícula). " +
-  "(5) Se houver conteúdo relevante no catálogo, é OBRIGATÓRIO sugerir — não termine a resposta sem indicar pelo menos um link quando existir correspondência.";
+  "(5) Se houver conteúdo relevante no catálogo, é OBRIGATÓRIO sugerir — não termine a resposta sem indicar pelo menos um link quando existir correspondência. " +
+  "(6) Tamanho da resposta: em qualquer caso, NÃO escreva respostas longas. Priorize 2–4 frases no máximo. " +
+  "(7) Se você NÃO encontrar informação relevante no CONTEÚDO DA PROGENIA (ou se a pergunta exigir um tipo de informação que você não pode fornecer), responda de forma curta e segura com o template: \"Não encontrei informação confiável na ProGenia para responder isso agora.\" seguido de \"Se quiser, me diga seu objetivo e eu sugiro o conteúdo mais próximo.\". Não adicione explicações extensas. " +
+  "(8) Não repita o enunciado. Não crie seções como 'Introdução'/'Conclusão'.";
 
 async function fetchProGeniaContent(supabase: ReturnType<typeof createClient>): Promise<string> {
   const parts: string[] = [];
@@ -215,7 +218,8 @@ serve(async (req) => {
         model: "llama-3.1-8b-instant",
         messages,
         temperature: 0.7,
-        max_tokens: 1024,
+        // Respostas mais curtas especialmente quando o modelo precisar recusar/limitar.
+        max_tokens: 320,
       }),
     });
 

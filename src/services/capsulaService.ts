@@ -6,6 +6,7 @@ export interface Capsula {
   description?: string;
   module_id?: string;
   thumbnail_url?: string;
+  thumbnail_url_en?: string;
   content_data?: any;
   is_published?: boolean;
   duration_minutes?: number;

@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { AlertTriangle, Info } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface LabWrapperProps {
   children: ReactNode;
@@ -19,6 +20,9 @@ export function LabWrapper({
   title,
   showDisclaimer = true 
 }: LabWrapperProps) {
+  const { language } = useLanguage();
+  const isEnglish = language === "en";
+
   return (
     <div className="w-full space-y-6">
       {/* Optional Video Section */}
@@ -54,17 +58,17 @@ export function LabWrapper({
       
       {/* Educational Disclaimer */}
       {showDisclaimer && (
-        <div className="w-full mt-6 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30">
+        <div className="w-full mt-6 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30" data-no-auto-translate="true">
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div className="space-y-1">
               <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
-                Aviso Educacional
+                {isEnglish ? "Educational Notice" : "Aviso Educacional"}
               </p>
               <p className="text-sm text-muted-foreground">
-                Este laboratório virtual é uma ferramenta didática. 
-                Os parâmetros utilizados não representam valores clínicos reais; 
-                apenas os efeitos físicos são aproximados para fins educativos.
+                {isEnglish
+                  ? "This virtual laboratory is an educational tool. The parameters used do not represent real clinical values; only the physical effects are approximated for learning purposes."
+                  : "Este laboratório virtual é uma ferramenta didática. Os parâmetros utilizados não representam valores clínicos reais; apenas os efeitos físicos são aproximados para fins educativos."}
               </p>
             </div>
           </div>

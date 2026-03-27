@@ -36,9 +36,12 @@ import { LegalSettingsManager } from "@/components/admin/LegalSettingsManager";
 import { TranslationGlossaryManager } from "@/components/admin/TranslationGlossaryManager";
 import { AdminDashboard } from "@/components/admin/dashboard/AdminDashboard";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const Admin = () => {
   const navigate = useNavigate();
+  const { language } = useLanguage();
+  const isEnglish = language === "en";
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [contentOpenItems, setContentOpenItems] = useState<string[]>([]);
@@ -147,7 +150,7 @@ const Admin = () => {
                 <AccordionTrigger>
                   <span className="inline-flex items-center gap-2">
                     <BookOpen className="h-4 w-4" />
-                    Módulos
+                    {isEnglish ? "Modules" : "Módulos"}
                   </span>
                 </AccordionTrigger>
                 <AccordionContent>
@@ -161,7 +164,7 @@ const Admin = () => {
                 <AccordionTrigger>
                   <span className="inline-flex items-center gap-2">
                     <Award className="h-4 w-4" />
-                    Cápsulas
+                    {isEnglish ? "Capsules" : "Cápsulas"}
                   </span>
                 </AccordionTrigger>
                 <AccordionContent>
@@ -175,7 +178,7 @@ const Admin = () => {
                 <AccordionTrigger>
                   <span className="inline-flex items-center gap-2">
                     <GraduationCap className="h-4 w-4" />
-                    Aulas
+                    {isEnglish ? "Lessons" : "Aulas"}
                   </span>
                 </AccordionTrigger>
                 <AccordionContent>
@@ -189,7 +192,7 @@ const Admin = () => {
                 <AccordionTrigger>
                   <span className="inline-flex items-center gap-2">
                     <FlaskConical className="h-4 w-4" />
-                    Labs Virtuais
+                    {isEnglish ? "Virtual Labs" : "Labs Virtuais"}
                   </span>
                 </AccordionTrigger>
                 <AccordionContent>
@@ -203,7 +206,7 @@ const Admin = () => {
                 <AccordionTrigger>
                   <span className="inline-flex items-center gap-2">
                     <Beaker className="h-4 w-4" />
-                    Biblioteca
+                    {isEnglish ? "Library" : "Biblioteca"}
                   </span>
                 </AccordionTrigger>
                 <AccordionContent>

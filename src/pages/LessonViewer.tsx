@@ -11,6 +11,9 @@ import { ChevronLeft, FileText, Video, CheckCircle2, ExternalLink, Beaker, Image
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { VirtualLabRenderer } from "@/components/VirtualLabRenderer";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import logo from "@/assets/logo.png";
 export default function LessonViewer() {
   const {
     lessonId
@@ -20,6 +23,8 @@ export default function LessonViewer() {
     user,
     loading: authLoading
   } = useAuth();
+  const { language } = useLanguage();
+  const isEnglish = language === "en";
   const [lesson, setLesson] = useState<any>(null);
   const [progress, setProgress] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -117,24 +122,30 @@ export default function LessonViewer() {
   const contentData = lesson.content_data || {};
   const blocks = contentData.blocks || [];
   const references = contentData.references || [];
-  const thumbnail = contentData.thumbnail;
+  const thumbnail = (isEnglish ? contentData.thumbnail_en : null) || contentData.thumbnail;
   return <div className="container mx-auto py-8 space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate(`/module/${lesson.module_id}`)}>
-          <ChevronLeft className="h-4 w-4 mr-2" />
-          Voltar ao Módulo
-        </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <span>{lesson.modules?.title}</span>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")} aria-label="Ir para o dashboard">
+            <img src={logo} alt="ProGenia" className="h-8 progenia-logo" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => navigate(`/module/${lesson.module_id}`)}>
+            <ChevronLeft className="h-4 w-4 mr-2" />
+            Voltar ao Módulo
+          </Button>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm text-muted-foreground mb-1">{lesson.modules?.title}</div>
+            <h1 className="text-2xl font-bold truncate">{lesson.title}</h1>
           </div>
-          <h1 className="text-2xl font-bold">{lesson.title}</h1>
         </div>
-        {isCompleted && <Badge variant="default" className="gap-1">
-            <CheckCircle2 className="h-3 w-3" />
-            Concluída
-          </Badge>}
+        <div className="flex items-center gap-3">
+          {isCompleted && <Badge variant="default" className="gap-1">
+              <CheckCircle2 className="h-3 w-3" />
+              Concluída
+            </Badge>}
+          <ThemeToggle />
+        </div>
       </div>
 
       {/* Thumbnail */}
@@ -236,14 +247,17 @@ export default function LessonViewer() {
                           <ImageIcon className="h-5 w-5" />
                           <h3 className="font-semibold">Imagem</h3>
                         </div>
-                        {(block.data.url || block.data.imageUrl) ? (
+                        {((isEnglish ? block.data.imageUrlEn : null) || block.data.imageUrl || block.data.url) ? (
                           <div className="space-y-2">
                             <img
-                              src={block.data.url || block.data.imageUrl}
+                              src={(isEnglish ? block.data.imageUrlEn : null) || block.data.imageUrl || block.data.url}
                               alt={block.data.caption || "Conteúdo da aula"}
                               className="w-full rounded-lg"
                               onError={(e) => {
-                                console.error("Erro ao carregar imagem:", block.data.url || block.data.imageUrl);
+                                console.error(
+                                  "Erro ao carregar imagem:",
+                                  (isEnglish ? block.data.imageUrlEn : null) || block.data.imageUrl || block.data.url
+                                );
                                 e.currentTarget.style.display = 'none';
                                 const parent = e.currentTarget.parentElement;
                                 if (parent) {

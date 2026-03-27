@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 import { enrollmentService } from "@/services/enrollmentService";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface Lesson {
   id: string;
@@ -208,19 +209,22 @@ export default function ModuleViewer() {
     <div className="min-h-screen bg-background">
       <nav className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/dashboard")}
-            >
-              <ChevronLeft className="h-4 w-4 mr-2" />
-              Voltar
-            </Button>
-            <div className="flex items-center gap-3 flex-1">
-              <img src={logo} alt="ProGenia" className="h-8 progenia-logo" />
-              <h1 className="text-xl font-semibold truncate">{module.title}</h1>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/dashboard")}
+              >
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Voltar
+              </Button>
+              <div className="flex items-center gap-3 min-w-0">
+                <img src={logo} alt="ProGenia" className="h-8 progenia-logo" />
+                <h1 className="text-xl font-semibold truncate">{module.title}</h1>
+              </div>
             </div>
+            <ThemeToggle />
           </div>
         </div>
       </nav>

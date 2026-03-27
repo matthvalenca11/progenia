@@ -10,6 +10,7 @@ import { AiDisclaimerPopover } from "@/components/ai/AiDisclaimerPopover";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const isProGeniaLink = (href: string) =>
   /^\/(capsula|lesson|labs?|module)\//.test(href) || href === "/capsulas";
@@ -82,6 +83,24 @@ function fixProGeniaLinks(text: string, catalog: Catalog): string {
     });
 }
 
+function makeNoInfoResponseMoreConcise(text: string): string {
+  const trimmed = (text || "").trim();
+  if (!trimmed) return trimmed;
+
+  // Detect refusal/no-info template in PT/EN and keep only the first 1-2 sentences.
+  const normalized = norm(trimmed).replace(/’/g, "'");
+  const looksLikeNoInfo =
+    normalized.includes(norm("não encontrei informação confiável")) ||
+    normalized.includes("couldn't find reliable information") ||
+    normalized.includes("couldnt find reliable information");
+
+  if (!looksLikeNoInfo) return trimmed;
+
+  // Keep at most two sentences to avoid very long answers when the tutor can't help.
+  const sentences = trimmed.replace(/\s+/g, " ").split(/(?<=[.!?])\s+/);
+  return sentences.slice(0, 2).join(" ").trim();
+}
+
 interface Message {
   role: "user" | "assistant";
   content: string;
@@ -90,6 +109,8 @@ interface Message {
 const AITutor = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { language } = useLanguage();
+  const isEnglish = language === "en";
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -151,7 +172,7 @@ const AITutor = () => {
       if (data?.response) {
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: data.response },
+          { role: "assistant", content: makeNoInfoResponseMoreConcise(data.response) },
         ]);
       } else if (data?.error) {
         setMessages((prev) => [
@@ -201,17 +222,17 @@ const AITutor = () => {
     return (
       <Button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 rounded-full h-16 w-16 shadow-glow gradient-accent text-white"
-        size="icon"
+        className="fixed bottom-6 right-6 z-50 rounded-full h-14 px-5 shadow-glow gradient-accent text-white inline-flex items-center gap-2"
       >
-        <Brain className="h-7 w-7" />
+        <Brain className="h-5 w-5" />
+        <span className="font-semibold">Tutor de AI</span>
       </Button>
     );
   }
 
   return (
     <Card
-      className={`fixed bottom-6 right-6 shadow-2xl transition-all ${
+      className={`fixed bottom-6 right-6 z-50 shadow-2xl transition-all ${
         isMinimized ? "w-80 h-16" : "w-96 h-[600px]"
       } flex flex-col`}
     >
@@ -219,7 +240,7 @@ const AITutor = () => {
       <div className="flex items-center justify-between p-4 border-b border-border gradient-primary rounded-t-lg">
         <div className="flex items-center gap-2 text-white">
           <Brain className="h-5 w-5" />
-          <span className="font-semibold">Tutor de IA</span>
+          <span className="font-semibold">Tutor de AI</span>
         </div>
         <div className="flex items-center gap-2">
           <AiDisclaimerPopover />
@@ -328,7 +349,8 @@ const AITutor = () => {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-                placeholder="Pergunte-me qualquer coisa..."
+                placeholder={isEnglish ? "Ask me anything..." : "Pergunte-me qualquer coisa..."}
+                data-no-auto-translate="true"
                 disabled={loading}
                 className="flex-1"
               />

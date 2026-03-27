@@ -64,8 +64,11 @@ type LessonFormData = {
   duration_minutes: string;
   prerequisiteLessons: string[];
   thumbnail_url: string;
+  thumbnail_url_en: string;
   thumbnailSource: "upload" | "link";
   thumbnailFile: File | null;
+  thumbnailEnSource: "upload" | "link";
+  thumbnailEnFile: File | null;
   contentBlocks: ContentBlock[];
   references: Reference[];
 };
@@ -92,8 +95,11 @@ export function LessonsManager() {
     duration_minutes: "",
     prerequisiteLessons: [],
     thumbnail_url: "",
+    thumbnail_url_en: "",
     thumbnailSource: "link",
     thumbnailFile: null,
+    thumbnailEnSource: "link",
+    thumbnailEnFile: null,
     contentBlocks: [],
     references: [],
   });
@@ -146,8 +152,11 @@ export function LessonsManager() {
       duration_minutes: "",
       prerequisiteLessons: [],
       thumbnail_url: "",
+      thumbnail_url_en: "",
       thumbnailSource: "link",
       thumbnailFile: null,
+      thumbnailEnSource: "link",
+      thumbnailEnFile: null,
       contentBlocks: [],
       references: [],
     });
@@ -190,6 +199,33 @@ export function LessonsManager() {
               ...block.data,
               url: block.data.url || block.data.imageUrl || block.data.videoUrl
             }
+          };
+        }
+        if (block.type === "image") {
+          let imageUrl = block.data.imageUrl || block.data.url || "";
+          let imageUrlEn = block.data.imageUrlEn || "";
+
+          // Upload de imagem PT
+          if (block.data.imageFilePt instanceof File) {
+            imageUrl = await uploadMedia(block.data.imageFilePt, lessonId, "image");
+          }
+
+          // Upload de imagem EN
+          if (block.data.imageFileEn instanceof File) {
+            imageUrlEn = await uploadMedia(block.data.imageFileEn, lessonId, "image");
+          }
+
+          return {
+            ...block,
+            data: {
+              ...block.data,
+              imageUrl,
+              imageUrlEn,
+              // Mantém compatibilidade com render antigo.
+              url: imageUrl,
+              imageFilePt: undefined,
+              imageFileEn: undefined,
+            },
           };
         }
         return block;
@@ -236,12 +272,25 @@ export function LessonsManager() {
         finalThumbnailUrl = storageService.getPublicUrl("lesson-assets", result.path);
       }
 
+      let finalThumbnailUrlEn = formData.thumbnail_url_en;
+      if (formData.thumbnailEnSource === "upload" && formData.thumbnailEnFile) {
+        const fileName = storageService.generateUniqueFileName(formData.thumbnailEnFile.name);
+        const path = `lessons/${lessonId}/thumbnail_en_${fileName}`;
+        const result = await storageService.uploadFile({
+          bucket: "lesson-assets",
+          path,
+          file: formData.thumbnailEnFile,
+        });
+        finalThumbnailUrlEn = storageService.getPublicUrl("lesson-assets", result.path);
+      }
+
       // Atualizar com conteúdo completo
       const contentToSave = {
         blocks: processedBlocks,
         references: formData.references,
         prerequisites: formData.prerequisiteLessons,
         thumbnail: finalThumbnailUrl || null,
+        thumbnail_en: finalThumbnailUrlEn || null,
       };
 
       const { error: updateError } = await supabase
@@ -285,12 +334,25 @@ export function LessonsManager() {
         finalThumbnailUrl = storageService.getPublicUrl("lesson-assets", result.path);
       }
 
+      let finalThumbnailUrlEn = formData.thumbnail_url_en;
+      if (formData.thumbnailEnSource === "upload" && formData.thumbnailEnFile) {
+        const fileName = storageService.generateUniqueFileName(formData.thumbnailEnFile.name);
+        const path = `lessons/${editingLesson.id}/thumbnail_en_${fileName}`;
+        const result = await storageService.uploadFile({
+          bucket: "lesson-assets",
+          path,
+          file: formData.thumbnailEnFile,
+        });
+        finalThumbnailUrlEn = storageService.getPublicUrl("lesson-assets", result.path);
+      }
+
       // Atualizar aula
       const contentToSave = {
         blocks: processedBlocks,
         references: formData.references,
         prerequisites: formData.prerequisiteLessons,
         thumbnail: finalThumbnailUrl || null,
+        thumbnail_en: finalThumbnailUrlEn || null,
       };
 
       const { error } = await supabase
@@ -335,6 +397,7 @@ export function LessonsManager() {
         const content = lesson.content_data as any;
         // Thumbnail
         if (content.thumbnail && typeof content.thumbnail === "string") urls.push(content.thumbnail);
+        if (content.thumbnail_en && typeof content.thumbnail_en === "string") urls.push(content.thumbnail_en);
         // Blocos de imagem/vídeo
         (content.blocks || []).forEach((b: any) => {
           if ((b.type === "video" || b.type === "image") && b.data?.url) urls.push(b.data.url);
@@ -391,8 +454,11 @@ export function LessonsManager() {
       duration_minutes: lesson.duration_minutes?.toString() || "",
       prerequisiteLessons: contentData.prerequisites || [],
       thumbnail_url: contentData.thumbnail || "",
+      thumbnail_url_en: contentData.thumbnail_en || "",
       thumbnailSource: "link",
       thumbnailFile: null,
+      thumbnailEnSource: "link",
+      thumbnailEnFile: null,
       contentBlocks: contentData.blocks || [],
       references: contentData.references || [],
     });
@@ -621,8 +687,8 @@ export function LessonsManager() {
                         />
                       </div>
 
-                      <div className="col-span-2">
-                        <Label>Thumbnail da Aula</Label>
+                      <div className="col-span-2 lg:col-span-1">
+                        <Label>Thumbnail da Aula (Português)</Label>
                         
                         {/* Preview da thumbnail atual */}
                         {(formData.thumbnail_url || formData.thumbnailFile) && (
@@ -694,47 +760,115 @@ export function LessonsManager() {
 
                         <div className="grid grid-cols-2 gap-4 mt-2">
                           <div>
-                            <Label className="text-sm">Tipo</Label>
-                            <Select 
-                              value={formData.thumbnailSource} 
-                              onValueChange={(value: "upload" | "link") => {
-                                // Não limpar URL se já existe uma thumbnail
-                                if (formData.thumbnail_url) {
-                                  setFormData({ ...formData, thumbnailSource: value, thumbnailFile: null });
-                                } else {
-                                  setFormData({ ...formData, thumbnailSource: value, thumbnail_url: "", thumbnailFile: null });
-                                }
-                              }}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="link">Link Externo</SelectItem>
-                                <SelectItem value="upload">Upload</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <Label className="text-sm">URL da Imagem (PT) - opcional</Label>
+                            <Input
+                              value={formData.thumbnail_url}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  thumbnail_url: e.target.value,
+                                  thumbnailSource: "link",
+                                })
+                              }
+                              placeholder="https://..."
+                            />
                           </div>
                           <div>
-                            {formData.thumbnailSource === "link" ? (
-                              <>
-                                <Label className="text-sm">URL da Imagem</Label>
-                                <Input
-                                  value={formData.thumbnail_url}
-                                  onChange={(e) => setFormData({ ...formData, thumbnail_url: e.target.value })}
-                                  placeholder="https://..."
+                            <Label className="text-sm">Arquivo (PT)</Label>
+                            <FileUploadField
+                              accept="image/*"
+                              multiple={false}
+                              onFilesSelected={(files) =>
+                                setFormData({
+                                  ...formData,
+                                  thumbnailFile: files[0] || null,
+                                  thumbnailSource: "upload",
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="col-span-2 lg:col-span-1">
+                        <Label>Thumbnail da Aula (Inglês)</Label>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Você pode cadastrar as duas thumbnails (PT e EN). Em inglês, a plataforma usa a thumbnail EN e faz fallback para PT.
+                        </p>
+
+                        {(formData.thumbnail_url_en || formData.thumbnailEnFile) && (
+                          <div className="mb-4 border rounded-lg p-3 bg-muted/50">
+                            <div className="flex items-center justify-between mb-2">
+                              <Label className="text-sm font-medium">Preview da Thumbnail (EN)</Label>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={async () => {
+                                  if (formData.thumbnail_url_en && formData.thumbnail_url_en.includes("supabase.co/storage")) {
+                                    await deleteMediaFromStorage(formData.thumbnail_url_en, "image");
+                                  }
+                                  setFormData({
+                                    ...formData,
+                                    thumbnail_url_en: "",
+                                    thumbnailEnFile: null,
+                                  });
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            {formData.thumbnailEnFile ? (
+                              <div className="aspect-video w-full rounded-lg overflow-hidden bg-black">
+                                <img
+                                  src={URL.createObjectURL(formData.thumbnailEnFile)}
+                                  alt="Preview EN"
+                                  className="w-full h-full object-cover"
                                 />
-                              </>
-                            ) : (
-                              <>
-                                <Label className="text-sm">Arquivo</Label>
-                                <FileUploadField
-                                  accept="image/*"
-                                  multiple={false}
-                                  onFilesSelected={(files) => setFormData({ ...formData, thumbnailFile: files[0] || null })}
+                              </div>
+                            ) : formData.thumbnail_url_en ? (
+                              <div className="aspect-video w-full rounded-lg overflow-hidden bg-black">
+                                <img
+                                  src={formData.thumbnail_url_en}
+                                  alt="Preview EN"
+                                  className="w-full h-full object-cover"
                                 />
-                              </>
-                            )}
+                                <p className="text-xs text-muted-foreground mt-2 break-all">
+                                  {formData.thumbnail_url_en}
+                                </p>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-4 mt-2">
+                          <div>
+                            <Label className="text-sm">URL da Imagem (EN) - opcional</Label>
+                            <Input
+                              value={formData.thumbnail_url_en}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  thumbnail_url_en: e.target.value,
+                                  thumbnailEnSource: "link",
+                                })
+                              }
+                              placeholder="https://..."
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm">Arquivo (EN)</Label>
+                            <FileUploadField
+                              accept="image/*"
+                              multiple={false}
+                              onFilesSelected={(files) =>
+                                setFormData({
+                                  ...formData,
+                                  thumbnailEnFile: files[0] || null,
+                                  thumbnailEnSource: "upload",
+                                })
+                              }
+                            />
                           </div>
                         </div>
                       </div>
@@ -865,11 +999,11 @@ export function LessonsManager() {
                                 {(block.type === "video" || block.type === "image") && (
                                   <div className="space-y-3">
                                     {/* Mostrar preview do arquivo já enviado */}
-                                    {(block.data.url || block.data.imageUrl || block.data.videoUrl) && !block.data.file && (
+                                    {block.type === "video" && (block.data.url || block.data.videoUrl) && !block.data.file && (
                                       <div className="border rounded-lg p-3 bg-muted/50">
                                         <div className="flex items-center justify-between mb-2">
                                           <Label className="text-sm font-medium">
-                                            {block.type === "video" ? "Vídeo" : "Imagem"} Atual
+                                            Vídeo Atual
                                           </Label>
                                           <Button
                                             type="button"
@@ -890,60 +1024,23 @@ export function LessonsManager() {
                                             <Trash2 className="h-4 w-4" />
                                           </Button>
                                         </div>
-                                        {block.type === "video" ? (
-                                          <div className="aspect-video w-full rounded-lg overflow-hidden bg-black">
-                                            <video
-                                              src={block.data.url || block.data.videoUrl}
-                                              controls
-                                              className="w-full h-full"
-                                            >
-                                              Seu navegador não suporta vídeo.
-                                            </video>
-                                          </div>
-                                        ) : (
-                                          <div className="relative">
-                                            <img
-                                              src={block.data.url || block.data.imageUrl}
-                                              alt="Preview"
-                                              className="w-full max-h-48 object-contain rounded-lg border border-border"
-                                              onError={(e) => {
-                                                console.error("Erro ao carregar imagem:", {
-                                                  url: block.data.url || block.data.imageUrl,
-                                                  error: "Imagem não encontrada ou sem permissão de acesso"
-                                                });
-                                                const img = e.currentTarget;
-                                                img.style.display = 'none';
-                                                const parent = img.parentElement;
-                                                if (parent && !parent.querySelector('.error-message')) {
-                                                  const errorDiv = document.createElement('div');
-                                                  errorDiv.className = 'error-message aspect-video flex flex-col items-center justify-center bg-red-50 dark:bg-red-950 rounded-lg p-4 border border-red-200 dark:border-red-800';
-                                                  errorDiv.innerHTML = `
-                                                    <ImageIcon class="h-8 w-8 text-red-500 mb-2" />
-                                                    <p class="text-sm text-red-600 dark:text-red-400 text-center font-medium">Erro ao carregar imagem</p>
-                                                    <p class="text-xs text-muted-foreground mt-1 text-center break-all">Verifique as permissões do bucket no Supabase</p>
-                                                  `;
-                                                  parent.appendChild(errorDiv);
-                                                }
-                                              }}
-                                              onLoad={(e) => {
-                                                // Remover mensagem de erro se a imagem carregar com sucesso
-                                                const parent = e.currentTarget.parentElement;
-                                                if (parent) {
-                                                  const errorMsg = parent.querySelector('.error-message');
-                                                  if (errorMsg) errorMsg.remove();
-                                                }
-                                              }}
-                                            />
-                                          </div>
-                                        )}
+                                        <div className="aspect-video w-full rounded-lg overflow-hidden bg-black">
+                                          <video
+                                            src={block.data.url || block.data.videoUrl}
+                                            controls
+                                            className="w-full h-full"
+                                          >
+                                            Seu navegador não suporta vídeo.
+                                          </video>
+                                        </div>
                                         <p className="text-xs text-muted-foreground mt-2 break-all">
-                                          {block.data.url || block.data.imageUrl || block.data.videoUrl}
+                                          {block.data.url || block.data.videoUrl}
                                         </p>
                                       </div>
                                     )}
 
                                     {/* Mostrar preview do arquivo selecionado mas ainda não enviado */}
-                                    {block.data.file && (
+                                    {block.type === "video" && block.data.file && (
                                       <div className="border rounded-lg p-3 bg-blue-50 dark:bg-blue-950">
                                         <div className="flex items-center justify-between mb-2">
                                           <Label className="text-sm font-medium text-blue-700 dark:text-blue-300">
@@ -968,45 +1065,160 @@ export function LessonsManager() {
                                     )}
 
                                     <div>
-                                      <Label>Origem do Arquivo</Label>
-                                      <Select
-                                        value={block.data.source || "link"}
-                                        onValueChange={(value: "upload" | "link") => {
-                                          // Não limpar URL se já existe um arquivo enviado
-                                          if (block.data.url || block.data.imageUrl || block.data.videoUrl) {
-                                            updateContentBlock(block.id, { source: value, file: null });
-                                          } else {
-                                            updateContentBlock(block.id, { source: value, url: "", file: null });
-                                          }
-                                        }}
-                                      >
-                                        <SelectTrigger>
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="link">Link Externo</SelectItem>
-                                          <SelectItem value="upload">Upload</SelectItem>
-                                        </SelectContent>
-                                      </Select>
+                                      {block.type === "video" && (
+                                        <>
+                                          <Label>Origem do Arquivo</Label>
+                                          <Select
+                                            value={block.data.source || "link"}
+                                            onValueChange={(value: "upload" | "link") => {
+                                              // Não limpar URL se já existe um arquivo enviado
+                                              if (block.data.url || block.data.videoUrl) {
+                                                updateContentBlock(block.id, { source: value, file: null });
+                                              } else {
+                                                updateContentBlock(block.id, { source: value, url: "", file: null });
+                                              }
+                                            }}
+                                          >
+                                            <SelectTrigger>
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="link">Link Externo</SelectItem>
+                                              <SelectItem value="upload">Upload</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                        </>
+                                      )}
                                     </div>
 
-                                    {block.data.source === "link" ? (
-                                      <div>
-                                        <Label>URL do {block.type === "video" ? "Vídeo" : "Imagem"}</Label>
-                                        <Input
-                                          value={block.data.url || block.data.imageUrl || block.data.videoUrl || ""}
-                                          onChange={(e) => updateContentBlock(block.id, { url: e.target.value })}
-                                          placeholder="https://..."
-                                        />
-                                      </div>
-                                    ) : (
-                                      <div>
-                                        <Label>Arquivo</Label>
-                                        <FileUploadField
-                                          accept={block.type === "video" ? "video/*" : "image/*"}
-                                          multiple={false}
-                                          onFilesSelected={(files) => updateContentBlock(block.id, { file: files[0] || null })}
-                                        />
+                                    {block.type === "video" && (
+                                      <>
+                                        {block.data.source === "link" ? (
+                                          <div>
+                                            <Label>URL do Vídeo</Label>
+                                            <Input
+                                              value={block.data.url || block.data.videoUrl || ""}
+                                              onChange={(e) => updateContentBlock(block.id, { url: e.target.value })}
+                                              placeholder="https://..."
+                                            />
+                                          </div>
+                                        ) : (
+                                          <div>
+                                            <Label>Arquivo</Label>
+                                            <FileUploadField
+                                              accept="video/*"
+                                              multiple={false}
+                                              onFilesSelected={(files) => updateContentBlock(block.id, { file: files[0] || null })}
+                                            />
+                                          </div>
+                                        )}
+                                      </>
+                                    )}
+
+                                    {block.type === "image" && (
+                                      <div className="space-y-4">
+                                        <div className="text-sm font-medium">
+                                          Imagem do conteúdo por idioma
+                                        </div>
+
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                          <div className="space-y-3 border rounded-lg p-3">
+                                            <Label className="text-sm font-medium">Português (PT)</Label>
+                                            {(block.data.imageUrl || block.data.url) && (
+                                              <div className="border rounded-lg p-3 bg-muted/50">
+                                                <div className="flex items-center justify-between mb-2">
+                                                  <Label className="text-sm font-medium">Imagem Atual (PT)</Label>
+                                                  <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={async () => {
+                                                      const urlToDelete = block.data.imageUrl || block.data.url;
+                                                      if (urlToDelete && urlToDelete.includes("supabase.co/storage")) {
+                                                        await deleteMediaFromStorage(urlToDelete, "image");
+                                                      }
+                                                      updateContentBlock(block.id, { imageUrl: "", url: "" });
+                                                    }}
+                                                  >
+                                                    <Trash2 className="h-4 w-4" />
+                                                  </Button>
+                                                </div>
+                                                <img
+                                                  src={block.data.imageUrl || block.data.url}
+                                                  alt="Preview PT"
+                                                  className="w-full max-h-48 object-contain rounded-lg border border-border"
+                                                />
+                                              </div>
+                                            )}
+                                            <div>
+                                              <Label>URL da Imagem (PT) - opcional</Label>
+                                              <Input
+                                                value={block.data.imageUrl || block.data.url || ""}
+                                                onChange={(e) =>
+                                                  updateContentBlock(block.id, { imageUrl: e.target.value, url: e.target.value })
+                                                }
+                                                placeholder="https://..."
+                                              />
+                                            </div>
+                                            <div>
+                                              <Label>Arquivo (PT)</Label>
+                                              <FileUploadField
+                                                accept="image/*"
+                                                multiple={false}
+                                                onFilesSelected={(files) =>
+                                                  updateContentBlock(block.id, { imageFilePt: files[0] || null })
+                                                }
+                                              />
+                                            </div>
+                                          </div>
+
+                                          <div className="space-y-3 border rounded-lg p-3">
+                                            <Label className="text-sm font-medium">Inglês (EN)</Label>
+                                            {block.data.imageUrlEn && (
+                                              <div className="border rounded-lg p-3 bg-muted/50">
+                                                <div className="flex items-center justify-between mb-2">
+                                                  <Label className="text-sm font-medium">Imagem Atual (EN)</Label>
+                                                  <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={async () => {
+                                                      if (block.data.imageUrlEn && block.data.imageUrlEn.includes("supabase.co/storage")) {
+                                                        await deleteMediaFromStorage(block.data.imageUrlEn, "image");
+                                                      }
+                                                      updateContentBlock(block.id, { imageUrlEn: "" });
+                                                    }}
+                                                  >
+                                                    <Trash2 className="h-4 w-4" />
+                                                  </Button>
+                                                </div>
+                                                <img
+                                                  src={block.data.imageUrlEn}
+                                                  alt="Preview EN"
+                                                  className="w-full max-h-48 object-contain rounded-lg border border-border"
+                                                />
+                                              </div>
+                                            )}
+                                            <div>
+                                              <Label>URL da Imagem (EN) - opcional</Label>
+                                              <Input
+                                                value={block.data.imageUrlEn || ""}
+                                                onChange={(e) => updateContentBlock(block.id, { imageUrlEn: e.target.value })}
+                                                placeholder="https://..."
+                                              />
+                                            </div>
+                                            <div>
+                                              <Label>Arquivo (EN)</Label>
+                                              <FileUploadField
+                                                accept="image/*"
+                                                multiple={false}
+                                                onFilesSelected={(files) =>
+                                                  updateContentBlock(block.id, { imageFileEn: files[0] || null })
+                                                }
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
                                       </div>
                                     )}
                                   </div>

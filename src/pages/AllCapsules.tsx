@@ -175,8 +175,12 @@ export default function AllCapsules() {
           // Carregar thumbnails
           const urls: Record<string, string> = {};
           for (const capsula of allCapsulas) {
-            if (capsula.thumbnail_url) {
-              urls[capsula.id!] = capsula.thumbnail_url;
+            const selectedThumbnail =
+              isEnglish && capsula.thumbnail_url_en
+                ? capsula.thumbnail_url_en
+                : capsula.thumbnail_url;
+            if (selectedThumbnail) {
+              urls[capsula.id!] = selectedThumbnail;
             }
           }
           setThumbnailUrls(urls);
@@ -190,7 +194,7 @@ export default function AllCapsules() {
     };
 
     loadData();
-  }, [user]);
+  }, [user, isEnglish]);
 
   if (loading) {
     return (

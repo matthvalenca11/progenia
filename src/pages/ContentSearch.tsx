@@ -24,7 +24,7 @@ type LessonItem = {
   title: string;
   description: string | null;
   module_id: string | null;
-  content_data?: { thumbnail?: string } | null;
+  content_data?: { thumbnail?: string; thumbnail_en?: string } | null;
   modules?: { title?: string } | null;
 };
 
@@ -34,6 +34,7 @@ type CapsulaItem = {
   description: string | null;
   module_id: string | null;
   thumbnail_url?: string | null;
+  thumbnail_url_en?: string | null;
   modules?: { title?: string } | null;
 };
 
@@ -255,7 +256,7 @@ export default function ContentSearch() {
             .eq("is_published", true),
           supabase
             .from("capsulas")
-            .select("id, title, description, module_id, thumbnail_url, modules:modules!capsulas_module_id_fkey(title)")
+            .select("id, title, description, module_id, thumbnail_url, thumbnail_url_en, modules:modules!capsulas_module_id_fkey(title)")
             .eq("is_published", true),
           enrollmentService.getUserEnrollments(user.id),
         ]);
@@ -501,7 +502,12 @@ export default function ContentSearch() {
           score,
           requiresEnrollment: Boolean(moduleId),
           isEnrolled: moduleId ? enrolledModuleIds.has(moduleId) : true,
-          thumbnailUrl: (lesson.content_data as { thumbnail?: string } | null | undefined)?.thumbnail ?? null,
+          thumbnailUrl:
+            (isEnglish
+              ? (lesson.content_data as { thumbnail?: string; thumbnail_en?: string } | null | undefined)?.thumbnail_en
+              : null) ??
+            (lesson.content_data as { thumbnail?: string; thumbnail_en?: string } | null | undefined)?.thumbnail ??
+            null,
         };
       })
       .filter((item): item is ResultItem => Boolean(item && item.score > 0));
@@ -529,7 +535,7 @@ export default function ContentSearch() {
           score,
           requiresEnrollment: Boolean(moduleId),
           isEnrolled: moduleId ? enrolledModuleIds.has(moduleId) : true,
-          thumbnailUrl: capsula.thumbnail_url ?? null,
+          thumbnailUrl: (isEnglish ? capsula.thumbnail_url_en : null) ?? capsula.thumbnail_url ?? null,
         };
       })
       .filter((item): item is ResultItem => Boolean(item && item.score > 0));
@@ -570,7 +576,7 @@ export default function ContentSearch() {
     }
 
     return [...lessonResults, ...capsulaResults, ...moduleResults].sort((a, b) => b.score - a.score);
-  }, [query, searchAlternatives, modules, lessons, capsulas, englishSearchIndex, enrolledModuleIds]);
+  }, [query, searchAlternatives, modules, lessons, capsulas, englishSearchIndex, enrolledModuleIds, isEnglish]);
 
   const groupedResults = useMemo(
     () => ({

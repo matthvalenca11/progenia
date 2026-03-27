@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileUploadField } from "@/components/ui/FileUploadField";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Eye, EyeOff, Zap, Link as LinkIcon, Upload, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, EyeOff, Zap, Link as LinkIcon, Upload, Loader2, ChevronUp, ChevronDown } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { storageService } from "@/services/storageService";
 import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
@@ -28,17 +28,22 @@ type Capsula = {
   duration_minutes: number | null;
   order_index: number | null;
   thumbnail_url: string | null;
+  thumbnail_url_en: string | null;
   content_data: any;
 };
 
 interface MediaItem {
+  id: string;
   type: "video" | "image";
   source: "upload" | "link";
   url?: string;
   file?: File;
+  urlEn?: string;
+  fileEn?: File;
 }
 
 interface QuizQuestion {
+  id: string;
   question: string;
   options: string[];
   correctAnswer: number;
@@ -51,12 +56,16 @@ type CapsulaFormData = {
   is_published: boolean;
   duration_minutes: string;
   thumbnail_url: string;
+  thumbnail_url_en: string;
   thumbnailSource: "upload" | "link";
   thumbnailFile: File | null;
+  thumbnailEnSource: "upload" | "link";
+  thumbnailEnFile: File | null;
   contentText: string;
   media: MediaItem[];
   virtualLabId: string;
   quiz: QuizQuestion[];
+  contentOrder: string[];
 };
 
 export function CapsulasManager() {
@@ -77,13 +86,32 @@ export function CapsulasManager() {
     is_published: false,
     duration_minutes: "",
     thumbnail_url: "",
+    thumbnail_url_en: "",
     thumbnailSource: "link",
     thumbnailFile: null,
+    thumbnailEnSource: "link",
+    thumbnailEnFile: null,
     contentText: "",
     media: [],
     virtualLabId: "none",
     quiz: [],
+    contentOrder: [],
   });
+
+  const generateLocalId = () =>
+    `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+  const moveContentItem = (token: string, direction: "up" | "down") => {
+    setFormData((prev) => {
+      const idx = prev.contentOrder.indexOf(token);
+      if (idx < 0) return prev;
+      const target = direction === "up" ? idx - 1 : idx + 1;
+      if (target < 0 || target >= prev.contentOrder.length) return prev;
+      const nextOrder = [...prev.contentOrder];
+      [nextOrder[idx], nextOrder[target]] = [nextOrder[target], nextOrder[idx]];
+      return { ...prev, contentOrder: nextOrder };
+    });
+  };
 
   const loadCapsulas = async () => {
     try {
@@ -132,17 +160,22 @@ export function CapsulasManager() {
       is_published: false,
       duration_minutes: "",
       thumbnail_url: "",
+      thumbnail_url_en: "",
       thumbnailSource: "link",
       thumbnailFile: null,
+      thumbnailEnSource: "link",
+      thumbnailEnFile: null,
       contentText: "",
       media: [],
       virtualLabId: "none",
       quiz: [],
+      contentOrder: [],
     });
   };
 
   const uploadMedia = async (media: MediaItem, capsulaId: string): Promise<string> => {
-    if (media.source === "link") {
+    // Conteúdo legado pode vir sem "source", mas com URL já salva.
+    if (media.source === "link" || (!!media.url && !media.file)) {
       return media.url || "";
     }
 
@@ -188,6 +221,25 @@ export function CapsulasManager() {
       // Upload de mídia
       const mediaWithUrls = await Promise.all(
         formData.media.map(async (media) => {
+          if (media.type === "image") {
+            let url = media.url || "";
+            if (media.source === "upload" && media.file) {
+              url = await uploadMedia(media, capsulaId);
+            }
+
+            let urlEn = media.urlEn || "";
+            if (media.fileEn) {
+              const enMedia: MediaItem = {
+                type: "image",
+                source: "upload",
+                file: media.fileEn,
+              };
+              urlEn = await uploadMedia(enMedia, capsulaId);
+            }
+
+            return { type: media.type, url, url_en: urlEn || undefined };
+          }
+
           const url = await uploadMedia(media, capsulaId);
           return { type: media.type, url };
         })
@@ -206,12 +258,26 @@ export function CapsulasManager() {
         finalThumbnailUrl = storageService.getPublicUrl("lesson-assets", result.path);
       }
 
+      // Upload de thumbnail em inglês (opcional)
+      let finalThumbnailUrlEn = formData.thumbnail_url_en;
+      if (formData.thumbnailEnSource === "upload" && formData.thumbnailEnFile) {
+        const fileName = storageService.generateUniqueFileName(formData.thumbnailEnFile.name);
+        const path = `capsulas/${capsulaId}/thumbnail_en_${fileName}`;
+        const result = await storageService.uploadFile({
+          bucket: "lesson-assets",
+          path,
+          file: formData.thumbnailEnFile,
+        });
+        finalThumbnailUrlEn = storageService.getPublicUrl("lesson-assets", result.path);
+      }
+
       // Atualizar com conteúdo e thumbnail
       const contentToSave: any = {
         text: formData.contentText,
         media: mediaWithUrls,
         virtualLabId: formData.virtualLabId !== "none" ? formData.virtualLabId : undefined,
         quiz: formData.quiz.length > 0 ? formData.quiz : undefined,
+        content_order: formData.contentOrder,
       };
 
       const { error: updateError } = await supabase
@@ -219,6 +285,7 @@ export function CapsulasManager() {
         .update({
           content_data: contentToSave,
           thumbnail_url: finalThumbnailUrl || null,
+          thumbnail_url_en: finalThumbnailUrlEn || null,
         })
         .eq("id", capsulaId);
 
@@ -245,6 +312,25 @@ export function CapsulasManager() {
       // Upload de mídia
       const mediaWithUrls = await Promise.all(
         formData.media.map(async (media) => {
+          if (media.type === "image") {
+            let url = media.url || "";
+            if (media.source === "upload" && media.file) {
+              url = await uploadMedia(media, editingCapsula.id);
+            }
+
+            let urlEn = media.urlEn || "";
+            if (media.fileEn) {
+              const enMedia: MediaItem = {
+                type: "image",
+                source: "upload",
+                file: media.fileEn,
+              };
+              urlEn = await uploadMedia(enMedia, editingCapsula.id);
+            }
+
+            return { type: media.type, url, url_en: urlEn || undefined };
+          }
+
           const url = await uploadMedia(media, editingCapsula.id);
           return { type: media.type, url };
         })
@@ -263,12 +349,26 @@ export function CapsulasManager() {
         finalThumbnailUrl = storageService.getPublicUrl("lesson-assets", result.path);
       }
 
+      // Upload de thumbnail em inglês (opcional)
+      let finalThumbnailUrlEn = formData.thumbnail_url_en;
+      if (formData.thumbnailEnSource === "upload" && formData.thumbnailEnFile) {
+        const fileName = storageService.generateUniqueFileName(formData.thumbnailEnFile.name);
+        const path = `capsulas/${editingCapsula.id}/thumbnail_en_${fileName}`;
+        const result = await storageService.uploadFile({
+          bucket: "lesson-assets",
+          path,
+          file: formData.thumbnailEnFile,
+        });
+        finalThumbnailUrlEn = storageService.getPublicUrl("lesson-assets", result.path);
+      }
+
       // Atualizar cápsula
       const contentToSave: any = {
         text: formData.contentText,
         media: mediaWithUrls,
         virtualLabId: formData.virtualLabId !== "none" ? formData.virtualLabId : undefined,
         quiz: formData.quiz.length > 0 ? formData.quiz : undefined,
+        content_order: formData.contentOrder,
       };
 
       const { error } = await supabase
@@ -280,6 +380,7 @@ export function CapsulasManager() {
           is_published: formData.is_published,
           duration_minutes: formData.duration_minutes ? parseInt(formData.duration_minutes) : null,
           thumbnail_url: finalThumbnailUrl || null,
+          thumbnail_url_en: finalThumbnailUrlEn || null,
           content_data: contentToSave,
         })
         .eq("id", editingCapsula.id);
@@ -305,16 +406,18 @@ export function CapsulasManager() {
       // Buscar cápsula para extrair URLs de mídia antes de excluir
       const { data: capsula } = await supabase
         .from("capsulas")
-        .select("thumbnail_url, content_data")
+        .select("thumbnail_url, thumbnail_url_en, content_data")
         .eq("id", deleteCapsulaId)
         .single();
 
       if (capsula) {
         const urls: string[] = [];
         if (capsula.thumbnail_url && typeof capsula.thumbnail_url === "string") urls.push(capsula.thumbnail_url);
+        if (capsula.thumbnail_url_en && typeof capsula.thumbnail_url_en === "string") urls.push(capsula.thumbnail_url_en);
         const content = capsula.content_data as any;
         (content?.media || []).forEach((m: any) => {
           if (m?.url && typeof m.url === "string") urls.push(m.url);
+          if (m?.url_en && typeof m.url_en === "string") urls.push(m.url_en);
         });
         // Deletar mídia do storage (apenas URLs do Supabase)
         await Promise.allSettled(
@@ -358,7 +461,35 @@ export function CapsulasManager() {
   const openEditDialog = (capsula: Capsula) => {
     setEditingCapsula(capsula);
     const contentData = capsula.content_data as any || {};
+    const normalizedMedia: MediaItem[] = Array.isArray(contentData.media)
+      ? contentData.media.map((media: any) => ({
+          id: generateLocalId(),
+          type: media?.type === "video" ? "video" : "image",
+          source: "link",
+          url: media?.url || "",
+          urlEn: media?.url_en || "",
+        }))
+      : [];
+    const normalizedQuiz: QuizQuestion[] = Array.isArray(contentData.quiz)
+      ? contentData.quiz.map((q: any) => ({
+          id: generateLocalId(),
+          question: q?.question || "",
+          options: Array.isArray(q?.options) ? q.options : ["", "", "", ""],
+          correctAnswer: Number.isInteger(q?.correctAnswer) ? q.correctAnswer : 0,
+        }))
+      : [];
     const hasVirtualLab = contentData.virtualLabId && contentData.virtualLabId !== "none";
+    const defaultOrder = [
+      ...(contentData.text ? ["text"] : []),
+      ...normalizedMedia.map((m) => `media:${m.id}`),
+      ...(hasVirtualLab ? ["virtualLab"] : []),
+      ...(normalizedQuiz.length > 0 ? ["quiz"] : []),
+    ];
+    const savedOrder = Array.isArray(contentData.content_order) ? contentData.content_order : defaultOrder;
+    const validTokens = new Set(defaultOrder);
+    const normalizedOrder = savedOrder.filter((token: string) => validTokens.has(token));
+    const missingTokens = defaultOrder.filter((token) => !normalizedOrder.includes(token));
+    const contentOrder = [...normalizedOrder, ...missingTokens];
     setShowVirtualLab(hasVirtualLab);
     setFormData({
       title: capsula.title,
@@ -367,12 +498,16 @@ export function CapsulasManager() {
       is_published: capsula.is_published,
       duration_minutes: capsula.duration_minutes?.toString() || "",
       thumbnail_url: capsula.thumbnail_url || "",
+      thumbnail_url_en: capsula.thumbnail_url_en || "",
       thumbnailSource: "link",
       thumbnailFile: null,
+      thumbnailEnSource: "link",
+      thumbnailEnFile: null,
       contentText: contentData.text || "",
-      media: contentData.media || [],
+      media: normalizedMedia,
       virtualLabId: contentData.virtualLabId || "none",
-      quiz: contentData.quiz || [],
+      quiz: normalizedQuiz,
+      contentOrder,
     });
     setIsDialogOpen(true);
   };
@@ -384,16 +519,23 @@ export function CapsulasManager() {
   };
 
   const handleAddMedia = (type: "video" | "image") => {
+    const id = generateLocalId();
+    const token = `media:${id}`;
     setFormData({
       ...formData,
-      media: [...formData.media, { type, source: "link" }],
+      media: [...formData.media, { id, type, source: "link" }],
+      contentOrder: [...formData.contentOrder, token],
     });
   };
 
   const handleRemoveMedia = (index: number) => {
+    const mediaId = formData.media[index]?.id;
     setFormData({
       ...formData,
       media: formData.media.filter((_, i) => i !== index),
+      contentOrder: mediaId
+        ? formData.contentOrder.filter((token) => token !== `media:${mediaId}`)
+        : formData.contentOrder,
     });
   };
 
@@ -404,19 +546,27 @@ export function CapsulasManager() {
   };
 
   const handleAddQuizQuestion = () => {
+    const nextQuiz = [
+      ...formData.quiz,
+      { id: generateLocalId(), question: "", options: ["", "", "", ""], correctAnswer: 0 },
+    ];
     setFormData({
       ...formData,
-      quiz: [
-        ...formData.quiz,
-        { question: "", options: ["", "", "", ""], correctAnswer: 0 },
-      ],
+      quiz: nextQuiz,
+      contentOrder: formData.contentOrder.includes("quiz")
+        ? formData.contentOrder
+        : [...formData.contentOrder, "quiz"],
     });
   };
 
   const handleRemoveQuizQuestion = (index: number) => {
+    const nextQuiz = formData.quiz.filter((_, i) => i !== index);
     setFormData({
       ...formData,
-      quiz: formData.quiz.filter((_, i) => i !== index),
+      quiz: nextQuiz,
+      contentOrder: nextQuiz.length > 0
+        ? formData.contentOrder
+        : formData.contentOrder.filter((token) => token !== "quiz"),
     });
   };
 
@@ -518,8 +668,8 @@ export function CapsulasManager() {
                         />
                       </div>
 
-                      <div className="col-span-2">
-                        <Label>Thumbnail da Cápsula</Label>
+                      <div className="col-span-2 lg:col-span-1">
+                        <Label>Thumbnail da Cápsula (Português)</Label>
                         <div className="grid grid-cols-2 gap-4 mt-2">
                           <div>
                             <Label className="text-xs text-muted-foreground">Link da Imagem</Label>
@@ -528,6 +678,13 @@ export function CapsulasManager() {
                               value={formData.thumbnail_url}
                               onChange={(e) => setFormData({ ...formData, thumbnail_url: e.target.value, thumbnailSource: "link" })}
                             />
+                            {(formData.thumbnail_url || formData.thumbnailFile) && (
+                              <img
+                                src={formData.thumbnailFile ? URL.createObjectURL(formData.thumbnailFile) : formData.thumbnail_url}
+                                alt="Preview"
+                                className="mt-2 w-48 h-32 object-cover rounded-lg border"
+                              />
+                            )}
                           </div>
                           <div>
                             <Label className="text-xs text-muted-foreground">Ou fazer Upload</Label>
@@ -538,13 +695,54 @@ export function CapsulasManager() {
                             />
                           </div>
                         </div>
-                        {(formData.thumbnail_url || formData.thumbnailFile) && (
-                          <img
-                            src={formData.thumbnailFile ? URL.createObjectURL(formData.thumbnailFile) : formData.thumbnail_url}
-                            alt="Preview"
-                            className="mt-2 w-48 h-32 object-cover rounded-lg border"
-                          />
-                        )}
+                      </div>
+
+                      <div className="col-span-2 lg:col-span-1">
+                        <Label>Thumbnail da Cápsula (Inglês)</Label>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Você pode cadastrar as duas thumbnails (PT e EN). Em inglês, a plataforma usa a thumbnail EN e faz fallback para PT.
+                        </p>
+                        <div className="grid grid-cols-2 gap-4 mt-2">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Link da Imagem (EN)</Label>
+                            <Input
+                              placeholder="https://..."
+                              value={formData.thumbnail_url_en}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  thumbnail_url_en: e.target.value,
+                                  thumbnailEnSource: "link",
+                                })
+                              }
+                            />
+                            {(formData.thumbnail_url_en || formData.thumbnailEnFile) && (
+                              <img
+                                src={
+                                  formData.thumbnailEnFile
+                                    ? URL.createObjectURL(formData.thumbnailEnFile)
+                                    : formData.thumbnail_url_en
+                                }
+                                alt="Preview EN"
+                                className="mt-2 w-48 h-32 object-cover rounded-lg border"
+                              />
+                            )}
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Ou fazer Upload (EN)</Label>
+                            <FileUploadField
+                              accept="image/*"
+                              maxSize={5}
+                              onFilesSelected={(files) =>
+                                setFormData({
+                                  ...formData,
+                                  thumbnailEnFile: files[0],
+                                  thumbnailEnSource: "upload",
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
                       </div>
 
                       <div className="col-span-2 flex items-center space-x-2">
@@ -567,7 +765,15 @@ export function CapsulasManager() {
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => setFormData({ ...formData, contentText: formData.contentText || " " })}
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              contentText: prev.contentText || " ",
+                              contentOrder: prev.contentOrder.includes("text")
+                                ? prev.contentOrder
+                                : [...prev.contentOrder, "text"],
+                            }))
+                          }
                         >
                           <Plus className="h-4 w-4 mr-2" />
                           Texto
@@ -594,7 +800,15 @@ export function CapsulasManager() {
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => setShowVirtualLab(true)}
+                          onClick={() => {
+                            setShowVirtualLab(true);
+                            setFormData((prev) => ({
+                              ...prev,
+                              contentOrder: prev.contentOrder.includes("virtualLab")
+                                ? prev.contentOrder
+                                : [...prev.contentOrder, "virtualLab"],
+                            }));
+                          }}
                         >
                           <Plus className="h-4 w-4 mr-2" />
                           Lab Virtual
@@ -614,172 +828,352 @@ export function CapsulasManager() {
                     {/* Lista de Conteúdo Adicionado */}
                     <div className="space-y-3">
                       {/* Texto */}
-                      {formData.contentText && (
-                        <Card>
-                          <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                              <CardTitle className="text-sm font-medium">Texto</CardTitle>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setFormData({ ...formData, contentText: "" })}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            <Textarea
-                              value={formData.contentText}
-                              onChange={(e) => setFormData({ ...formData, contentText: e.target.value })}
-                              placeholder="Digite o conteúdo de texto da cápsula..."
-                              rows={6}
-                            />
-                          </CardContent>
-                        </Card>
-                      )}
+                      {formData.contentOrder
+                        .filter((token) => {
+                          if (token === "text") return !!formData.contentText;
+                          if (token === "virtualLab") return showVirtualLab;
+                          if (token === "quiz") return formData.quiz.length > 0;
+                          if (token.startsWith("media:")) {
+                            const id = token.replace("media:", "");
+                            return formData.media.some((m) => m.id === id);
+                          }
+                          return false;
+                        })
+                        .map((token, orderIndex) => {
+                          const isFirst = orderIndex === 0;
+                          const isLast = orderIndex === formData.contentOrder.filter((t) => {
+                            if (t === "text") return !!formData.contentText;
+                            if (t === "virtualLab") return showVirtualLab;
+                            if (t === "quiz") return formData.quiz.length > 0;
+                            if (t.startsWith("media:")) {
+                              const id = t.replace("media:", "");
+                              return formData.media.some((m) => m.id === id);
+                            }
+                            return false;
+                          }).length - 1;
 
-                      {/* Mídias (Imagens e Vídeos) */}
-                      {formData.media.map((media, index) => (
-                        <Card key={index}>
-                          <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                              <CardTitle className="text-sm font-medium capitalize">
-                                {media.type === "video" ? "Vídeo" : "Imagem"}
-                              </CardTitle>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveMedia(index)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <Label className="text-xs text-muted-foreground">Link</Label>
-                                <Input
-                                  placeholder="https://..."
-                                  value={media.url || ""}
-                                  onChange={(e) => handleMediaChange(index, { url: e.target.value, source: "link" })}
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-xs text-muted-foreground">Ou fazer Upload</Label>
-                                <FileUploadField
-                                  accept={media.type === "video" ? "video/*" : "image/*"}
-                                  maxSize={media.type === "video" ? 100 : 10}
-                                  onFilesSelected={(files) => handleMediaChange(index, { file: files[0], source: "upload" })}
-                                />
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+                          if (token === "text") {
+                            return (
+                              <Card key="text">
+                                <CardHeader className="pb-3">
+                                  <div className="flex items-center justify-between">
+                                    <CardTitle className="text-sm font-medium">Texto</CardTitle>
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={isFirst}
+                                        onClick={() => moveContentItem("text", "up")}
+                                      >
+                                        <ChevronUp className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={isLast}
+                                        onClick={() => moveContentItem("text", "down")}
+                                      >
+                                        <ChevronDown className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() =>
+                                          setFormData({
+                                            ...formData,
+                                            contentText: "",
+                                            contentOrder: formData.contentOrder.filter((t) => t !== "text"),
+                                          })
+                                        }
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </CardHeader>
+                                <CardContent>
+                                  <Textarea
+                                    value={formData.contentText}
+                                    onChange={(e) => setFormData({ ...formData, contentText: e.target.value })}
+                                    placeholder="Digite o conteúdo de texto da cápsula..."
+                                    rows={6}
+                                  />
+                                </CardContent>
+                              </Card>
+                            );
+                          }
 
-                      {/* Lab Virtual */}
-                      {showVirtualLab && (
-                        <Card>
-                          <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                              <CardTitle className="text-sm font-medium">Lab Virtual</CardTitle>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setShowVirtualLab(false);
-                                  setFormData({ ...formData, virtualLabId: "none" });
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            {virtualLabs.length === 0 ? (
-                              <div className="text-sm text-muted-foreground p-4 bg-muted/50 rounded-md">
-                                <p>Nenhum lab virtual publicado disponível.</p>
-                                <p className="mt-1">Vá para a aba "Labs Virtuais" para criar e publicar labs.</p>
-                              </div>
-                            ) : (
-                              <Select
-                                value={formData.virtualLabId}
-                                onValueChange={(value) => setFormData({ ...formData, virtualLabId: value })}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecione um lab virtual" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {virtualLabs.map((lab) => (
-                                    <SelectItem key={lab.id} value={lab.id!}>
-                                      {lab.name}
-                                    </SelectItem>
+                          if (token.startsWith("media:")) {
+                            const mediaId = token.replace("media:", "");
+                            const mediaIndex = formData.media.findIndex((m) => m.id === mediaId);
+                            if (mediaIndex < 0) return null;
+                            const media = formData.media[mediaIndex];
+                            return (
+                              <Card key={token}>
+                                <CardHeader className="pb-3">
+                                  <div className="flex items-center justify-between">
+                                    <CardTitle className="text-sm font-medium capitalize">
+                                      {media.type === "video" ? "Vídeo" : "Imagem"}
+                                    </CardTitle>
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={isFirst}
+                                        onClick={() => moveContentItem(token, "up")}
+                                      >
+                                        <ChevronUp className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={isLast}
+                                        onClick={() => moveContentItem(token, "down")}
+                                      >
+                                        <ChevronDown className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleRemoveMedia(mediaIndex)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                  {media.type === "video" ? (
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div>
+                                        <Label className="text-xs text-muted-foreground">Link</Label>
+                                        <Input
+                                          placeholder="https://..."
+                                          value={media.url || ""}
+                                          onChange={(e) => handleMediaChange(mediaIndex, { url: e.target.value, source: "link" })}
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label className="text-xs text-muted-foreground">Ou fazer Upload</Label>
+                                        <FileUploadField
+                                          accept="video/*"
+                                          maxSize={100}
+                                          onFilesSelected={(files) => handleMediaChange(mediaIndex, { file: files[0], source: "upload" })}
+                                        />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                      <div className="space-y-2 border rounded-lg p-3">
+                                        <Label className="text-sm font-medium">Imagem PT</Label>
+                                        <div>
+                                          <Label className="text-xs text-muted-foreground">Link (PT) - opcional</Label>
+                                          <Input
+                                            placeholder="https://..."
+                                            value={media.url || ""}
+                                            onChange={(e) => handleMediaChange(mediaIndex, { url: e.target.value, source: "link" })}
+                                          />
+                                        </div>
+                                        <div>
+                                          <Label className="text-xs text-muted-foreground">Upload (PT)</Label>
+                                          <FileUploadField
+                                            accept="image/*"
+                                            maxSize={10}
+                                            onFilesSelected={(files) => handleMediaChange(mediaIndex, { file: files[0], source: "upload" })}
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="space-y-2 border rounded-lg p-3">
+                                        <Label className="text-sm font-medium">Imagem EN</Label>
+                                        <div>
+                                          <Label className="text-xs text-muted-foreground">Link (EN) - opcional</Label>
+                                          <Input
+                                            placeholder="https://..."
+                                            value={media.urlEn || ""}
+                                            onChange={(e) => handleMediaChange(mediaIndex, { urlEn: e.target.value })}
+                                          />
+                                        </div>
+                                        <div>
+                                          <Label className="text-xs text-muted-foreground">Upload (EN)</Label>
+                                          <FileUploadField
+                                            accept="image/*"
+                                            maxSize={10}
+                                            onFilesSelected={(files) => handleMediaChange(mediaIndex, { fileEn: files[0] })}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            );
+                          }
+
+                          if (token === "virtualLab") {
+                            return (
+                              <Card key="virtualLab">
+                                <CardHeader className="pb-3">
+                                  <div className="flex items-center justify-between">
+                                    <CardTitle className="text-sm font-medium">Lab Virtual</CardTitle>
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={isFirst}
+                                        onClick={() => moveContentItem("virtualLab", "up")}
+                                      >
+                                        <ChevronUp className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={isLast}
+                                        onClick={() => moveContentItem("virtualLab", "down")}
+                                      >
+                                        <ChevronDown className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                          setShowVirtualLab(false);
+                                          setFormData({
+                                            ...formData,
+                                            virtualLabId: "none",
+                                            contentOrder: formData.contentOrder.filter((t) => t !== "virtualLab"),
+                                          });
+                                        }}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </CardHeader>
+                                <CardContent>
+                                  {virtualLabs.length === 0 ? (
+                                    <div className="text-sm text-muted-foreground p-4 bg-muted/50 rounded-md">
+                                      <p>Nenhum lab virtual publicado disponível.</p>
+                                      <p className="mt-1">Vá para a aba "Labs Virtuais" para criar e publicar labs.</p>
+                                    </div>
+                                  ) : (
+                                    <Select
+                                      value={formData.virtualLabId}
+                                      onValueChange={(value) => setFormData({ ...formData, virtualLabId: value })}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Selecione um lab virtual" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {virtualLabs.map((lab) => (
+                                          <SelectItem key={lab.id} value={lab.id!}>
+                                            {lab.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            );
+                          }
+
+                          if (token === "quiz") {
+                            return (
+                              <Card key="quiz">
+                                <CardHeader className="pb-3">
+                                  <div className="flex items-center justify-between">
+                                    <CardTitle className="text-sm font-medium">Quiz</CardTitle>
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={isFirst}
+                                        onClick={() => moveContentItem("quiz", "up")}
+                                      >
+                                        <ChevronUp className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={isLast}
+                                        onClick={() => moveContentItem("quiz", "down")}
+                                      >
+                                        <ChevronDown className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                  {formData.quiz.map((question, qIndex) => (
+                                    <Card key={question.id}>
+                                      <CardHeader className="pb-3">
+                                        <div className="flex items-center justify-between">
+                                          <CardTitle className="text-sm font-medium">Questão {qIndex + 1}</CardTitle>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleRemoveQuizQuestion(qIndex)}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                      </CardHeader>
+                                      <CardContent className="space-y-3">
+                                        <div>
+                                          <Label>Pergunta</Label>
+                                          <Textarea
+                                            placeholder="Digite a pergunta..."
+                                            value={question.question}
+                                            onChange={(e) => handleQuizQuestionChange(qIndex, "question", e.target.value)}
+                                            rows={2}
+                                          />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Label>Opções de Resposta (marque a correta)</Label>
+                                          {question.options.map((option, oIndex) => (
+                                            <div key={oIndex} className="flex items-center gap-2">
+                                              <input
+                                                type="radio"
+                                                name={`correct-${qIndex}`}
+                                                checked={question.correctAnswer === oIndex}
+                                                onChange={() => handleQuizQuestionChange(qIndex, "correctAnswer", oIndex)}
+                                                className="h-4 w-4"
+                                              />
+                                              <Input
+                                                placeholder={`Opção ${oIndex + 1}`}
+                                                value={option}
+                                                onChange={(e) => handleQuizOptionChange(qIndex, oIndex, e.target.value)}
+                                              />
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </CardContent>
+                                    </Card>
                                   ))}
-                                </SelectContent>
-                              </Select>
-                            )}
-                          </CardContent>
-                        </Card>
-                      )}
+                                </CardContent>
+                              </Card>
+                            );
+                          }
 
-                      {/* Questões do Quiz */}
-                      {formData.quiz.map((question, qIndex) => (
-                        <Card key={qIndex}>
-                          <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                              <CardTitle className="text-sm font-medium">Questão {qIndex + 1}</CardTitle>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveQuizQuestion(qIndex)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            <div>
-                              <Label>Pergunta</Label>
-                              <Textarea
-                                placeholder="Digite a pergunta..."
-                                value={question.question}
-                                onChange={(e) => handleQuizQuestionChange(qIndex, "question", e.target.value)}
-                                rows={2}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Opções de Resposta (marque a correta)</Label>
-                              {question.options.map((option, oIndex) => (
-                                <div key={oIndex} className="flex items-center gap-2">
-                                  <input
-                                    type="radio"
-                                    name={`correct-${qIndex}`}
-                                    checked={question.correctAnswer === oIndex}
-                                    onChange={() => handleQuizQuestionChange(qIndex, "correctAnswer", oIndex)}
-                                    className="h-4 w-4"
-                                  />
-                                  <Input
-                                    placeholder={`Opção ${oIndex + 1}`}
-                                    value={option}
-                                    onChange={(e) => handleQuizOptionChange(qIndex, oIndex, e.target.value)}
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+                          return null;
+                        })}
 
                       {/* Mensagem quando não há conteúdo */}
-                      {!formData.contentText && 
-                       formData.media.length === 0 && 
-                       !showVirtualLab && 
+                      {!formData.contentText &&
+                       formData.media.length === 0 &&
+                       !showVirtualLab &&
                        formData.quiz.length === 0 && (
                         <div className="text-center py-12 border-2 border-dashed rounded-lg">
                           <p className="text-muted-foreground">

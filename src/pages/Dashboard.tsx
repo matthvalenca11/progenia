@@ -328,14 +328,22 @@ const Dashboard = () => {
       
       // Load recommended capsules covers
       for (const capsula of capsulaRecomendadas) {
-        if (capsula.thumbnail_url) {
-          urls[capsula.id!] = capsula.thumbnail_url;
+        const selectedThumbnail =
+          isEnglish && capsula.thumbnail_url_en
+            ? capsula.thumbnail_url_en
+            : capsula.thumbnail_url;
+        if (selectedThumbnail) {
+          urls[capsula.id!] = selectedThumbnail;
         }
       }
 
       // Load unfinished capsule cover
-      if (capsulaInacabada?.thumbnail_url) {
-        urls[capsulaInacabada.id!] = capsulaInacabada.thumbnail_url;
+      const unfinishedThumbnail =
+        isEnglish && capsulaInacabada?.thumbnail_url_en
+          ? capsulaInacabada.thumbnail_url_en
+          : capsulaInacabada?.thumbnail_url;
+      if (unfinishedThumbnail && capsulaInacabada?.id) {
+        urls[capsulaInacabada.id] = unfinishedThumbnail;
       }
 
       setCapaUrls(urls);
@@ -344,7 +352,7 @@ const Dashboard = () => {
     if (capsulaRecomendadas.length > 0 || capsulaInacabada) {
       loadCapaUrls();
     }
-  }, [capsulaRecomendadas, capsulaInacabada]);
+  }, [capsulaRecomendadas, capsulaInacabada, isEnglish]);
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     toast.success("Saiu com sucesso");
@@ -691,6 +699,14 @@ const Dashboard = () => {
     const parts = name.trim().split(/\s+/).filter(Boolean);
     return parts[0] || "";
   };
+
+  const normalizeModuleTitle = (title?: string) => {
+    if (!title) return "";
+    if (!isEnglish) return title;
+    const trimmed = title.trim();
+    if (!trimmed) return title;
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  };
   const handleHeaderSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const term = headerSearch.trim();
@@ -1001,11 +1017,11 @@ const Dashboard = () => {
             </Card> : <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {modules.map(module => <Card key={module.id} className="overflow-hidden hover:shadow-xl transition-smooth group cursor-pointer flex flex-col">
                   <div className="p-6 flex flex-col flex-1">
-                    <h3 className="text-xl font-semibold mb-2 group-hover:text-primary transition-smooth flex items-center gap-2">
+                    <h3 className={`text-xl font-semibold mb-2 group-hover:text-primary transition-smooth flex items-center gap-2 ${isEnglish ? "capitalize" : ""}`}>
                       {completedModules.has(module.id) && (
                         <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
                       )}
-                      {module.title}
+                      {normalizeModuleTitle(module.title)}
                     </h3>
                     <p className="text-muted-foreground text-sm mb-4 line-clamp-3">
                       {module.description}

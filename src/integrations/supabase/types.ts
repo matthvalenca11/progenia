@@ -282,6 +282,7 @@ export type Database = {
           module_id: string | null
           order_index: number | null
           thumbnail_url: string | null
+          thumbnail_url_en: string | null
           title: string
           updated_at: string | null
         }
@@ -295,6 +296,7 @@ export type Database = {
           module_id?: string | null
           order_index?: number | null
           thumbnail_url?: string | null
+          thumbnail_url_en?: string | null
           title: string
           updated_at?: string | null
         }
@@ -308,6 +310,7 @@ export type Database = {
           module_id?: string | null
           order_index?: number | null
           thumbnail_url?: string | null
+          thumbnail_url_en?: string | null
           title?: string
           updated_at?: string | null
         }

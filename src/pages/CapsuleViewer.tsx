@@ -9,6 +9,8 @@ import logo from "@/assets/logo.png";
 import { toast } from "sonner";
 import { capsulaService, Capsula } from "@/services/capsulaService";
 import { VirtualLabRenderer } from "@/components/VirtualLabRenderer";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const CapsuleViewer = () => {
   const { capsulaId } = useParams();
@@ -19,6 +21,8 @@ const CapsuleViewer = () => {
   const [progress, setProgress] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<{ [key: number]: number }>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const { language } = useLanguage();
+  const isEnglish = language === "en";
 
   const isValidUuid = (s: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
@@ -114,6 +118,19 @@ const CapsuleViewer = () => {
 
   const contentData = capsula.content_data as any;
   const hasContent = contentData && (contentData.text || contentData.media?.length > 0 || contentData.quiz?.length > 0 || contentData.virtualLabId);
+  const mediaItems = Array.isArray(contentData?.media) ? contentData.media : [];
+  const orderedTokensRaw = Array.isArray(contentData?.content_order) ? contentData.content_order : [];
+  const defaultOrder = [
+    ...(contentData?.text ? ["text"] : []),
+    ...mediaItems.map((_: any, idx: number) => `media:${idx}`),
+    ...(contentData?.virtualLabId ? ["virtualLab"] : []),
+    ...(Array.isArray(contentData?.quiz) && contentData.quiz.length > 0 ? ["quiz"] : []),
+  ];
+  const validTokens = new Set(defaultOrder);
+  const orderedTokens = [
+    ...orderedTokensRaw.filter((token: string) => validTokens.has(token)),
+    ...defaultOrder.filter((token: string) => !orderedTokensRaw.includes(token)),
+  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -133,6 +150,7 @@ const CapsuleViewer = () => {
                 <span>{capsula.duration_minutes} min</span>
               </div>
             )}
+            <ThemeToggle />
           </div>
         </div>
       </nav>
@@ -172,97 +190,94 @@ const CapsuleViewer = () => {
         <div className="space-y-6 mb-8">
           {hasContent ? (
             <>
-              {/* Text Content */}
-              {contentData.text && (
-                <Card className="p-6">
-                  <div className="prose prose-slate dark:prose-invert max-w-none">
-                    <p className="whitespace-pre-wrap">{contentData.text}</p>
-                  </div>
-                </Card>
-              )}
+              {orderedTokens.map((token) => {
+                if (token === "text" && contentData.text) {
+                  return (
+                    <Card key="text" className="p-6">
+                      <div className="prose prose-slate dark:prose-invert max-w-none">
+                        <p className="whitespace-pre-wrap">{contentData.text}</p>
+                      </div>
+                    </Card>
+                  );
+                }
 
-              {/* Media Content */}
-              {contentData.media && contentData.media.map((item: any, index: number) => {
-                const videoUrl = item.url;
-                const isYouTube = videoUrl && (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be'));
-                const isVimeo = videoUrl && videoUrl.includes('vimeo.com');
-                
-                return (
-                  <Card key={index} className="p-6">
-                    {item.type === 'image' && (
-                      <img 
-                        src={item.url} 
-                        alt={`Media ${index + 1}`}
-                        className="w-full rounded-lg"
-                      />
-                    )}
-                    {item.type === 'video' && isYouTube && (() => {
-                      // Extract video ID from various YouTube URL formats
-                      let videoId = '';
-                      if (videoUrl.includes('youtube.com/watch?v=')) {
-                        videoId = videoUrl.split('v=')[1]?.split('&')[0] || '';
-                      } else if (videoUrl.includes('youtu.be/')) {
-                        videoId = videoUrl.split('youtu.be/')[1]?.split('?')[0] || '';
-                      } else if (videoUrl.includes('youtube.com/embed/')) {
-                        videoId = videoUrl.split('embed/')[1]?.split('?')[0] || '';
-                      }
-                      
-                      const embedUrl = `https://www.youtube.com/embed/${videoId}`;
-                      
-                      return (
-                        <div className="aspect-video w-full rounded-lg overflow-hidden bg-muted">
-                          <iframe
-                            src={embedUrl}
-                            title={`Vídeo ${index + 1}`}
-                            className="w-full h-full"
-                            allowFullScreen
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          />
-                        </div>
-                      );
-                    })()}
-                    {item.type === 'video' && isVimeo && (() => {
-                      // Extract video ID from Vimeo URL
-                      const vimeoId = videoUrl.split('vimeo.com/')[1]?.split('?')[0] || '';
-                      const embedUrl = `https://player.vimeo.com/video/${vimeoId}`;
-                      
-                      return (
-                        <div className="aspect-video w-full rounded-lg overflow-hidden bg-muted">
-                          <iframe
-                            src={embedUrl}
-                            title={`Vídeo ${index + 1}`}
-                            className="w-full h-full"
-                            allowFullScreen
-                            allow="autoplay; fullscreen; picture-in-picture"
-                          />
-                        </div>
-                      );
-                    })()}
-                    {item.type === 'video' && !isYouTube && !isVimeo && (
-                      <video 
-                        controls 
-                        className="w-full rounded-lg"
-                        preload="metadata"
-                      >
-                        <source src={item.url} type="video/mp4" />
-                        <source src={item.url} type="video/webm" />
-                        Seu navegador não suporta reprodução de vídeo.
-                      </video>
-                    )}
-                  </Card>
-                );
-              })}
+                if (token.startsWith("media:")) {
+                  const index = Number(token.replace("media:", ""));
+                  const item = mediaItems[index];
+                  if (!item) return null;
+                  const videoUrl = item.url;
+                  const isYouTube = videoUrl && (videoUrl.includes("youtube.com") || videoUrl.includes("youtu.be"));
+                  const isVimeo = videoUrl && videoUrl.includes("vimeo.com");
 
-              {/* Virtual Lab Content */}
-              {contentData.virtualLabId && (
-                <Card className="p-6">
-                  <VirtualLabRenderer labId={contentData.virtualLabId} />
-                </Card>
-              )}
+                  return (
+                    <Card key={token} className="p-6">
+                      {item.type === "image" && (
+                        <img
+                          src={(isEnglish ? item.url_en : null) || item.url}
+                          alt={`Media ${index + 1}`}
+                          className="w-full rounded-lg"
+                        />
+                      )}
+                      {item.type === "video" && isYouTube && (() => {
+                        let videoId = "";
+                        if (videoUrl.includes("youtube.com/watch?v=")) {
+                          videoId = videoUrl.split("v=")[1]?.split("&")[0] || "";
+                        } else if (videoUrl.includes("youtu.be/")) {
+                          videoId = videoUrl.split("youtu.be/")[1]?.split("?")[0] || "";
+                        } else if (videoUrl.includes("youtube.com/embed/")) {
+                          videoId = videoUrl.split("embed/")[1]?.split("?")[0] || "";
+                        }
 
-              {/* Quiz Content */}
-              {contentData.quiz && contentData.quiz.length > 0 && (
-                <Card className="p-6">
+                        const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+                        return (
+                          <div className="aspect-video w-full rounded-lg overflow-hidden bg-muted">
+                            <iframe
+                              src={embedUrl}
+                              title={`Vídeo ${index + 1}`}
+                              className="w-full h-full"
+                              allowFullScreen
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            />
+                          </div>
+                        );
+                      })()}
+                      {item.type === "video" && isVimeo && (() => {
+                        const vimeoId = videoUrl.split("vimeo.com/")[1]?.split("?")[0] || "";
+                        const embedUrl = `https://player.vimeo.com/video/${vimeoId}`;
+                        return (
+                          <div className="aspect-video w-full rounded-lg overflow-hidden bg-muted">
+                            <iframe
+                              src={embedUrl}
+                              title={`Vídeo ${index + 1}`}
+                              className="w-full h-full"
+                              allowFullScreen
+                              allow="autoplay; fullscreen; picture-in-picture"
+                            />
+                          </div>
+                        );
+                      })()}
+                      {item.type === "video" && !isYouTube && !isVimeo && (
+                        <video controls className="w-full rounded-lg" preload="metadata">
+                          <source src={item.url} type="video/mp4" />
+                          <source src={item.url} type="video/webm" />
+                          Seu navegador não suporta reprodução de vídeo.
+                        </video>
+                      )}
+                    </Card>
+                  );
+                }
+
+                if (token === "virtualLab" && contentData.virtualLabId) {
+                  return (
+                    <Card key="virtualLab" className="p-6">
+                      <VirtualLabRenderer labId={contentData.virtualLabId} />
+                    </Card>
+                  );
+                }
+
+                if (token === "quiz" && contentData.quiz && contentData.quiz.length > 0) {
+                  return (
+                    <Card key="quiz" className="p-6">
                   <h3 className="text-xl font-semibold mb-4">Mini Quiz</h3>
                   <div className="space-y-6">
                     {contentData.quiz.map((question: any, qIndex: number) => {
@@ -327,8 +342,12 @@ const CapsuleViewer = () => {
                       </p>
                     </div>
                   )}
-                </Card>
-              )}
+                    </Card>
+                  );
+                }
+
+                return null;
+              })}
             </>
           ) : (
             <Card className="p-8 text-center">

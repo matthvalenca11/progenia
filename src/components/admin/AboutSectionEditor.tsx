@@ -68,19 +68,19 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
   };
 
   const sectionTypes = [
-    { value: "hero", label: "🎯 Hero (Destaque Principal)" },
-    { value: "text", label: "📝 Texto Simples" },
-    { value: "justification", label: "📋 Justificativa (Por que existe?)" },
-    { value: "text_image", label: "🖼️ Texto + Imagem" },
-    { value: "text_video", label: "🎥 Texto + Vídeo" },
-    { value: "features", label: "⭐ Grade de Funcionalidades" },
-    { value: "stats", label: "📊 Estatísticas" },
-    { value: "cta", label: "🚀 Call to Action (CTA)" },
-    { value: "gallery", label: "🖼️ Galeria de Imagens" },
-    { value: "timeline", label: "📅 Linha do Tempo" },
-    { value: "testimonials", label: "💬 Depoimentos" },
-    { value: "faq", label: "❓ FAQ (Perguntas Frequentes)" },
-    { value: "mvv", label: "🎯 Missão, Visão e Valores" },
+    { value: "hero", label: "Hero (Destaque Principal)" },
+    { value: "text", label: "Texto Simples" },
+    { value: "justification", label: "Justificativa (Por que existe?)" },
+    { value: "text_image", label: "Texto + Imagem" },
+    { value: "text_video", label: "Texto + Vídeo" },
+    { value: "features", label: "Grade de Funcionalidades" },
+    { value: "stats", label: "Estatísticas" },
+    { value: "cta", label: "Call to Action (CTA)" },
+    { value: "gallery", label: "Galeria de Imagens" },
+    { value: "timeline", label: "Linha do Tempo" },
+    { value: "testimonials", label: "Depoimentos" },
+    { value: "faq", label: "FAQ (Perguntas Frequentes)" },
+    { value: "mvv", label: "Missão, Visão e Valores" },
   ];
 
   const themes = [
@@ -975,7 +975,7 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
                       </span>
                       {section.animation_type !== "none" && (
                         <span className="text-xs px-2 py-1 bg-accent/10 rounded">
-                          ✨ {animations.find((a) => a.value === section.animation_type)?.label}
+                          {animations.find((a) => a.value === section.animation_type)?.label}
                         </span>
                       )}
                     </div>
