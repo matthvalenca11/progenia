@@ -52,6 +52,8 @@ type LabDemoBoundaryProps = {
 export function LabDemoBoundary({ slug, enabled, children, onDismissSecondary }: LabDemoBoundaryProps) {
   const { language } = useLanguage();
   const en = language === "en";
+  /** Modal da landing: barra no fluxo do diálogo. Página /labs/:slug: barra fixa no topo da viewport (labs full-screen escondiam o aviso). */
+  const fixedDemoBar = enabled && onDismissSecondary == null;
   const [endAt, setEndAt] = useState<number | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
 
@@ -105,22 +107,39 @@ export function LabDemoBoundary({ slug, enabled, children, onDismissSecondary }:
     return <LabDemoContext.Provider value={value}>{children}</LabDemoContext.Provider>;
   }
 
+  const demoBanner = !demoExpired ? (
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-2 border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 shadow-sm backdrop-blur-sm dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-100",
+        fixedDemoBar ? "rounded-b-lg border-t-0" : "rounded-lg",
+      )}
+      data-no-auto-translate="true"
+    >
+      <Clock className="h-4 w-4 shrink-0 opacity-80" />
+      <p className="font-medium">
+        {en
+          ? "Limited demo — explore core controls. Time remaining:"
+          : "Demonstração limitada — explore os controles principais. Tempo restante:"}{" "}
+        <span className="tabular-nums font-semibold">{fmtRemaining()}</span>
+      </p>
+    </div>
+  ) : null;
+
   return (
     <LabDemoContext.Provider value={value}>
       <div className="relative w-full space-y-3">
-        {!demoExpired && (
-          <div
-            className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100"
-            data-no-auto-translate="true"
-          >
-            <Clock className="h-4 w-4 shrink-0 opacity-80" />
-            <p className="font-medium">
-              {en
-                ? "Limited demo — explore core controls. Time remaining:"
-                : "Demonstração limitada — explore os controles principais. Tempo restante:"}{" "}
-              <span className="tabular-nums">{fmtRemaining()}</span>
-            </p>
-          </div>
+        {fixedDemoBar && demoBanner ? (
+          <>
+            <div
+              className="pointer-events-none fixed left-0 right-0 z-[200] flex justify-center px-3"
+              style={{ top: "max(0.5rem, env(safe-area-inset-top, 0px))" }}
+            >
+              <div className="pointer-events-auto w-full max-w-4xl">{demoBanner}</div>
+            </div>
+            <div className="h-[3.25rem] shrink-0 sm:h-11" aria-hidden />
+          </>
+        ) : (
+          demoBanner
         )}
 
         <div className="relative overflow-hidden rounded-xl">

@@ -229,9 +229,8 @@ const Landing = () => {
       en
         ? {
             navAccess: "Sign in",
-            heroEyebrow: "High-fidelity medical education",
             heroTitleBefore: "Master clinical practice with science in",
-            heroTitleHighlight: "high-fidelity simulators.",
+            heroTitleHighlight: "simulators.",
             heroTitleAfter: "",
             heroLead:
               "From theory to equipment: learn with scientific rigor, practice in safe virtual labs, and keep an AI tutor on your side.",
@@ -301,10 +300,8 @@ const Landing = () => {
           }
         : {
             navAccess: "Acessar",
-            heroEyebrow: "Educação médica de alta fidelidade",
             heroTitleBefore: "Domine a prática clínica com ciência nos",
-            heroTitleHighlight: "simuladores",
-            heroTitleAfter: "de alta fidelidade.",
+            heroTitleHighlight: "simuladores.",
             heroLead:
               "Da teoria ao equipamento: aprenda com rigor científico, pratique em laboratórios virtuais seguros e tenha um tutor de AI ao seu lado.",
             ctaPrimary: "Ver plataforma",
