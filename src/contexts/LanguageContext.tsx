@@ -31,6 +31,7 @@ const FORCED_PT_EN_OVERRIDES: Record<string, string> = {
   "começar": "Sign Up",
   comecar: "Sign Up",
   sobre: "About",
+  sair: "Log Out",
 };
 
 const looksTranslatable = (text: string) => {

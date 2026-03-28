@@ -25,6 +25,7 @@ const FORCED_PT_EN_OVERRIDES: Record<string, string> = {
   "começar": "Sign Up",
   "comecar": "Sign Up",
   "sobre": "About",
+  "sair": "Log Out",
 };
 const normalizeLookupKey = (value: string) => normalizeText(value).toLowerCase();
 const PROVIDER_MAX_CHARS = 900;

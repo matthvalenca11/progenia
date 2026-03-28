@@ -225,7 +225,9 @@ const AITutor = () => {
         className="fixed bottom-6 right-6 z-50 rounded-full h-14 px-5 shadow-glow gradient-accent text-white inline-flex items-center gap-2"
       >
         <Brain className="h-5 w-5" />
-        <span className="font-semibold">Tutor de AI</span>
+        <span className="font-semibold" data-no-auto-translate="true">
+          {isEnglish ? "AI Tutor" : "Tutor de IA"}
+        </span>
       </Button>
     );
   }
@@ -240,7 +242,9 @@ const AITutor = () => {
       <div className="flex items-center justify-between p-4 border-b border-border gradient-primary rounded-t-lg">
         <div className="flex items-center gap-2 text-white">
           <Brain className="h-5 w-5" />
-          <span className="font-semibold">Tutor de AI</span>
+          <span className="font-semibold" data-no-auto-translate="true">
+            {isEnglish ? "AI Tutor" : "Tutor de IA"}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <AiDisclaimerPopover />
