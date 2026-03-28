@@ -196,6 +196,83 @@ All colors MUST be HSL.
   .dark .progenia-logo {
     filter: brightness(1.4) contrast(1.1);
   }
+
+  /* Landing — glass depth + premium card lift (ProGenia) */
+  .landing-glass-nav {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--card) / 0.72) 0%,
+      hsl(var(--card) / 0.48) 100%
+    );
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow:
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.14),
+      0 18px 40px -24px rgb(0 0 0 / 0.35);
+  }
+
+  .landing-glass-surface {
+    background: linear-gradient(
+      155deg,
+      hsl(var(--card) / 0.58) 0%,
+      hsl(var(--card) / 0.32) 100%
+    );
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow:
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.1),
+      0 20px 48px -28px rgb(0 0 0 / 0.4);
+  }
+
+  .landing-glass-video {
+    background: linear-gradient(
+      180deg,
+      hsl(var(--card) / 0.45) 0%,
+      hsl(var(--card) / 0.25) 100%
+    );
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow:
+      inset 0 1px 0 0 hsl(0 0% 100% / 0.08),
+      0 32px 64px -32px rgb(0 0 0 / 0.45);
+  }
+
+  .landing-card-lift {
+    transition:
+      transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .landing-card-lift:hover {
+    transform: translateY(-8px);
+    box-shadow:
+      0 28px 56px -22px rgb(0 0 0 / 0.5),
+      0 0 0 1px hsl(173 68% 42% / 0.2),
+      0 0 52px hsl(173 68% 42% / 0.14);
+  }
+
+  .dark .landing-card-lift:hover {
+    box-shadow:
+      0 28px 56px -22px rgb(0 0 0 / 0.65),
+      0 0 0 1px hsl(173 68% 48% / 0.22),
+      0 0 56px hsl(173 68% 48% / 0.18);
+  }
+
+  .landing-cta-primary {
+    box-shadow:
+      0 4px 24px hsl(173 68% 42% / 0.35),
+      0 16px 40px -12px rgb(0 0 0 / 0.35);
+    transition:
+      transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .landing-cta-primary:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 8px 32px hsl(173 68% 42% / 0.45),
+      0 20px 48px -12px rgb(0 0 0 / 0.4);
+  }
 }
 
 @keyframes nervePulse {

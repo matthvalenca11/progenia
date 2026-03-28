@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 type Language = "pt" | "en";
@@ -395,13 +395,29 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     };
   }, [language]);
 
+  const toggleLanguage = useCallback(() => {
+    setLanguageState((prev) => {
+      const next = prev === "pt" ? "en" : "pt";
+      try {
+        localStorage.setItem(STORAGE_KEY, next);
+      } catch {
+        // ignore
+      }
+      document.documentElement.lang = next === "en" ? "en" : "pt-BR";
+      return next;
+    });
+    window.setTimeout(() => {
+      window.location.reload();
+    }, 0);
+  }, []);
+
   const value = useMemo<LanguageContextType>(
     () => ({
       language,
       setLanguage: setLanguageState,
-      toggleLanguage: () => setLanguageState((prev) => (prev === "pt" ? "en" : "pt")),
+      toggleLanguage,
     }),
-    [language],
+    [language, toggleLanguage],
   );
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;

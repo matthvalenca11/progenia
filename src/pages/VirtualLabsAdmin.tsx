@@ -34,11 +34,8 @@ import { toast } from "sonner";
 import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { UltrasoundUnifiedLab } from "@/components/labs/UltrasoundUnifiedLab";
-import TensLabPage from "@/pages/TensLabPage";
-import UltrasoundTherapyLabPage from "@/pages/UltrasoundTherapyLabPage";
-import MRILabPage from "@/pages/MRILabPage";
-import PhotobioLabPage from "@/pages/PhotobioLabPage";
+import { LabPreviewContent } from "@/components/labs/LabPreviewContent";
+import { cn, toErrorMessage } from "@/lib/utils";
 
 export default function VirtualLabsAdmin() {
   const navigate = useNavigate();
@@ -51,6 +48,7 @@ export default function VirtualLabsAdmin() {
   const [usageCount, setUsageCount] = useState<number>(0);
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [labToTest, setLabToTest] = useState<VirtualLab | null>(null);
+  const [landingDemoUpdatingId, setLandingDemoUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadLabs();
@@ -75,8 +73,8 @@ export default function VirtualLabsAdmin() {
       const data = await virtualLabService.getAllLabs();
       setLabs(data);
       setFilteredLabs(data);
-    } catch (error: any) {
-      toast.error("Erro ao carregar laboratórios", { description: error.message });
+    } catch (error: unknown) {
+      toast.error("Erro ao carregar laboratórios", { description: toErrorMessage(error) });
     } finally {
       setLoading(false);
     }
@@ -105,8 +103,8 @@ export default function VirtualLabsAdmin() {
       await virtualLabService.deleteLab(labToDelete.id);
       toast.success("Laboratório excluído com sucesso!");
       loadLabs();
-    } catch (error: any) {
-      toast.error("Erro ao excluir laboratório", { description: error.message });
+    } catch (error: unknown) {
+      toast.error("Erro ao excluir laboratório", { description: toErrorMessage(error) });
     } finally {
       setDeleteDialogOpen(false);
       setLabToDelete(null);
@@ -123,8 +121,10 @@ export default function VirtualLabsAdmin() {
     if (!lab.id) return;
 
     try {
+      const nextPublished = !lab.is_published;
       await virtualLabService.updateLab(lab.id, {
-        is_published: !lab.is_published
+        is_published: nextPublished,
+        ...(nextPublished === false ? { is_landing_demo: false } : {}),
       });
       toast.success(
         lab.is_published 
@@ -132,8 +132,31 @@ export default function VirtualLabsAdmin() {
           : "Laboratório disponível para uso em cápsulas!"
       );
       loadLabs();
-    } catch (error: any) {
-      toast.error("Erro ao alterar status", { description: error.message });
+    } catch (error: unknown) {
+      toast.error("Erro ao alterar status", { description: toErrorMessage(error) });
+    }
+  };
+
+  const handleToggleLandingDemo = async (lab: VirtualLab) => {
+    if (!lab.id) return;
+    const next = !lab.is_landing_demo;
+    if (next && !lab.is_published) {
+      toast.error("Publique o laboratório antes de usá-lo como demo na landing.");
+      return;
+    }
+    try {
+      setLandingDemoUpdatingId(lab.id);
+      await virtualLabService.setLandingDemoForType(lab.id, lab.lab_type, next);
+      toast.success(
+        next
+          ? "Este laboratório é o demo da landing para este tipo. Outros do mesmo tipo foram desmarcados."
+          : "Demo da landing removido para este laboratório.",
+      );
+      await loadLabs();
+    } catch (error: unknown) {
+      toast.error("Não foi possível atualizar o demo da landing", { description: toErrorMessage(error) });
+    } finally {
+      setLandingDemoUpdatingId(null);
     }
   };
 
@@ -142,8 +165,10 @@ export default function VirtualLabsAdmin() {
       ultrasound: { label: "Ultrassom", variant: "default" as const },
       tens: { label: "TENS", variant: "default" as const },
       ultrasound_therapy: { label: "Ultrassom Terapêutico", variant: "default" as const },
+      ultrassom_terapeutico: { label: "Ultrassom Terapêutico", variant: "default" as const },
       mri: { label: "Ressonância Magnética", variant: "default" as const },
       photobiomodulation: { label: "Fotobiomodulação", variant: "default" as const },
+      fbm: { label: "Fotobiomodulação", variant: "default" as const },
       electrotherapy: { label: "Eletroterapia", variant: "default" as const },
       thermal: { label: "Térmico", variant: "outline" as const },
       other: { label: "Outro", variant: "outline" as const },
@@ -280,6 +305,27 @@ export default function VirtualLabsAdmin() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => handleToggleLandingDemo(lab)}
+                          disabled={landingDemoUpdatingId === lab.id || (!lab.is_published && !lab.is_landing_demo)}
+                          title={
+                            lab.is_landing_demo
+                              ? "Remover como demo da página inicial"
+                              : lab.is_published
+                                ? "Usar como demo na landing (só um ativo por tipo de laboratório)"
+                                : "Publique o lab para poder marcar como demo da landing"
+                          }
+                          className={cn(
+                            "h-8 shrink-0 whitespace-nowrap px-2 text-xs font-semibold",
+                            lab.is_landing_demo
+                              ? "border-0 bg-[hsl(160_52%_44%)] text-white shadow-sm shadow-[hsl(160_45%_25%/0.35)] hover:bg-[hsl(160_52%_38%)] hover:text-white focus-visible:ring-[hsl(160_52%_50%)] dark:bg-[hsl(158_48%_52%)] dark:text-[hsl(220_30%_10%)] dark:shadow-[hsl(160_40%_20%/0.4)] dark:hover:bg-[hsl(158_48%_46%)] dark:hover:text-[hsl(220_30%_10%)]"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                          )}
+                        >
+                          Demo Lab
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => handleTestClick(lab)}
                         >
                           <Play className="h-4 w-4 mr-1" />
@@ -343,50 +389,7 @@ export default function VirtualLabsAdmin() {
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto">
-            {labToTest?.lab_type === "ultrasound" && labToTest.config_data && (
-              <UltrasoundUnifiedLab config={labToTest.config_data as any} />
-            )}
-            {labToTest?.lab_type === "tens" && labToTest.config_data && (
-              <div className="rounded-xl border bg-slate-50 p-4">
-                <TensLabPage config={labToTest.config_data as any} />
-              </div>
-            )}
-            {(labToTest?.lab_type === "ultrasound_therapy" || labToTest?.lab_type === "ultrassom_terapeutico") && labToTest.config_data && (
-              <div className="rounded-xl border bg-slate-50 p-4">
-                <UltrasoundTherapyLabPage config={labToTest.config_data as any} />
-              </div>
-            )}
-            {labToTest?.lab_type === "mri" && labToTest.config_data && (
-              <div className="rounded-xl border bg-slate-50 p-4">
-                <MRILabPage config={labToTest.config_data as any} />
-              </div>
-            )}
-            {labToTest?.lab_type === "photobiomodulation" && labToTest.config_data && (
-              <div className="rounded-xl border bg-slate-50 p-4">
-                <PhotobioLabPage config={labToTest.config_data as Record<string, unknown>} />
-              </div>
-            )}
-            {labToTest?.lab_type === "electrotherapy" && (
-              <div className="p-8 text-center text-muted-foreground">
-                <Beaker className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-medium">Simulador de eletroterapia em desenvolvimento</p>
-                <p className="text-sm mt-2">Em breve você poderá testar este tipo de laboratório</p>
-              </div>
-            )}
-            {labToTest?.lab_type === "thermal" && (
-              <div className="p-8 text-center text-muted-foreground">
-                <Beaker className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-medium">Simulador térmico em desenvolvimento</p>
-                <p className="text-sm mt-2">Em breve você poderá testar este tipo de laboratório</p>
-              </div>
-            )}
-            {(!labToTest?.lab_type || (labToTest?.lab_type === "other")) && (
-              <div className="p-8 text-center text-muted-foreground">
-                <Beaker className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-medium">Tipo de laboratório não reconhecido</p>
-                <p className="text-sm mt-2">Verifique a configuração do laboratório</p>
-              </div>
-            )}
+            {labToTest ? <LabPreviewContent lab={labToTest} /> : null}
           </div>
         </DialogContent>
       </Dialog>

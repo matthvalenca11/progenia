@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { toErrorMessage } from "@/lib/utils";
 
 export type VirtualLabType =
   | "ultrasound"
@@ -9,6 +10,7 @@ export type VirtualLabType =
   | "thermal"
   | "electrotherapy"
   | "photobiomodulation"
+  | "fbm"
   | "other";
 
 export interface VirtualLab {
@@ -21,6 +23,8 @@ export interface VirtualLab {
   config_data: any;
   thumbnail_url?: string;
   is_published?: boolean;
+  /** No máximo um lab com true por `lab_type`; usado na landing (Try demo). */
+  is_landing_demo?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -33,7 +37,10 @@ export const virtualLabService = {
       .order("created_at", { ascending: false });
 
     if (error) throw error;
-    return (data || []) as VirtualLab[];
+    return (data || []).map((row) => ({
+      ...(row as VirtualLab),
+      is_landing_demo: (row as { is_landing_demo?: boolean }).is_landing_demo === true,
+    }));
   },
 
   getAllLabs: async (): Promise<VirtualLab[]> => {
@@ -97,6 +104,59 @@ export const virtualLabService = {
 
   deleteLab: async (id: string): Promise<void> => {
     return virtualLabService.delete(id);
+  },
+
+  /** Slugs e tipos dos labs publicados (acesso anônimo permitido pelo RLS em labs publicados). */
+  getPublishedLabSlugs: async (): Promise<{ slug: string; lab_type: string }[]> => {
+    const { data, error } = await supabase
+      .from("virtual_labs")
+      .select("slug, lab_type")
+      .eq("is_published", true);
+
+    if (error) throw error;
+    return (data || []) as { slug: string; lab_type: string }[];
+  },
+
+  /**
+   * Labs escolhidos no admin como demo da landing (um por tipo, publicados).
+   * Anônimos: mesma política RLS que labs publicados.
+   */
+  getLandingDemoLabSlugs: async (): Promise<{ slug: string; lab_type: string }[]> => {
+    const { data, error } = await supabase
+      .from("virtual_labs")
+      .select("slug, lab_type")
+      .eq("is_published", true)
+      .eq("is_landing_demo", true);
+
+    if (error) throw error;
+    return (data || []) as { slug: string; lab_type: string }[];
+  },
+
+  /**
+   * Marca/desmarca lab como demo da landing. Ao ativar, remove o flag dos outros do mesmo `lab_type`.
+   */
+  setLandingDemoForType: async (labId: string, labType: string, enable: boolean): Promise<void> => {
+    const throwReadable = (e: unknown): never => {
+      throw new Error(toErrorMessage(e));
+    };
+    if (enable) {
+      const { error: clearErr } = await supabase
+        .from("virtual_labs")
+        .update({ is_landing_demo: false })
+        .eq("lab_type", labType);
+      if (clearErr) throwReadable(clearErr);
+      const { error } = await supabase
+        .from("virtual_labs")
+        .update({ is_landing_demo: true })
+        .eq("id", labId);
+      if (error) throwReadable(error);
+    } else {
+      const { error } = await supabase
+        .from("virtual_labs")
+        .update({ is_landing_demo: false })
+        .eq("id", labId);
+      if (error) throwReadable(error);
+    }
   },
 
   getBySlug: async (slug: string): Promise<VirtualLab | null> => {

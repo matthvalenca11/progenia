@@ -1165,6 +1165,7 @@ export type Database = {
           created_at: string | null
           description: string | null
           id: string
+          is_landing_demo: boolean
           is_published: boolean | null
           lab_type: string
           name: string
@@ -1178,6 +1179,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           id?: string
+          is_landing_demo?: boolean
           is_published?: boolean | null
           lab_type: string
           name: string
@@ -1191,6 +1193,7 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           id?: string
+          is_landing_demo?: boolean
           is_published?: boolean | null
           lab_type?: string
           name?: string

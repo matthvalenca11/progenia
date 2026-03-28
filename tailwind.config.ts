@@ -13,6 +13,9 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["Inter", "ui-sans-serif", "system-ui", "Segoe UI", "Roboto", "Helvetica Neue", "sans-serif"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -59,6 +62,10 @@ export default {
         },
         navy: "hsl(204 82% 18%)",
         teal: "hsl(173 68% 42%)",
+      },
+      transitionTimingFunction: {
+        /** Evita `ease-[cubic-bezier(...)]` (aviso “ambiguous” no Tailwind v4). */
+        smooth: "cubic-bezier(0.22, 1, 0.36, 1)",
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -1,8 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, type ComponentType } from "react";
+import { virtualLabService, type VirtualLab } from "@/services/virtualLabService";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { GraduationCap, Brain, Award, Microscope, Zap, BookOpen, Newspaper } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  GraduationCap,
+  Brain,
+  Award,
+  Microscope,
+  Zap,
+  BookOpen,
+  Newspaper,
+  ArrowRight,
+  Loader2,
+} from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -11,13 +22,28 @@ import landingHeroVideoPoster from "@/assets/landing-hero-video-poster.png";
 import { PostCard } from "@/components/blog/PostCard";
 import { PostDetailModal } from "@/components/blog/PostDetailModal";
 import type { InstagramPost } from "@/pages/BlogNoticias";
+import { ScrollReveal } from "@/components/landing/ScrollReveal";
+import { cn } from "@/lib/utils";
+import {
+  FotobioLabVisual,
+  UltrasoundLabVisual,
+  DiagnosticUltrasoundLabVisual,
+  MriLabVisual,
+  ElectroLabVisual,
+} from "@/components/landing/LabCardVisuals";
+import { useAuth } from "@/hooks/useAuth";
+import { LabDemoBoundary } from "@/contexts/LabDemoContext";
 
-/* Ritmo único: padding de seção e margens de título */
-const sectionPadding = "py-20 lg:py-24";
-const sectionHeader = "mb-12";
-const eyebrow = "text-sm font-medium uppercase tracking-widest text-muted-foreground mb-2";
-const sectionTitle = "text-3xl lg:text-4xl font-bold max-w-2xl";
+const LabPreviewContentLazy = lazy(() =>
+  import("@/components/labs/LabPreviewContent").then((m) => ({ default: m.LabPreviewContent })),
+);
+
+const sectionPadding = "py-8 lg:py-11";
 const LEGAL_SETTINGS_ID = "00000000-0000-0000-0000-000000000002";
+
+/** Mint CTA — header (Acessar) e blog (Todas as notícias / All posts) */
+const landingMintCtaButtonClass =
+  "h-9 rounded-xl border-0 bg-[hsl(160_52%_44%)] px-4 text-sm font-semibold text-white shadow-md shadow-[hsl(160_45%_25%/0.35)] transition-[box-shadow,transform,background-color] duration-200 hover:-translate-y-0.5 hover:bg-[hsl(160_52%_38%)] hover:text-white hover:shadow-lg hover:shadow-[hsl(160_45%_22%/0.4)] focus-visible:ring-[hsl(160_52%_50%)] dark:bg-[hsl(158_48%_52%)] dark:text-[hsl(220_30%_10%)] dark:shadow-[hsl(160_40%_20%/0.45)] dark:hover:bg-[hsl(158_48%_46%)] dark:hover:text-[hsl(220_30%_10%)] sm:h-10 sm:px-5";
 
 const defaultLegalText = `TERMOS DE PRIVACIDADE E USO - PROGENIA
 
@@ -39,7 +65,84 @@ Você pode solicitar atualização, correção ou exclusão dos seus dados, conf
 6. Aceite
 Ao criar sua conta, você declara que leu e concorda com estes termos de privacidade e uso.`;
 
+type LabCardDef = {
+  id: string;
+  Visual: ComponentType;
+  title: { pt: string; en: string };
+  description: { pt: string; en: string };
+};
+
+const LAB_CARDS: LabCardDef[] = [
+  {
+    id: "fbm",
+    Visual: FotobioLabVisual,
+    title: { pt: "Fotobiomodulação", en: "Photobiomodulation" },
+    description: {
+      pt: "Visualização 3D do tecido, feixe pulsante e parâmetros clínicos em tempo real — como na prática, sem risco ao paciente.",
+      en: "3D tissue view, a pulsing beam, and live clinical parameters—like real practice, without patient risk.",
+    },
+  },
+  {
+    id: "us",
+    Visual: UltrasoundLabVisual,
+    title: { pt: "Ultrassom terapêutico", en: "Therapeutic Ultrasound" },
+    description: {
+      pt: "Explore ganho, profundidade e resposta tecidual em um ambiente seguro para consolidar protocolos.",
+      en: "Explore gain, depth, and tissue response in a safe space to reinforce protocols.",
+    },
+  },
+  {
+    id: "us-dx",
+    Visual: DiagnosticUltrasoundLabVisual,
+    title: { pt: "Ultrassom diagnóstico", en: "Diagnostic Ultrasound" },
+    description: {
+      pt: "Ajuste TGC, profundidade e presets como em um equipamento real e interprete o eco em tempo real.",
+      en: "Tune TGC, depth, and presets like on a real system—and read the echo in real time.",
+    },
+  },
+  {
+    id: "mri",
+    Visual: MriLabVisual,
+    title: { pt: "Ressonância magnética", en: "Magnetic Resonance Imaging" },
+    description: {
+      pt: "Contraste, sequências e parâmetros de imagem com feedback imediato para fechar a curva de aprendizado.",
+      en: "Contrast, sequences, and imaging parameters with instant feedback to close the learning loop.",
+    },
+  },
+  {
+    id: "electro",
+    Visual: ElectroLabVisual,
+    title: { pt: "Eletroterapia", en: "Electrotherapy" },
+    description: {
+      pt: "Correntes, eletrodos e respostas fisiológicas simuladas para treinar decisão clínica com precisão.",
+      en: "Currents, electrodes, and simulated physiological responses to train clinical decisions with precision.",
+    },
+  },
+];
+
+/** Ordem de prioridade de `lab_type` no Supabase para cada card da landing */
+const CARD_LAB_TYPES: Record<string, string[]> = {
+  fbm: ["photobiomodulation", "fbm"],
+  us: ["ultrasound_therapy", "ultrassom_terapeutico"],
+  "us-dx": ["ultrasound"],
+  mri: ["mri"],
+  electro: ["tens", "electrotherapy"],
+};
+
+function pickSlugForCard(cardId: string, rows: { slug: string; lab_type: string }[]): string | undefined {
+  const types = CARD_LAB_TYPES[cardId];
+  if (!types) return undefined;
+  for (const lt of types) {
+    const ltNorm = lt.toLowerCase();
+    const found = rows.find((r) => String(r.lab_type).trim().toLowerCase() === ltNorm);
+    if (found) return found.slug;
+  }
+  return undefined;
+}
+
 const Landing = () => {
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [isLegalDialogOpen, setIsLegalDialogOpen] = useState(false);
   const [legalText, setLegalText] = useState(defaultLegalText);
   const [loadingLegalText, setLoadingLegalText] = useState(false);
@@ -47,18 +150,239 @@ const Landing = () => {
   const [blogLoading, setBlogLoading] = useState(true);
   const [selectedPost, setSelectedPost] = useState<InstagramPost | null>(null);
   const [heroVideoFailed, setHeroVideoFailed] = useState(false);
+  const [scrollY, setScrollY] = useState(0);
+  const [labDemoSlugs, setLabDemoSlugs] = useState<Record<string, string>>({});
+  const [demoSlug, setDemoSlug] = useState<string | null>(null);
+  const [demoTitleFallback, setDemoTitleFallback] = useState("");
+  const [demoVirtualLab, setDemoVirtualLab] = useState<VirtualLab | null>(null);
+  const [demoFetchStatus, setDemoFetchStatus] = useState<"idle" | "loading" | "error" | "ok">("idle");
 
   const { language } = useLanguage();
+  const en = language === "en";
 
   const landingHeroVideoUrl = useMemo(
-    () => `/videos/${language === "en" ? "landing-hero-video-en.mp4" : "landing-hero-video-pt.mp4"}`,
-    [language]
+    () => `/videos/${en ? "landing-hero-video-en.mp4" : "landing-hero-video-pt.mp4"}`,
+    [en]
   );
 
   useEffect(() => {
-    // Se o usuário alternar idioma e o vídeo anterior falhou, mostramos novamente o vídeo do novo idioma.
+    let cancelled = false;
+    void virtualLabService
+      .getLandingDemoLabSlugs()
+      .then((rows) => {
+        if (cancelled) return;
+        const map: Record<string, string> = {};
+        for (const card of LAB_CARDS) {
+          const s = pickSlugForCard(card.id, rows);
+          if (s) map[card.id] = s;
+        }
+        setLabDemoSlugs(map);
+      })
+      .catch(() => {
+        if (!cancelled) setLabDemoSlugs({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!demoSlug) {
+      setDemoVirtualLab(null);
+      setDemoFetchStatus("idle");
+      return;
+    }
+    let cancelled = false;
+    setDemoFetchStatus("loading");
+    setDemoVirtualLab(null);
+    void virtualLabService
+      .getBySlug(demoSlug)
+      .then((lab) => {
+        if (cancelled) return;
+        if (!lab || lab.is_published === false) {
+          setDemoVirtualLab(null);
+          setDemoFetchStatus("error");
+          return;
+        }
+        setDemoVirtualLab(lab);
+        setDemoFetchStatus("ok");
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDemoVirtualLab(null);
+          setDemoFetchStatus("error");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [demoSlug]);
+
+  const closeLabDemo = () => {
+    setDemoSlug(null);
+    setDemoVirtualLab(null);
+    setDemoFetchStatus("idle");
+  };
+
+  const t = useMemo(
+    () =>
+      en
+        ? {
+            navAccess: "Sign in",
+            heroEyebrow: "High-fidelity medical education",
+            heroTitleBefore: "Master clinical practice with science in",
+            heroTitleHighlight: "high-fidelity simulators.",
+            heroTitleAfter: "",
+            heroLead:
+              "From theory to equipment: learn with scientific rigor, practice in safe virtual labs, and keep an AI tutor on your side.",
+            ctaPrimary: "Explore the platform",
+            ctaSecondary: "About ProGenia",
+            videoAria: "ProGenia product overview video",
+            labsEyebrow: "Virtual labs",
+            labsTitle: "Try it before you reach the patient",
+            labsLead:
+              "Simulators that respond in real time.",
+            labDemo: "Try the demo",
+            blogEyebrow: "News",
+            blogTitle: "Blog & news",
+            blogAll: "All posts",
+            journeyEyebrow: "How it works",
+            journeyTitle: "A journey built for healthcare professionals",
+            journeySteps: [
+              {
+                title: "Learn the foundation",
+                body: "Modules and capsules grounded in science—principles, indications, and parameters.",
+              },
+              {
+                title: "Simulate and explore",
+                body: "Virtual labs to test settings and see responses in real time.",
+              },
+              {
+                title: "Reinforce with AI",
+                body: "Ask questions in context and track progress with gamification.",
+              },
+            ],
+            diffEyebrow: "Why ProGenia",
+            diffTitle: "What sets your learning apart",
+            diffCards: [
+              {
+                title: "Contextual AI tutor",
+                body: "Ask questions, get explanations, and reinforce concepts while you study.",
+              },
+              {
+                title: "Virtual labs",
+                body: "Tune parameters and watch responses in real time—safely.",
+              },
+              {
+                title: "Specialized content",
+                body: "Accurate, reviewed material—from electrostimulation to imaging.",
+              },
+              {
+                title: "Gamification",
+                body: "Badges, levels, and progress across modules.",
+              },
+              {
+                title: "Detailed progress",
+                body: "Completion, recommendations, and a clear view of what’s next.",
+              },
+              {
+                title: "Interactive learning",
+                body: "Video, animation, and quizzes to lock in ideas.",
+              },
+            ],
+            ctaBandTitle: "Ready to take your clinical knowledge further?",
+            ctaBandLead: "Get access to content, labs, and AI support today.",
+            ctaBandBtn: "Start for free",
+            footerCopy: "© 2026 ProGenia. All rights reserved.",
+            footerLegal: "Terms & privacy",
+            footerAbout: "About",
+            footerContact: "Contact",
+            footerBlog: "Blog",
+          }
+        : {
+            navAccess: "Acessar",
+            heroEyebrow: "Educação médica de alta fidelidade",
+            heroTitleBefore: "Domine a prática clínica com ciência nos",
+            heroTitleHighlight: "simuladores",
+            heroTitleAfter: "de alta fidelidade.",
+            heroLead:
+              "Da teoria ao equipamento: aprenda com rigor científico, pratique em laboratórios virtuais seguros e tenha um tutor de AI ao seu lado.",
+            ctaPrimary: "Ver plataforma",
+            ctaSecondary: "Conhecer a ProGenia",
+            videoAria: "Vídeo de apresentação da ProGenia",
+            labsEyebrow: "Laboratórios virtuais",
+            labsTitle: "Experimente antes de chegar ao paciente",
+            labsLead: "Simuladores que respondem em tempo real.",
+            labDemo: "Experimentar demo",
+            blogEyebrow: "Novidades",
+            blogTitle: "Blog e Notícias",
+            blogAll: "Todas as notícias",
+            journeyEyebrow: "Como funciona",
+            journeyTitle: "Uma jornada pensada para quem atua na saúde",
+            journeySteps: [
+              {
+                title: "Estude o fundamento",
+                body: "Módulos e cápsulas com base científica: princípios, indicações e parâmetros.",
+              },
+              {
+                title: "Simule e experimente",
+                body: "Laboratórios virtuais para testar configurações e ver respostas em tempo real.",
+              },
+              {
+                title: "Consolide com a IA",
+                body: "Tire dúvidas no contexto da aula e acompanhe seu progresso com gamificação.",
+              },
+            ],
+            diffEyebrow: "Diferenciais",
+            diffTitle: "Recursos que fazem a diferença no seu aprendizado",
+            diffCards: [
+              {
+                title: "Tutor de AI contextual",
+                body: "Assistente no conteúdo: perguntas, explicações e reforço no momento em que você estuda.",
+              },
+              {
+                title: "Laboratórios virtuais",
+                body: "Simule parâmetros e observe respostas em tempo real, com segurança.",
+              },
+              {
+                title: "Conteúdo especializado",
+                body: "Material preciso e revisado, de eletroestimulação a imagem.",
+              },
+              {
+                title: "Gamificação",
+                body: "Emblemas, níveis e progresso por módulos.",
+              },
+              {
+                title: "Progresso detalhado",
+                body: "Conclusão, recomendações e visão do que falta estudar.",
+              },
+              {
+                title: "Aprendizado interativo",
+                body: "Vídeos, animações e questionários para fixar conceitos.",
+              },
+            ],
+            ctaBandTitle: "Pronto para levar seu conhecimento clínico ao próximo nível?",
+            ctaBandLead: "Comece hoje e tenha acesso a conteúdo, laboratórios e suporte de IA.",
+            ctaBandBtn: "Começar gratuitamente",
+            footerCopy: "© 2026 ProGenia. Todos os direitos reservados.",
+            footerLegal: "Termos de uso e privacidade da plataforma",
+            footerAbout: "Sobre",
+            footerContact: "Contato",
+            footerBlog: "Blog",
+          },
+    [en]
+  );
+
+  useEffect(() => {
     setHeroVideoFailed(false);
   }, [language]);
+
+  useEffect(() => {
+    const onScroll = () => setScrollY(window.scrollY);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     const loadLegalText = async () => {
@@ -101,287 +425,402 @@ const Landing = () => {
     void loadBlogPosts();
   }, []);
 
+  const parallaxSlow = scrollY * 0.08;
+  const parallaxMed = scrollY * 0.12;
+  const videoLift = Math.min(scrollY, 640) * 0.04;
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Navigation */}
-      <nav className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="ProGenia" className="h-10 progenia-logo" />
+    <div className="min-h-screen bg-background font-sans antialiased">
+      {/* Minimal premium nav */}
+      <header className="fixed left-0 right-0 top-0 z-50 px-3 pt-1.5 sm:px-4 sm:pt-2">
+        <div className="landing-glass-nav mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-[18px] px-4 py-2 sm:px-5 sm:py-2.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-4 md:gap-5">
+            <Link
+              to="/"
+              className="flex shrink-0 items-center gap-2 rounded-xl outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <img src={logo} alt="ProGenia" className="h-9 progenia-logo sm:h-10" />
+            </Link>
+            <nav
+              className="flex items-center gap-0.5 sm:gap-1"
+              aria-label={en ? "Main" : "Principal"}
+            >
+              <Link to="/sobre">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 whitespace-nowrap rounded-lg px-2.5 text-sm font-medium text-foreground hover:bg-primary/10 hover:text-primary sm:px-3"
+                >
+                  {t.footerAbout}
+                </Button>
+              </Link>
+              <Link to="/contato">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 whitespace-nowrap rounded-lg px-2.5 text-sm font-medium text-foreground hover:bg-primary/10 hover:text-primary sm:px-3"
+                >
+                  {t.footerContact}
+                </Button>
+              </Link>
+              <Link to="/blog">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 whitespace-nowrap rounded-lg px-2.5 text-sm font-medium text-foreground hover:bg-primary/10 hover:text-primary sm:px-3"
+                >
+                  {t.footerBlog}
+                </Button>
+              </Link>
+            </nav>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <ThemeToggle />
-            <Link to="/sobre">
-              <Button variant="ghost">Sobre</Button>
-            </Link>
-            <Link to="/contato">
-              <Button variant="ghost">Contato</Button>
-            </Link>
-            <Link to="/blog">
-              <Button variant="ghost">Blog e Notícias</Button>
-            </Link>
             <Link to="/auth">
-              <Button variant="ghost">Entrar</Button>
-            </Link>
-            <Link to="/auth">
-              <Button className="gradient-accent text-white shadow-glow">Começar</Button>
+              <Button variant="default" className={landingMintCtaButtonClass}>
+                {t.navAccess}
+              </Button>
             </Link>
           </div>
         </div>
-      </nav>
+      </header>
 
-      {/* Hero */}
-      <section className={`relative overflow-hidden ${sectionPadding}`}>
-        <div className="absolute inset-0 gradient-hero opacity-[0.06]" aria-hidden="true" />
-        <div className="container mx-auto px-4 relative">
-          <div className="grid lg:grid-cols-[1fr,minmax(320px,0.9fr)] gap-12 lg:gap-16 items-center">
-            <div className="space-y-8">
-              <p className={eyebrow}>
-                Educação médica baseada em evidências
+      {/* Hero — texto + vídeo adjacentes (lg+); empilhado no mobile */}
+      <section className="relative flex min-h-[min(64vh,600px)] flex-col justify-center overflow-hidden pb-3 pt-20 sm:pb-4 sm:pt-24 lg:min-h-0 lg:pb-4 lg:pt-20">
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <div
+            className="absolute -left-[20%] top-[8%] h-[min(520px,80vw)] w-[min(520px,80vw)] rounded-full bg-primary/[0.09] blur-[100px]"
+            style={{ transform: `translate3d(0, ${parallaxMed}px, 0)` }}
+          />
+          <div
+            className="absolute -right-[15%] top-[20%] h-[min(420px,70vw)] w-[min(420px,70vw)] rounded-full bg-secondary/[0.12] blur-[90px]"
+            style={{ transform: `translate3d(0, ${parallaxSlow}px, 0)` }}
+          />
+          <div
+            className="absolute bottom-[-10%] left-1/2 h-[min(480px,90vw)] w-[min(480px,90vw)] -translate-x-1/2 rounded-full bg-gradient-hero opacity-[0.07] blur-[120px]"
+            style={{ transform: `translate3d(-50%, ${-parallaxSlow * 0.5}px, 0)` }}
+          />
+        </div>
+
+        <div className="relative z-10 mx-auto w-full max-w-6xl px-4">
+          <div className="grid items-center gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(280px,0.95fr)] lg:gap-6 xl:gap-8">
+            {/* Copy + CTAs — adjacente ao vídeo em lg+ */}
+            <div className="mx-auto w-full max-w-xl text-center lg:mx-0 lg:max-w-none lg:text-left">
+              <p className="mb-2 text-xs font-medium uppercase tracking-[0.28em] text-muted-foreground sm:text-sm">
+                {t.heroEyebrow}
               </p>
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.1] tracking-tight">
-                Da teoria ao equipamento.{" "}
-                <span className="text-gradient">ProGenia</span> conecta o conhecimento científico à prática.
+              <h1 className="text-balance text-4xl font-bold leading-[1.06] tracking-tight text-foreground sm:text-5xl md:text-6xl lg:text-[2.65rem] lg:leading-[1.08] xl:text-5xl xl:leading-[1.06] 2xl:text-6xl">
+                {t.heroTitleBefore}{" "}
+                <span className="text-gradient">{t.heroTitleHighlight}</span>
+                {t.heroTitleAfter ? ` ${t.heroTitleAfter}` : ""}
               </h1>
-              <ul className="space-y-4 text-muted-foreground text-lg max-w-lg">
-                <li className="flex items-center gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary/15 text-secondary">
-                    <Zap className="h-4 w-4" />
-                  </span>
-                  Conteúdo científico revisado: eletroestimulação, imagem e terapias
-                </li>
-                <li className="flex items-center gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
-                    <Microscope className="h-4 w-4" />
-                  </span>
-                  Laboratórios virtuais para experimentar parâmetros em ambiente seguro
-                </li>
-                <li className="flex items-center gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary/15 text-secondary">
-                    <Brain className="h-4 w-4" />
-                  </span>
-                  Tutor de IA contextual para dúvidas 24/7
-                </li>
-              </ul>
-              <div className="flex flex-wrap gap-4 pt-2">
-                <Link to="/auth">
-                  <Button size="lg" className="gradient-accent text-white shadow-xl hover:shadow-glow transition-smooth text-base px-6">
-                    <GraduationCap className="mr-2 h-4 w-4" />
-                    Começar a aprender
+              <p className="mx-auto mt-3 max-w-2xl text-pretty text-base font-light leading-relaxed text-muted-foreground sm:text-lg md:text-xl lg:mx-0 lg:max-w-xl">
+                {t.heroLead}
+              </p>
+              <div className="mt-5 flex flex-col items-stretch justify-center gap-2.5 sm:flex-row sm:items-center sm:justify-center lg:justify-start">
+                <Link to="/auth" className="sm:inline-flex">
+                  <Button
+                    size="lg"
+                    className="landing-cta-primary h-12 w-full rounded-xl px-8 text-sm font-semibold gradient-accent text-primary-foreground sm:w-auto sm:text-base"
+                  >
+                    {t.ctaPrimary}
+                    <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
                   </Button>
                 </Link>
-                <Link to="/sobre">
-                  <Button size="lg" variant="outline" className="text-base px-6">
-                    Sobre a ProGenia
+                <Link to="/sobre" className="sm:inline-flex">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="h-12 w-full rounded-xl border-2 border-[hsl(160_52%_42%)] bg-background/40 px-6 text-sm font-medium shadow-[inset_0_1px_0_0_hsl(0_0%_100%/0.08)] backdrop-blur-md transition-[transform,box-shadow,border-color,background-color] duration-300 ease-smooth hover:-translate-y-0.5 hover:border-[hsl(160_52%_34%)] hover:bg-[hsla(160,52%,44%,0.08)] hover:shadow-lg dark:border-[hsl(158_48%_50%)] dark:hover:border-[hsl(158_48%_58%)] dark:hover:bg-[hsla(158,48%,52%,0.12)] sm:w-auto sm:text-base"
+                  >
+                    {t.ctaSecondary}
                   </Button>
                 </Link>
               </div>
             </div>
-            <div className="relative hidden lg:block w-full">
-              {!heroVideoFailed ? (
-                <div className="aspect-video w-full overflow-hidden border border-border/60 bg-muted/20 shadow-xl">
-                  <video
-                    className="h-full w-full object-cover"
-                    controls
-                    playsInline
-                    preload="metadata"
-                    poster={landingHeroVideoPoster}
-                    aria-label="Vídeo de apresentação da ProGenia"
-                    onError={() => setHeroVideoFailed(true)}
-                  >
-                    <source src={landingHeroVideoUrl} type="video/mp4" />
-                  </video>
+
+            <div
+              className="relative w-full min-w-0"
+              style={{ transform: `translate3d(0, ${videoLift}px, 0)` }}
+            >
+              <div className="landing-glass-video overflow-hidden rounded-[20px] sm:rounded-[24px]">
+                <div className="aspect-video w-full overflow-hidden">
+                  {!heroVideoFailed ? (
+                    <video
+                      className="h-full w-full object-cover"
+                      controls
+                      playsInline
+                      preload="metadata"
+                      poster={landingHeroVideoPoster}
+                      aria-label={t.videoAria}
+                      onError={() => setHeroVideoFailed(true)}
+                    >
+                      <source src={landingHeroVideoUrl} type="video/mp4" />
+                    </video>
+                  ) : (
+                    <img src={landingHeroVideoPoster} alt="ProGenia" className="h-full w-full object-cover" />
+                  )}
                 </div>
-              ) : (
-                <div className="aspect-video w-full overflow-hidden border border-border/60 bg-muted/20 shadow-xl">
-                  <img src={landingHeroVideoPoster} alt="ProGenia" className="h-full w-full object-cover" />
-                </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Blog e Notícias */}
-      <section className="pt-6 pb-2 lg:pt-8 lg:pb-4">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
-            <div>
-              <p className={eyebrow}>Novidades</p>
-              <h2 className={sectionTitle}>Blog e Notícias</h2>
-            </div>
-            <Link to="/blog" className="shrink-0">
-              <Button variant="outline" className="gap-2">
-                <Newspaper className="h-4 w-4" />
-                Todas as notícias
-              </Button>
-            </Link>
+      {/* Labs — premium matrix */}
+      <section className="relative pb-8 pt-3 sm:pt-4 lg:pb-11 lg:pt-5">
+        <div
+          className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background via-muted/[0.35] to-background dark:via-muted/25"
+          aria-hidden
+        />
+        <div className="relative mx-auto max-w-6xl px-4">
+          <ScrollReveal>
+            <p className="text-center text-xs font-medium uppercase tracking-[0.28em] text-muted-foreground sm:text-sm">
+              {t.labsEyebrow}
+            </p>
+            <h2 className="mx-auto mt-1 max-w-3xl text-balance text-center text-3xl font-bold tracking-tight text-foreground sm:text-4xl md:text-5xl">
+              {t.labsTitle}
+            </h2>
+            <p className="mx-auto mt-2 max-w-2xl text-center text-base font-light leading-relaxed text-muted-foreground md:text-lg">
+              {t.labsLead}
+            </p>
+          </ScrollReveal>
+
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-5">
+            {LAB_CARDS.map((lab, i) => {
+              const Visual = lab.Visual;
+              return (
+                <ScrollReveal key={lab.id} delayMs={i * 90}>
+                  <article
+                    className="landing-glass-surface landing-card-lift flex h-full flex-col rounded-[18px] p-4 sm:rounded-[22px] sm:p-5"
+                    data-no-auto-translate="true"
+                  >
+                    <div className="relative mb-3 overflow-hidden rounded-xl ring-1 ring-white/10">
+                      <Visual />
+                    </div>
+                    <h3 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+                      {en ? lab.title.en : lab.title.pt}
+                    </h3>
+                    <p className="mt-2 flex-1 text-sm font-light leading-relaxed text-muted-foreground sm:text-base">
+                      {en ? lab.description.en : lab.description.pt}
+                    </p>
+                    <div className="pt-3">
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          const slug = labDemoSlugs[lab.id];
+                          if (slug) {
+                            setDemoSlug(slug);
+                            setDemoTitleFallback(en ? lab.title.en : lab.title.pt);
+                          } else {
+                            navigate("/auth");
+                          }
+                        }}
+                        className="group h-11 w-full rounded-xl gradient-accent px-6 text-base font-semibold text-primary-foreground shadow-lg transition-[transform,box-shadow] duration-300 ease-smooth hover:-translate-y-0.5 hover:shadow-glow sm:w-auto sm:px-8"
+                      >
+                        {t.labDemo}
+                        <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                      </Button>
+                    </div>
+                  </article>
+                </ScrollReveal>
+              );
+            })}
           </div>
+        </div>
+      </section>
+
+      {/* Blog */}
+      <section className="pb-3 pt-1 lg:pb-4 lg:pt-3">
+        <div className="mx-auto max-w-6xl px-4">
+          <ScrollReveal>
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.28em] text-muted-foreground sm:text-sm">
+                  {t.blogEyebrow}
+                </p>
+                <h2 className="mt-1 text-3xl font-bold tracking-tight text-foreground md:text-4xl">{t.blogTitle}</h2>
+              </div>
+              <Link to="/blog" className="shrink-0">
+                <Button variant="default" className={`${landingMintCtaButtonClass} gap-2`}>
+                  <Newspaper className="h-4 w-4 shrink-0" />
+                  {t.blogAll}
+                </Button>
+              </Link>
+            </div>
+          </ScrollReveal>
           {blogLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="rounded-lg border border-border bg-muted/30 aspect-square animate-pulse" />
+                <div
+                  key={i}
+                  className="aspect-square animate-pulse rounded-[18px] bg-muted/40 shadow-[inset_0_1px_0_0_hsl(0_0%_100%/0.05)]"
+                />
               ))}
             </div>
           ) : blogPosts.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-              {blogPosts.map((post) => (
-                <PostCard
-                  key={post.id}
-                  post={post}
-                  onClick={() => setSelectedPost(post)}
-                />
+            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-3 md:gap-3">
+              {blogPosts.map((post, i) => (
+                <ScrollReveal key={post.id} delayMs={i * 80}>
+                  <PostCard post={post} onClick={() => setSelectedPost(post)} />
+                </ScrollReveal>
               ))}
             </div>
           ) : null}
         </div>
       </section>
 
-      {/* Jornada em 3 passos */}
-      <section className="pt-10 pb-20 lg:pt-12 lg:pb-24 bg-muted/30">
-        <div className="container mx-auto px-4">
-          <p className={eyebrow}>Como funciona</p>
-          <h2 className={`${sectionTitle} ${sectionHeader}`}>
-            Uma jornada pensada para quem atua na saúde
-          </h2>
-          <div className="grid md:grid-cols-3 gap-10 lg:gap-12">
-            <div>
-              <span className="text-5xl lg:text-6xl font-bold text-primary/15 leading-none">01</span>
-              <h3 className="text-xl font-semibold mt-3 mb-2">Estude o fundamento</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Módulos e cápsulas com base científica: princípios, indicações e parâmetros.
-              </p>
-            </div>
-            <div>
-              <span className="text-5xl lg:text-6xl font-bold text-primary/15 leading-none">02</span>
-              <h3 className="text-xl font-semibold mt-3 mb-2">Simule e experimente</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Laboratórios virtuais para testar configurações e ver respostas em tempo real.
-              </p>
-            </div>
-            <div>
-              <span className="text-5xl lg:text-6xl font-bold text-primary/15 leading-none">03</span>
-              <h3 className="text-xl font-semibold mt-3 mb-2">Consolide com a IA</h3>
-              <p className="text-muted-foreground leading-relaxed">
-                Tire dúvidas no contexto da aula e acompanhe seu progresso com gamificação.
-              </p>
+      {/* Journey — timeline flow */}
+      <section className={`${sectionPadding} relative overflow-hidden`}>
+        <div className="absolute inset-0 bg-muted/25 dark:bg-muted/15" aria-hidden />
+        <div className="relative mx-auto max-w-6xl px-4">
+          <ScrollReveal>
+            <p className="text-xs font-medium uppercase tracking-[0.28em] text-muted-foreground sm:text-sm">
+              {t.journeyEyebrow}
+            </p>
+            <h2 className="mt-1 max-w-3xl text-3xl font-bold tracking-tight text-foreground md:text-4xl lg:text-5xl">
+              {t.journeyTitle}
+            </h2>
+          </ScrollReveal>
+
+          <div className="relative mt-5 md:mt-6">
+            <div className="grid gap-4 md:grid-cols-3 md:gap-4">
+              {t.journeySteps.map((step, index) => (
+                <ScrollReveal key={step.title} delayMs={index * 100}>
+                  <div className="relative rounded-[18px] bg-background/60 p-4 shadow-[inset_0_1px_0_0_hsl(0_0%_100%/0.08)] backdrop-blur-md dark:bg-card/40 md:p-5">
+                    <span className="text-4xl font-bold leading-none text-primary/15 md:text-5xl lg:text-6xl">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <h3 className="mt-2 text-lg font-semibold tracking-tight text-foreground md:text-xl">{step.title}</h3>
+                    <p className="mt-1.5 text-sm font-light leading-relaxed text-muted-foreground md:text-base">{step.body}</p>
+                  </div>
+                </ScrollReveal>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* Bento de diferenciais */}
+      {/* Diferenciais — glass bento */}
       <section className={sectionPadding}>
-        <div className="container mx-auto px-4">
-          <p className={eyebrow}>Diferenciais</p>
-          <h2 className={`${sectionTitle} ${sectionHeader}`}>
-            Recursos que fazem a diferença no seu aprendizado
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-6 md:grid-rows-[200px_auto_auto] gap-5 lg:gap-6">
-            <div className="md:col-span-3 md:row-span-1 md:h-[200px] p-6 lg:p-8 rounded-2xl border border-border/50 bg-card hover:shadow-lg transition-smooth flex flex-col justify-between">
-              <div className="rounded-xl bg-secondary/10 w-12 h-12 flex items-center justify-center mb-4 shrink-0">
-                <Brain className="h-6 w-6 text-secondary" />
+        <div className="mx-auto max-w-6xl px-4">
+          <ScrollReveal>
+            <p className="text-xs font-medium uppercase tracking-[0.28em] text-muted-foreground sm:text-sm">
+              {t.diffEyebrow}
+            </p>
+            <h2 className="mt-1 max-w-2xl text-3xl font-bold tracking-tight text-foreground md:text-4xl lg:text-5xl">
+              {t.diffTitle}
+            </h2>
+          </ScrollReveal>
+          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-6 md:grid-rows-[minmax(160px,auto)_auto_auto] md:gap-4">
+            <ScrollReveal className="md:col-span-3" delayMs={0}>
+              <div className="landing-glass-surface landing-card-lift flex h-full min-h-[150px] flex-col justify-between rounded-[18px] p-4 lg:p-5">
+                <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-secondary/15 text-secondary">
+                  <Brain className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold tracking-tight">{t.diffCards[0].title}</h3>
+                  <p className="mt-1 text-sm font-light leading-relaxed text-muted-foreground md:text-base">
+                    {t.diffCards[0].body}
+                  </p>
+                </div>
               </div>
-              <div className="min-h-0">
-                <h3 className="text-xl font-semibold mb-2">Tutor de IA contextual</h3>
-                <p className="text-muted-foreground leading-relaxed text-sm lg:text-base line-clamp-3">
-                  Assistente 24/7 no conteúdo: perguntas, explicações e reforço no momento em que você estuda.
-                </p>
+            </ScrollReveal>
+            <ScrollReveal className="md:col-span-3" delayMs={80}>
+              <div className="landing-glass-surface landing-card-lift flex h-full min-h-[150px] flex-col justify-between rounded-[18px] p-4 lg:p-5">
+                <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                  <Microscope className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold tracking-tight">{t.diffCards[1].title}</h3>
+                  <p className="mt-1 text-sm font-light leading-relaxed text-muted-foreground md:text-base">
+                    {t.diffCards[1].body}
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="md:col-span-3 md:row-span-1 md:h-[200px] p-6 lg:p-8 rounded-2xl border border-border/50 bg-card hover:shadow-lg transition-smooth flex flex-col justify-between">
-              <div className="rounded-xl bg-primary/10 w-12 h-12 flex items-center justify-center mb-4 shrink-0">
-                <Microscope className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold mb-2">Laboratórios virtuais</h3>
-                <p className="text-muted-foreground leading-relaxed text-sm">
-                  Simule parâmetros e observe respostas biológicas em ambiente seguro.
-                </p>
-              </div>
-            </div>
-            <div className="md:col-span-3 p-6 rounded-2xl border border-border/50 bg-card hover:shadow-md transition-smooth">
-              <div className="rounded-xl bg-secondary/10 w-10 h-10 flex items-center justify-center mb-3">
-                <BookOpen className="h-5 w-5 text-secondary" />
-              </div>
-              <h3 className="font-semibold mb-1">Conteúdo especializado</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed">
-                Material cientificamente preciso e revisado, de eletroestimulação a imagem.
-              </p>
-            </div>
-            <div className="md:col-span-3 p-6 rounded-2xl border border-border/50 bg-card hover:shadow-md transition-smooth">
-              <div className="rounded-xl bg-primary/10 w-10 h-10 flex items-center justify-center mb-3">
-                <Award className="h-5 w-5 text-primary" />
-              </div>
-              <h3 className="font-semibold mb-1">Gamificação</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed">
-                Emblemas, níveis e progresso por módulos e marcos de aprendizado.
-              </p>
-            </div>
-            <div className="md:col-span-3 p-6 rounded-2xl border border-border/50 bg-card hover:shadow-md transition-smooth">
-              <div className="rounded-xl bg-secondary/10 w-10 h-10 flex items-center justify-center mb-3">
-                <GraduationCap className="h-5 w-5 text-secondary" />
-              </div>
-              <h3 className="font-semibold mb-1">Progresso detalhado</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed">
-                Análises, taxas de conclusão e recomendações personalizadas.
-              </p>
-            </div>
-            <div className="md:col-span-3 p-6 rounded-2xl border border-border/50 bg-card hover:shadow-md transition-smooth">
-              <div className="rounded-xl bg-primary/10 w-10 h-10 flex items-center justify-center mb-3">
-                <Zap className="h-5 w-5 text-primary" />
-              </div>
-              <h3 className="font-semibold mb-1">Aprendizado interativo</h3>
-              <p className="text-muted-foreground text-sm leading-relaxed">
-                Vídeos, animações, questionários e casos para maximizar retenção.
-              </p>
-            </div>
+            </ScrollReveal>
+            {(
+              [
+                { icon: BookOpen, accent: "secondary" as const, idx: 2 },
+                { icon: Award, accent: "primary" as const, idx: 3 },
+                { icon: GraduationCap, accent: "secondary" as const, idx: 4 },
+                { icon: Zap, accent: "primary" as const, idx: 5 },
+              ] as const
+            ).map((item, i) => {
+              const Icon = item.icon;
+              const card = t.diffCards[item.idx];
+              return (
+                <ScrollReveal key={card.title} className="md:col-span-3" delayMs={120 + i * 60}>
+                  <div className="landing-glass-surface landing-card-lift h-full rounded-[18px] p-4 md:p-5">
+                    <div
+                      className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${
+                        item.accent === "secondary" ? "bg-secondary/15 text-secondary" : "bg-primary/15 text-primary"
+                      }`}
+                    >
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <h3 className="font-semibold tracking-tight">{card.title}</h3>
+                    <p className="mt-2 text-sm font-light leading-relaxed text-muted-foreground">{card.body}</p>
+                  </div>
+                </ScrollReveal>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className={`${sectionPadding} bg-muted/30`}>
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-8 rounded-2xl border border-border/50 bg-card p-8 lg:p-10">
-            <div className="max-w-xl">
-              <h2 className="text-2xl lg:text-3xl font-bold mb-2 leading-tight">
-                Pronto para levar seu conhecimento médico ao próximo nível?
-              </h2>
-              <p className="text-muted-foreground leading-relaxed">
-                Comece hoje e tenha acesso a conteúdo, laboratórios e suporte de IA.
-              </p>
+      {/* CTA band */}
+      <section className={`${sectionPadding} relative`}>
+        <div className="absolute inset-0 bg-muted/30 dark:bg-muted/20" aria-hidden />
+        <div className="relative mx-auto max-w-6xl px-4">
+          <ScrollReveal>
+            <div className="landing-glass-surface flex flex-col gap-4 rounded-[20px] p-5 md:flex-row md:items-center md:justify-between md:gap-5 md:p-7 lg:p-8">
+              <div className="max-w-xl">
+                <h2 className="text-xl font-bold leading-tight tracking-tight text-foreground md:text-2xl lg:text-3xl">
+                  {t.ctaBandTitle}
+                </h2>
+                <p className="mt-1.5 text-sm font-light leading-relaxed text-muted-foreground md:text-base">{t.ctaBandLead}</p>
+              </div>
+              <div className="shrink-0">
+                <Link to="/auth">
+                  <Button
+                    size="lg"
+                    className="landing-cta-primary h-12 rounded-xl px-8 text-sm font-semibold gradient-accent text-primary-foreground sm:text-base"
+                  >
+                    <GraduationCap className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+                    {t.ctaBandBtn}
+                  </Button>
+                </Link>
+              </div>
             </div>
-            <div className="shrink-0">
-              <Link to="/auth">
-                <Button size="lg" className="gradient-accent text-white shadow-xl hover:shadow-glow transition-smooth text-base px-8">
-                  <GraduationCap className="mr-2 h-4 w-4" />
-                  Começar gratuitamente
-                </Button>
+          </ScrollReveal>
+        </div>
+      </section>
+
+      <footer className="border-t border-border/40 py-6">
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="flex flex-col items-center gap-3 md:flex-row md:justify-between md:gap-4">
+            <img src={logo} alt="ProGenia" className="h-8 progenia-logo" />
+            <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm font-medium text-muted-foreground">
+              <Link to="/sobre" className="transition-colors hover:text-primary">
+                {t.footerAbout}
               </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-border/60 py-12 bg-muted/20">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-3">
-              <img src={logo} alt="ProGenia" className="h-8 progenia-logo" />
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <p className="text-muted-foreground text-sm">
-                © 2026 ProGenia. Todos os direitos reservados.
-              </p>
+              <Link to="/contato" className="transition-colors hover:text-primary">
+                {t.footerContact}
+              </Link>
+              <Link to="/blog" className="transition-colors hover:text-primary">
+                {t.footerBlog}
+              </Link>
+            </nav>
+            <div className="flex flex-col items-center gap-2 text-center md:items-end">
+              <p className="text-sm font-light text-muted-foreground">{t.footerCopy}</p>
               <Button
                 type="button"
                 variant="link"
-                className="h-auto p-0 text-sm font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
+                className="h-auto p-0 text-sm font-semibold text-primary hover:text-secondary"
                 onClick={() => setIsLegalDialogOpen(true)}
               >
-                Termos de uso e privacidade da plataforma
+                {t.footerLegal}
               </Button>
             </div>
           </div>
@@ -396,13 +835,80 @@ const Landing = () => {
         />
       )}
 
+      <Dialog open={!!demoSlug} onOpenChange={(open) => !open && closeLabDemo()}>
+        <DialogContent
+          className={cn(
+            "z-[100] flex max-h-[85vh] w-[min(96vw,1280px)] max-w-7xl flex-col gap-0 overflow-hidden border bg-background p-0 shadow-lg sm:rounded-xl",
+          )}
+        >
+          {demoSlug ? (
+            <>
+              <DialogHeader className="shrink-0 border-b border-border/60 px-4 pb-3 pt-4 sm:px-6">
+                <DialogTitle>
+                  {demoFetchStatus === "ok" && demoVirtualLab
+                    ? demoVirtualLab.name || demoVirtualLab.title || demoTitleFallback
+                    : demoTitleFallback}
+                </DialogTitle>
+                <DialogDescription>
+                  {demoFetchStatus === "loading"
+                    ? en
+                      ? "Loading…"
+                      : "Carregando…"
+                    : demoFetchStatus === "error"
+                      ? en
+                        ? "Could not load this lab. Try again later or sign in."
+                        : "Não foi possível carregar este laboratório. Tente mais tarde ou entre na conta."
+                      : demoVirtualLab?.description ||
+                        (en ? "Interactive preview of the simulator." : "Pré-visualização interativa do simulador.")}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-4 pt-3 sm:px-6">
+                {demoFetchStatus === "loading" ? (
+                  <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 py-10">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">
+                      {en ? "Loading lab…" : "Carregando laboratório…"}
+                    </p>
+                  </div>
+                ) : null}
+                {demoFetchStatus === "error" ? (
+                  <div className="flex min-h-[160px] flex-col items-center justify-center gap-3 py-8 text-center text-sm text-muted-foreground">
+                    {en ? "Something went wrong." : "Algo deu errado."}
+                  </div>
+                ) : null}
+                {demoFetchStatus === "ok" && demoVirtualLab ? (
+                  <LabDemoBoundary
+                    slug={demoSlug}
+                    enabled={!authLoading && !user}
+                    onDismissSecondary={closeLabDemo}
+                  >
+                    <Suspense
+                      fallback={
+                        <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 py-8">
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                          <p className="text-sm text-muted-foreground">
+                            {en ? "Opening simulator…" : "Abrindo simulador…"}
+                          </p>
+                        </div>
+                      }
+                    >
+                      <LabPreviewContentLazy key={demoVirtualLab.slug} lab={demoVirtualLab} />
+                    </Suspense>
+                  </LabDemoBoundary>
+                ) : null}
+              </div>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isLegalDialogOpen} onOpenChange={setIsLegalDialogOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl rounded-2xl">
           <DialogHeader>
-            <DialogTitle>Termos de Privacidade e Uso</DialogTitle>
+            <DialogTitle>{en ? "Terms & privacy" : "Termos de Privacidade e Uso"}</DialogTitle>
           </DialogHeader>
-          <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-6">
-            {loadingLegalText ? "Carregando termos..." : legalText}
+          <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-7 font-light">
+            {loadingLegalText ? (en ? "Loading…" : "Carregando termos...") : legalText}
           </div>
         </DialogContent>
       </Dialog>
