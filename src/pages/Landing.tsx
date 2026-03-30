@@ -237,15 +237,12 @@ const Landing = () => {
             ctaPrimary: "Explore the platform",
             ctaSecondary: "About ProGenia",
             videoAria: "ProGenia product overview video",
-            labsEyebrow: "Virtual labs",
             labsTitle: "Try it before you reach the patient",
             labsLead:
               "Simulators that respond in real time.",
             labDemo: "Try the demo",
-            blogEyebrow: "News",
             blogTitle: "Blog & news",
             blogAll: "All posts",
-            journeyEyebrow: "How it works",
             journeyTitle: "A journey built for healthcare professionals",
             journeySteps: [
               {
@@ -261,7 +258,6 @@ const Landing = () => {
                 body: "Ask questions in context and track progress with gamification.",
               },
             ],
-            diffEyebrow: "Why ProGenia",
             diffTitle: "What sets your learning apart",
             diffCards: [
               {
