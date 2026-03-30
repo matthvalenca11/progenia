@@ -419,6 +419,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       const next = prev === "pt" ? "en" : "pt";
       try {
         localStorage.setItem(STORAGE_KEY, next);
+        if (next === "en") {
+          localStorage.removeItem(TRANSLATION_CACHE_KEY);
+        }
       } catch {
         // ignore
       }
