@@ -282,10 +282,14 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       for (const original of chunk) {
         pendingTextsRef.current.delete(original);
         const normalizedOriginal = normalizeText(original);
-        const translatedText = translated[original] || translated[normalizedOriginal] || original;
-        cacheRef.current.set(original, translatedText);
-        if (normalizedOriginal && normalizedOriginal !== original) {
-          cacheRef.current.set(normalizedOriginal, translatedText);
+        const translatedText = translated[original] || translated[normalizedOriginal];
+        // So salva no cache quando a API realmente retorna uma traducao para o texto.
+        // Evita "congelar" um item em PT quando houve miss pontual no lote.
+        if (translatedText) {
+          cacheRef.current.set(original, translatedText);
+          if (normalizedOriginal && normalizedOriginal !== original) {
+            cacheRef.current.set(normalizedOriginal, translatedText);
+          }
         }
       }
     }
