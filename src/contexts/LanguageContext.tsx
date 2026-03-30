@@ -32,6 +32,10 @@ const FORCED_PT_EN_OVERRIDES: Record<string, string> = {
   comecar: "Sign Up",
   sobre: "About",
   sair: "Log Out",
+  // Fix de ordem gramatical específica (PT->EN).
+  // Sem override, a tradução automática retorna algo como "capsules Quick".
+  "cápsulas rápidas": "Quick capsules",
+  "cápsula rápida": "Quick capsule",
 };
 
 const looksTranslatable = (text: string) => {
