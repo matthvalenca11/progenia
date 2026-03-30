@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BookText, Plus, Save, Trash2, AlertCircle } from "lucide-react";
+import { BookText, Plus, Save, Trash2, AlertCircle, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -45,6 +45,7 @@ export const TranslationGlossaryManager = ({ onSaved }: TranslationGlossaryManag
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [clearingCache, setClearingCache] = useState(false);
   const [rows, setRows] = useState<GlossaryRow[]>([]);
   const [newTerm, setNewTerm] = useState<NewTermForm>(defaultNewTerm);
 
@@ -74,6 +75,24 @@ export const TranslationGlossaryManager = ({ onSaved }: TranslationGlossaryManag
     setRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   };
 
+  const clearTranslationCache = () => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.removeItem("progenia_translation_cache_en");
+    } catch {
+      // ignore
+    }
+    window.dispatchEvent(new Event("progenia_translation_glossary_updated"));
+  };
+
+  const handleClearCache = async () => {
+    setClearingCache(true);
+    clearTranslationCache();
+    await new Promise((resolve) => window.setTimeout(resolve, 80));
+    toast.success("Cache de traducao limpo e traducoes reaplicadas");
+    setClearingCache(false);
+  };
+
   const handleSaveRow = async (row: GlossaryRow) => {
     try {
       if (!row.source_text.trim() || !row.target_text.trim()) {
@@ -97,14 +116,7 @@ export const TranslationGlossaryManager = ({ onSaved }: TranslationGlossaryManag
       if (error) throw error;
       toast.success("Termo atualizado com sucesso");
 
-      if (typeof window !== "undefined") {
-        try {
-          window.localStorage.removeItem("progenia_translation_cache_en");
-        } catch {
-          // ignore
-        }
-        window.dispatchEvent(new Event("progenia_translation_glossary_updated"));
-      }
+      clearTranslationCache();
 
       onSaved?.();
       await loadGlossary();
@@ -152,14 +164,7 @@ export const TranslationGlossaryManager = ({ onSaved }: TranslationGlossaryManag
       toast.success("Termo adicionado com sucesso");
       setNewTerm(defaultNewTerm);
 
-      if (typeof window !== "undefined") {
-        try {
-          window.localStorage.removeItem("progenia_translation_cache_en");
-        } catch {
-          // ignore
-        }
-        window.dispatchEvent(new Event("progenia_translation_glossary_updated"));
-      }
+      clearTranslationCache();
 
       onSaved?.();
       await loadGlossary();
@@ -195,14 +200,7 @@ export const TranslationGlossaryManager = ({ onSaved }: TranslationGlossaryManag
       setRows((prev) => prev.filter((item) => item.id !== row.id));
       toast.success("Termo removido com sucesso");
 
-      if (typeof window !== "undefined") {
-        try {
-          window.localStorage.removeItem("progenia_translation_cache_en");
-        } catch {
-          // ignore
-        }
-        window.dispatchEvent(new Event("progenia_translation_glossary_updated"));
-      }
+      clearTranslationCache();
     } catch (error: unknown) {
       console.error("Erro ao remover termo:", error);
       const message =
@@ -227,9 +225,15 @@ export const TranslationGlossaryManager = ({ onSaved }: TranslationGlossaryManag
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <BookText className="h-6 w-6 text-primary" />
-        <h2 className="text-2xl font-bold">Glossario de Traducao</h2>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <BookText className="h-6 w-6 text-primary" />
+          <h2 className="text-2xl font-bold">Glossario de Traducao</h2>
+        </div>
+        <Button variant="outline" onClick={() => void handleClearCache()} disabled={clearingCache}>
+          <RotateCcw className="mr-2 h-4 w-4" />
+          {clearingCache ? "Limpando..." : "Limpar cache de traducao"}
+        </Button>
       </div>
 
       <Alert>

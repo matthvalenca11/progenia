@@ -32,6 +32,11 @@ const FORCED_PT_EN_OVERRIDES: Record<string, string> = {
   comecar: "Sign Up",
   sobre: "About",
   sair: "Log Out",
+  // Padroniza CTA "Ver ..." para "View ..." nos botões.
+  "ver capsulas": "View capsules",
+  "ver aulas": "View lessons",
+  "ver modulo": "View module",
+  "ver modulos": "View modules",
   // Fix de ordem gramatical específica (PT->EN).
   // Sem override, a tradução automática retorna algo como "capsules Quick".
   "capsulas rapidas": "Quick capsules",
