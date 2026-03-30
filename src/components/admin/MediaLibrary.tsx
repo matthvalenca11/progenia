@@ -126,7 +126,7 @@ export function MediaLibrary() {
   };
 
   const formatSize = (bytes?: number) => {
-    if (!bytes) return "—";
+    if (!bytes) return "-";
     const k = 1024;
     const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));

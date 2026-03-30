@@ -827,7 +827,7 @@ export const AboutSectionEditor = ({ sections, onUpdate, onDelete, onReorder, on
 
               {editingSection.section_type === "justification" && (
                 <AccordionItem value="justification">
-                  <AccordionTrigger>Justificativa — cartões</AccordionTrigger>
+                  <AccordionTrigger>Justificativa - cartões</AccordionTrigger>
                   <AccordionContent className="space-y-4 pt-4">
                     <p className="text-sm text-muted-foreground">
                       Abaixo do título e texto introdutório (configurados em Configurações Básicas e Mídia).

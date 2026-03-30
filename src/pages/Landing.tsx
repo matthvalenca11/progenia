@@ -78,8 +78,8 @@ const LAB_CARDS: LabCardDef[] = [
     Visual: FotobioLabVisual,
     title: { pt: "Fotobiomodulação", en: "Photobiomodulation" },
     description: {
-      pt: "Visualização 3D do tecido, feixe pulsante e parâmetros clínicos em tempo real — como na prática, sem risco ao paciente.",
-      en: "3D tissue view, a pulsing beam, and live clinical parameters—like real practice, without patient risk.",
+      pt: "Visualização 3D do tecido, feixe pulsante e parâmetros clínicos em tempo real, como na prática, sem risco ao paciente.",
+      en: "3D tissue view, a pulsing beam, and live clinical parameters, like real practice, without patient risk.",
     },
   },
   {
@@ -97,7 +97,7 @@ const LAB_CARDS: LabCardDef[] = [
     title: { pt: "Ultrassom diagnóstico", en: "Diagnostic Ultrasound" },
     description: {
       pt: "Ajuste TGC, profundidade e presets como em um equipamento real e interprete o eco em tempo real.",
-      en: "Tune TGC, depth, and presets like on a real system—and read the echo in real time.",
+      en: "Tune TGC, depth, and presets like on a real system, and read the echo in real time.",
     },
   },
   {
@@ -250,7 +250,7 @@ const Landing = () => {
             journeySteps: [
               {
                 title: "Learn the foundation",
-                body: "Modules and capsules grounded in science—principles, indications, and parameters.",
+                body: "Modules and capsules grounded in science, principles, indications, and parameters.",
               },
               {
                 title: "Simulate and explore",
@@ -270,11 +270,11 @@ const Landing = () => {
               },
               {
                 title: "Virtual labs",
-                body: "Tune parameters and watch responses in real time—safely.",
+                body: "Tune parameters and watch responses in real time, safely.",
               },
               {
                 title: "Specialized content",
-                body: "Accurate, reviewed material—from electrostimulation to imaging.",
+                body: "Accurate, reviewed material, from electrostimulation to imaging.",
               },
               {
                 title: "Gamification",

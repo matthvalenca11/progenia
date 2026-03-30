@@ -13,7 +13,7 @@ export function toErrorMessage(err: unknown): string {
   if (typeof err === "object") {
     const o = err as Record<string, unknown>;
     const parts = [o.message, o.details, o.hint].filter((x) => typeof x === "string" && String(x).length > 0) as string[];
-    if (parts.length > 0) return parts.join(" — ");
+    if (parts.length > 0) return parts.join(" - ");
   }
   try {
     return JSON.stringify(err);

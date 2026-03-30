@@ -276,7 +276,7 @@ export default function VirtualLabsAdmin() {
                     <TableCell className="font-medium">{lab.name}</TableCell>
                     <TableCell>{getLabTypeBadge(lab.lab_type)}</TableCell>
                     <TableCell className="max-w-md truncate">
-                      {lab.description || <span className="text-muted-foreground">—</span>}
+                      {lab.description || <span className="text-muted-foreground">-</span>}
                     </TableCell>
                     <TableCell>
                       <Badge variant={lab.is_published ? "default" : "secondary"}>
@@ -286,7 +286,7 @@ export default function VirtualLabsAdmin() {
                     <TableCell>
                       {lab.updated_at
                         ? format(new Date(lab.updated_at), "dd/MM/yyyy HH:mm", { locale: ptBR })
-                        : "—"}
+                        : "-"}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">

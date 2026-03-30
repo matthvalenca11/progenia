@@ -118,8 +118,8 @@ export function LabDemoBoundary({ slug, enabled, children, onDismissSecondary }:
       <Clock className="h-4 w-4 shrink-0 opacity-80" />
       <p className="font-medium">
         {en
-          ? "Limited demo — explore core controls. Time remaining:"
-          : "Demonstração limitada — explore os controles principais. Tempo restante:"}{" "}
+          ? "Limited demo: explore core controls. Time remaining:"
+          : "Demonstração limitada: explore os controles principais. Tempo restante:"}{" "}
         <span className="tabular-nums font-semibold">{fmtRemaining()}</span>
       </p>
     </div>
