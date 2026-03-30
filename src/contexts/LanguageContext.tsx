@@ -34,8 +34,8 @@ const FORCED_PT_EN_OVERRIDES: Record<string, string> = {
   sair: "Log Out",
   // Fix de ordem gramatical específica (PT->EN).
   // Sem override, a tradução automática retorna algo como "capsules Quick".
-  "cápsulas rápidas": "Quick capsules",
-  "cápsula rápida": "Quick capsule",
+  "capsulas rapidas": "Quick capsules",
+  "capsula rapida": "Quick capsule",
 };
 
 const looksTranslatable = (text: string) => {
@@ -52,7 +52,9 @@ const normalizeText = (text: string) =>
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-const normalizeLookupKey = (text: string) => normalizeText(text).toLowerCase();
+const stripDiacritics = (text: string) =>
+  text.normalize("NFD").replace(/\p{Diacritic}/gu, "");
+const normalizeLookupKey = (text: string) => stripDiacritics(normalizeText(text).toLowerCase());
 const preserveEdgeWhitespace = (original: string, translated: string) => {
   const leading = original.match(/^\s*/)?.[0] ?? "";
   const trailing = original.match(/\s*$/)?.[0] ?? "";
@@ -381,6 +383,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       childList: true,
       subtree: true,
       characterData: true,
+      // Garante tradução automática quando React/CMS atualizar atributos
+      // sem inserir/alterar nós de texto (ex.: `title`, `alt`, `placeholder`).
+      attributes: true,
     });
 
     // Permite que o glossário atualize traduções sem reload manual.
