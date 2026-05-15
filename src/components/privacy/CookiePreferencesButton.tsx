@@ -9,8 +9,7 @@ type Props = {
   variant?: "icon" | "text";
   className?: string;
   /**
-   * No desktop o FAB do Tutor de IA fica em `bottom-6 right-6` com `h-14`.
-   * Com true, o ícone de cookies sobe no `md+` para não ficar visível atrás do botão.
+   * No desktop, posiciona o ícone à esquerda do FAB do Tutor de IA.
    */
   shiftUpForAiTutorFab?: boolean;
 };
@@ -29,8 +28,8 @@ export const CookiePreferencesButton = ({ variant = "icon", className, shiftUpFo
     const iconFabClass = cn(
       "fixed right-[max(0.75rem,env(safe-area-inset-right))] z-[35] h-9 w-9 rounded-full border border-border/60 bg-background/85 text-muted-foreground shadow-sm backdrop-blur-sm transition-opacity hover:bg-muted/80 hover:text-foreground supports-[backdrop-filter]:bg-background/70",
       "bottom-[max(0.75rem,env(safe-area-inset-bottom))]",
-      shiftUpForAiTutorFab &&
-        "md:bottom-[calc(env(safe-area-inset-bottom,0px)+1.5rem+3.5rem+0.75rem)]",
+      shiftUpForAiTutorFab && "md:bottom-[calc(env(safe-area-inset-bottom,0px)+1.5rem+0.625rem)]",
+      shiftUpForAiTutorFab && "md:right-[calc(env(safe-area-inset-right,0px)+1.5rem+9.5rem)]",
     );
     return (
       <Tooltip>
