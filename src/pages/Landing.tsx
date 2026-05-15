@@ -33,17 +33,16 @@ import {
 } from "@/components/landing/LabCardVisuals";
 import { useAuth } from "@/hooks/useAuth";
 import { LabDemoBoundary } from "@/contexts/LabDemoContext";
+import { loadLegalBundle } from "@/lib/legal";
 
 const LabPreviewContentLazy = lazy(() =>
   import("@/components/labs/LabPreviewContent").then((m) => ({ default: m.LabPreviewContent })),
 );
 
 const sectionPadding = "py-8 lg:py-11";
-const LEGAL_SETTINGS_ID = "00000000-0000-0000-0000-000000000002";
-
 /** Mint CTA — header (Acessar) e blog (Todas as notícias / All posts) */
 const landingMintCtaButtonClass =
-  "h-9 rounded-xl border-0 bg-[hsl(160_52%_44%)] px-4 text-sm font-semibold text-white shadow-md shadow-[hsl(160_45%_25%/0.35)] transition-[box-shadow,transform,background-color] duration-200 hover:-translate-y-0.5 hover:bg-[hsl(160_52%_38%)] hover:text-white hover:shadow-lg hover:shadow-[hsl(160_45%_22%/0.4)] focus-visible:ring-[hsl(160_52%_50%)] dark:bg-[hsl(158_48%_52%)] dark:text-[hsl(220_30%_10%)] dark:shadow-[hsl(160_40%_20%/0.45)] dark:hover:bg-[hsl(158_48%_46%)] dark:hover:text-[hsl(220_30%_10%)] sm:h-10 sm:px-5";
+  "h-9 rounded-xl border border-border/70 bg-background px-4 text-sm font-semibold text-foreground shadow-sm transition-colors duration-200 hover:bg-muted hover:text-foreground focus-visible:ring-ring sm:h-10 sm:px-5";
 
 const defaultLegalText = `TERMOS DE PRIVACIDADE E USO - PROGENIA
 
@@ -146,11 +145,11 @@ const Landing = () => {
   const [isLegalDialogOpen, setIsLegalDialogOpen] = useState(false);
   const [legalText, setLegalText] = useState(defaultLegalText);
   const [loadingLegalText, setLoadingLegalText] = useState(false);
+  const [dpoLabel, setDpoLabel] = useState("");
   const [blogPosts, setBlogPosts] = useState<InstagramPost[]>([]);
   const [blogLoading, setBlogLoading] = useState(true);
   const [selectedPost, setSelectedPost] = useState<InstagramPost | null>(null);
   const [heroVideoFailed, setHeroVideoFailed] = useState(false);
-  const [scrollY, setScrollY] = useState(0);
   const [labDemoSlugs, setLabDemoSlugs] = useState<Record<string, string>>({});
   const [demoSlug, setDemoSlug] = useState<string | null>(null);
   const [demoTitleFallback, setDemoTitleFallback] = useState("");
@@ -229,36 +228,35 @@ const Landing = () => {
       en
         ? {
             navAccess: "Sign in",
-            heroTitleBefore: "Master clinical practice with science in",
-            heroTitleHighlight: "simulators.",
+            heroTitleBefore: "Clinical training with scientific rigor",
+            heroTitleHighlight: "",
             heroTitleAfter: "",
             heroLead:
-              "From theory to equipment: learn with scientific rigor, practice in safe virtual labs, and keep an AI tutor on your side.",
+              "Learn core principles, test parameters in virtual labs, and make safer technical decisions before clinical practice.",
             ctaPrimary: "Explore the platform",
             ctaSecondary: "About ProGenia",
             videoAria: "ProGenia product overview video",
-            labsTitle: "Try it before you reach the patient",
-            labsLead:
-              "Simulators that respond in real time.",
+            labsTitle: "Virtual labs for technical decision-making",
+            labsLead: "Practical simulation with immediate feedback.",
             labDemo: "Try the demo",
-            blogTitle: "Blog & news",
+            blogTitle: "Insights",
             blogAll: "All posts",
-            journeyTitle: "A journey built for healthcare professionals",
+            journeyTitle: "How learning works",
             journeySteps: [
               {
-                title: "Learn the foundation",
-                body: "Modules and capsules grounded in science, principles, indications, and parameters.",
+                title: "Study the fundamentals",
+                body: "Modules and capsules with technical foundations, indications, and parameter logic.",
               },
               {
-                title: "Simulate and explore",
-                body: "Virtual labs to test settings and see responses in real time.",
+                title: "Test in simulation",
+                body: "Virtual labs to validate setup choices and observe response in real time.",
               },
               {
-                title: "Reinforce with AI",
-                body: "Ask questions in context and track progress with gamification.",
+                title: "Reinforce and track",
+                body: "Contextual support and clear progress tracking across your study cycle.",
               },
             ],
-            diffTitle: "What sets your learning apart",
+            diffTitle: "Core capabilities",
             diffCards: [
               {
                 title: "Contextual AI tutor",
@@ -285,8 +283,8 @@ const Landing = () => {
                 body: "Video, animation, and quizzes to lock in ideas.",
               },
             ],
-            ctaBandTitle: "Ready to take your clinical knowledge further?",
-            ctaBandLead: "Get access to content, labs, and AI support today.",
+            ctaBandTitle: "Start your learning cycle",
+            ctaBandLead: "Access content, virtual labs, and guided support in one environment.",
             ctaBandBtn: "Start for free",
             footerCopy: "© 2026 ProGenia. All rights reserved.",
             footerLegal: "Terms & privacy",
@@ -296,34 +294,34 @@ const Landing = () => {
           }
         : {
             navAccess: "Acessar",
-            heroTitleBefore: "Domine a prática clínica com ciência nos",
-            heroTitleHighlight: "simuladores.",
+            heroTitleBefore: "Treinamento clínico com rigor científico",
+            heroTitleHighlight: "",
             heroLead:
-              "Da teoria ao equipamento: aprenda com rigor científico, pratique em laboratórios virtuais seguros e tenha um tutor de AI ao seu lado.",
+              "Estude fundamentos, teste parâmetros em laboratórios virtuais e tome decisões técnicas com mais segurança antes da prática clínica.",
             ctaPrimary: "Ver plataforma",
             ctaSecondary: "Conhecer a ProGenia",
             videoAria: "Vídeo de apresentação da ProGenia",
-            labsTitle: "Experimente antes de chegar ao paciente",
-            labsLead: "Simuladores que respondem em tempo real.",
+            labsTitle: "Laboratórios virtuais para decisão técnica",
+            labsLead: "Simulação prática com feedback imediato.",
             labDemo: "Experimentar demo",
-            blogTitle: "Blog e Notícias",
+            blogTitle: "Conteúdos",
             blogAll: "Todas as notícias",
-            journeyTitle: "Uma jornada pensada para quem atua na saúde",
+            journeyTitle: "Como o aprendizado funciona",
             journeySteps: [
               {
-                title: "Estude o fundamento",
-                body: "Módulos e cápsulas com base científica: princípios, indicações e parâmetros.",
+                title: "Estude os fundamentos",
+                body: "Módulos e cápsulas com base técnica em princípios, indicações e parâmetros.",
               },
               {
-                title: "Simule e experimente",
-                body: "Laboratórios virtuais para testar configurações e ver respostas em tempo real.",
+                title: "Valide em simulação",
+                body: "Laboratórios virtuais para testar configurações e observar respostas em tempo real.",
               },
               {
-                title: "Consolide com a IA",
-                body: "Tire dúvidas no contexto da aula e acompanhe seu progresso com gamificação.",
+                title: "Consolide e acompanhe",
+                body: "Suporte contextual e acompanhamento claro de progresso ao longo do ciclo.",
               },
             ],
-            diffTitle: "Recursos que fazem a diferença no seu aprendizado",
+            diffTitle: "Capacidades principais",
             diffCards: [
               {
                 title: "Tutor de AI contextual",
@@ -350,8 +348,8 @@ const Landing = () => {
                 body: "Vídeos, animações e questionários para fixar conceitos.",
               },
             ],
-            ctaBandTitle: "Pronto para levar seu conhecimento clínico ao próximo nível?",
-            ctaBandLead: "Comece hoje e tenha acesso a conteúdo, laboratórios e suporte de IA.",
+            ctaBandTitle: "Inicie seu ciclo de aprendizado",
+            ctaBandLead: "Acesse conteúdo, laboratórios virtuais e suporte guiado em um único ambiente.",
             ctaBandBtn: "Começar gratuitamente",
             footerCopy: "© 2026 ProGenia. Todos os direitos reservados.",
             footerLegal: "Termos de uso e privacidade da plataforma",
@@ -367,25 +365,15 @@ const Landing = () => {
   }, [language]);
 
   useEffect(() => {
-    const onScroll = () => setScrollY(window.scrollY);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  useEffect(() => {
     const loadLegalText = async () => {
       try {
         setLoadingLegalText(true);
-        const { data, error } = await supabase
-          .from("legal_settings")
-          .select("terms_privacy_text")
-          .eq("id", LEGAL_SETTINGS_ID)
-          .maybeSingle();
-
-        if (error) throw error;
-        if (data?.terms_privacy_text) {
-          setLegalText(data.terms_privacy_text);
+        const bundle = await loadLegalBundle(supabase);
+        if (bundle?.text) {
+          setLegalText(bundle.text);
+        }
+        if (bundle?.dpoEmail || bundle?.dpoChannel) {
+          setDpoLabel([bundle.dpoEmail, bundle.dpoChannel].filter(Boolean).join(" | "));
         }
       } catch (error) {
         console.error("Erro ao carregar termos de privacidade e uso:", error);
@@ -413,10 +401,6 @@ const Landing = () => {
     };
     void loadBlogPosts();
   }, []);
-
-  const parallaxSlow = scrollY * 0.08;
-  const parallaxMed = scrollY * 0.12;
-  const videoLift = Math.min(scrollY, 640) * 0.04;
 
   return (
     <div className="min-h-screen bg-background font-sans antialiased">
@@ -475,32 +459,14 @@ const Landing = () => {
       </header>
 
       {/* Hero — texto + vídeo adjacentes (lg+); empilhado no mobile */}
-      <section className="relative flex min-h-[min(64vh,600px)] flex-col justify-center overflow-hidden pb-3 pt-20 sm:pb-4 sm:pt-24 lg:min-h-0 lg:pb-4 lg:pt-20">
-        <div className="pointer-events-none absolute inset-0" aria-hidden>
-          <div
-            className="absolute -left-[20%] top-[8%] h-[min(520px,80vw)] w-[min(520px,80vw)] rounded-full bg-primary/[0.09] blur-[100px]"
-            style={{ transform: `translate3d(0, ${parallaxMed}px, 0)` }}
-          />
-          <div
-            className="absolute -right-[15%] top-[20%] h-[min(420px,70vw)] w-[min(420px,70vw)] rounded-full bg-secondary/[0.12] blur-[90px]"
-            style={{ transform: `translate3d(0, ${parallaxSlow}px, 0)` }}
-          />
-          <div
-            className="absolute bottom-[-10%] left-1/2 h-[min(480px,90vw)] w-[min(480px,90vw)] -translate-x-1/2 rounded-full bg-gradient-hero opacity-[0.07] blur-[120px]"
-            style={{ transform: `translate3d(-50%, ${-parallaxSlow * 0.5}px, 0)` }}
-          />
-        </div>
-
+      <section className="relative flex min-h-[min(64vh,600px)] flex-col justify-center pb-6 pt-20 sm:pt-24 lg:min-h-0 lg:pb-8 lg:pt-20">
         <div className="relative z-10 mx-auto w-full max-w-6xl px-4">
           <div className="grid items-center gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(280px,0.95fr)] lg:gap-6 xl:gap-8">
             {/* Copy + CTAs — adjacente ao vídeo em lg+ */}
             <div className="mx-auto w-full max-w-xl text-center lg:mx-0 lg:max-w-none lg:text-left">
-              <p className="mb-2 text-xs font-medium uppercase tracking-[0.28em] text-muted-foreground sm:text-sm">
-                {t.heroEyebrow}
-              </p>
               <h1 className="text-balance text-4xl font-bold leading-[1.06] tracking-tight text-foreground sm:text-5xl md:text-6xl lg:text-[2.65rem] lg:leading-[1.08] xl:text-5xl xl:leading-[1.06] 2xl:text-6xl">
-                {t.heroTitleBefore}{" "}
-                <span className="text-gradient">{t.heroTitleHighlight}</span>
+                {t.heroTitleBefore}
+                {t.heroTitleHighlight ? ` ${t.heroTitleHighlight}` : ""}
                 {t.heroTitleAfter ? ` ${t.heroTitleAfter}` : ""}
               </h1>
               <p className="mx-auto mt-3 max-w-2xl text-pretty text-base font-light leading-relaxed text-muted-foreground sm:text-lg md:text-xl lg:mx-0 lg:max-w-xl">
@@ -510,7 +476,7 @@ const Landing = () => {
                 <Link to="/auth" className="sm:inline-flex">
                   <Button
                     size="lg"
-                    className="landing-cta-primary h-12 w-full rounded-xl px-8 text-sm font-semibold gradient-accent text-primary-foreground sm:w-auto sm:text-base"
+                    className="h-12 w-full rounded-xl px-8 text-sm font-semibold sm:w-auto sm:text-base"
                   >
                     {t.ctaPrimary}
                     <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
@@ -520,7 +486,7 @@ const Landing = () => {
                   <Button
                     size="lg"
                     variant="outline"
-                    className="h-12 w-full rounded-xl border-2 border-[hsl(160_52%_42%)] bg-background/40 px-6 text-sm font-medium shadow-[inset_0_1px_0_0_hsl(0_0%_100%/0.08)] backdrop-blur-md transition-[transform,box-shadow,border-color,background-color] duration-300 ease-smooth hover:-translate-y-0.5 hover:border-[hsl(160_52%_34%)] hover:bg-[hsla(160,52%,44%,0.08)] hover:shadow-lg dark:border-[hsl(158_48%_50%)] dark:hover:border-[hsl(158_48%_58%)] dark:hover:bg-[hsla(158,48%,52%,0.12)] sm:w-auto sm:text-base"
+                    className="h-12 w-full rounded-xl px-6 text-sm font-medium sm:w-auto sm:text-base"
                   >
                     {t.ctaSecondary}
                   </Button>
@@ -528,11 +494,8 @@ const Landing = () => {
               </div>
             </div>
 
-            <div
-              className="relative w-full min-w-0"
-              style={{ transform: `translate3d(0, ${videoLift}px, 0)` }}
-            >
-              <div className="landing-glass-video overflow-hidden rounded-[20px] sm:rounded-[24px]">
+            <div className="relative w-full min-w-0">
+              <div className="overflow-hidden rounded-[20px] border border-border/70 bg-card shadow-sm sm:rounded-[24px]">
                 <div className="aspect-video w-full overflow-hidden">
                   {!heroVideoFailed ? (
                     <video
@@ -557,16 +520,9 @@ const Landing = () => {
       </section>
 
       {/* Labs — premium matrix */}
-      <section className="relative pb-8 pt-3 sm:pt-4 lg:pb-11 lg:pt-5">
-        <div
-          className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background via-muted/[0.35] to-background dark:via-muted/25"
-          aria-hidden
-        />
-        <div className="relative mx-auto max-w-6xl px-4">
+      <section className="pb-8 pt-3 sm:pt-4 lg:pb-11 lg:pt-5">
+        <div className="mx-auto max-w-6xl px-4">
           <ScrollReveal>
-            <p className="text-center text-xs font-medium uppercase tracking-[0.28em] text-muted-foreground sm:text-sm">
-              {t.labsEyebrow}
-            </p>
             <h2 className="mx-auto mt-1 max-w-3xl text-balance text-center text-3xl font-bold tracking-tight text-foreground sm:text-4xl md:text-5xl">
               {t.labsTitle}
             </h2>
@@ -580,11 +536,8 @@ const Landing = () => {
               const Visual = lab.Visual;
               return (
                 <ScrollReveal key={lab.id} delayMs={i * 90}>
-                  <article
-                    className="landing-glass-surface landing-card-lift flex h-full flex-col rounded-[18px] p-4 sm:rounded-[22px] sm:p-5"
-                    data-no-auto-translate="true"
-                  >
-                    <div className="relative mb-3 overflow-hidden rounded-xl ring-1 ring-white/10">
+                  <article className="flex h-full flex-col rounded-[18px] border border-border/70 bg-card p-4 shadow-sm sm:rounded-[22px] sm:p-5" data-no-auto-translate="true">
+                    <div className="relative mb-3 overflow-hidden rounded-xl border border-border/60">
                       <Visual />
                     </div>
                     <h3 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
@@ -605,7 +558,7 @@ const Landing = () => {
                             navigate("/auth");
                           }
                         }}
-                        className="group h-11 w-full rounded-xl gradient-accent px-6 text-base font-semibold text-primary-foreground shadow-lg transition-[transform,box-shadow] duration-300 ease-smooth hover:-translate-y-0.5 hover:shadow-glow sm:w-auto sm:px-8"
+                        className="group h-11 w-full rounded-xl px-6 text-base font-semibold sm:w-auto sm:px-8"
                       >
                         {t.labDemo}
                         <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
@@ -625,10 +578,7 @@ const Landing = () => {
           <ScrollReveal>
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-xs font-medium uppercase tracking-[0.28em] text-muted-foreground sm:text-sm">
-                  {t.blogEyebrow}
-                </p>
-                <h2 className="mt-1 text-3xl font-bold tracking-tight text-foreground md:text-4xl">{t.blogTitle}</h2>
+                <h2 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl">{t.blogTitle}</h2>
               </div>
               <Link to="/blog" className="shrink-0">
                 <Button variant="default" className={`${landingMintCtaButtonClass} gap-2`}>
@@ -661,12 +611,8 @@ const Landing = () => {
 
       {/* Journey — timeline flow */}
       <section className={`${sectionPadding} relative overflow-hidden`}>
-        <div className="absolute inset-0 bg-muted/25 dark:bg-muted/15" aria-hidden />
         <div className="relative mx-auto max-w-6xl px-4">
           <ScrollReveal>
-            <p className="text-xs font-medium uppercase tracking-[0.28em] text-muted-foreground sm:text-sm">
-              {t.journeyEyebrow}
-            </p>
             <h2 className="mt-1 max-w-3xl text-3xl font-bold tracking-tight text-foreground md:text-4xl lg:text-5xl">
               {t.journeyTitle}
             </h2>
@@ -676,7 +622,7 @@ const Landing = () => {
             <div className="grid gap-4 md:grid-cols-3 md:gap-4">
               {t.journeySteps.map((step, index) => (
                 <ScrollReveal key={step.title} delayMs={index * 100}>
-                  <div className="relative rounded-[18px] bg-background/60 p-4 shadow-[inset_0_1px_0_0_hsl(0_0%_100%/0.08)] backdrop-blur-md dark:bg-card/40 md:p-5">
+                  <div className="relative rounded-[18px] border border-border/70 bg-card p-4 shadow-sm md:p-5">
                     <span className="text-4xl font-bold leading-none text-primary/15 md:text-5xl lg:text-6xl">
                       {String(index + 1).padStart(2, "0")}
                     </span>
@@ -694,16 +640,13 @@ const Landing = () => {
       <section className={sectionPadding}>
         <div className="mx-auto max-w-6xl px-4">
           <ScrollReveal>
-            <p className="text-xs font-medium uppercase tracking-[0.28em] text-muted-foreground sm:text-sm">
-              {t.diffEyebrow}
-            </p>
             <h2 className="mt-1 max-w-2xl text-3xl font-bold tracking-tight text-foreground md:text-4xl lg:text-5xl">
               {t.diffTitle}
             </h2>
           </ScrollReveal>
           <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-6 md:grid-rows-[minmax(160px,auto)_auto_auto] md:gap-4">
             <ScrollReveal className="md:col-span-3" delayMs={0}>
-              <div className="landing-glass-surface landing-card-lift flex h-full min-h-[150px] flex-col justify-between rounded-[18px] p-4 lg:p-5">
+              <div className="flex h-full min-h-[150px] flex-col justify-between rounded-[18px] border border-border/70 bg-card p-4 shadow-sm lg:p-5">
                 <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-secondary/15 text-secondary">
                   <Brain className="h-6 w-6" />
                 </div>
@@ -716,7 +659,7 @@ const Landing = () => {
               </div>
             </ScrollReveal>
             <ScrollReveal className="md:col-span-3" delayMs={80}>
-              <div className="landing-glass-surface landing-card-lift flex h-full min-h-[150px] flex-col justify-between rounded-[18px] p-4 lg:p-5">
+              <div className="flex h-full min-h-[150px] flex-col justify-between rounded-[18px] border border-border/70 bg-card p-4 shadow-sm lg:p-5">
                 <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
                   <Microscope className="h-6 w-6" />
                 </div>
@@ -740,7 +683,7 @@ const Landing = () => {
               const card = t.diffCards[item.idx];
               return (
                 <ScrollReveal key={card.title} className="md:col-span-3" delayMs={120 + i * 60}>
-                  <div className="landing-glass-surface landing-card-lift h-full rounded-[18px] p-4 md:p-5">
+                  <div className="h-full rounded-[18px] border border-border/70 bg-card p-4 shadow-sm md:p-5">
                     <div
                       className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${
                         item.accent === "secondary" ? "bg-secondary/15 text-secondary" : "bg-primary/15 text-primary"
@@ -760,10 +703,9 @@ const Landing = () => {
 
       {/* CTA band */}
       <section className={`${sectionPadding} relative`}>
-        <div className="absolute inset-0 bg-muted/30 dark:bg-muted/20" aria-hidden />
         <div className="relative mx-auto max-w-6xl px-4">
           <ScrollReveal>
-            <div className="landing-glass-surface flex flex-col gap-4 rounded-[20px] p-5 md:flex-row md:items-center md:justify-between md:gap-5 md:p-7 lg:p-8">
+            <div className="flex flex-col gap-4 rounded-[20px] border border-border/70 bg-card p-5 shadow-sm md:flex-row md:items-center md:justify-between md:gap-5 md:p-7 lg:p-8">
               <div className="max-w-xl">
                 <h2 className="text-xl font-bold leading-tight tracking-tight text-foreground md:text-2xl lg:text-3xl">
                   {t.ctaBandTitle}
@@ -774,7 +716,7 @@ const Landing = () => {
                 <Link to="/auth">
                   <Button
                     size="lg"
-                    className="landing-cta-primary h-12 rounded-xl px-8 text-sm font-semibold gradient-accent text-primary-foreground sm:text-base"
+                    className="h-12 rounded-xl px-8 text-sm font-semibold sm:text-base"
                   >
                     <GraduationCap className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
                     {t.ctaBandBtn}
@@ -898,6 +840,7 @@ const Landing = () => {
           </DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-7 font-light">
             {loadingLegalText ? (en ? "Loading…" : "Carregando termos...") : legalText}
+            {!loadingLegalText && dpoLabel ? `\n\nCanal DPO/LGPD: ${dpoLabel}` : ""}
           </div>
         </DialogContent>
       </Dialog>

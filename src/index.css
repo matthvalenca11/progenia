@@ -42,15 +42,15 @@ All colors MUST be HSL.
     --radius: 0.75rem;
 
     /* Custom Design Tokens */
-    --gradient-primary: linear-gradient(135deg, hsl(204 82% 18%), hsl(204 82% 28%));
-    --gradient-accent: linear-gradient(135deg, hsl(173 68% 42%), hsl(173 68% 52%));
+    --gradient-primary: linear-gradient(180deg, hsl(204 82% 20%), hsl(204 82% 16%));
+    --gradient-accent: linear-gradient(180deg, hsl(173 58% 38%), hsl(173 54% 34%));
     --gradient-hero: linear-gradient(135deg, hsl(204 82% 18%) 0%, hsl(173 68% 42%) 100%);
     
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
     --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
-    --shadow-glow: 0 0 40px hsl(173 68% 42% / 0.3);
+    --shadow-glow: 0 10px 24px hsl(173 68% 42% / 0.14);
 
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
@@ -117,8 +117,8 @@ All colors MUST be HSL.
     --sidebar-ring: 173 68% 48%;
 
     /* Gradientes ajustados para dark mode */
-    --gradient-primary: linear-gradient(135deg, hsl(204 75% 25%), hsl(204 75% 35%));
-    --gradient-accent: linear-gradient(135deg, hsl(173 68% 48%), hsl(173 68% 58%));
+    --gradient-primary: linear-gradient(180deg, hsl(204 75% 26%), hsl(204 75% 21%));
+    --gradient-accent: linear-gradient(180deg, hsl(173 60% 42%), hsl(173 55% 38%));
     --gradient-hero: linear-gradient(135deg, hsl(204 75% 25%) 0%, hsl(173 68% 48%) 100%);
     
     /* Shadows ajustados para dark mode */
@@ -126,11 +126,11 @@ All colors MUST be HSL.
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
     --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.6);
-    --shadow-glow: 0 0 40px hsl(173 68% 48% / 0.4);
+    --shadow-glow: 0 12px 30px hsl(173 68% 48% / 0.2);
 }
 
 .hover-scale {
-  @apply transition-transform duration-200 hover:scale-105;
+  @apply transition-transform duration-200 hover:scale-[1.02];
 }
 
   /* >>> ADIÇÃO PARA MOBILE / SAFE AREA <<< */
@@ -244,34 +244,32 @@ All colors MUST be HSL.
   }
 
   .landing-card-lift:hover {
-    transform: translateY(-8px);
+    transform: translateY(-3px);
     box-shadow:
-      0 28px 56px -22px rgb(0 0 0 / 0.5),
-      0 0 0 1px hsl(173 68% 42% / 0.2),
-      0 0 52px hsl(173 68% 42% / 0.14);
+      0 20px 36px -22px rgb(0 0 0 / 0.35),
+      0 0 0 1px hsl(173 68% 42% / 0.14);
   }
 
   .dark .landing-card-lift:hover {
     box-shadow:
-      0 28px 56px -22px rgb(0 0 0 / 0.65),
-      0 0 0 1px hsl(173 68% 48% / 0.22),
-      0 0 56px hsl(173 68% 48% / 0.18);
+      0 20px 36px -22px rgb(0 0 0 / 0.52),
+      0 0 0 1px hsl(173 68% 48% / 0.18);
   }
 
   .landing-cta-primary {
     box-shadow:
-      0 4px 24px hsl(173 68% 42% / 0.35),
-      0 16px 40px -12px rgb(0 0 0 / 0.35);
+      0 4px 14px hsl(173 68% 42% / 0.2),
+      0 10px 28px -14px rgb(0 0 0 / 0.28);
     transition:
       transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
       box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .landing-cta-primary:hover {
-    transform: translateY(-2px);
+    transform: translateY(-1px);
     box-shadow:
-      0 8px 32px hsl(173 68% 42% / 0.45),
-      0 20px 48px -12px rgb(0 0 0 / 0.4);
+      0 6px 20px hsl(173 68% 42% / 0.26),
+      0 14px 30px -14px rgb(0 0 0 / 0.32);
   }
 }
 

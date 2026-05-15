@@ -365,22 +365,232 @@ export type Database = {
       }
       legal_settings: {
         Row: {
+          cookie_policy_text: string | null
           created_at: string | null
+          cookies_version: string | null
+          dpo_contact_channel: string | null
+          dpo_contact_email: string | null
           id: string
+          privacy_policy_text: string | null
+          privacy_version: string | null
+          terms_of_use_text: string | null
           terms_privacy_text: string
+          terms_version: string | null
           updated_at: string | null
         }
         Insert: {
+          cookie_policy_text?: string | null
           created_at?: string | null
+          cookies_version?: string | null
+          dpo_contact_channel?: string | null
+          dpo_contact_email?: string | null
           id?: string
+          privacy_policy_text?: string | null
+          privacy_version?: string | null
+          terms_of_use_text?: string | null
           terms_privacy_text: string
+          terms_version?: string | null
           updated_at?: string | null
         }
         Update: {
+          cookie_policy_text?: string | null
           created_at?: string | null
+          cookies_version?: string | null
+          dpo_contact_channel?: string | null
+          dpo_contact_email?: string | null
           id?: string
+          privacy_policy_text?: string | null
+          privacy_version?: string | null
+          terms_of_use_text?: string | null
           terms_privacy_text?: string
+          terms_version?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      legal_documents: {
+        Row: {
+          content: string
+          created_at: string
+          document_type: string
+          effective_at: string
+          id: string
+          is_active: boolean
+          language: string
+          title: string
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          document_type: string
+          effective_at?: string
+          id?: string
+          is_active?: boolean
+          language?: string
+          title: string
+          updated_at?: string
+          version: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          document_type?: string
+          effective_at?: string
+          id?: string
+          is_active?: boolean
+          language?: string
+          title?: string
+          updated_at?: string
+          version?: string
+        }
+        Relationships: []
+      }
+      legal_acceptances: {
+        Row: {
+          accepted_at: string
+          created_at: string
+          document_id: string | null
+          document_type: string
+          document_version: string
+          id: string
+          ip_hash: string | null
+          metadata: Json
+          source: string
+          user_agent_hash: string | null
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string
+          created_at?: string
+          document_id?: string | null
+          document_type: string
+          document_version: string
+          id?: string
+          ip_hash?: string | null
+          metadata?: Json
+          source?: string
+          user_agent_hash?: string | null
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string
+          created_at?: string
+          document_id?: string | null
+          document_type?: string
+          document_version?: string
+          id?: string
+          ip_hash?: string | null
+          metadata?: Json
+          source?: string
+          user_agent_hash?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      cookie_consents: {
+        Row: {
+          categories: Json
+          consent_key: string
+          consent_mode: string
+          consented_at: string
+          created_at: string
+          id: string
+          ip_hash: string | null
+          policy_version: string
+          revoked_at: string | null
+          updated_at: string
+          user_agent_hash: string | null
+          user_id: string | null
+        }
+        Insert: {
+          categories?: Json
+          consent_key: string
+          consent_mode?: string
+          consented_at?: string
+          created_at?: string
+          id?: string
+          ip_hash?: string | null
+          policy_version?: string
+          revoked_at?: string | null
+          updated_at?: string
+          user_agent_hash?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          categories?: Json
+          consent_key?: string
+          consent_mode?: string
+          consented_at?: string
+          created_at?: string
+          id?: string
+          ip_hash?: string | null
+          policy_version?: string
+          revoked_at?: string | null
+          updated_at?: string
+          user_agent_hash?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      data_subject_requests: {
+        Row: {
+          channel: string
+          created_at: string
+          email: string
+          handled_at: string | null
+          id: string
+          ip_hash: string | null
+          message: string
+          metadata: Json
+          name: string
+          phone: string | null
+          protocol: string
+          received_at: string
+          request_type: string
+          status: string
+          updated_at: string
+          user_agent_hash: string | null
+          user_id: string | null
+        }
+        Insert: {
+          channel?: string
+          created_at?: string
+          email: string
+          handled_at?: string | null
+          id?: string
+          ip_hash?: string | null
+          message: string
+          metadata?: Json
+          name: string
+          phone?: string | null
+          protocol: string
+          received_at?: string
+          request_type: string
+          status?: string
+          updated_at?: string
+          user_agent_hash?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          email?: string
+          handled_at?: string | null
+          id?: string
+          ip_hash?: string | null
+          message?: string
+          metadata?: Json
+          name?: string
+          phone?: string | null
+          protocol?: string
+          received_at?: string
+          request_type?: string
+          status?: string
+          updated_at?: string
+          user_agent_hash?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }

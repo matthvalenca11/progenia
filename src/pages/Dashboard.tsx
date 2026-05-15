@@ -760,7 +760,7 @@ const Dashboard = () => {
                   className="w-[360px] pl-9 border-accent/50 bg-background font-semibold placeholder:font-semibold focus-visible:ring-accent"
                 />
               </div>
-              <Button type="submit" className="gradient-accent text-white shadow-glow">
+              <Button type="submit">
                 {isEnglish ? "Search" : "Buscar"}
               </Button>
             </form>
@@ -816,7 +816,7 @@ const Dashboard = () => {
             Bem-vindo de volta, {getFirstName(profile?.full_name)}!
           </h1>
           <p className="text-muted-foreground text-lg">
-            Continue sua jornada de aprendizado
+            Seu painel de aprendizagem
           </p>
           {profileHighlights.length > 0 && (
             <p className="text-sm text-muted-foreground mt-2">
@@ -825,57 +825,74 @@ const Dashboard = () => {
           )}
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid md:grid-cols-4 gap-6 mb-8">
+        {/* Learning Overview */}
+        <div className="grid gap-6 lg:grid-cols-[1.7fr_1fr] mb-8">
           <Card className="p-6">
-            <div className="flex items-center justify-between mb-2">
-              <FileText className="h-8 w-8 text-secondary" />
-              <span className="text-2xl font-bold">{stats?.total_lessons_completed || 0}</span>
+            <div className="flex items-start justify-between gap-4 mb-6">
+              <div>
+                <h2 className="text-2xl font-semibold mb-1">Progresso no ciclo</h2>
+                <p className="text-muted-foreground text-sm">
+                  {modulesCompleted} de {enrolledModules.size} módulos concluídos
+                </p>
+              </div>
+              <Award className="h-8 w-8 text-accent" />
             </div>
-            <p className="text-sm text-muted-foreground">Aulas Concluídas</p>
-            <p className="text-xs text-muted-foreground mt-1">Continue aprendendo!</p>
+
+            <div className="mb-4">
+              <div className="text-4xl font-bold leading-none">
+                {Math.round(enrolledModules.size > 0 ? (modulesCompleted / enrolledModules.size) * 100 : 0)}%
+              </div>
+            </div>
+
+            <Progress
+              value={enrolledModules.size > 0 ? (modulesCompleted / enrolledModules.size) * 100 : 0}
+              className="h-3"
+            />
           </Card>
 
           <Card className="p-6">
-            <div className="flex items-center justify-between mb-2">
-              <Pill className="h-8 w-8 text-accent" />
-              <span className="text-2xl font-bold">{capsulasConcluidas}</span>
+            <h3 className="text-base font-semibold mb-4">Resumo rápido</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Aulas concluídas</span>
+                <span className="font-semibold">{stats?.total_lessons_completed || 0}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Cápsulas concluídas</span>
+                <span className="font-semibold">{capsulasConcluidas}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Módulos concluídos</span>
+                <span className="font-semibold">{modulesCompleted}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Minutos de estudo</span>
+                <span className="font-semibold">{minutosEstudo}</span>
+              </div>
             </div>
-            <p className="text-sm text-muted-foreground">Cápsulas Concluídas</p>
-            <p className="text-xs text-muted-foreground mt-1">Continue assim!</p>
-          </Card>
-
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-2">
-              <BookOpen className="h-8 w-8 text-primary" />
-              <span className="text-2xl font-bold">{modulesCompleted}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Módulos Concluídos</p>
-            <p className="text-xs text-muted-foreground mt-1">De {enrolledModules.size} matriculados</p>
-          </Card>
-
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-2">
-              <Clock className="h-8 w-8 text-secondary" />
-              <span className="text-2xl font-bold">{minutosEstudo}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Minutos de Estudo</p>
-            <p className="text-xs text-muted-foreground mt-1">Continue assim!</p>
           </Card>
         </div>
 
-        {/* Learning Progress */}
+        {/* Next Action */}
         <Card className="p-6 mb-8">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-2xl font-semibold mb-1">Seu Progresso</h2>
-              <p className="text-muted-foreground">
-                {modulesCompleted} de {enrolledModules.size} módulos matriculados
+              <h3 className="text-lg font-semibold mb-1">Próxima ação</h3>
+              <p className="text-sm text-muted-foreground">
+                {capsulaInacabada
+                  ? `Retome a cápsula "${capsulaInacabada.title}" para avançar no seu progresso.`
+                  : "Explore o catálogo de cápsulas para avançar no seu aprendizado."}
               </p>
             </div>
-            <Award className="h-10 w-10 text-secondary" />
+            <Button
+              onClick={() =>
+                capsulaInacabada ? navigate(`/capsula/${capsulaInacabada.id}`) : navigate("/capsulas")
+              }
+            >
+              {capsulaInacabada ? "Continuar agora" : "Explorar cápsulas"}
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
           </div>
-          <Progress value={enrolledModules.size > 0 ? (modulesCompleted / enrolledModules.size) * 100 : 0} className="h-3" />
         </Card>
 
         {/* Laboratórios Virtuais Destaque */}
@@ -889,14 +906,6 @@ const Dashboard = () => {
                 <Pill className="h-6 w-6 text-accent" />
                 <h2 className="text-3xl font-bold">Em Alta Hoje</h2>
               </div>
-              <Button 
-                variant="default" 
-                onClick={() => navigate("/capsulas")}
-                className="flex items-center gap-2 text-base px-4 py-2"
-              >
-                Ver tudo
-                <ArrowRight className="h-4 w-4" />
-              </Button>
             </div>
             <div className="relative">
               {/* Seta esquerda - só aparece se não estiver no início */}

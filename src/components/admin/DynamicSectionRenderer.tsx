@@ -133,11 +133,9 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
           const isExternal = button.link?.startsWith("http");
           
           const handleClick = () => {
-            console.log("Button clicked:", button);
             if (isExternal) {
               window.open(button.link, "_blank");
             } else {
-              console.log("Navigating to:", button.link);
               navigate(button.link);
             }
           };
@@ -175,17 +173,17 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
     <section className={wrapperClasses} style={animationStyle}>
       <div className="container mx-auto max-w-6xl text-center">
         {section.title && (
-          <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent leading-tight">
+          <h1 className="text-4xl md:text-6xl font-bold mb-6 text-foreground leading-tight tracking-tight">
             {section.title}
           </h1>
         )}
         {section.subtitle && (
-          <p className="text-xl md:text-2xl text-muted-foreground mb-6 max-w-3xl mx-auto leading-relaxed">
+          <p className="text-lg md:text-xl text-muted-foreground mb-6 max-w-3xl mx-auto leading-relaxed">
             {section.subtitle}
           </p>
         )}
         {section.description && (
-          <p className="text-lg text-muted-foreground/80 mb-10 max-w-4xl mx-auto">
+          <p className="text-base md:text-lg text-muted-foreground mb-10 max-w-4xl mx-auto">
             {section.description}
           </p>
         )}
@@ -209,15 +207,12 @@ export const DynamicSectionRenderer = ({ section }: Props) => {
       <div className="container mx-auto max-w-6xl">
         <div className="text-center mb-16 relative">
           {section.title && (
-            <div className="relative inline-block">
-              <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-primary/10 to-primary/20 blur-3xl" />
-              <h2 className="relative text-5xl md:text-7xl font-bold mb-8 bg-gradient-to-r from-primary via-primary/90 to-primary/70 bg-clip-text text-transparent leading-tight drop-shadow-sm">
-                {section.title}
-              </h2>
-            </div>
+            <h2 className="text-4xl md:text-5xl font-bold mb-8 text-foreground leading-tight tracking-tight">
+              {section.title}
+            </h2>
           )}
           {section.subtitle && (
-            <p className="text-2xl md:text-3xl font-semibold text-foreground mb-4 max-w-4xl mx-auto leading-relaxed">
+            <p className="text-xl md:text-2xl font-semibold text-foreground mb-4 max-w-4xl mx-auto leading-relaxed">
               {section.subtitle}
             </p>
           )}

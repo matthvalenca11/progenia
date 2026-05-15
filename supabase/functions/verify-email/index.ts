@@ -1,12 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.83.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/privacy.ts";
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -34,7 +31,6 @@ serve(async (req) => {
       .single();
 
     if (findError || !profile) {
-      console.error("Token not found:", findError);
       return new Response(
         JSON.stringify({ error: "Invalid or expired token" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -68,23 +64,19 @@ serve(async (req) => {
       .eq("id", profile.id);
 
     if (updateError) {
-      console.error("Error updating profile:", updateError);
       return new Response(
         JSON.stringify({ error: "Failed to verify email" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log("Email verified successfully for:", profile.email);
-
     return new Response(
-      JSON.stringify({ success: true, email: profile.email }),
+      JSON.stringify({ success: true }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error: any) {
-    console.error("Error in verify-email:", error);
+  } catch {
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "Failed to verify email" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

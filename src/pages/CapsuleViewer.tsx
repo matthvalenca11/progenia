@@ -91,7 +91,7 @@ const CapsuleViewer = () => {
       });
 
       toast.success("Cápsula concluída!", {
-        description: "Continue explorando outras cápsulas.",
+        description: "Explore outras cápsulas para manter o ritmo de estudo.",
       });
 
       setTimeout(() => navigate("/dashboard"), 1500);
@@ -368,7 +368,6 @@ const CapsuleViewer = () => {
               size="lg"
               onClick={handleComplete}
               disabled={completing}
-              className="gradient-accent text-white"
             >
               {completing ? "Marcando como concluída..." : "Marcar como Concluída"}
               <CheckCircle2 className="h-5 w-5 ml-2" />

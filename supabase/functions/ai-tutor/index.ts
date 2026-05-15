@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.83.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/privacy.ts";
 
 const BASE_PROMPT =
   "Você é um tutor de tecnologia médica na ProGenia. REGRAS: (1) Seja OBJETIVO e CONCISO. (2) Responda direto ao que o aluno perguntou. (3) SEMPRE que a pergunta se relacionar com algum módulo, aula, cápsula ou lab listado abaixo, INCLUA ao final da resposta 1–2 sugestões em Markdown, no formato [Nome do conteúdo](/caminho). Use APENAS o título descritivo no texto do link, nunca o path ou UUID. " +
@@ -185,6 +181,7 @@ function toGroqMessages(
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -224,11 +221,11 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Groq API error:", response.status, errorText);
+      await response.text();
+      console.error("Groq API error:", response.status);
 
       return new Response(
-        JSON.stringify({ error: `Groq API ${response.status}: ${errorText.slice(0, 200)}` }),
+        JSON.stringify({ error: `Groq API ${response.status}: unavailable` }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

@@ -13,6 +13,9 @@ export interface SignUpData {
   country?: string | null;
   education_level: string;
   profession: string;
+  terms_version?: string;
+  privacy_version?: string;
+  cookies_version?: string;
 }
 
 export interface SignInData {
@@ -56,6 +59,12 @@ export const authService = {
           country: data.country ?? null,
           education_level: data.education_level,
           profession: data.profession,
+          terms_accepted: true,
+          privacy_accepted: true,
+          cookies_accepted: true,
+          terms_version: data.terms_version ?? "v1",
+          privacy_version: data.privacy_version ?? "v1",
+          cookies_version: data.cookies_version ?? "v1",
         },
         emailRedirectTo: `${APP_URL}/verify-email`,
       },

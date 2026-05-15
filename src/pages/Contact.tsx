@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,12 +10,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Mail, Phone, User, Send } from "lucide-react";
 import { z } from "zod";
 import logo from "@/assets/logo.png";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { loadLegalBundle } from "@/lib/legal";
 
 const contactSchema = z.object({
   name: z.string().trim().min(1, "Nome é obrigatório").max(100, "Nome muito longo"),
   email: z.string().trim().email("Email inválido").max(255, "Email muito longo"),
   phone: z.string().trim().min(1, "Telefone é obrigatório").max(20, "Telefone muito longo"),
   message: z.string().trim().min(10, "Mensagem deve ter pelo menos 10 caracteres").max(1000, "Mensagem muito longa"),
+  requestType: z
+    .enum(["general_contact", "access", "correction", "deletion", "portability", "opposition", "consent_revocation", "other"])
+    .default("general_contact"),
 });
 
 const Contact = () => {
@@ -27,7 +32,23 @@ const Contact = () => {
     email: "",
     phone: "",
     message: "",
+    requestType: "general_contact",
   });
+  const [dpoInfo, setDpoInfo] = useState("");
+
+  useEffect(() => {
+    const loadDpo = async () => {
+      try {
+        const bundle = await loadLegalBundle(supabase);
+        if (!bundle) return;
+        const info = [bundle.dpoEmail, bundle.dpoChannel].filter(Boolean).join(" | ");
+        if (info) setDpoInfo(info);
+      } catch {
+        // ignore
+      }
+    };
+    void loadDpo();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +60,7 @@ const Contact = () => {
       setLoading(true);
 
       // Enviar via edge function
-      const { error } = await supabase.functions.invoke("send-contact-email", {
+      const { data, error } = await supabase.functions.invoke("send-contact-email", {
         body: validatedData,
       });
 
@@ -47,7 +68,9 @@ const Contact = () => {
 
       toast({
         title: "Mensagem enviada!",
-        description: "Entraremos em contato em breve.",
+        description: data?.protocol
+          ? `Entraremos em contato em breve. Protocolo: ${data.protocol}`
+          : "Entraremos em contato em breve. Solicitações LGPD recebem número de protocolo.",
       });
 
       // Limpar formulário
@@ -56,6 +79,7 @@ const Contact = () => {
         email: "",
         phone: "",
         message: "",
+        requestType: "general_contact",
       });
     } catch (error: any) {
       console.error("Erro ao enviar mensagem:", error);
@@ -105,6 +129,9 @@ const Contact = () => {
           <CardDescription>
             Envie sua mensagem que retornaremos em breve
           </CardDescription>
+          {dpoInfo ? (
+            <p className="text-xs text-muted-foreground">Canal DPO/LGPD: {dpoInfo}</p>
+          ) : null}
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -156,6 +183,28 @@ const Contact = () => {
                   required
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="requestType">Tipo de solicitação</Label>
+              <Select
+                value={formData.requestType}
+                onValueChange={(value) => setFormData((prev) => ({ ...prev, requestType: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="general_contact">Contato geral</SelectItem>
+                  <SelectItem value="access">LGPD - Acesso aos dados</SelectItem>
+                  <SelectItem value="correction">LGPD - Correção de dados</SelectItem>
+                  <SelectItem value="deletion">LGPD - Exclusão de dados</SelectItem>
+                  <SelectItem value="portability">LGPD - Portabilidade</SelectItem>
+                  <SelectItem value="opposition">LGPD - Oposição</SelectItem>
+                  <SelectItem value="consent_revocation">LGPD - Revogação de consentimento</SelectItem>
+                  <SelectItem value="other">LGPD - Outro pedido</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

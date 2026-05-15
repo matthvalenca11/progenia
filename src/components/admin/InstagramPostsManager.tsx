@@ -6,6 +6,7 @@ import { Loader2, Eye, EyeOff, RefreshCw, Instagram } from "lucide-react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { readEdgeFunctionErrorBody } from "@/lib/supabaseFunctionsErrors";
 
 interface InstagramPost {
   id: string;
@@ -42,7 +43,14 @@ export function InstagramPostsManager() {
 
       if (error) {
         console.error("Erro ao buscar posts:", error);
-        toast.error("Erro ao carregar posts do Instagram");
+        const body = await readEdgeFunctionErrorBody(error);
+        toast.error(body?.hint || body?.error || "Erro ao carregar posts do Instagram");
+        return;
+      }
+
+      if (data && typeof data === "object" && "error" in data && !(data as { posts?: unknown }).posts) {
+        const d = data as { error?: string; hint?: string };
+        toast.error(d.hint || d.error || "Erro na API do Instagram");
         return;
       }
 

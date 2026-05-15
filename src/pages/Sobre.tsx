@@ -8,6 +8,7 @@ import { Users } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { DynamicSectionRenderer } from "@/components/admin/DynamicSectionRenderer";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { loadLegalBundle } from "@/lib/legal";
 
 interface Partner {
   id: string;
@@ -48,7 +49,6 @@ interface AboutSection {
   buttons: any[];
 }
 
-const LEGAL_SETTINGS_ID = "00000000-0000-0000-0000-000000000002";
 const defaultLegalText = `TERMOS DE PRIVACIDADE E USO - PROGENIA
 
 1. Coleta e uso de dados
@@ -77,6 +77,7 @@ const Sobre = () => {
   const [isLegalDialogOpen, setIsLegalDialogOpen] = useState(false);
   const [legalText, setLegalText] = useState(defaultLegalText);
   const [loadingLegalText, setLoadingLegalText] = useState(false);
+  const [dpoLabel, setDpoLabel] = useState("");
 
   useEffect(() => {
     loadData();
@@ -86,15 +87,12 @@ const Sobre = () => {
     const loadLegalText = async () => {
       try {
         setLoadingLegalText(true);
-        const { data, error } = await supabase
-          .from("legal_settings")
-          .select("terms_privacy_text")
-          .eq("id", LEGAL_SETTINGS_ID)
-          .maybeSingle();
-
-        if (error) throw error;
-        if (data?.terms_privacy_text) {
-          setLegalText(data.terms_privacy_text);
+        const bundle = await loadLegalBundle(supabase);
+        if (bundle?.text) {
+          setLegalText(bundle.text);
+        }
+        if (bundle?.dpoEmail || bundle?.dpoChannel) {
+          setDpoLabel([bundle.dpoEmail, bundle.dpoChannel].filter(Boolean).join(" | "));
         }
       } catch (error) {
         console.error("Erro ao carregar termos de privacidade e uso:", error);
@@ -149,7 +147,7 @@ const Sobre = () => {
             <Button variant="ghost" className="font-medium" onClick={() => navigate("/auth")}>
               Entrar
             </Button>
-            <Button className="gradient-accent text-white font-semibold px-6" onClick={() => navigate("/auth")}>
+            <Button className="font-semibold px-6" onClick={() => navigate("/auth")}>
               Criar Conta
             </Button>
           </div>
@@ -170,7 +168,7 @@ const Sobre = () => {
                   <section className="py-20 px-4 bg-gradient-to-b from-background to-muted/20">
                     <div className="container mx-auto max-w-7xl">
                       <div className="text-center mb-16 animate-fade-in">
-                        <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                        <h2 className="text-4xl md:text-5xl font-bold mb-4 text-foreground tracking-tight">
                           Parceiros & Apoiadores
                         </h2>
                         <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
@@ -188,7 +186,7 @@ const Sobre = () => {
                             href={partner.website_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="group flex flex-col items-center justify-center p-8 bg-card border border-border/50 rounded-xl hover:border-primary/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
+                            className="group flex flex-col items-center justify-center p-8 bg-card border border-border/50 rounded-xl hover:border-primary/50 hover:shadow-lg transition-all duration-300"
                             style={{ animationDelay: `${(index + 1) * 50}ms` }}
                           >
                             <div className="w-full h-20 flex items-center justify-center mb-4">
@@ -215,7 +213,7 @@ const Sobre = () => {
                   <section className="py-20 px-4 bg-gradient-to-b from-muted/20 to-background">
                     <div className="container mx-auto max-w-7xl">
                       <div className="text-center mb-16 animate-fade-in">
-                        <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                        <h2 className="text-4xl md:text-5xl font-bold mb-4 text-foreground tracking-tight">
                           Nossa Equipe
                         </h2>
                         <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
@@ -230,7 +228,7 @@ const Sobre = () => {
                         {team.map((member, index) => (
                           <Card
                             key={member.id}
-                            className="p-8 text-center hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 border-border/50 group"
+                            className="p-8 text-center hover:shadow-lg transition-all duration-300 border-border/50 group"
                             style={{ animationDelay: `${(index + 1) * 50}ms` }}
                           >
                             {member.photo_url ? (
@@ -287,6 +285,7 @@ const Sobre = () => {
           </DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-6">
             {loadingLegalText ? "Carregando termos..." : legalText}
+            {!loadingLegalText && dpoLabel ? `\n\nCanal DPO/LGPD: ${dpoLabel}` : ""}
           </div>
         </DialogContent>
       </Dialog>

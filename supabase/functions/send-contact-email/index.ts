@@ -1,27 +1,35 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.83.0";
+import { getClientPrivacyHashes, getCorsHeaders } from "../_shared/privacy.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 interface ContactRequest {
   name: string;
   email: string;
   phone: string;
   message: string;
+  requestType:
+    | "general_contact"
+    | "access"
+    | "correction"
+    | "deletion"
+    | "portability"
+    | "opposition"
+    | "consent_revocation"
+    | "other";
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { name, email, phone, message }: ContactRequest = await req.json();
+    const { name, email, phone, message, requestType }: ContactRequest = await req.json();
+    const normalizedRequestType = requestType || "general_contact";
 
     if (!name || !email || !phone || !message) {
       return new Response(
@@ -30,12 +38,50 @@ serve(async (req) => {
       );
     }
 
+    const protocol = `LGPD-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+    const { ipHash, userAgentHash } = await getClientPrivacyHashes(req);
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    const authHeader = req.headers.get("Authorization");
+    let userId: string | null = null;
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.slice("Bearer ".length);
+      const { data } = await supabase.auth.getUser(token);
+      userId = data.user?.id ?? null;
+    }
+
+    const { error: requestInsertError } = await supabase.from("data_subject_requests").insert({
+      protocol,
+      user_id: userId,
+      name,
+      email,
+      phone,
+      request_type: normalizedRequestType,
+      message,
+      ip_hash: ipHash,
+      user_agent_hash: userAgentHash,
+      channel: "web_form",
+      metadata: {
+        source: "contact_form",
+      },
+    });
+
+    if (requestInsertError) {
+      return new Response(
+        JSON.stringify({ error: "Falha ao registrar solicitacao" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Enviar email para a ProGenia
     const { error: emailError } = await resend.emails.send({
       from: "Fale Conosco ProGenia <noreply@progenia.com.br>",
       to: ["matheusvalenca@progenia.com.br", "mathvalenca@alumni.usp.br"],
       replyTo: email,
-      subject: `Nova mensagem de contato - ${name}`,
+      subject: `Nova mensagem de contato (${protocol}) - ${name}`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -99,6 +145,9 @@ serve(async (req) => {
                 <div style="background: white; padding: 25px; border-radius: 8px; border: 1px solid #e5e5e5; white-space: pre-wrap; line-height: 1.8; color: #555;">
 ${message}
                 </div>
+                <p style="margin-top:14px;font-size:13px;color:#666;">
+                  <strong>Protocolo:</strong> ${protocol}
+                </p>
               </div>
               
               <!-- Footer -->
@@ -115,23 +164,19 @@ ${message}
     });
 
     if (emailError) {
-      console.error("Erro ao enviar email:", emailError);
       return new Response(
         JSON.stringify({ error: "Falha ao enviar email" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log("Email de contato enviado com sucesso:", { name, email });
-
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ success: true, protocol }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error: any) {
-    console.error("Erro na função send-contact-email:", error);
+  } catch {
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "Erro interno ao processar solicitacao" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

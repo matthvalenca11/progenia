@@ -350,7 +350,7 @@ export default function LessonViewer() {
                   <CheckCircle2 className="h-12 w-12 mx-auto text-green-500 mb-2" />
                   <p className="font-medium">Aula concluída!</p>
                   <p className="text-sm text-muted-foreground">
-                    Continue aprendendo
+                    Avance para a próxima etapa
                   </p>
                 </div>}
             </CardContent>

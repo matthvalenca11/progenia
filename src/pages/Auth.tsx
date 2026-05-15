@@ -16,6 +16,7 @@ import { z } from "zod";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { enUS, ptBR } from "date-fns/locale";
+import { loadLegalBundle } from "@/lib/legal";
 
 const brazilianStates = [
   { uf: "AC", name: "Acre" },
@@ -146,8 +147,6 @@ const healthProfessionOptions = [
   { value: "Técnico(a) em radiologia", labelPt: "Técnico(a) em radiologia", labelEn: "Radiology Technician" },
   { value: "Outra", labelPt: "Outra", labelEn: "Other" },
 ];
-
-const LEGAL_SETTINGS_ID = "00000000-0000-0000-0000-000000000002";
 
 const defaultLegalText = `TERMOS DE PRIVACIDADE E USO - PROGENIA
 
@@ -331,6 +330,9 @@ const Auth = () => {
   const [legalText, setLegalText] = useState(defaultLegalText);
   const [loadingLegalText, setLoadingLegalText] = useState(false);
   const [isEmailConfirmDialogOpen, setIsEmailConfirmDialogOpen] = useState(false);
+  const [termsVersion, setTermsVersion] = useState("v1");
+  const [privacyVersion, setPrivacyVersion] = useState("v1");
+  const [cookiesVersion, setCookiesVersion] = useState("v1");
 
   useEffect(() => {
     setBirthDateInput(formatIsoDateForInput(signUpData.birthDate, isEnglish));
@@ -430,16 +432,11 @@ const Auth = () => {
     const loadLegalText = async () => {
       try {
         setLoadingLegalText(true);
-        const { data, error } = await supabase
-          .from("legal_settings")
-          .select("terms_privacy_text")
-          .eq("id", LEGAL_SETTINGS_ID)
-          .maybeSingle();
-
-        if (error) throw error;
-        if (data?.terms_privacy_text) {
-          setLegalText(data.terms_privacy_text);
-        }
+        const bundle = await loadLegalBundle(supabase);
+        if (bundle?.text) setLegalText(bundle.text);
+        if (bundle?.versions.terms) setTermsVersion(bundle.versions.terms);
+        if (bundle?.versions.privacy) setPrivacyVersion(bundle.versions.privacy);
+        if (bundle?.versions.cookies) setCookiesVersion(bundle.versions.cookies);
       } catch (error) {
         console.error("Erro ao carregar termos de privacidade e uso:", error);
       } finally {
@@ -479,6 +476,12 @@ const Auth = () => {
             country: validated.isBrazil ? "Brasil" : validated.country,
             education_level: validated.educationLevel,
             profession: resolvedProfession,
+            terms_accepted: true,
+            privacy_accepted: true,
+            cookies_accepted: true,
+            terms_version: termsVersion,
+            privacy_version: privacyVersion,
+            cookies_version: cookiesVersion,
           },
         },
       });
@@ -574,7 +577,7 @@ const Auth = () => {
           <img src={logo} alt="ProGenia" className="h-16 mx-auto mb-4 progenia-logo" />
           <h1 className="text-3xl font-bold">Bem-vindo à ProGenia</h1>
           <p className="text-muted-foreground mt-2">
-            Sua jornada para dominar a tecnologia médica começa aqui
+            Acesse sua conta e continue seu plano de estudos
           </p>
         </div>
 
@@ -609,7 +612,7 @@ const Auth = () => {
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full gradient-accent text-white" disabled={loading}>
+                <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Entrando..." : "Entrar"}
                 </Button>
 
@@ -937,11 +940,7 @@ const Auth = () => {
                     </div>
                   </div>
                 </div>
-                <Button
-                  type="submit"
-                  className="w-full gradient-accent text-white"
-                  disabled={loading || !signUpData.termsAccepted}
-                >
+                <Button type="submit" className="w-full" disabled={loading || !signUpData.termsAccepted}>
                   {loading ? "Criando conta..." : "Criar Conta"}
                 </Button>
               </form>
@@ -983,7 +982,6 @@ const Auth = () => {
           <div className="flex justify-end pt-4">
             <Button
               type="button"
-              className="gradient-accent text-white"
               onClick={() => {
                 setIsEmailConfirmDialogOpen(false);
                 setActiveAuthTab("signin");

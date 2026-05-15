@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.83.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/privacy.ts";
 
 // Generate a random secure token
 function generateToken(): string {
@@ -14,6 +10,7 @@ function generateToken(): string {
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -39,7 +36,6 @@ serve(async (req) => {
     });
 
     if (rpcError) {
-      console.error("Error looking up user:", rpcError);
       return new Response(
         JSON.stringify({ error: "Failed to process request" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -48,7 +44,6 @@ serve(async (req) => {
 
     // Always return success to prevent email enumeration
     if (!userId) {
-      console.log("Password reset requested for non-existent email:", email);
       return new Response(
         JSON.stringify({ success: true, message: "If the email exists, a reset link has been sent" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -70,7 +65,6 @@ serve(async (req) => {
       .eq("id", userId);
 
     if (updateError) {
-      console.error("Error storing reset token:", updateError);
       return new Response(
         JSON.stringify({ error: "Failed to process request" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -83,19 +77,16 @@ serve(async (req) => {
     });
 
     if (emailError) {
-      console.error("Error sending reset email:", emailError);
+      // Do not expose PII in logs.
     }
-
-    console.log("Password reset token generated for:", email);
 
     return new Response(
       JSON.stringify({ success: true, message: "If the email exists, a reset link has been sent" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error: any) {
-    console.error("Error in request-password-reset:", error);
+  } catch {
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "Failed to process request" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

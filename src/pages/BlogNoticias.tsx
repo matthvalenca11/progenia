@@ -7,6 +7,7 @@ import { PostDetailModal } from "@/components/blog/PostDetailModal";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Link } from "react-router-dom";
 import logo from "@/assets/logo.png";
+import { readEdgeFunctionErrorBody } from "@/lib/supabaseFunctionsErrors";
 
 export interface InstagramPost {
   id: string;
@@ -38,7 +39,18 @@ export default function BlogNoticias() {
 
       if (fetchError) {
         console.error("Erro ao buscar posts:", fetchError);
-        setError("Não foi possível carregar os posts. Tente novamente mais tarde.");
+        const body = await readEdgeFunctionErrorBody(fetchError);
+        setError(
+          body?.hint ||
+            body?.error ||
+            "Não foi possível carregar os posts. Se o problema persistir, o token do Instagram no servidor pode ter expirado.",
+        );
+        return;
+      }
+
+      if (data && typeof data === "object" && "error" in data && !Array.isArray((data as { posts?: unknown }).posts)) {
+        const d = data as { error?: string; hint?: string };
+        setError(d.hint || d.error || "Erro ao carregar posts do Instagram.");
         return;
       }
 
@@ -96,8 +108,9 @@ export default function BlogNoticias() {
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : error ? (
-            <div className="text-center py-20">
-              <p className="text-muted-foreground mb-4">{error}</p>
+            <div className="mx-auto max-w-2xl py-20 text-center">
+              <p className="text-destructive mb-3 font-medium">Não foi possível carregar o feed</p>
+              <p className="text-muted-foreground mb-6 text-left text-sm leading-relaxed">{error}</p>
               <Button onClick={loadPosts}>Tentar novamente</Button>
             </div>
           ) : posts.length === 0 ? (

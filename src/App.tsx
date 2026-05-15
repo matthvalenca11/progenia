@@ -3,9 +3,11 @@ import { Toaster as Sonner } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
+import { ConsentProvider, useConsent } from "./contexts/ConsentContext";
 import AITutor from "@/components/AITutor";
 import Landing from "@/pages/Landing";
 import Sobre from "@/pages/Sobre";
@@ -29,8 +31,27 @@ import DeleteUserTest from "@/pages/DeleteUserTest";
 import BlogNoticias from "@/pages/BlogNoticias";
 import ContentSearch from "@/pages/ContentSearch";
 import NotFound from "@/pages/NotFound";
+import { CookieBanner } from "@/components/privacy/CookieBanner";
+import { CookiePreferencesDialog } from "@/components/privacy/CookiePreferencesDialog";
+import { CookiePreferencesButton } from "@/components/privacy/CookiePreferencesButton";
+import { applyTelemetryFromConsent, initConsentAwareTelemetry } from "@/lib/telemetry";
 
 const queryClient = new QueryClient();
+
+const PrivacyBootstrap = () => {
+  const { preferences, ready } = useConsent();
+
+  useEffect(() => {
+    if (!ready) return;
+    applyTelemetryFromConsent(preferences);
+  }, [preferences, ready]);
+
+  useEffect(() => {
+    initConsentAwareTelemetry();
+  }, []);
+
+  return null;
+};
 
 const AppContent = () => {
   const { user } = useAuth();
@@ -91,6 +112,9 @@ const AppContent = () => {
           <AITutor />
         </div>
       )}
+      <CookiePreferencesButton shiftUpForAiTutorFab={shouldShowAITutor} />
+      <CookieBanner />
+      <CookiePreferencesDialog />
     </div>
   );
 };
@@ -98,17 +122,20 @@ const AppContent = () => {
 const App = () => (
   <ThemeProvider>
     <LanguageProvider>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <AppContent />
-            </BrowserRouter>
-          </TooltipProvider>
-        </AuthProvider>
-      </QueryClientProvider>
+      <ConsentProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <PrivacyBootstrap />
+                <AppContent />
+              </BrowserRouter>
+            </TooltipProvider>
+          </AuthProvider>
+        </QueryClientProvider>
+      </ConsentProvider>
     </LanguageProvider>
   </ThemeProvider>
 );
