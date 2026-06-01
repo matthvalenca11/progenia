@@ -47,7 +47,7 @@ function getIdealParams(preset: MRIPreset): IdealParams | null {
   }
 }
 
-export function MRILabInsightsPanel() {
+export function MRILabInsightsPanel({ hideHeader = false }: { hideHeader?: boolean }) {
   const { simulationResult, config, dicomReady, dicomVolumeA, activeSequence } = useMRILabStore();
   const [showComparison, setShowComparison] = useState(false);
   const hasClinicalVolume = dicomReady && !!dicomVolumeA;
@@ -203,12 +203,13 @@ export function MRILabInsightsPanel() {
 
   return (
     <div className="h-full flex flex-col bg-card">
-      {/* Header */}
-      <div className="p-3 border-b border-border">
-        <h2 className="text-sm font-medium text-foreground">Métricas</h2>
-      </div>
+      {!hideHeader && (
+        <div className="p-3 border-b border-border">
+          <h2 className="text-sm font-medium text-foreground">Métricas</h2>
+        </div>
+      )}
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div className={`flex-1 overflow-y-auto space-y-3 ${hideHeader ? "p-3 pb-6" : "p-3"}`}>
         {/* Signal Intensity */}
         <div className="p-2.5 bg-cyan-500/10 rounded-lg space-y-1.5">
           <div className="flex items-center justify-between">

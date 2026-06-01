@@ -28,6 +28,39 @@ export function VolumeMPRViewer({ showDebug = false }: VolumeMPRViewerProps) {
   const [level, setLevel] = useState(1000);
   const [crosshair, setCrosshair] = useState({ x: 0, y: 0, z: 0 });
 
+  const handleAxialTouch = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!normalizedVolume || !axialCanvasRef.current || e.touches.length !== 1) return;
+    const rect = axialCanvasRef.current.getBoundingClientRect();
+    const touch = e.touches[0];
+    const x = Math.floor((touch.clientX - rect.left) * (normalizedVolume.width / rect.width));
+    const y = Math.floor((touch.clientY - rect.top) * (normalizedVolume.height / rect.height));
+    setCrosshair((prev) => ({ ...prev, x, y }));
+    setSagittalIndex(x);
+    setCoronalIndex(y);
+  }, [normalizedVolume]);
+
+  const handleSagittalTouch = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!normalizedVolume || !sagittalCanvasRef.current || e.touches.length !== 1) return;
+    const rect = sagittalCanvasRef.current.getBoundingClientRect();
+    const touch = e.touches[0];
+    const z = Math.floor((touch.clientX - rect.left) * (normalizedVolume.depth / rect.width));
+    const y = Math.floor((touch.clientY - rect.top) * (normalizedVolume.height / rect.height));
+    setCrosshair((prev) => ({ ...prev, z, y }));
+    setAxialIndex(z);
+    setCoronalIndex(y);
+  }, [normalizedVolume]);
+
+  const handleCoronalTouch = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!normalizedVolume || !coronalCanvasRef.current || e.touches.length !== 1) return;
+    const rect = coronalCanvasRef.current.getBoundingClientRect();
+    const touch = e.touches[0];
+    const x = Math.floor((touch.clientX - rect.left) * (normalizedVolume.width / rect.width));
+    const z = Math.floor((touch.clientY - rect.top) * (normalizedVolume.depth / rect.height));
+    setCrosshair((prev) => ({ ...prev, x, z }));
+    setSagittalIndex(x);
+    setAxialIndex(z);
+  }, [normalizedVolume]);
+
   // Inicializar valores do volume
   useEffect(() => {
     if (normalizedVolume && normalizedVolume.isValid) {
@@ -395,7 +428,7 @@ export function VolumeMPRViewer({ showDebug = false }: VolumeMPRViewerProps) {
   return (
     <div className="w-full h-full flex flex-col bg-background">
       {/* MPR Panels */}
-      <div className="flex-1 grid grid-cols-2 gap-2 p-2">
+      <div className="flex-1 grid grid-cols-1 gap-2 p-2 sm:grid-cols-2">
         {/* Axial */}
         <div className="relative bg-black rounded overflow-hidden">
           <div className="absolute top-2 left-2 text-white text-xs font-mono z-10 bg-black/70 px-2 py-1 rounded">
@@ -405,6 +438,8 @@ export function VolumeMPRViewer({ showDebug = false }: VolumeMPRViewerProps) {
             ref={axialCanvasRef}
             className="w-full h-full cursor-crosshair"
             onClick={handleAxialClick}
+            onTouchStart={handleAxialTouch}
+            onTouchMove={handleAxialTouch}
             style={{ imageRendering: "pixelated" }}
           />
         </div>
@@ -418,6 +453,8 @@ export function VolumeMPRViewer({ showDebug = false }: VolumeMPRViewerProps) {
             ref={sagittalCanvasRef}
             className="w-full h-full cursor-crosshair"
             onClick={handleSagittalClick}
+            onTouchStart={handleSagittalTouch}
+            onTouchMove={handleSagittalTouch}
             style={{ imageRendering: "pixelated" }}
           />
         </div>
@@ -432,14 +469,19 @@ export function VolumeMPRViewer({ showDebug = false }: VolumeMPRViewerProps) {
           ref={coronalCanvasRef}
           className="w-full h-full cursor-crosshair"
           onClick={handleCoronalClick}
+          onTouchStart={handleCoronalTouch}
+          onTouchMove={handleCoronalTouch}
           style={{ imageRendering: "pixelated" }}
         />
       </div>
 
       {/* Controls */}
       <div className="border-t border-border bg-card p-4 space-y-4">
+        <p className="text-[11px] text-muted-foreground md:hidden">
+          Toque e arraste em qualquer plano para mover o crosshair.
+        </p>
         {/* Slice Sliders */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-xs">Axial (Z)</Label>
@@ -482,7 +524,7 @@ export function VolumeMPRViewer({ showDebug = false }: VolumeMPRViewerProps) {
         </div>
 
         {/* Window/Level */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-xs">Window</Label>

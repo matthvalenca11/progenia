@@ -604,7 +604,7 @@ export function LessonsManager() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <BookOpen className="h-5 w-5" />
@@ -619,7 +619,7 @@ export function LessonsManager() {
                   Nova Aula
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="h-[92dvh] w-[96vw] max-h-[92dvh] overflow-y-auto sm:h-auto sm:max-h-[90vh] sm:max-w-6xl">
                 <DialogHeader>
                   <DialogTitle>{editingLesson ? "Editar Aula" : "Criar Nova Aula"}</DialogTitle>
                   <DialogDescription>
@@ -628,7 +628,7 @@ export function LessonsManager() {
                 </DialogHeader>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                  <TabsList className="grid w-full grid-cols-4">
+                  <TabsList className="grid w-full grid-cols-2 gap-1 sm:grid-cols-4">
                     <TabsTrigger value="basic">1. Básico</TabsTrigger>
                     <TabsTrigger value="content">2. Conteúdo</TabsTrigger>
                     <TabsTrigger value="references">3. Referências</TabsTrigger>
@@ -637,7 +637,7 @@ export function LessonsManager() {
 
                   {/* Tab 1: Informações Básicas */}
                   <TabsContent value="basic" className="space-y-4 mt-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="col-span-2">
                         <Label htmlFor="title">Título da Aula</Label>
                         <Input
@@ -758,7 +758,7 @@ export function LessonsManager() {
                           </div>
                         )}
 
-                        <div className="grid grid-cols-2 gap-4 mt-2">
+                        <div className="mt-2 grid grid-cols-1 gap-4 lg:grid-cols-2">
                           <div>
                             <Label className="text-sm">URL da Imagem (PT) - opcional</Label>
                             <Input
@@ -841,7 +841,7 @@ export function LessonsManager() {
                           </div>
                         )}
 
-                        <div className="grid grid-cols-2 gap-4 mt-2">
+                        <div className="mt-2 grid grid-cols-1 gap-4 lg:grid-cols-2">
                           <div>
                             <Label className="text-sm">URL da Imagem (EN) - opcional</Label>
                             <Input
@@ -1441,7 +1441,7 @@ export function LessonsManager() {
           <div className="mb-4">
             <Label>Filtrar por módulo</Label>
             <Select value={filterModuleId} onValueChange={setFilterModuleId}>
-              <SelectTrigger className="w-64">
+              <SelectTrigger className="w-full sm:w-64">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1456,7 +1456,44 @@ export function LessonsManager() {
             </Select>
           </div>
 
-          <Table>
+          <div className="space-y-3 md:hidden">
+            {lessons.length === 0 ? (
+              <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+                Nenhuma aula criada ainda
+              </div>
+            ) : (
+              lessons.map((lesson) => (
+                <Card key={lesson.id} className="p-4">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h4 className="font-medium content-break">{lesson.title}</h4>
+                        <p className="text-xs text-muted-foreground">{getModuleName(lesson.module_id)}</p>
+                        <p className="text-xs text-muted-foreground">{lesson.duration_minutes ? `${lesson.duration_minutes} min` : "-"}</p>
+                      </div>
+                      <Badge variant={lesson.is_published ? "default" : "secondary"}>
+                        {lesson.is_published ? "Publicado" : "Rascunho"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => handleTogglePublish(lesson.id, lesson.is_published)}>
+                        {lesson.is_published ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => openEditDialog(lesson)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setDeleteLessonId(lesson.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
+
+          <div className="hidden md:block">
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Título</TableHead>
@@ -1505,7 +1542,8 @@ export function LessonsManager() {
                 ))
               )}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 

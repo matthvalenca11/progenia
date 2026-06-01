@@ -130,10 +130,10 @@ export default function ModuleCapsules() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <nav className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between gap-4">
+    <div className="min-h-[100dvh] bg-background">
+      <nav className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur">
+        <div className="container mx-auto px-3 py-3 sm:px-4 sm:py-4">
+          <div className="flex items-center justify-between gap-2 sm:gap-4">
             <div className="flex items-center gap-4 min-w-0">
               <Button
                 variant="ghost"
@@ -145,7 +145,7 @@ export default function ModuleCapsules() {
               </Button>
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <img src={logo} alt="ProGenia" className="h-8 progenia-logo" />
-                <h1 className="text-xl font-semibold truncate">{module.title}</h1>
+                <h1 className="text-base sm:text-xl font-semibold truncate">{module.title}</h1>
               </div>
             </div>
             <ThemeToggle />
@@ -153,11 +153,11 @@ export default function ModuleCapsules() {
         </div>
       </nav>
 
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <div className="container mx-auto px-3 py-6 sm:px-4 sm:py-8 max-w-4xl">
         <div className="mb-8">
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="h-6 w-6 text-accent" />
-            <h1 className="text-4xl font-bold">Cápsulas Rápidas</h1>
+            <h1 className="mobile-page-title">Cápsulas Rápidas</h1>
           </div>
           {module.description && (
             <p className="text-lg text-muted-foreground mb-6">
@@ -222,7 +222,7 @@ export default function ModuleCapsules() {
                             </div>
                             <h3 className="font-semibold text-lg mb-1">{capsula.title}</h3>
                             {capsula.description && (
-                              <p className="text-sm text-muted-foreground line-clamp-2">
+                              <p className="content-break text-sm text-muted-foreground line-clamp-2">
                                 {capsula.description}
                               </p>
                             )}

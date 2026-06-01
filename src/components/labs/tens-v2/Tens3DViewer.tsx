@@ -94,7 +94,7 @@ export function Tens3DViewer() {
   const comfortLevel = simulationResult?.comfortScore || 0;
 
   return (
-    <div className="relative w-full h-full bg-gradient-to-b from-slate-900 to-slate-950">
+    <div className="relative w-full h-full bg-gradient-to-b from-slate-900 to-slate-950" style={{ touchAction: "none" }}>
       {/* Canvas */}
       <Canvas 
         gl={{ 
@@ -180,8 +180,9 @@ export function Tens3DViewer() {
       </Canvas>
 
       {/* Instrução */}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] text-slate-600">
-        Arraste para rotacionar • Scroll para zoom
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] text-slate-600 text-center px-2">
+        <span className="hidden md:inline">Arraste para rotacionar • Scroll para zoom</span>
+        <span className="md:hidden">Arraste para rotacionar • Pinça para zoom</span>
       </div>
     </div>
   );

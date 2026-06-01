@@ -8,6 +8,7 @@ import { ArrowLeft, CheckCircle2, Clock, XCircle } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
 import { capsulaService, Capsula } from "@/services/capsulaService";
+import { gamificationService } from "@/services/gamificationService";
 import { VirtualLabRenderer } from "@/components/VirtualLabRenderer";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -82,6 +83,8 @@ const CapsuleViewer = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
+      const wasDone = progress === 100;
+
       await capsulaService.upsertProgress({
         user_id: session.user.id,
         capsula_id: capsulaId,
@@ -90,9 +93,18 @@ const CapsuleViewer = () => {
         data_conclusao: new Date().toISOString(),
       });
 
-      toast.success("Cápsula concluída!", {
-        description: "Explore outras cápsulas para manter o ritmo de estudo.",
-      });
+      if (!wasDone) {
+        const result = await gamificationService.onCapsuleCompleted(session.user.id, capsulaId);
+        toast.success("Cápsula concluída!", {
+          description: result.messages.length
+            ? result.messages.join(" · ")
+            : "Explore outras cápsulas para manter o ritmo de estudo.",
+        });
+      } else {
+        toast.success("Cápsula concluída!", {
+          description: "Explore outras cápsulas para manter o ritmo de estudo.",
+        });
+      }
 
       setTimeout(() => navigate("/dashboard"), 1500);
     } catch (error: any) {
@@ -100,6 +112,36 @@ const CapsuleViewer = () => {
       toast.error("Erro ao marcar cápsula como concluída");
     } finally {
       setCompleting(false);
+    }
+  };
+
+  const handleQuizSubmit = async () => {
+    const quiz = (capsula?.content_data as { quiz?: Array<{ correctAnswer: number }> } | undefined)?.quiz;
+    if (!quiz?.length) {
+      setQuizSubmitted(true);
+      return;
+    }
+
+    setQuizSubmitted(true);
+
+    const correctCount = quiz.filter(
+      (_question, qIndex) => quizAnswers[qIndex] === quiz[qIndex].correctAnswer,
+    ).length;
+
+    if (correctCount !== quiz.length || !capsulaId) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const result = await gamificationService.onCapsuleQuizPerfect(session.user.id, capsulaId);
+      if (result.messages.length) {
+        toast.success("Quiz perfeito!", {
+          description: result.messages.join(" · "),
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao registrar quiz perfeito:", error);
     }
   };
 
@@ -133,17 +175,17 @@ const CapsuleViewer = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-[100dvh] bg-background">
       {/* Navigation */}
-      <nav className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <nav className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur">
+        <div className="container mx-auto flex items-center justify-between gap-3 px-3 py-3 sm:px-4 sm:py-4">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <img src={logo} alt="ProGenia" className="h-10 progenia-logo" />
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             {capsula.duration_minutes && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Clock className="h-4 w-4" />
@@ -155,15 +197,15 @@ const CapsuleViewer = () => {
         </div>
       </nav>
 
-      <div className="container max-w-4xl mx-auto px-4 py-8">
+      <div className="container max-w-4xl mx-auto px-3 py-6 sm:px-4 sm:py-8">
         {/* Header */}
         <div className="mb-8">
           <div className="inline-block px-3 py-1 bg-accent/10 text-accent text-sm rounded-full mb-4">
             Cápsula Rápida
           </div>
-          <h1 className="text-4xl font-bold mb-4">{capsula.title}</h1>
+          <h1 className="mobile-page-title mb-4 content-break">{capsula.title}</h1>
           {capsula.description && (
-            <p className="text-xl text-muted-foreground mb-4">{capsula.description}</p>
+            <p className="text-base sm:text-lg text-muted-foreground mb-4 content-break">{capsula.description}</p>
           )}
           
           {progress > 0 && progress < 100 && (
@@ -194,7 +236,7 @@ const CapsuleViewer = () => {
                 if (token === "text" && contentData.text) {
                   return (
                     <Card key="text" className="p-6">
-                      <div className="prose prose-slate dark:prose-invert max-w-none">
+                      <div className="prose prose-slate dark:prose-invert max-w-none content-break">
                         <p className="whitespace-pre-wrap">{contentData.text}</p>
                       </div>
                     </Card>
@@ -269,7 +311,7 @@ const CapsuleViewer = () => {
 
                 if (token === "virtualLab" && contentData.virtualLabId) {
                   return (
-                    <Card key="virtualLab" className="p-6">
+                    <Card key="virtualLab" className="overflow-hidden p-0 sm:p-6">
                       <VirtualLabRenderer labId={contentData.virtualLabId} />
                     </Card>
                   );
@@ -307,8 +349,8 @@ const CapsuleViewer = () => {
                                       : 'border-border hover:bg-accent/5'
                                   } ${quizSubmitted ? 'cursor-default' : ''}`}
                                 >
-                                  <div className="flex items-center justify-between">
-                                    <span>{option}</span>
+                                  <div className="flex items-start justify-between gap-2">
+                                    <span className="content-break">{option}</span>
                                     {showFeedback && isCorrectOption && (
                                       <CheckCircle2 className="h-5 w-5 text-green-600" />
                                     )}
@@ -326,7 +368,7 @@ const CapsuleViewer = () => {
                   </div>
                   {!quizSubmitted && (
                     <Button 
-                      onClick={() => setQuizSubmitted(true)}
+                      onClick={handleQuizSubmit}
                       className="mt-6 w-full"
                       disabled={Object.keys(quizAnswers).length !== contentData.quiz.length}
                     >

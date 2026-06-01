@@ -2,12 +2,13 @@ import { Toaster } from "./components/ui/toaster";
 import { Toaster as Sonner } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, HashRouter, Routes, Route, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { ConsentProvider, useConsent } from "./contexts/ConsentContext";
+import { isNativeApp } from "@/lib/capacitor";
 import AITutor from "@/components/AITutor";
 import Landing from "@/pages/Landing";
 import Sobre from "@/pages/Sobre";
@@ -56,22 +57,43 @@ const PrivacyBootstrap = () => {
 const AppContent = () => {
   const { user } = useAuth();
   const location = useLocation();
+  const isImmersiveLabRoute =
+    location.pathname.startsWith("/labs/") ||
+    location.pathname.startsWith("/admin/labs/novo") ||
+    location.pathname.startsWith("/admin/labs/editar/");
 
-  // Não mostrar o tutor na landing/sobre/blog
+  // Tutor de IA: oculto na landing/sobre/blog e em labs tela cheia
   const shouldShowAITutor =
-    user && location.pathname !== "/" && location.pathname !== "/sobre" && location.pathname !== "/blog";
+    user &&
+    location.pathname !== "/" &&
+    location.pathname !== "/sobre" &&
+    location.pathname !== "/blog" &&
+    location.pathname !== "/auth" &&
+    !location.pathname.startsWith("/labs/");
 
   return (
     <div
-      className="min-h-screen flex flex-col bg-background text-foreground overflow-hidden"
-      style={{
-        // safe area do iOS (notch e barra inferior)
-        paddingTop: "env(safe-area-inset-top)",
-        paddingBottom: "env(safe-area-inset-bottom)",
-      }}
+      className={`flex min-h-[100dvh] flex-col bg-background text-foreground overflow-x-clip${
+        isNativeApp && !isImmersiveLabRoute ? " native-safe-shell" : ""
+      }`}
+      style={
+        !isNativeApp && !isImmersiveLabRoute
+          ? {
+              paddingTop: "env(safe-area-inset-top)",
+              paddingBottom: "env(safe-area-inset-bottom)",
+            }
+          : undefined
+      }
     >
-      {/* Conteúdo principal rolável, com padding global para mobile */}
-      <main className="flex-1 flex flex-col overflow-y-auto px-4 pb-8 pt-2 md:px-8 md:pb-10 md:pt-4">
+      <main
+        className={
+          isImmersiveLabRoute
+            ? "flex min-h-[100dvh] w-full flex-1 flex-col overflow-x-clip p-0"
+            : isNativeApp
+              ? "native-shell-padding flex-1 flex flex-col overflow-y-auto overflow-x-clip pb-6 pt-2 md:px-8 md:pb-10 md:pt-4"
+              : "flex-1 flex flex-col overflow-y-auto overflow-x-clip px-3 pb-6 pt-2 sm:px-4 md:px-8 md:pb-10 md:pt-4"
+        }
+      >
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/sobre" element={<Sobre />} />
@@ -100,17 +122,9 @@ const AppContent = () => {
         </Routes>
       </main>
 
-      {/* Tutor de IA: só em telas médias pra cima, pra não matar o mobile */}
+      {/* Tutor de IA disponível também no mobile */}
       {shouldShowAITutor && (
-        <div className="hidden md:block">
-          {/* Se o AITutor já tiver posição própria, ele continua controlando.
-             Se você quiser forçar posição flutuante:
-             <div className="fixed bottom-4 right-4 z-40">
-               <AITutor />
-             </div>
-          */}
-          <AITutor />
-        </div>
+        <AITutor />
       )}
       <CookiePreferencesButton shiftUpForAiTutorFab={shouldShowAITutor} />
       <CookieBanner />
@@ -118,6 +132,8 @@ const AppContent = () => {
     </div>
   );
 };
+
+const AppRouter = isNativeApp ? HashRouter : BrowserRouter;
 
 const App = () => (
   <ThemeProvider>
@@ -128,10 +144,10 @@ const App = () => (
             <TooltipProvider>
               <Toaster />
               <Sonner />
-              <BrowserRouter>
+              <AppRouter>
                 <PrivacyBootstrap />
                 <AppContent />
-              </BrowserRouter>
+              </AppRouter>
             </TooltipProvider>
           </AuthProvider>
         </QueryClientProvider>

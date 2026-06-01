@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { adminAnalyticsService, DashboardFilters as DashboardFiltersType } from "@/services/adminAnalyticsService";
 import { DashboardFilters } from "./DashboardFilters";
@@ -24,8 +24,8 @@ const getDefaultFilters = (): DashboardFiltersType => {
 };
 
 export function AdminDashboard() {
-  const [filters, setFilters] = useState<DashboardFiltersType>(getDefaultFilters());
-  const isDateRangeValid = filters.startDate <= filters.endDate;
+  const [appliedFilters, setAppliedFilters] = useState<DashboardFiltersType>(getDefaultFilters());
+  const [draftFilters, setDraftFilters] = useState<DashboardFiltersType>(getDefaultFilters());
 
   const filterOptionsQuery = useQuery({
     queryKey: ["admin-dashboard-filter-options"],
@@ -34,19 +34,11 @@ export function AdminDashboard() {
   });
 
   const dataQuery = useQuery({
-    queryKey: ["admin-dashboard-data", filters],
-    queryFn: () => adminAnalyticsService.getDashboardData(filters),
+    queryKey: ["admin-dashboard-data", appliedFilters],
+    queryFn: () => adminAnalyticsService.getDashboardData(appliedFilters),
     staleTime: 30_000,
-    enabled: isDateRangeValid,
+    placeholderData: keepPreviousData,
   });
-  if (!isDateRangeValid) {
-    return (
-      <Card className="p-4">
-        <p className="text-destructive">A data inicial não pode ser maior que a data final.</p>
-      </Card>
-    );
-  }
-
 
   const filterOptions = useMemo(
     () =>
@@ -58,7 +50,19 @@ export function AdminDashboard() {
     [filterOptionsQuery.data],
   );
 
-  if (dataQuery.isLoading) {
+  const handleApply = () => {
+    setAppliedFilters(draftFilters);
+  };
+
+  const handleReset = () => {
+    const defaults = getDefaultFilters();
+    setDraftFilters(defaults);
+    setAppliedFilters(defaults);
+  };
+
+  const isInitialLoad = dataQuery.isLoading && !dataQuery.data;
+
+  if (isInitialLoad) {
     return (
       <Card className="p-4">
         <div className="flex items-center justify-center py-8">
@@ -68,7 +72,7 @@ export function AdminDashboard() {
     );
   }
 
-  if (dataQuery.error) {
+  if (dataQuery.error && !dataQuery.data) {
     return (
       <Card className="p-4">
         <p className="text-destructive">
@@ -90,13 +94,19 @@ export function AdminDashboard() {
       </div>
 
       <DashboardFilters
-        filters={filters}
+        draftFilters={draftFilters}
+        appliedFilters={appliedFilters}
+        onDraftChange={setDraftFilters}
+        onApply={handleApply}
         options={filterOptions}
-        onChange={setFilters}
-        onReset={() => setFilters(getDefaultFilters())}
+        onReset={handleReset}
       />
 
-      <KpiCards kpis={data.kpis} />
+      {dataQuery.isFetching && (
+        <p className="text-xs text-muted-foreground animate-pulse">Atualizando métricas…</p>
+      )}
+
+      <KpiCards kpis={data.kpis} filters={appliedFilters} />
 
       <div className="space-y-1">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cadastro e demografia</h3>

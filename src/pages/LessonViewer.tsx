@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { lessonService } from "@/services/lessonService";
 import { progressService } from "@/services/progressService";
+import { gamificationService } from "@/services/gamificationService";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -88,15 +89,28 @@ export default function LessonViewer() {
   };
   const handleComplete = async () => {
     if (!user || !lessonId) return;
+    const alreadyDone = progress?.status === "concluido";
     try {
       await progressService.completeLesson(user.id, lessonId);
-      toast({
-        title: "Aula concluída!",
-        description: "Você ganhou pontos por completar esta aula"
-      });
+
+      if (!alreadyDone) {
+        const result = await gamificationService.onLessonCompleted(user.id, lessonId);
+        const description = result.messages.length
+          ? result.messages.join(" · ")
+          : "Progresso salvo com sucesso";
+        toast({
+          title: "Aula concluída!",
+          description,
+        });
+      } else {
+        toast({
+          title: "Aula concluída!",
+          description: "Progresso atualizado",
+        });
+      }
+
       await loadProgress();
-      
-      // Mostrar diálogo de próxima aula se houver
+
       if (nextLesson) {
         setShowNextLessonDialog(true);
       }
@@ -104,7 +118,7 @@ export default function LessonViewer() {
       toast({
         variant: "destructive",
         title: "Erro",
-        description: error.message || "Não foi possível concluir a aula"
+        description: error.message || "Não foi possível concluir a aula",
       });
     }
   };
@@ -123,23 +137,23 @@ export default function LessonViewer() {
   const blocks = contentData.blocks || [];
   const references = contentData.references || [];
   const thumbnail = (isEnglish ? contentData.thumbnail_en : null) || contentData.thumbnail;
-  return <div className="container mx-auto py-8 space-y-6">
+  return <div className="container mx-auto space-y-6 px-3 py-4 sm:px-4 sm:py-8">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4 min-w-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex items-center gap-2 min-w-0 sm:gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")} aria-label="Ir para o dashboard">
             <img src={logo} alt="ProGenia" className="h-8 progenia-logo" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => navigate(`/module/${lesson.module_id}`)}>
+          <Button variant="ghost" size="sm" onClick={() => navigate(`/module/${lesson.module_id}`)} className="hidden sm:inline-flex">
             <ChevronLeft className="h-4 w-4 mr-2" />
             Voltar ao Módulo
           </Button>
           <div className="flex-1 min-w-0">
             <div className="text-sm text-muted-foreground mb-1">{lesson.modules?.title}</div>
-            <h1 className="text-2xl font-bold truncate">{lesson.title}</h1>
+            <h1 className="text-xl font-bold content-break sm:text-2xl">{lesson.title}</h1>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {isCompleted && <Badge variant="default" className="gap-1">
               <CheckCircle2 className="h-3 w-3" />
               Concluída
@@ -186,7 +200,7 @@ export default function LessonViewer() {
             <CardTitle>Sobre esta aula</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground">{lesson.description}</p>
+            <p className="text-muted-foreground content-break">{lesson.description}</p>
           </CardContent>
         </Card>
       )}
@@ -203,7 +217,7 @@ export default function LessonViewer() {
                   <CardContent className="pt-6">
                     {/* Bloco de Texto */}
                     {block.type === "text" && (
-                      <div className="prose dark:prose-invert max-w-none whitespace-pre-wrap">
+                      <div className="prose dark:prose-invert max-w-none whitespace-pre-wrap content-break">
                         {block.data.content}
                       </div>
                     )}
@@ -326,7 +340,7 @@ export default function LessonViewer() {
                       <div className="flex-1">
                         <h4 className="font-medium mb-1">{ref.title}</h4>
                         {ref.description && (
-                          <p className="text-sm text-muted-foreground">{ref.description}</p>
+                          <p className="text-sm text-muted-foreground content-break">{ref.description}</p>
                         )}
                       </div>
                       <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -371,6 +385,14 @@ export default function LessonViewer() {
           )}
         </div>
       </div>
+      {!isCompleted && (
+        <div className="safe-bottom sticky bottom-0 z-30 -mx-3 border-t border-border bg-background/95 px-3 py-3 backdrop-blur sm:hidden">
+          <Button onClick={handleComplete} className="w-full" size="lg">
+            <CheckCircle2 className="h-5 w-5 mr-2" />
+            Marcar como concluída
+          </Button>
+        </div>
+      )}
 
       {/* Diálogo de Próxima Aula */}
       <Dialog open={showNextLessonDialog} onOpenChange={setShowNextLessonDialog}>

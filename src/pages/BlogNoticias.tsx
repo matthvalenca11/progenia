@@ -70,24 +70,31 @@ export default function BlogNoticias() {
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <nav className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3">
-            <img src={logo} alt="ProGenia" className="h-10 progenia-logo" />
-          </Link>
-          <div className="flex items-center gap-4">
-            <ThemeToggle />
+      <nav className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-3 py-3 sm:px-4 sm:py-4">
+          <div className="flex items-center justify-between gap-3">
+            <Link to="/" className="flex items-center gap-3">
+              <img src={logo} alt="ProGenia" className="h-9 sm:h-10 progenia-logo" />
+            </Link>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <ThemeToggle />
+              <Link to="/auth" className="hidden sm:inline-flex">
+                <Button variant="ghost">Entrar</Button>
+              </Link>
+            </div>
+          </div>
+          <div className="mt-3 flex w-full items-center justify-center gap-2 overflow-x-auto whitespace-nowrap pb-1 sm:mt-0 sm:justify-end sm:overflow-visible sm:whitespace-normal sm:pb-0">
             <Link to="/">
-              <Button variant="ghost">Home</Button>
+              <Button variant="ghost" size="sm" className="shrink-0">Home</Button>
             </Link>
             <Link to="/sobre">
-              <Button variant="ghost">Sobre</Button>
+              <Button variant="ghost" size="sm" className="shrink-0">Sobre</Button>
             </Link>
             <Link to="/contato">
-              <Button variant="ghost">Contato</Button>
+              <Button variant="ghost" size="sm" className="shrink-0">Contato</Button>
             </Link>
-            <Link to="/auth">
-              <Button variant="ghost">Entrar</Button>
+            <Link to="/auth" className="sm:hidden">
+              <Button variant="ghost" size="sm" className="shrink-0">Entrar</Button>
             </Link>
           </div>
         </div>

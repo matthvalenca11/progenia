@@ -6,11 +6,14 @@ import { create } from "zustand";
 import { UltrasoundTherapyConfig, defaultUltrasoundTherapyConfig } from "@/types/ultrasoundTherapyConfig";
 import { simulateUltrasoundTherapy, UltrasoundTherapyResult } from "@/simulation/ultrasoundTherapyEngine";
 
+export type UltrasoundViewerTab = "anatomy" | "beam" | "thermal";
+
 interface UltrasoundTherapyState {
   config: UltrasoundTherapyConfig;
   simulationResult: UltrasoundTherapyResult | null;
   controlPanelCollapsed: boolean;
   insightsPanelCollapsed: boolean;
+  viewerTab: UltrasoundViewerTab;
   
   // Actions
   setLabConfig: (config: UltrasoundTherapyConfig) => void;
@@ -18,6 +21,7 @@ interface UltrasoundTherapyState {
   runSimulation: () => void;
   setControlPanelCollapsed: (collapsed: boolean) => void;
   setInsightsPanelCollapsed: (collapsed: boolean) => void;
+  setViewerTab: (tab: UltrasoundViewerTab) => void;
 }
 
 export const useUltrasoundTherapyStore = create<UltrasoundTherapyState>((set, get) => ({
@@ -25,6 +29,7 @@ export const useUltrasoundTherapyStore = create<UltrasoundTherapyState>((set, ge
   simulationResult: null,
   controlPanelCollapsed: false,
   insightsPanelCollapsed: true,
+  viewerTab: "beam",
   
   setLabConfig: (config) => {
     set({ config });
@@ -64,5 +69,9 @@ export const useUltrasoundTherapyStore = create<UltrasoundTherapyState>((set, ge
   
   setInsightsPanelCollapsed: (collapsed) => {
     set({ insightsPanelCollapsed: collapsed });
+  },
+
+  setViewerTab: (tab) => {
+    set({ viewerTab: tab });
   },
 }));

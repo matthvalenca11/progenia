@@ -12,9 +12,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Waves, Zap, Settings } from "lucide-react";
+import { Waves, Zap, Settings, ChevronDown, BookOpen } from "lucide-react";
 import { useUltrasoundTherapyStore } from "@/stores/ultrasoundTherapyStore";
 import { TransducerMap2D } from "./TransducerMap2D";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { clinicalPresets, applyPreset } from "@/config/ultrasoundTherapyPresets";
+import { AnatomicalScenario } from "@/types/ultrasoundTherapyConfig";
 
 interface SliderControlProps {
   label: string;
@@ -37,8 +40,9 @@ function SliderControl({
   step = 0.1, 
   unit,
   disabled = false,
-  highlight = false
-}: SliderControlProps) {
+  highlight = false,
+  compact = false,
+}: SliderControlProps & { compact?: boolean }) {
   return (
     <div className={`space-y-2 ${disabled ? "opacity-40 pointer-events-none" : ""}`}>
       <div className="flex items-center justify-between">
@@ -58,166 +62,253 @@ function SliderControl({
         max={max}
         step={step}
         disabled={disabled}
-        className="py-1"
+        size={compact ? "lg" : "default"}
+        className={compact ? "py-3" : "py-1"}
       />
     </div>
   );
 }
 
-export function UltrasoundTherapyControlPanel() {
+export function UltrasoundTherapyControlPanel({
+  hideHeader = false,
+  compact = false,
+}: {
+  hideHeader?: boolean;
+  compact?: boolean;
+}) {
   const {
     config,
     updateConfig,
   } = useUltrasoundTherapyStore();
 
-  return (
-    <div className="h-full flex flex-col bg-card">
-      {/* Header */}
-      <div className="p-3 border-b border-border">
-        <h2 className="text-sm font-medium text-foreground">Controles</h2>
+  const toggleButtonClass = (active: boolean, variant: "default" | "good" | "poor" = "default") => {
+    const height = compact ? "h-9" : "h-7";
+    if (variant === "good" && active) {
+      return `text-xs ${height} rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30`;
+    }
+    if (variant === "poor" && active) {
+      return `text-xs ${height} rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/30`;
+    }
+    if (active) {
+      return `text-xs ${height} rounded-md bg-primary text-primary-foreground`;
+    }
+    return `text-xs ${height} rounded-md bg-muted border border-border text-foreground hover:bg-muted/80`;
+  };
+
+  const customThicknessSection = config.scenario === "custom" && config.enabledControls.customThicknesses !== false && (
+    <div className="space-y-3 rounded-lg border border-border bg-muted/50 p-3">
+      <Label className="text-xs uppercase tracking-wide text-muted-foreground">Espessuras das Camadas</Label>
+      <SliderControl
+        label="Pele"
+        value={config.customThicknesses?.skin || 0.2}
+        onChange={(v) => updateConfig({ 
+          customThicknesses: { 
+            ...config.customThicknesses, 
+            skin: v,
+            fat: config.customThicknesses?.fat || 0.5,
+            muscle: config.customThicknesses?.muscle || 2.0,
+            boneDepth: config.customThicknesses?.boneDepth
+          } 
+        })}
+        min={0.1}
+        max={0.5}
+        step={0.05}
+        unit="cm"
+        compact={compact}
+      />
+      <SliderControl
+        label="Gordura"
+        value={(config.customThicknesses && config.customThicknesses.fat) ? config.customThicknesses.fat : 0.5}
+        onChange={(v) => updateConfig({ 
+          customThicknesses: { 
+            ...config.customThicknesses, 
+            skin: config.customThicknesses?.skin || 0.2,
+            fat: v,
+            muscle: config.customThicknesses?.muscle || 2.0,
+            boneDepth: config.customThicknesses?.boneDepth
+          } 
+        })}
+        min={0.1}
+        max={2.0}
+        step={0.1}
+        unit="cm"
+        compact={compact}
+      />
+      <SliderControl
+        label="Músculo"
+        value={(config.customThicknesses && config.customThicknesses.muscle) ? config.customThicknesses.muscle : 2.0}
+        onChange={(v) => updateConfig({ 
+          customThicknesses: { 
+            ...config.customThicknesses, 
+            skin: config.customThicknesses?.skin || 0.2,
+            fat: config.customThicknesses?.fat || 0.5,
+            muscle: v,
+            boneDepth: config.customThicknesses?.boneDepth
+          } 
+        })}
+        min={0.5}
+        max={5.0}
+        step={0.1}
+        unit="cm"
+        compact={compact}
+      />
+      <SliderControl
+        label="Profundidade do Osso"
+        value={(config.customThicknesses && config.customThicknesses.boneDepth) ? config.customThicknesses.boneDepth : 3.0}
+        onChange={(v) => updateConfig({ 
+          customThicknesses: { 
+            ...config.customThicknesses, 
+            skin: config.customThicknesses?.skin || 0.2,
+            fat: config.customThicknesses?.fat || 0.5,
+            muscle: config.customThicknesses?.muscle || 2.0,
+            boneDepth: v
+          } 
+        })}
+        min={1.0}
+        max={6.0}
+        step={0.1}
+        unit="cm"
+        compact={compact}
+      />
+    </div>
+  );
+
+  const mixedLayerSection = config.scenario === "custom" && (
+    <div className="space-y-3 rounded-lg border border-border bg-muted/50 p-3">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs uppercase tracking-wide text-muted-foreground">Camada Mista</Label>
+        <input
+          type="checkbox"
+          checked={config.mixedLayer?.enabled || false}
+          onChange={(e) => updateConfig({
+            mixedLayer: {
+              enabled: e.target.checked,
+              depth: config.mixedLayer?.depth || 2.0,
+              division: config.mixedLayer?.division || 50
+            }
+          })}
+          className="h-5 w-5 rounded border-border bg-muted text-primary focus:ring-primary"
+        />
       </div>
+      {config.mixedLayer?.enabled && (
+        <>
+          <SliderControl
+            label="Profundidade da Camada Mista"
+            value={config.mixedLayer.depth}
+            onChange={(v) => updateConfig({ 
+              mixedLayer: { 
+                ...config.mixedLayer!,
+                depth: v
+              } 
+            })}
+            min={0.5}
+            max={5.0}
+            step={0.1}
+            unit="cm"
+            compact={compact}
+          />
+          <SliderControl
+            label="Divisão Osso/Músculo"
+            value={config.mixedLayer.division}
+            onChange={(v) => updateConfig({ 
+              mixedLayer: { 
+                ...config.mixedLayer!,
+                division: v
+              } 
+            })}
+            min={0}
+            max={100}
+            step={1}
+            unit="%"
+            compact={compact}
+          />
+          <div className="mt-2 text-[10px] text-muted-foreground">
+            {config.mixedLayer.division < 50 
+              ? `Mais músculo (${100 - config.mixedLayer.division}%)` 
+              : `Mais osso (${config.mixedLayer.division}%)`}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  return (
+    <div className={compact ? "w-full min-w-0 max-w-full bg-card" : "flex h-full flex-col bg-card"}>
+      {!hideHeader && (
+        <div className="border-b border-border p-3">
+          <h2 className="text-sm font-medium text-foreground">Controles</h2>
+        </div>
+      )}
       
-      <div className="flex-1 overflow-y-auto p-3 space-y-5">
-        {/* Presets e Cenário foram movidos para o header */}
-
-        {/* Custom Thickness Controls - V4: Didático */}
-        {config.scenario === "custom" && config.enabledControls.customThicknesses !== false && (
-          <div className="space-y-3 p-3 bg-muted/50 rounded-lg border border-border">
-            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Espessuras das Camadas</Label>
-            <SliderControl
-              label="Pele"
-              value={config.customThicknesses?.skin || 0.2}
-              onChange={(v) => updateConfig({ 
-                customThicknesses: { 
-                  ...config.customThicknesses, 
-                  skin: v,
-                  fat: config.customThicknesses?.fat || 0.5,
-                  muscle: config.customThicknesses?.muscle || 2.0,
-                  boneDepth: config.customThicknesses?.boneDepth
-                } 
-              })}
-              min={0.1}
-              max={0.5}
-              step={0.05}
-              unit="cm"
-            />
-            <SliderControl
-              label="Gordura"
-              value={(config.customThicknesses && config.customThicknesses.fat) ? config.customThicknesses.fat : 0.5}
-              onChange={(v) => updateConfig({ 
-                customThicknesses: { 
-                  ...config.customThicknesses, 
-                  skin: config.customThicknesses?.skin || 0.2,
-                  fat: v,
-                  muscle: config.customThicknesses?.muscle || 2.0,
-                  boneDepth: config.customThicknesses?.boneDepth
-                } 
-              })}
-              min={0.1}
-              max={2.0}
-              step={0.1}
-              unit="cm"
-            />
-            <SliderControl
-              label="Músculo"
-              value={(config.customThicknesses && config.customThicknesses.muscle) ? config.customThicknesses.muscle : 2.0}
-              onChange={(v) => updateConfig({ 
-                customThicknesses: { 
-                  ...config.customThicknesses, 
-                  skin: config.customThicknesses?.skin || 0.2,
-                  fat: config.customThicknesses?.fat || 0.5,
-                  muscle: v,
-                  boneDepth: config.customThicknesses?.boneDepth
-                } 
-              })}
-              min={0.5}
-              max={5.0}
-              step={0.1}
-              unit="cm"
-            />
-            <SliderControl
-              label="Profundidade do Osso"
-              value={(config.customThicknesses && config.customThicknesses.boneDepth) ? config.customThicknesses.boneDepth : 3.0}
-              onChange={(v) => updateConfig({ 
-                customThicknesses: { 
-                  ...config.customThicknesses, 
-                  skin: config.customThicknesses?.skin || 0.2,
-                  fat: config.customThicknesses?.fat || 0.5,
-                  muscle: config.customThicknesses?.muscle || 2.0,
-                  boneDepth: v
-                } 
-              })}
-              min={1.0}
-              max={6.0}
-              step={0.1}
-              unit="cm"
-            />
+      <div className={`${compact ? "w-full min-w-0 max-w-full space-y-4 p-2 pb-8" : "flex-1 space-y-5 overflow-y-auto p-3"} ${hideHeader && !compact ? "pb-6" : ""}`}>
+        {compact && (
+          <div className="grid grid-cols-2 gap-2">
+            <Select
+              value=""
+              onValueChange={(presetId) => {
+                const preset = clinicalPresets.find((p) => p.id === presetId);
+                if (preset) updateConfig(applyPreset(preset, config));
+              }}
+            >
+              <SelectTrigger className="h-9 w-full border-border bg-muted text-xs">
+                <BookOpen className="mr-1 h-3 w-3 shrink-0 text-amber-500" />
+                <SelectValue placeholder="Presets" />
+              </SelectTrigger>
+              <SelectContent>
+                {clinicalPresets.map((preset) => (
+                  <SelectItem key={preset.id} value={preset.id}>{preset.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={config.scenario}
+              onValueChange={(v) => {
+                const newScenario = v as AnatomicalScenario;
+                if (newScenario === "custom" && !config.customThicknesses) {
+                  updateConfig({
+                    scenario: newScenario,
+                    customThicknesses: { skin: 0.2, fat: 0.5, muscle: 2.0 },
+                  });
+                } else {
+                  updateConfig({ scenario: newScenario });
+                }
+              }}
+              disabled={!config.enabledControls.scenario}
+            >
+              <SelectTrigger className="h-9 w-full border-border bg-muted text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="shoulder">Ombro</SelectItem>
+                <SelectItem value="knee">Joelho</SelectItem>
+                <SelectItem value="lumbar">Lombar</SelectItem>
+                <SelectItem value="forearm">Antebraço</SelectItem>
+                <SelectItem value="custom">Personalizado</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         )}
 
-        {/* V5: Mixed Layer Control (for custom scenario) */}
-        {config.scenario === "custom" && (
-          <div className="space-y-3 p-3 bg-muted/50 rounded-lg border border-border">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Camada Mista</Label>
-              <input
-                type="checkbox"
-                checked={config.mixedLayer?.enabled || false}
-                onChange={(e) => updateConfig({
-                  mixedLayer: {
-                    enabled: e.target.checked,
-                    depth: config.mixedLayer?.depth || 2.0,
-                    division: config.mixedLayer?.division || 50
-                  }
-                })}
-                className="w-4 h-4 rounded border-border bg-muted text-primary focus:ring-primary"
-              />
-            </div>
-            {config.mixedLayer?.enabled && (
-              <>
-                <SliderControl
-                  label="Profundidade da Camada Mista"
-                  value={config.mixedLayer.depth}
-                  onChange={(v) => updateConfig({ 
-                    mixedLayer: { 
-                      ...config.mixedLayer!,
-                      depth: v
-                    } 
-                  })}
-                  min={0.5}
-                  max={5.0}
-                  step={0.1}
-                  unit="cm"
-                />
-                <SliderControl
-                  label="Divisão Osso/Músculo"
-                  value={config.mixedLayer.division}
-                  onChange={(v) => updateConfig({ 
-                    mixedLayer: { 
-                      ...config.mixedLayer!,
-                      division: v
-                    } 
-                  })}
-                  min={0}
-                  max={100}
-                  step={1}
-                  unit="%"
-                />
-                <div className="text-[10px] text-muted-foreground mt-2">
-                  {config.mixedLayer.division < 50 
-                    ? `Mais músculo (${100 - config.mixedLayer.division}%)` 
-                    : `Mais osso (${config.mixedLayer.division}%)`}
-                </div>
-              </>
-            )}
-          </div>
+        {compact && config.scenario === "custom" && (customThicknessSection || mixedLayerSection) && (
+          <Collapsible defaultOpen={false}>
+            <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-left">
+              <span className="text-xs font-medium text-foreground">Anatomia avançada</span>
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-3 space-y-3">
+              {customThicknessSection}
+              {mixedLayerSection}
+            </CollapsibleContent>
+          </Collapsible>
         )}
 
-        <div className="h-px bg-border" />
+        {!compact && customThicknessSection}
+        {!compact && mixedLayerSection}
 
-        {/* V6: Transducer Position Control (2D Map) */}
-        <div className="p-3 bg-muted/50 rounded-lg border border-border">
-          <TransducerMap2D />
+        {!compact && (customThicknessSection || mixedLayerSection) && <div className="h-px bg-border" />}
+
+        <div className="rounded-lg border border-border bg-muted/50 p-3">
+          <TransducerMap2D compact={compact} />
         </div>
 
         <div className="h-px bg-border" />
@@ -226,7 +317,7 @@ export function UltrasoundTherapyControlPanel() {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Waves className="h-3.5 w-3.5 text-cyan-500" />
-            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Transdutor</Label>
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Transdutor</Label>
           </div>
 
           {config.enabledControls.frequency && (
@@ -239,6 +330,7 @@ export function UltrasoundTherapyControlPanel() {
               step={0.1}
               unit="MHz"
               highlight={true}
+              compact={compact}
             />
           )}
 
@@ -246,7 +338,7 @@ export function UltrasoundTherapyControlPanel() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-xs text-muted-foreground">ERA (Área Efetiva)</Label>
-                <div className="px-2 py-0.5 rounded text-xs font-mono bg-muted/50 border border-border">
+                <div className="rounded border border-border bg-muted/50 px-2 py-0.5 text-xs font-mono">
                   <Input
                     type="number"
                     value={config.era}
@@ -254,9 +346,9 @@ export function UltrasoundTherapyControlPanel() {
                     min={config.ranges.era.min}
                     max={config.ranges.era.max}
                     step={0.5}
-                    className="w-16 h-6 text-xs bg-background border-border text-foreground"
+                    className={`${compact ? "h-8 w-20" : "h-6 w-16"} border-border bg-background text-xs text-foreground`}
                   />
-                  <span className="text-muted-foreground ml-1">cm²</span>
+                  <span className="ml-1 text-muted-foreground">cm²</span>
                 </div>
               </div>
             </div>
@@ -268,21 +360,13 @@ export function UltrasoundTherapyControlPanel() {
               <div className="grid grid-cols-2 gap-1.5">
                 <button
                   onClick={() => updateConfig({ mode: "continuous" })}
-                  className={`text-xs h-7 rounded-md transition-colors ${
-                    config.mode === "continuous" 
-                      ? 'bg-primary text-primary-foreground' 
-                      : 'bg-muted border border-border text-foreground hover:bg-muted/80'
-                  }`}
+                  className={toggleButtonClass(config.mode === "continuous")}
                 >
                   Contínuo
                 </button>
                 <button
                   onClick={() => updateConfig({ mode: "pulsed" })}
-                  className={`text-xs h-7 rounded-md transition-colors ${
-                    config.mode === "pulsed" 
-                      ? 'bg-primary text-primary-foreground' 
-                      : 'bg-muted border border-border text-foreground hover:bg-muted/80'
-                  }`}
+                  className={toggleButtonClass(config.mode === "pulsed")}
                 >
                   Pulsado
                 </button>
@@ -299,6 +383,7 @@ export function UltrasoundTherapyControlPanel() {
               max={config.ranges.dutyCycle.max}
               step={5}
               unit="%"
+              compact={compact}
             />
           )}
         </div>
@@ -309,7 +394,7 @@ export function UltrasoundTherapyControlPanel() {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Zap className="h-3.5 w-3.5 text-amber-500" />
-            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Energia</Label>
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Energia</Label>
           </div>
 
           {config.enabledControls.intensity && (
@@ -322,6 +407,7 @@ export function UltrasoundTherapyControlPanel() {
               step={0.1}
               unit="W/cm²"
               highlight={true}
+              compact={compact}
             />
           )}
 
@@ -329,7 +415,7 @@ export function UltrasoundTherapyControlPanel() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-xs text-muted-foreground">Duração</Label>
-                <div className="px-2 py-0.5 rounded text-xs font-mono bg-muted/50 border border-border">
+                <div className="rounded border border-border bg-muted/50 px-2 py-0.5 text-xs font-mono">
                   <Input
                     type="number"
                     value={config.duration}
@@ -337,9 +423,9 @@ export function UltrasoundTherapyControlPanel() {
                     min={config.ranges.duration.min}
                     max={config.ranges.duration.max}
                     step={1}
-                    className="w-16 h-6 text-xs bg-background border-border text-foreground"
+                    className={`${compact ? "h-8 w-20" : "h-6 w-16"} border-border bg-background text-xs text-foreground`}
                   />
-                  <span className="text-muted-foreground ml-1">min</span>
+                  <span className="ml-1 text-muted-foreground">min</span>
                 </div>
               </div>
             </div>
@@ -352,7 +438,7 @@ export function UltrasoundTherapyControlPanel() {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Settings className="h-3.5 w-3.5 text-purple-500" />
-            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Técnica</Label>
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Técnica</Label>
           </div>
 
           {config.enabledControls.coupling && (
@@ -361,21 +447,13 @@ export function UltrasoundTherapyControlPanel() {
               <div className="grid grid-cols-2 gap-1.5">
                 <button
                   onClick={() => updateConfig({ coupling: "good" })}
-                  className={`text-xs h-7 rounded-md transition-colors ${
-                    config.coupling === "good" 
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                      : 'bg-muted border border-border text-foreground hover:bg-muted/80'
-                  }`}
+                  className={toggleButtonClass(config.coupling === "good", "good")}
                 >
                   Bom
                 </button>
                 <button
                   onClick={() => updateConfig({ coupling: "poor" })}
-                  className={`text-xs h-7 rounded-md transition-colors ${
-                    config.coupling === "poor" 
-                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
-                      : 'bg-muted border border-border text-foreground hover:bg-muted/80'
-                  }`}
+                  className={toggleButtonClass(config.coupling === "poor", "poor")}
                 >
                   Ruim
                 </button>
@@ -389,21 +467,13 @@ export function UltrasoundTherapyControlPanel() {
               <div className="grid grid-cols-2 gap-1.5">
                 <button
                   onClick={() => updateConfig({ movement: "stationary" })}
-                  className={`text-xs h-7 rounded-md transition-colors ${
-                    config.movement === "stationary" 
-                      ? 'bg-primary text-primary-foreground' 
-                      : 'bg-muted border border-border text-foreground hover:bg-muted/80'
-                  }`}
+                  className={toggleButtonClass(config.movement === "stationary")}
                 >
                   Parado
                 </button>
                 <button
                   onClick={() => updateConfig({ movement: "scanning" })}
-                  className={`text-xs h-7 rounded-md transition-colors ${
-                    config.movement === "scanning" 
-                      ? 'bg-primary text-primary-foreground' 
-                      : 'bg-muted border border-border text-foreground hover:bg-muted/80'
-                  }`}
+                  className={toggleButtonClass(config.movement === "scanning")}
                 >
                   Varredura
                 </button>
@@ -412,12 +482,11 @@ export function UltrasoundTherapyControlPanel() {
           )}
         </div>
 
-        {/* Info sobre frequência */}
-        <div className="p-2.5 bg-muted/50 rounded-lg border border-border">
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
+        <div className="rounded-lg border border-border bg-muted/50 p-2.5">
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
             {config.frequency <= 1.5 
-              ? "📏 Frequência baixa: penetração profunda, ideal para estruturas profundas"
-              : "🎯 Frequência alta: penetração superficial, ideal para tendões e ligamentos"
+              ? "Frequência baixa: penetração profunda, ideal para estruturas profundas"
+              : "Frequência alta: penetração superficial, ideal para tendões e ligamentos"
             }
           </p>
         </div>

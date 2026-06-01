@@ -9,11 +9,15 @@ import { UltrasoundTherapyConfig, defaultUltrasoundTherapyConfig } from "@/types
 interface UltrasoundTherapyLabPageProps {
   config?: UltrasoundTherapyConfig | any;
   previewMode?: boolean;
+  labName?: string;
+  embedded?: boolean;
 }
 
 export default function UltrasoundTherapyLabPage({ 
   config, 
-  previewMode = false 
+  previewMode = false,
+  labName,
+  embedded = false,
 }: UltrasoundTherapyLabPageProps) {
   // Validar e normalizar config - detectar se é config de diagnóstico
   const normalizedConfig: UltrasoundTherapyConfig = useMemo(() => {
@@ -81,8 +85,9 @@ export default function UltrasoundTherapyLabPage({
   return (
     <UltrasoundTherapyLabV2 
       config={normalizedConfig} 
-      labName="Laboratório Virtual de Ultrassom Terapêutico"
+      labName={labName || "Laboratório Virtual de Ultrassom Terapêutico"}
       showBackButton={!previewMode}
+      embedded={embedded}
     />
   );
 }

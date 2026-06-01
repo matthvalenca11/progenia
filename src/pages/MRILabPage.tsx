@@ -9,9 +9,10 @@ import { useMRILabStore } from "@/stores/mriLabStore";
 
 interface MRILabPageProps {
   config?: MRILabConfig;
+  previewMode?: boolean;
 }
 
-export default function MRILabPage({ config = defaultMRILabConfig }: MRILabPageProps) {
+export default function MRILabPage({ config = defaultMRILabConfig, previewMode = false }: MRILabPageProps) {
   const { initIfNeeded } = useMRILabStore();
   
   // Ensure initialization on mount
@@ -20,5 +21,5 @@ export default function MRILabPage({ config = defaultMRILabConfig }: MRILabPageP
     initIfNeeded("MRILabPage mount", config);
   }, []);
   
-  return <MRILabV2 config={config} />;
+  return <MRILabV2 config={config} showBackButton={!previewMode} />;
 }

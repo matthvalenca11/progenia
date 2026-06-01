@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FlaskConical, Activity, Waves, Thermometer, Magnet, Sun, ArrowRight, Loader2 } from "lucide-react";
+import { FlaskConical, Activity, Waves, Target, Magnet, Sun, ArrowRight, Loader2 } from "lucide-react";
 import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
 import { toast } from "sonner";
 
@@ -37,7 +37,7 @@ export default function VirtualLabsSection() {
         return <Activity className="h-24 w-24 text-primary/40 absolute" />;
       case "ultrasound_therapy":
       case "ultrassom_terapeutico":
-        return <Thermometer className="h-24 w-24 text-primary/40 absolute" />;
+        return <Target className="h-24 w-24 text-primary/40 absolute" />;
       case "mri":
         return <Magnet className="h-24 w-24 text-primary/40 absolute" />;
       case "photobiomodulation":
@@ -105,7 +105,7 @@ export default function VirtualLabsSection() {
                   ) : lab.lab_type === "ultrasound" ? (
                     <Waves className="h-4 w-4" />
                   ) : lab.lab_type === "ultrasound_therapy" || lab.lab_type === "ultrassom_terapeutico" ? (
-                    <Thermometer className="h-4 w-4" />
+                    <Target className="h-4 w-4" />
                   ) : lab.lab_type === "photobiomodulation" ? (
                     <Sun className="h-4 w-4" />
                   ) : (

@@ -5,6 +5,8 @@ import glsl from "vite-plugin-glsl";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  // Caminhos relativos são obrigatórios para o WebView do Capacitor (iOS/Android).
+  base: "./",
   server: {
     host: "::",
     port: 8080,

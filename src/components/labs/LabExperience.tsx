@@ -12,6 +12,7 @@ import PhotobioLabPage from "@/pages/PhotobioLabPage";
 import { toast } from "sonner";
 import { labAnalyticsService } from "@/services/labAnalyticsService";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { LabDemoBoundary } from "@/contexts/LabDemoContext";
 import { cn } from "@/lib/utils";
 
@@ -20,10 +21,19 @@ export type LabExperienceProps = {
   variant?: "page" | "modal";
   onClose?: () => void;
   capsulaId?: string | null;
+  /** Fallback quando slug não resolve (ex.: link da cápsula) */
+  labId?: string | null;
 };
 
-export function LabExperience({ slug, variant = "page", onClose, capsulaId = null }: LabExperienceProps) {
+export function LabExperience({
+  slug,
+  variant = "page",
+  onClose,
+  capsulaId = null,
+  labId = null,
+}: LabExperienceProps) {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const { user, loading: authLoading } = useAuth();
   const [lab, setLab] = useState<VirtualLab | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,7 +62,11 @@ export function LabExperience({ slug, variant = "page", onClose, capsulaId = nul
 
       try {
         setLoading(true);
-        const data = await virtualLabService.getBySlug(slug);
+        let data = await virtualLabService.getBySlug(slug);
+
+        if (!data && labId) {
+          data = await virtualLabService.getById(labId);
+        }
 
         if (!data) {
           toast.error("Laboratório não encontrado");
@@ -60,7 +74,7 @@ export function LabExperience({ slug, variant = "page", onClose, capsulaId = nul
           return;
         }
 
-        if (!data.is_published) {
+        if (data.is_published === false) {
           toast.error("Este laboratório não está disponível");
           exit();
           return;
@@ -79,7 +93,7 @@ export function LabExperience({ slug, variant = "page", onClose, capsulaId = nul
 
     void loadLab();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug]);
+  }, [slug, labId]);
 
   useEffect(() => {
     if (!lab?.id) return;
@@ -128,7 +142,7 @@ export function LabExperience({ slug, variant = "page", onClose, capsulaId = nul
       <div
         className={cn(
           "flex flex-col items-center justify-center gap-4 bg-background",
-          variant === "page" ? "min-h-screen" : "min-h-[220px] py-12",
+          variant === "page" ? "min-h-[100dvh]" : "flex-1",
         )}
       >
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -138,7 +152,19 @@ export function LabExperience({ slug, variant = "page", onClose, capsulaId = nul
   }
 
   if (!lab) {
-    return null;
+    return (
+      <div
+        className={cn(
+          "flex flex-col items-center justify-center gap-4 bg-background p-6 text-center",
+          variant === "page" ? "min-h-[100dvh]" : "flex-1",
+        )}
+      >
+        <p className="text-muted-foreground">Não foi possível carregar o laboratório.</p>
+        <Button variant="outline" onClick={() => exit()}>
+          Voltar
+        </Button>
+      </div>
+    );
   }
 
   const videoUrl = (lab.config_data as { videoUrl?: string })?.videoUrl;
@@ -148,20 +174,30 @@ export function LabExperience({ slug, variant = "page", onClose, capsulaId = nul
     variant === "modal" ? "Fechar" : user ? "Voltar ao Dashboard" : "Voltar ao início";
 
   const core = (
-    <LabWrapper videoUrl={videoUrl} title={lab.title || lab.name}>
+    <LabWrapper
+      videoUrl={videoUrl}
+      title={lab.title || lab.name}
+      immersive={isMobile && variant === "page"}
+      showDisclaimer={!(isMobile && variant === "page")}
+    >
       <LabDemoBoundary
         slug={lab.slug}
         enabled={demoAsGuest}
+        immersive={isMobile && variant === "page"}
         onDismissSecondary={variant === "modal" ? () => onCloseRef.current?.() : undefined}
       >
-        {renderLabContent(labType, lab)}
+        {renderLabContent(labType, lab, isMobile && variant === "page")}
       </LabDemoBoundary>
     </LabWrapper>
   );
 
+  if (variant === "page" && isMobile) {
+    return <div className="min-h-[100dvh] w-full bg-background">{core}</div>;
+  }
+
   if (variant === "modal") {
     return (
-      <div className="flex h-full min-h-0 w-full flex-col bg-background">
+      <div className="flex h-full min-h-0 w-full flex-col bg-background safe-area-top safe-area-bottom">
         <div className="mb-3 flex shrink-0 items-center justify-between gap-2 border-b border-border pb-3 pr-1">
           <h2 className="truncate pr-2 text-left text-base font-semibold tracking-tight text-foreground sm:text-lg">
             {lab.title || lab.name}
@@ -177,7 +213,7 @@ export function LabExperience({ slug, variant = "page", onClose, capsulaId = nul
             {backLabel}
           </Button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch]">
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch] px-1 sm:px-0">
           {core}
         </div>
       </div>
@@ -185,8 +221,8 @@ export function LabExperience({ slug, variant = "page", onClose, capsulaId = nul
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto py-8">
+    <div className="min-h-[100dvh] bg-background">
+      <div className="container mx-auto px-3 py-4 sm:px-4 sm:py-8">
         <Button variant="ghost" onClick={() => navigate(user ? "/dashboard" : "/")} className="mb-4">
           <ArrowLeft className="mr-2 h-4 w-4" />
           {backLabel}
@@ -197,21 +233,33 @@ export function LabExperience({ slug, variant = "page", onClose, capsulaId = nul
   );
 }
 
-function renderLabContent(labType: string, lab: VirtualLab): ReactNode {
+function renderLabContent(labType: string, lab: VirtualLab, mobilePage = false): ReactNode {
   if (labType === "ultrasound") {
     return <UltrasoundUnifiedLab config={lab.config_data as Record<string, unknown>} />;
   }
   if (labType === "tens") {
-    return <TensLabPage config={lab.config_data} />;
+    return <TensLabPage config={lab.config_data} previewMode={!mobilePage} />;
   }
   if (labType === "ultrasound_therapy" || labType === "ultrassom_terapeutico") {
-    return <UltrasoundTherapyLabPage config={lab.config_data} />;
+    return (
+      <UltrasoundTherapyLabPage
+        config={lab.config_data}
+        labName={lab.title || lab.name}
+        previewMode={!mobilePage}
+        embedded={!mobilePage}
+      />
+    );
   }
   if (labType === "mri") {
-    return <MRILabPage config={lab.config_data} />;
+    return <MRILabPage config={lab.config_data} previewMode={!mobilePage} />;
   }
   if (labType === "photobiomodulation" || labType === "fbm") {
-    return <PhotobioLabPage config={lab.config_data as Record<string, unknown>} />;
+    return (
+      <PhotobioLabPage
+        config={lab.config_data as Record<string, unknown>}
+        previewMode={!mobilePage}
+      />
+    );
   }
   return (
     <div className="py-12 text-center">

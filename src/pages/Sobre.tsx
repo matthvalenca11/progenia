@@ -136,18 +136,28 @@ const Sobre = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <nav className="border-b border-border/50 bg-background/80 backdrop-blur-xl sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-6 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-3 cursor-pointer hover-scale" onClick={() => navigate("/")}>
-            <img src={logo} alt="ProGenia" className="h-12 progenia-logo" />
-            <span className="text-2xl font-bold gradient-text">ProGenia</span>
+      <nav className="safe-sticky-top border-b border-border/50 bg-background/80 backdrop-blur-xl shadow-sm">
+        <div className="container mx-auto px-3 py-3 sm:px-6 sm:py-5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 cursor-pointer hover-scale" onClick={() => navigate("/")}>
+              <img src={logo} alt="ProGenia" className="h-9 sm:h-12 progenia-logo" />
+              <span className="text-lg sm:text-2xl font-bold gradient-text">ProGenia</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <Button variant="ghost" className="hidden sm:inline-flex font-medium" onClick={() => navigate("/auth")}>
+                Entrar
+              </Button>
+              <Button className="hidden sm:inline-flex font-semibold px-6" onClick={() => navigate("/auth")}>
+                Criar Conta
+              </Button>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-4 items-center justify-end">
-            <ThemeToggle />
-            <Button variant="ghost" className="font-medium" onClick={() => navigate("/auth")}>
+          <div className="mt-3 flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 sm:hidden">
+            <Button variant="ghost" size="sm" className="shrink-0 font-medium" onClick={() => navigate("/auth")}>
               Entrar
             </Button>
-            <Button className="font-semibold px-6" onClick={() => navigate("/auth")}>
+            <Button size="sm" className="shrink-0 font-semibold" onClick={() => navigate("/auth")}>
               Criar Conta
             </Button>
           </div>

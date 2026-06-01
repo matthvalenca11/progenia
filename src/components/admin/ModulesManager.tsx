@@ -108,7 +108,7 @@ export function ModulesManager() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Gerenciar Módulos</CardTitle>
               <CardDescription>Crie e organize os módulos do curso</CardDescription>
@@ -120,7 +120,7 @@ export function ModulesManager() {
                   Novo Módulo
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
                   <DialogTitle>Criar Novo Módulo</DialogTitle>
                   <DialogDescription>Preencha as informações do módulo</DialogDescription>
@@ -163,7 +163,43 @@ export function ModulesManager() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
+          <div className="space-y-3 md:hidden">
+            {modules.length === 0 ? (
+              <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+                Nenhum módulo criado ainda
+              </div>
+            ) : (
+              modules.map((module) => (
+                <Card key={module.id} className="p-4">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h4 className="font-medium content-break">{module.title}</h4>
+                        <p className="text-sm text-muted-foreground line-clamp-3 content-break">{module.description}</p>
+                      </div>
+                      <Badge variant={module.is_published ? "default" : "secondary"}>
+                        {module.is_published ? "Publicado" : "Rascunho"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => handleTogglePublish(module.id, module.is_published)}>
+                        {module.is_published ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => openEditDialog(module)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setDeleteModuleId(module.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
+
+          <div className="hidden md:block">
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Título</TableHead>
@@ -222,13 +258,14 @@ export function ModulesManager() {
                 ))
               )}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
       {/* Edit Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Editar Módulo</DialogTitle>
             <DialogDescription>Atualize as informações do módulo</DialogDescription>

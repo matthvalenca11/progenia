@@ -206,10 +206,10 @@ export default function ModuleViewer() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <nav className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between gap-4">
+    <div className="min-h-[100dvh] bg-background">
+      <nav className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur">
+        <div className="container mx-auto px-3 py-3 sm:px-4 sm:py-4">
+          <div className="flex items-center justify-between gap-2 sm:gap-4">
             <div className="flex items-center gap-4 min-w-0">
               <Button
                 variant="ghost"
@@ -221,7 +221,7 @@ export default function ModuleViewer() {
               </Button>
               <div className="flex items-center gap-3 min-w-0">
                 <img src={logo} alt="ProGenia" className="h-8 progenia-logo" />
-                <h1 className="text-xl font-semibold truncate">{module.title}</h1>
+                <h1 className="text-base sm:text-xl font-semibold truncate">{module.title}</h1>
               </div>
             </div>
             <ThemeToggle />
@@ -229,12 +229,12 @@ export default function ModuleViewer() {
         </div>
       </nav>
 
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <div className="container mx-auto max-w-4xl px-3 py-6 sm:px-4 sm:py-8">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-4">{module.title}</h1>
+          <h1 className="mobile-page-title mb-4 content-break">{module.title}</h1>
           {module.description && (
             <p className="text-lg text-muted-foreground mb-6">
-              {module.description}
+              <span className="content-break">{module.description}</span>
             </p>
           )}
 
@@ -306,7 +306,7 @@ export default function ModuleViewer() {
                           </Badge>
                         </div>
 
-                        <h3 className="font-semibold mb-1">{lesson.title}</h3>
+                            <h3 className="font-semibold mb-1 content-break">{lesson.title}</h3>
                         
                         {lesson.description && (
                           <p className="text-sm text-muted-foreground line-clamp-2">

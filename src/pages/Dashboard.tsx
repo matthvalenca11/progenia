@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { GraduationCap, Trophy, Clock, BookOpen, LogOut, Zap, Award, TrendingUp, UserPlus, UserMinus, Sparkles, ArrowRight, Activity, FlaskConical, ChevronLeft, ChevronRight, Pill, FileText, CheckCircle2, RotateCcw, User, Bug, Trash2, Search } from "lucide-react";
+import { GraduationCap, Trophy, Clock, BookOpen, LogOut, Zap, Award, TrendingUp, UserPlus, UserMinus, Sparkles, ArrowRight, Activity, FlaskConical, ChevronLeft, ChevronRight, Pill, FileText, CheckCircle2, RotateCcw, User, Bug, Trash2, Search, Shield, Waves, Magnet, Sun, Target } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { toast } from "sonner";
 import { enrollmentService } from "@/services/enrollmentService";
@@ -15,6 +15,7 @@ import VirtualLabsSection from "@/components/dashboard/VirtualLabsSection";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,11 +45,38 @@ interface Module {
   title: string;
   description: string;
 }
+
+const getModuleIcon = (title: string) => {
+  const t = title.toLowerCase();
+
+  // Mesmos ícones de VirtualLabsSection (ordem importa: eletro antes de "terap")
+  if (t.includes("resson") || t.includes("magnét") || t.includes("mri")) {
+    return Magnet;
+  }
+  if (t.includes("eletro") || t.includes("tens")) {
+    return Activity;
+  }
+  if (t.includes("ultrassom") && t.includes("diag")) {
+    return Waves;
+  }
+  if (t.includes("ultrassom") && (t.includes("terap") || t.includes("terapeut"))) {
+    return Target;
+  }
+  if (t.includes("ultrassom")) {
+    return Waves;
+  }
+  if (t.includes("foto") || t.includes("bio") || t.includes("fbm")) {
+    return Sun;
+  }
+  return FlaskConical;
+};
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const { language } = useLanguage();
   const isEnglish = language === "en";
+  const isMobile = useIsMobile();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [modules, setModules] = useState<Module[]>([]);
@@ -739,14 +767,224 @@ const Dashboard = () => {
     getUserLocation(profile),
   ].filter((item): item is string => Boolean(item));
 
-  return <div className="min-h-screen bg-background">
+  if (isMobile) {
+    return (
+      <div className="min-h-[100dvh] bg-background">
+        <nav className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <div className="mx-auto flex w-full max-w-full items-center justify-between gap-2 py-2.5">
+            <img src={logo} alt="ProGenia" className="h-8 progenia-logo" />
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => navigate("/search")}
+                aria-label={isEnglish ? "Open search" : "Abrir busca"}
+              >
+                <Search className="h-4 w-4" />
+              </Button>
+              <ThemeToggle />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button type="button" className="rounded-full focus:outline-none focus:ring-2 focus:ring-ring">
+                    <Avatar className="h-9 w-9">
+                      <AvatarFallback className="bg-primary text-primary-foreground">
+                        {profile ? getInitials(profile.full_name) : "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onClick={() => navigate("/profile")}>
+                    <User className="mr-2 h-4 w-4" />
+                    Perfil
+                  </DropdownMenuItem>
+                  {isAdmin && (
+                    <DropdownMenuItem onClick={() => navigate("/admin")}>
+                      <Shield className="mr-2 h-4 w-4" />
+                      Admin
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => setReportBugOpen(true)}>
+                    <Bug className="mr-2 h-4 w-4" />
+                    Relatar um bug
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setDeleteAccountOpen(true)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Excluir conta
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sair
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </nav>
+
+        <div className="mx-auto w-full max-w-full space-y-4 py-4">
+          <section>
+            <h1 className="text-xl font-bold leading-tight sm:text-2xl">
+              Bem-vindo, {getFirstName(profile?.full_name)}.
+            </h1>
+          </section>
+
+          <section className="grid grid-cols-2 gap-2">
+            <Card className="p-2.5">
+              <p className="text-[10px] text-muted-foreground">Aulas</p>
+              <p className="text-lg font-semibold leading-tight">{stats?.total_lessons_completed || 0}</p>
+            </Card>
+            <Card className="p-2">
+              <p className="text-[10px] text-muted-foreground">Cápsulas</p>
+              <p className="text-lg font-semibold leading-tight">{capsulasConcluidas}</p>
+            </Card>
+            <Card className="p-2">
+              <p className="text-[10px] text-muted-foreground">Módulos</p>
+              <p className="text-lg font-semibold leading-tight">{modulesCompleted}</p>
+            </Card>
+            <Card className="p-2">
+              <p className="text-[10px] text-muted-foreground">Minutos</p>
+              <p className="text-lg font-semibold leading-tight">{minutosEstudo}</p>
+            </Card>
+          </section>
+
+          <Card className="p-3">
+            <h2 className="mb-2 text-sm font-medium text-muted-foreground">Próxima ação</h2>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                className="flex-1"
+                onClick={() =>
+                  capsulaInacabada ? navigate(`/capsula/${capsulaInacabada.id}`) : navigate("/capsulas")
+                }
+              >
+                {capsulaInacabada ? "Continuar cápsula" : "Explorar cápsulas"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => navigate("/search")}>
+                Buscar
+              </Button>
+            </div>
+          </Card>
+
+          {!loadingRecomendadas && capsulaRecomendadas.length > 0 && (
+            <section className="rounded-xl border border-border/70 bg-card/50 p-3">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 className="text-base font-bold sm:text-lg">Em alta hoje</h2>
+                <Button variant="ghost" size="sm" className="h-8 shrink-0 px-2 text-xs" onClick={() => navigate("/capsulas")}>
+                  Ver todas
+                </Button>
+              </div>
+              <div className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {capsulaRecomendadas.slice(0, 8).map((capsula) => (
+                  <Card
+                    key={capsula.id}
+                    className="w-[78%] min-w-[78%] snap-start overflow-hidden shadow-sm sm:w-[62%] sm:min-w-[62%]"
+                    onClick={() => navigate(`/capsula/${capsula.id}`)}
+                  >
+                    <div className="aspect-[16/10] bg-muted">
+                      {capaUrls[capsula.id!] ? (
+                        <img src={capaUrls[capsula.id!]} alt={capsula.title} className="h-full w-full object-cover" />
+                      ) : null}
+                    </div>
+                    <div className="p-3">
+                      <h3 className="line-clamp-2 text-sm font-semibold leading-snug">{capsula.title}</h3>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <VirtualLabsSection />
+
+          <section>
+            <h2 className="mb-3 text-lg font-semibold">Módulos</h2>
+
+            {modules.length === 0 ? (
+              <Card className="p-6 text-center">
+                <GraduationCap className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Nenhum módulo disponível ainda.</p>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-2 gap-2.5">
+                {modules.map((module) => {
+                  const ModuleIcon = getModuleIcon(module.title);
+                  const isEnrolled = enrolledModules.has(module.id);
+                  const isCompleted = completedModules.has(module.id);
+
+                  return (
+                    <Card key={module.id} className="flex h-full flex-col p-3">
+                      <div className="mb-2.5 flex items-start gap-2">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                          <ModuleIcon className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start gap-1">
+                            {isCompleted && (
+                              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-green-500" />
+                            )}
+                            <h3 className="text-xs font-semibold leading-snug content-break">
+                              {normalizeModuleTitle(module.title)}
+                            </h3>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-auto flex gap-1.5 pt-1">
+                        {isEnrolled ? (
+                          <>
+                            <Button
+                              size="sm"
+                              className="h-8 min-w-0 flex-1 px-1 text-[11px]"
+                              onClick={() => navigate(`/module/${module.id}/capsulas`)}
+                            >
+                              Cápsulas
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 min-w-0 flex-1 px-1 text-[11px]"
+                              onClick={() => handleStartModule(module.id)}
+                            >
+                              Aulas
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="h-8 w-full text-[11px]"
+                            onClick={(e) => handleEnroll(module.id, e)}
+                          >
+                            Matricular-se
+                          </Button>
+                        )}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </div>
+
+        <DeleteAccountDialog open={deleteAccountOpen} onOpenChange={setDeleteAccountOpen} />
+        <ReportBugDialog open={reportBugOpen} onOpenChange={setReportBugOpen} />
+      </div>
+    );
+  }
+
+  return <div className="min-h-[100dvh] bg-background">
       {/* Navigation */}
-      <nav className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+      <nav className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur">
+        <div className="container mx-auto flex flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4 sm:py-4">
           <div className="flex items-center gap-3">
             <img src={logo} alt="ProGenia" className="h-10 progenia-logo" />
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <form
               onSubmit={handleHeaderSearch}
               className="hidden md:flex items-center gap-2"
@@ -764,9 +1002,18 @@ const Dashboard = () => {
                 {isEnglish ? "Search" : "Buscar"}
               </Button>
             </form>
+            <Button
+              variant="outline"
+              size="icon"
+              className="md:hidden"
+              onClick={() => navigate("/search")}
+              aria-label={isEnglish ? "Open search" : "Abrir busca"}
+            >
+              <Search className="h-4 w-4" />
+            </Button>
             <ThemeToggle />
             {isAdmin && (
-              <Button variant="ghost" onClick={() => navigate("/admin")}>
+              <Button variant="ghost" className="hidden sm:inline-flex" onClick={() => navigate("/admin")}>
                 Admin
               </Button>
             )}
@@ -785,6 +1032,12 @@ const Dashboard = () => {
                   <User className="mr-2 h-4 w-4" />
                   Perfil
                 </DropdownMenuItem>
+                {isAdmin && (
+                  <DropdownMenuItem onClick={() => navigate("/admin")}>
+                    <Shield className="mr-2 h-4 w-4" />
+                    Admin
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => setReportBugOpen(true)}>
                   <Bug className="mr-2 h-4 w-4" />
                   Relatar um bug
@@ -809,10 +1062,24 @@ const Dashboard = () => {
         </div>
       </nav>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-3 py-6 sm:px-4 sm:py-8">
+        <form onSubmit={handleHeaderSearch} className="mb-4 flex items-center gap-2 md:hidden">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-accent" />
+            <Input
+              value={headerSearch}
+              onChange={(e) => setHeaderSearch(e.target.value)}
+              placeholder={isEnglish ? "What do you want to learn today?" : "O que você quer aprender hoje?"}
+              className="pl-9"
+            />
+          </div>
+          <Button type="submit" size="sm">
+            {isEnglish ? "Search" : "Buscar"}
+          </Button>
+        </form>
         {/* Welcome Section */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">
+          <h1 className="mobile-page-title mb-2 content-break">
             Bem-vindo de volta, {getFirstName(profile?.full_name)}!
           </h1>
           <p className="text-muted-foreground text-lg">
@@ -904,7 +1171,7 @@ const Dashboard = () => {
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">
                 <Pill className="h-6 w-6 text-accent" />
-                <h2 className="text-3xl font-bold">Em Alta Hoje</h2>
+                <h2 className="mobile-section-title">Em Alta Hoje</h2>
               </div>
             </div>
             <div className="relative">
@@ -915,7 +1182,7 @@ const Dashboard = () => {
                     e.stopPropagation();
                     setCurrentCapsulaIndex(Math.max(0, currentCapsulaIndex - 1));
                   }}
-                  className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 bg-background/80 hover:bg-background border border-border rounded-full p-2 shadow-lg transition-all hover:scale-110"
+                  className="absolute left-0 top-1/2 z-10 hidden -translate-x-4 -translate-y-1/2 rounded-full border border-border bg-background/80 p-2 shadow-lg transition-all hover:scale-110 hover:bg-background md:block"
                   aria-label="Cápsula anterior"
                 >
                   <ChevronLeft className="h-8 w-8 text-foreground" />
@@ -946,8 +1213,8 @@ const Dashboard = () => {
                         <div className="inline-block px-2 py-1 bg-accent/10 text-accent text-xs rounded-full mb-2 w-fit">
                           Cápsula Rápida
                         </div>
-                        <h3 className="font-semibold text-lg mb-2">{capsula.title}</h3>
-                        <p className="text-sm text-muted-foreground mb-4 line-clamp-2 flex-1">{capsula.description}</p>
+                        <h3 className="content-break mb-2 text-lg font-semibold">{capsula.title}</h3>
+                        <p className="content-break mb-4 flex-1 text-sm text-muted-foreground line-clamp-2">{capsula.description}</p>
                         <Button size="sm" className="w-full mt-auto">
                           Conferir <ArrowRight className="h-4 w-4 ml-2" />
                         </Button>
@@ -963,7 +1230,7 @@ const Dashboard = () => {
                     e.stopPropagation();
                     setCurrentCapsulaIndex(Math.min(capsulaRecomendadas.length - 3, currentCapsulaIndex + 1));
                   }}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 bg-background/80 hover:bg-background border border-border rounded-full p-2 shadow-lg transition-all hover:scale-110"
+                  className="absolute right-0 top-1/2 z-10 hidden translate-x-4 -translate-y-1/2 rounded-full border border-border bg-background/80 p-2 shadow-lg transition-all hover:scale-110 hover:bg-background md:block"
                   aria-label="Próxima cápsula"
                 >
                   <ChevronRight className="h-8 w-8 text-foreground" />
@@ -976,7 +1243,7 @@ const Dashboard = () => {
         {/* Continuar de Onde Parou */}
         {!loadingInacabada && capsulaInacabada && (
           <div className="mb-8">
-            <h2 className="text-2xl font-bold mb-4">Continuar de Onde Parou</h2>
+            <h2 className="mobile-section-title mb-4">Continuar de Onde Parou</h2>
             <Card 
               className="cursor-pointer hover:shadow-lg transition-smooth border-accent bg-card overflow-hidden group"
               onClick={() => navigate(`/capsula/${capsulaInacabada.id}`)}
@@ -1013,7 +1280,7 @@ const Dashboard = () => {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <BookOpen className="h-6 w-6 text-accent" />
-              <h2 className="text-3xl font-bold">Explorar Módulos</h2>
+              <h2 className="mobile-section-title">Explorar Módulos</h2>
             </div>
           </div>
 
@@ -1024,15 +1291,23 @@ const Dashboard = () => {
                 Volte em breve! Os administradores estão preparando conteúdo de aprendizado para você.
               </p>
             </Card> : <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {modules.map(module => <Card key={module.id} className="overflow-hidden hover:shadow-xl transition-smooth group cursor-pointer flex flex-col">
+              {modules.map((module) => {
+                const ModuleIcon = getModuleIcon(module.title);
+                return (
+              <Card key={module.id} className="overflow-hidden hover:shadow-xl transition-smooth group cursor-pointer flex flex-col">
                   <div className="p-6 flex flex-col flex-1">
-                    <h3 className={`text-xl font-semibold mb-2 group-hover:text-primary transition-smooth flex items-center gap-2 ${isEnglish ? "capitalize" : ""}`}>
-                      {completedModules.has(module.id) && (
-                        <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
-                      )}
-                      {normalizeModuleTitle(module.title)}
-                    </h3>
-                    <p className="text-muted-foreground text-sm mb-4 line-clamp-3">
+                    <div className="mb-3 flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                        <ModuleIcon className="h-5 w-5" />
+                      </div>
+                      <h3 className={`min-w-0 flex-1 text-xl font-semibold group-hover:text-primary transition-smooth flex items-center gap-2 ${isEnglish ? "capitalize" : ""}`}>
+                        {completedModules.has(module.id) && (
+                          <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                        )}
+                        <span className="content-break">{normalizeModuleTitle(module.title)}</span>
+                      </h3>
+                    </div>
+                    <p className="text-muted-foreground text-sm mb-4 line-clamp-3 content-break">
                       {module.description}
                     </p>
                     <div className="mt-auto">
@@ -1085,7 +1360,9 @@ const Dashboard = () => {
                       )}
                     </div>
                   </div>
-                </Card>)}
+                </Card>
+                );
+              })}
             </div>}
         </div>
       </div>

@@ -7,10 +7,24 @@ import { useUltrasoundTherapyStore } from '@/stores/ultrasoundTherapyStore';
 
 interface TransducerMap2DProps {
   className?: string;
+  compact?: boolean;
 }
 
-export function TransducerMap2D({ className }: TransducerMap2DProps) {
+export function TransducerMap2D({ className, compact = false }: TransducerMap2DProps) {
   const { config, updateConfig } = useUltrasoundTherapyStore();
+
+  const updatePositionFromPoint = useCallback((clientX: number, clientY: number, target: HTMLDivElement) => {
+    const rect = target.getBoundingClientRect();
+    const x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    const y = ((clientY - rect.top) / rect.height) * 2 - 1;
+
+    updateConfig({
+      transducerPosition: {
+        x: Math.max(-1, Math.min(1, x)),
+        y: Math.max(-1, Math.min(1, y)),
+      },
+    });
+  }, [updateConfig]);
 
   // Convert position from -1 to 1 to 0-100% for display
   const xPercent = useMemo(() => ((config.transducerPosition?.x || 0) + 1) * 50, [config.transducerPosition?.x]);
@@ -18,21 +32,15 @@ export function TransducerMap2D({ className }: TransducerMap2DProps) {
 
   // Handle click on map
   const handleMapClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 2 - 1; // -1 to 1
-    const y = ((e.clientY - rect.top) / rect.height) * 2 - 1; // -1 to 1
-    
-    // Clamp to -1 to 1
-    const clampedX = Math.max(-1, Math.min(1, x));
-    const clampedY = Math.max(-1, Math.min(1, y));
-    
-    updateConfig({
-      transducerPosition: {
-        x: clampedX,
-        y: clampedY,
-      },
-    });
-  }, [updateConfig]);
+    updatePositionFromPoint(e.clientX, e.clientY, e.currentTarget);
+  }, [updatePositionFromPoint]);
+
+  const handleMapTouch = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    const touch = e.changedTouches[0] ?? e.touches[0];
+    if (!touch) return;
+    e.preventDefault();
+    updatePositionFromPoint(touch.clientX, touch.clientY, e.currentTarget);
+  }, [updatePositionFromPoint]);
 
   // Animation state for scanning
   const [scanProgress, setScanProgress] = useState(0);
@@ -71,10 +79,11 @@ export function TransducerMap2D({ className }: TransducerMap2DProps) {
 
   return (
     <div className={`space-y-2 ${className || ''}`}>
-      <div className="text-xs text-slate-400 uppercase tracking-wide">Posição do Transdutor</div>
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">Posição do Transdutor</div>
       <div 
-        className="relative w-full h-48 bg-slate-800/50 border border-slate-700 rounded-lg cursor-crosshair overflow-hidden"
+        className={`relative w-full cursor-crosshair overflow-hidden rounded-lg border border-border bg-muted/50 ${compact ? "h-36" : "h-48"}`}
         onClick={handleMapClick}
+        onTouchEnd={handleMapTouch}
         style={{ touchAction: 'none' }}
       >
         {/* Grid background */}
@@ -157,8 +166,8 @@ export function TransducerMap2D({ className }: TransducerMap2DProps) {
           <div className="h-full w-px bg-slate-600/30" />
         </div>
       </div>
-      <div className="text-[10px] text-slate-500 text-center">
-        Clique no mapa para posicionar o transdutor
+      <div className="text-center text-[10px] text-muted-foreground">
+        Toque no mapa para posicionar o transdutor
       </div>
     </div>
   );

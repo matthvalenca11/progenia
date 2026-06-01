@@ -93,6 +93,7 @@ export function ComplainsManager() {
                     size="sm"
                     onClick={() => setResolved(c.id)}
                     disabled={updatingId === c.id}
+                    className="w-full sm:w-auto"
                   >
                     {updatingId === c.id ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

@@ -169,7 +169,7 @@ export function UsersManager() {
             placeholder="Buscar por nome ou email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-sm"
+            className="w-full sm:max-w-sm"
           />
         </div>
 
@@ -182,7 +182,7 @@ export function UsersManager() {
             {filteredUsers.map((user) => (
               <Card key={user.id}>
                 <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <h4 className="font-medium">{user.full_name}</h4>
@@ -200,13 +200,14 @@ export function UsersManager() {
                         Cadastrado em {new Date(user.created_at).toLocaleDateString("pt-BR")}
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2 sm:flex-row">
                       {user.role === "admin" ? (
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleRemoveAdmin(user.id, user.full_name)}
                           disabled={processing === user.id}
+                          className="w-full sm:w-auto justify-center"
                         >
                           <ShieldOff className="h-4 w-4 mr-2" />
                           Remover Admin
@@ -217,6 +218,7 @@ export function UsersManager() {
                           size="sm"
                           onClick={() => handlePromoteToAdmin(user.id, user.full_name)}
                           disabled={processing === user.id}
+                          className="w-full sm:w-auto justify-center"
                         >
                           <Shield className="h-4 w-4 mr-2" />
                           Tornar Admin
@@ -227,6 +229,7 @@ export function UsersManager() {
                         size="sm"
                         onClick={() => handleDeleteUser(user.id, user.full_name)}
                         disabled={processing === user.id}
+                        className="w-full sm:w-auto justify-center"
                       >
                         <Trash2 className="h-4 w-4 mr-2" />
                         Excluir

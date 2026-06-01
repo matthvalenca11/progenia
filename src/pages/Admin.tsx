@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   BookOpen,
   Users,
@@ -37,6 +38,7 @@ import { TranslationGlossaryManager } from "@/components/admin/TranslationGlossa
 import { AdminDashboard } from "@/components/admin/dashboard/AdminDashboard";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -47,6 +49,8 @@ const Admin = () => {
   const [contentOpenItems, setContentOpenItems] = useState<string[]>([]);
   const [usersOpenItems, setUsersOpenItems] = useState<string[]>([]);
   const [settingsOpenItems, setSettingsOpenItems] = useState<string[]>([]);
+  const [activeAdminTab, setActiveAdminTab] = useState("dashboard");
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const checkAdminAccess = async () => {
@@ -92,21 +96,21 @@ const Admin = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-[100dvh] bg-background">
       {/* Navbar */}
-      <nav className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+      <nav className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur">
+        <div className="container mx-auto flex flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4 sm:py-4">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate("/dashboard")}>
             <img src={logo} alt="ProGenia" className="h-10 progenia-logo" />
             <span className="text-xl font-bold gradient-text">ProGenia Admin</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <ThemeToggle />
-            <Button variant="ghost" onClick={() => navigate("/dashboard")}>
+            <Button variant="ghost" onClick={() => navigate("/dashboard")} className="hidden sm:inline-flex">
               <Home className="h-4 w-4 mr-2" />
               Dashboard
             </Button>
-            <Button variant="ghost" onClick={() => navigate("/profile")}>
+            <Button variant="ghost" onClick={() => navigate("/profile")} className="hidden sm:inline-flex">
               Perfil
             </Button>
           </div>
@@ -114,9 +118,24 @@ const Admin = () => {
       </nav>
 
       {/* Conteúdo Principal */}
-      <div className="container mx-auto px-4 py-8">
-        <Tabs defaultValue="dashboard" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 gap-1">
+      <div className="container mx-auto px-3 py-6 sm:px-4 sm:py-8">
+        <Tabs value={activeAdminTab} onValueChange={setActiveAdminTab} className="w-full">
+          {isMobile && (
+            <div className="mb-4">
+              <Select value={activeAdminTab} onValueChange={setActiveAdminTab}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar seção" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="dashboard">Dashboard</SelectItem>
+                  <SelectItem value="content">Conteúdo</SelectItem>
+                  <SelectItem value="users-complains">Usuários e Complains</SelectItem>
+                  <SelectItem value="settings">Configurações</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <TabsList className="hidden sm:grid w-full grid-cols-4 gap-1">
             <TabsTrigger value="dashboard">
               <Home className="h-4 w-4 mr-2" />
               Dashboard

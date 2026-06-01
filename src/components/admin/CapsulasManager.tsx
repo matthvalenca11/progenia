@@ -590,7 +590,7 @@ export function CapsulasManager() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Zap className="h-5 w-5" />
@@ -605,7 +605,7 @@ export function CapsulasManager() {
                   Nova Cápsula
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="h-[92dvh] w-[96vw] max-h-[92dvh] overflow-y-auto sm:h-auto sm:max-h-[90vh] sm:max-w-4xl">
                 <DialogHeader>
                   <DialogTitle>{editingCapsula ? "Editar Cápsula" : "Criar Nova Cápsula"}</DialogTitle>
                   <DialogDescription>
@@ -618,7 +618,7 @@ export function CapsulasManager() {
                   <div className="space-y-4 border-b pb-6">
                     <h3 className="font-semibold text-lg">Informações Básicas</h3>
                     
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="col-span-2">
                         <Label htmlFor="title">Título da Cápsula</Label>
                         <Input
@@ -670,7 +670,7 @@ export function CapsulasManager() {
 
                       <div className="col-span-2 lg:col-span-1">
                         <Label>Thumbnail da Cápsula (Português)</Label>
-                        <div className="grid grid-cols-2 gap-4 mt-2">
+                        <div className="mt-2 grid grid-cols-1 gap-4 lg:grid-cols-2">
                           <div>
                             <Label className="text-xs text-muted-foreground">Link da Imagem</Label>
                             <Input
@@ -702,7 +702,7 @@ export function CapsulasManager() {
                         <p className="text-xs text-muted-foreground mt-1">
                           Você pode cadastrar as duas thumbnails (PT e EN). Em inglês, a plataforma usa a thumbnail EN e faz fallback para PT.
                         </p>
-                        <div className="grid grid-cols-2 gap-4 mt-2">
+                        <div className="mt-2 grid grid-cols-1 gap-4 lg:grid-cols-2">
                           <div>
                             <Label className="text-xs text-muted-foreground">Link da Imagem (EN)</Label>
                             <Input
@@ -950,7 +950,7 @@ export function CapsulasManager() {
                                 </CardHeader>
                                 <CardContent className="space-y-3">
                                   {media.type === "video" ? (
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                                       <div>
                                         <Label className="text-xs text-muted-foreground">Link</Label>
                                         <Input
@@ -1202,7 +1202,7 @@ export function CapsulasManager() {
           <div className="mb-4">
             <Label>Filtrar por módulo</Label>
             <Select value={filterModuleId} onValueChange={setFilterModuleId}>
-              <SelectTrigger className="w-64">
+              <SelectTrigger className="w-full sm:w-64">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1217,7 +1217,44 @@ export function CapsulasManager() {
             </Select>
           </div>
 
-          <Table>
+          <div className="space-y-3 md:hidden">
+            {capsulas.length === 0 ? (
+              <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+                Nenhuma cápsula criada ainda
+              </div>
+            ) : (
+              capsulas.map((capsula) => (
+                <Card key={capsula.id} className="p-4">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h4 className="font-medium content-break">{capsula.title}</h4>
+                        <p className="text-xs text-muted-foreground">{getModuleName(capsula.module_id)}</p>
+                        <p className="text-xs text-muted-foreground">{capsula.duration_minutes ? `${capsula.duration_minutes} min` : "-"}</p>
+                      </div>
+                      <Badge variant={capsula.is_published ? "default" : "secondary"}>
+                        {capsula.is_published ? "Publicado" : "Rascunho"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => handleTogglePublish(capsula.id, capsula.is_published)}>
+                        {capsula.is_published ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => openEditDialog(capsula)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setDeleteCapsulaId(capsula.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
+
+          <div className="hidden md:block">
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Título</TableHead>
@@ -1266,7 +1303,8 @@ export function CapsulasManager() {
                 ))
               )}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 

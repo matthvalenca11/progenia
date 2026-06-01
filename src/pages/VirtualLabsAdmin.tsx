@@ -188,7 +188,7 @@ export default function VirtualLabsAdmin() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <Button
             variant="ghost"
@@ -198,7 +198,7 @@ export default function VirtualLabsAdmin() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Voltar ao Dashboard
           </Button>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
+          <h1 className="mobile-page-title flex items-center gap-2">
             <Beaker className="h-8 w-8" />
             Laboratórios Virtuais
           </h1>
@@ -206,7 +206,7 @@ export default function VirtualLabsAdmin() {
             Gerencie laboratórios virtuais reutilizáveis
           </p>
         </div>
-        <Button onClick={() => navigate("/admin/labs/novo")} size="lg">
+        <Button onClick={() => navigate("/admin/labs/novo")} size="lg" className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Criar Novo Laboratório
         </Button>
@@ -259,7 +259,43 @@ export default function VirtualLabsAdmin() {
               )}
             </div>
           ) : (
-            <Table>
+            <>
+            <div className="space-y-3 md:hidden">
+              {filteredLabs.map((lab) => (
+                <Card key={lab.id} className="p-4">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h4 className="font-medium content-break">{lab.name}</h4>
+                        <p className="text-sm text-muted-foreground line-clamp-2 content-break">
+                          {lab.description || "-"}
+                        </p>
+                      </div>
+                      <Badge variant={lab.is_published ? "default" : "secondary"}>
+                        {lab.is_published ? "Disponível" : "Indisponível"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      {getLabTypeBadge(lab.lab_type)}
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => handleTestClick(lab)}>
+                          <Play className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => navigate(`/admin/labs/editar/${lab.id}`)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(lab)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            <div className="hidden md:block">
+              <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
@@ -350,7 +386,9 @@ export default function VirtualLabsAdmin() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -381,7 +419,7 @@ export default function VirtualLabsAdmin() {
 
       {/* Test Lab Dialog */}
       <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
-        <DialogContent className="max-w-7xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogContent className="h-[92dvh] w-[96vw] max-h-[92dvh] overflow-hidden flex flex-col sm:h-auto sm:max-h-[80vh] sm:max-w-7xl">
           <DialogHeader>
             <DialogTitle>Testar Laboratório: {labToTest?.name}</DialogTitle>
             <DialogDescription>

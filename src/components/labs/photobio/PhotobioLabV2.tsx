@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePhotobioStore } from "@/stores/photobioStore";
 import { TissueViewer } from "./TissueViewer";
 import { PhotobioControls } from "./PhotobioControls";
@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { LabConfigMenu } from "./LabConfigMenu";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { LabMobilePanelTab, LabMobileTabBar } from "@/components/labs/LabMobileTabBar";
 
 interface PhotobioLabV2Props {
   config?: Record<string, unknown>;
@@ -24,10 +26,12 @@ export function PhotobioLabV2({
 }: PhotobioLabV2Props) {
   const navigate = useNavigate();
   const location = useLocation();
+  const isMobile = useIsMobile();
   const setFromConfig = usePhotobioStore((s) => s.setFromConfig);
   const resetDefaults = usePhotobioStore((s) => s.resetDefaults);
   const interaction = usePhotobioStore((s) => s.interaction);
   const fluence = usePhotobioStore((s) => s.fluence());
+  const [mobilePanel, setMobilePanel] = useState<LabMobilePanelTab>("controls");
 
   const isAdminConfigMode =
     isEditMode || new URLSearchParams(location.search).get("admin") === "true";
@@ -74,12 +78,61 @@ export function PhotobioLabV2({
     });
   }, [config, setFromConfig]);
 
+  if (isMobile) {
+    return (
+      <div className="flex h-[100dvh] flex-col overflow-hidden bg-background">
+        {isAdminConfigMode && <LabConfigMenu />}
+        <header className="safe-area-top z-50 shrink-0 border-b border-border bg-card/95 px-3 py-2 backdrop-blur">
+          <div className="flex items-center gap-2">
+            {showBackButton && (
+              <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")} className="h-8 w-8 shrink-0">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            )}
+            <Sun className="h-4 w-4 shrink-0 text-rose-500" />
+            <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{labName}</h1>
+            <Button variant="ghost" size="icon" onClick={resetDefaults} className="h-8 w-8 shrink-0" aria-label="Resetar">
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="text-[10px]">
+              {fluence.toFixed(2)} J/cm²
+            </Badge>
+            <Badge className={`text-[10px] ${interaction.arndtSchulzZone === "Janela Terapêutica Ativa" ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:text-emerald-400" : "bg-muted text-foreground border-border"}`}>
+              {interaction.arndtSchulzZone}
+            </Badge>
+          </div>
+        </header>
+
+        <section className="relative h-[min(48dvh,55vh)] min-h-[40dvh] shrink-0 border-b border-border bg-background">
+          <div className="absolute inset-0 p-1">
+            <TissueViewer />
+          </div>
+        </section>
+
+        <LabMobileTabBar
+          active={mobilePanel}
+          onChange={setMobilePanel}
+          tabs={[
+            { id: "controls", label: "Controles" },
+            { id: "metrics", label: "Métricas" },
+          ]}
+        />
+
+        <section className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-card p-1 pb-[max(0.5rem,var(--sab,env(safe-area-inset-bottom,0px)))]">
+          {mobilePanel === "controls" ? <PhotobioControls /> : <PhotobioInsightsPanel />}
+        </section>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
+    <div className="min-h-[100dvh] flex flex-col bg-background overflow-hidden md:h-screen">
       {isAdminConfigMode && <LabConfigMenu />}
-      <header className="bg-card/95 border-b border-border backdrop-blur sticky top-0 z-50 px-4 py-2.5 shrink-0">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+      <header className="safe-sticky-top bg-card/95 border-b border-border backdrop-blur px-3 py-2.5 shrink-0 sm:px-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4">
+          <div className="order-3 w-full md:order-2 md:w-auto flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
             {showBackButton && (
               <Button
                 variant="ghost"
@@ -124,13 +177,13 @@ export function PhotobioLabV2({
         </div>
       </header>
 
-      <main className="flex-1 flex items-center justify-center min-w-0 overflow-hidden bg-background" style={{ height: "60%" }}>
+      <main className="h-[54dvh] md:h-auto flex-1 flex items-center justify-center min-w-0 overflow-hidden bg-background">
         <div className="w-full h-full p-4">
           <TissueViewer />
         </div>
       </main>
 
-      <div className="flex border-t border-border shrink-0" style={{ height: "40%" }}>
+      <div className="flex border-t border-border shrink-0 h-[40%]">
         <aside className="w-1/2 border-r border-border overflow-y-auto bg-card">
           <PhotobioControls />
         </aside>

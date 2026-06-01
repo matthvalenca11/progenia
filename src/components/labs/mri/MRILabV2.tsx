@@ -22,6 +22,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, RotateCcw, Magnet, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { LabMobilePanelTab, LabMobileTabBar } from "@/components/labs/LabMobileTabBar";
 
 interface MRILabV2Props {
   config?: MRILabConfig;
@@ -39,8 +41,10 @@ export function MRILabV2({
   onConfigChange,
 }: MRILabV2Props) {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const store = useMRILabStore();
   const [showReferences, setShowReferences] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState<LabMobilePanelTab>("controls");
   const { 
     setLabConfig, 
     runSimulation, 
@@ -292,11 +296,110 @@ export function MRILabV2({
     }
   };
 
+  const mriReferences = (
+    <div className="space-y-1.5 p-3 pb-6 text-[10px] text-muted-foreground">
+      <p className="break-words">
+        [1] B. H. Menze, A. Jakab, S. Bauer, J. Kalpathy-Cramer, K. Farahani, J. Kirby, et al.{" "}
+        <span className="italic">"The Multimodal Brain Tumor Image Segmentation Benchmark (BRATS)"</span>, IEEE
+        Transactions on Medical Imaging 34(10), 1993-2024 (2015) DOI: 10.1109/TMI.2014.2377694
+      </p>
+      <p className="break-words">
+        [2] S. Bakas, H. Akbari, A. Sotiras, M. Bilello, M. Rozycki, J.S. Kirby, et al.,{" "}
+        <span className="italic">
+          "Advancing The Cancer Genome Atlas glioma MRI collections with expert segmentation labels and radiomic features"
+        </span>
+        , Nature Scientific Data, 4:170117 (2017) DOI: 10.1038/sdata.2017.117
+      </p>
+      <p className="break-words">
+        [3] S. Bakas, M. Reyes, A. Jakab, S. Bauer, M. Rempfler, A. Crimi, et al.,{" "}
+        <span className="italic">
+          "Identifying the Best Machine Learning Algorithms for Brain Tumor Segmentation, Progression Assessment, and Overall Survival Prediction in the BRATS Challenge"
+        </span>
+        , arXiv preprint arXiv:1811.02629 (2018)
+      </p>
+      <p className="break-words">
+        [4] S. Bakas, H. Akbari, A. Sotiras, M. Bilello, M. Rozycki, J. Kirby, et al.,{" "}
+        <span className="italic">
+          "Segmentation Labels and Radiomic Features for the Pre-operative Scans of the TCGA-GBM collection"
+        </span>
+        , The Cancer Imaging Archive, 2017. DOI: 10.7937/K9/TCIA.2017.KLXWJJ1Q
+      </p>
+      <p className="break-words">
+        [5] S. Bakas, H. Akbari, A. Sotiras, M. Bilello, M. Rozycki, J. Kirby, et al.,{" "}
+        <span className="italic">
+          "Segmentation Labels and Radiomic Features for the Pre-operative Scans of the TCGA-LGG collection"
+        </span>
+        , The Cancer Imaging Archive, 2017. DOI: 10.7937/K9/TCIA.2017.GJQ7R0EF
+      </p>
+    </div>
+  );
+
+  if (isMobile) {
+    return (
+      <div className="flex h-[100dvh] flex-col overflow-hidden bg-background">
+        <header className="safe-area-top z-50 shrink-0 border-b border-border bg-card/95 px-3 py-2 backdrop-blur">
+          <div className="flex items-center gap-2">
+            {showBackButton && (
+              <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")} className="h-8 w-8 shrink-0">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            )}
+            <Magnet className="h-4 w-4 shrink-0 text-cyan-500" />
+            <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{labName}</h1>
+            <Button variant="ghost" size="icon" onClick={resetToDefaults} className="h-8 w-8 shrink-0" aria-label="Resetar">
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <Tabs
+            value={storeConfig.activeViewer}
+            onValueChange={(v) => applyViewerTabChange(v as MRIViewerType)}
+            className="mt-2 w-full"
+          >
+            <TabsList className="grid h-auto w-full grid-cols-3 bg-muted/50">
+              <TabsTrigger value="slice_2d" className="px-1 text-[10px] leading-tight">
+                Fatia 2D
+              </TabsTrigger>
+              <TabsTrigger value="mpr_2d" className="px-1 text-[10px] leading-tight">
+                MPR
+              </TabsTrigger>
+              <TabsTrigger value="volume_3d" className="px-1 text-[10px] leading-tight">
+                Volume 3D
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </header>
+
+        <section className="relative h-[min(48dvh,55vh)] min-h-[40dvh] shrink-0 border-b border-border bg-background">
+          <div className="absolute inset-0 p-1">{renderViewer()}</div>
+        </section>
+
+        <LabMobileTabBar
+          active={mobilePanel}
+          onChange={setMobilePanel}
+          tabs={[
+            { id: "controls", label: "Controles" },
+            { id: "metrics", label: "Métricas" },
+            { id: "references", label: "Refs" },
+          ]}
+        />
+
+        <section className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-card pb-[max(0.5rem,var(--sab,env(safe-area-inset-bottom,0px)))]">
+          {mobilePanel === "controls" && (
+            <MRILabControlPanel isAdmin={showDebug} onConfigChange={onConfigChange} hideHeader />
+          )}
+          {mobilePanel === "metrics" && <MRILabInsightsPanel hideHeader />}
+          {mobilePanel === "references" && mriReferences}
+        </section>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-screen flex flex-col bg-background overflow-y-auto">
+    <div className="min-h-[100dvh] flex flex-col bg-background overflow-y-auto md:h-screen">
       {/* LINHA 1 - HEADER */}
-      <header className="bg-card/95 border-b border-border backdrop-blur sticky top-0 z-50 px-4 py-2.5 shrink-0">
-        <div className="flex items-center justify-between gap-4">
+      <header className="safe-sticky-top bg-card/95 border-b border-border backdrop-blur px-3 py-2.5 shrink-0 sm:px-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4">
           {/* Left: Título e botão voltar */}
           <div className="flex items-center gap-3">
             {showBackButton && (
@@ -316,13 +419,13 @@ export function MRILabV2({
           </div>
 
         {/* Center: Viewer Tabs */}
-          <div className="flex-1 flex justify-center">
+          <div className="order-3 w-full md:order-2 md:w-auto md:flex-1 md:flex md:justify-center">
             <Tabs
               value={storeConfig.activeViewer}
               onValueChange={(v) => applyViewerTabChange(v as MRIViewerType)}
-              className="w-auto"
+              className="w-full sm:w-auto"
             >
-              <TabsList className="bg-muted/50">
+              <TabsList className="bg-muted/50 w-full sm:w-auto">
                 <TabsTrigger value="slice_2d" className="text-xs">
                   Fatia 2D
                 </TabsTrigger>
@@ -337,7 +440,7 @@ export function MRILabV2({
           </div>
 
           {/* Right: Reset + Physics indicator */}
-          <div className="flex items-center gap-2">
+          <div className="order-2 ml-auto flex items-center gap-2 md:order-3">
             {physicsActiveOnRealVolume && (
               <div className="flex items-center gap-1 text-xs text-emerald-500">
                 <Sparkles className="h-3.5 w-3.5" />
@@ -358,7 +461,7 @@ export function MRILabV2({
       </header>
 
       {/* LINHA 2 - SIMULADOR 3D (principal) */}
-      <main className="flex-[11] flex items-center justify-center min-w-0 min-h-0 overflow-hidden bg-background">
+      <main className="h-[52dvh] md:h-auto flex-[11] flex items-center justify-center min-w-0 min-h-0 overflow-hidden bg-background">
         <div className="w-full h-full flex items-center justify-center p-4">
           <div
             className="w-full h-full max-w-full max-h-full"
@@ -374,85 +477,43 @@ export function MRILabV2({
       </main>
 
       {/* LINHA 3 - CONTROLES + MÉTRICAS */}
-      <div className="flex-[9] flex flex-col border-t border-border min-h-0">
-        {/* Linha 3a: Controles + Métricas */}
-        <div className="flex flex-1 min-h-0">
-          {/* Coluna Esquerda: Controles */}
-          <aside className="w-1/2 border-r border-border overflow-y-auto bg-card">
-            <MRILabControlPanel isAdmin={showDebug} onConfigChange={onConfigChange} />
-          </aside>
-
-          {/* Coluna Direita: Métricas */}
-          <aside className="w-1/2 overflow-y-auto bg-card flex flex-col">
-            <MRILabInsightsPanel />
-            {/* Magnetization Graph em hold */}
-          </aside>
-        </div>
-      </div>
-
-      {/* Barra fixa de Referências (sempre acessível) */}
-      <div className="sticky bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur">
-        <div className="px-3 py-2 flex items-center justify-between gap-2">
-          <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-            Referências (BraTS / TCGA)
+      <>
+        <div className="flex-[9] flex flex-col border-t border-border min-h-0">
+          <div className="flex flex-1 min-h-0">
+            <aside className="w-1/2 border-r border-border overflow-y-auto bg-card">
+              <MRILabControlPanel isAdmin={showDebug} onConfigChange={onConfigChange} />
+            </aside>
+            <aside className="w-1/2 overflow-y-auto bg-card flex flex-col">
+              <MRILabInsightsPanel />
+            </aside>
           </div>
-          <Button
-            type="button"
-            size="sm"
-            variant={showReferences ? "default" : "outline"}
-            className={`h-7 px-2.5 text-[10px] font-semibold tracking-wide ${
-              showReferences ? "bg-blue-600 text-white border-blue-600" : "border-blue-500 text-blue-500"
-            }`}
-            onClick={() => setShowReferences((prev) => !prev)}
-          >
-            {showReferences ? "Ocultar Referências" : "Ver Referências"}
-          </Button>
         </div>
-
-        {showReferences && (
-          <div className="px-3 pb-3">
-            <div className="rounded-lg border border-border/60 bg-muted/30 p-2.5 max-h-56 overflow-y-auto">
-              <div className="space-y-1.5 text-[10px] text-muted-foreground">
-                <p className="break-words">
-                  [1] B. H. Menze, A. Jakab, S. Bauer, J. Kalpathy-Cramer, K. Farahani, J. Kirby, et al.{" "}
-                  <span className="italic">
-                    "The Multimodal Brain Tumor Image Segmentation Benchmark (BRATS)"
-                  </span>
-                  , IEEE Transactions on Medical Imaging 34(10), 1993-2024 (2015) DOI: 10.1109/TMI.2014.2377694
-                </p>
-                <p className="break-words">
-                  [2] S. Bakas, H. Akbari, A. Sotiras, M. Bilello, M. Rozycki, J.S. Kirby, et al.,{" "}
-                  <span className="italic">
-                    "Advancing The Cancer Genome Atlas glioma MRI collections with expert segmentation labels and radiomic features"
-                  </span>
-                  , Nature Scientific Data, 4:170117 (2017) DOI: 10.1038/sdata.2017.117
-                </p>
-                <p className="break-words">
-                  [3] S. Bakas, M. Reyes, A. Jakab, S. Bauer, M. Rempfler, A. Crimi, et al.,{" "}
-                  <span className="italic">
-                    "Identifying the Best Machine Learning Algorithms for Brain Tumor Segmentation, Progression Assessment, and Overall Survival Prediction in the BRATS Challenge"
-                  </span>
-                  , arXiv preprint arXiv:1811.02629 (2018)
-                </p>
-                <p className="break-words">
-                  [4] S. Bakas, H. Akbari, A. Sotiras, M. Bilello, M. Rozycki, J. Kirby, et al.,{" "}
-                  <span className="italic">
-                    "Segmentation Labels and Radiomic Features for the Pre-operative Scans of the TCGA-GBM collection"
-                  </span>
-                  , The Cancer Imaging Archive, 2017. DOI: 10.7937/K9/TCIA.2017.KLXWJJ1Q
-                </p>
-                <p className="break-words">
-                  [5] S. Bakas, H. Akbari, A. Sotiras, M. Bilello, M. Rozycki, J. Kirby, et al.,{" "}
-                  <span className="italic">
-                    "Segmentation Labels and Radiomic Features for the Pre-operative Scans of the TCGA-LGG collection"
-                  </span>
-                  , The Cancer Imaging Archive, 2017. DOI: 10.7937/K9/TCIA.2017.GJQ7R0EF
-                </p>
+        <div className="sticky bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur">
+          <div className="px-3 py-2 flex items-center justify-between gap-2">
+            <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+              Referências (BraTS / TCGA)
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant={showReferences ? "default" : "outline"}
+              className={`h-7 px-2.5 text-[10px] font-semibold tracking-wide ${
+                showReferences ? "bg-blue-600 text-white border-blue-600" : "border-blue-500 text-blue-500"
+              }`}
+              onClick={() => setShowReferences((prev) => !prev)}
+            >
+              {showReferences ? "Ocultar Referências" : "Ver Referências"}
+            </Button>
+          </div>
+          {showReferences && (
+            <div className="px-3 pb-3">
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-2.5 max-h-56 overflow-y-auto">
+                {mriReferences}
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </>
     </div>
   );
 }

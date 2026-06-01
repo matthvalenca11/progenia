@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { gamificationService } from "@/services/gamificationService";
-import { progressService } from "@/services/progressService";
+import { progressService, type UserProgressItem } from "@/services/progressService";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,8 +22,10 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { enUS, ptBR } from "date-fns/locale";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { BadgeIcon } from "@/components/gamification/BadgeIcon";
+import { cn } from "@/lib/utils";
 import { 
-  User, 
   Award, 
   TrendingUp, 
   Trophy, 
@@ -29,7 +33,11 @@ import {
   BookOpen,
   ArrowLeft,
   Edit,
-  Lock
+  Lock,
+  Loader2,
+  GraduationCap,
+  BookMarked,
+  CheckCircle2,
 } from "lucide-react";
 
 const formatIsoDateForInput = (iso: string, isEnglish: boolean) => {
@@ -162,10 +170,12 @@ const Profile = () => {
   const { user, profile, loading: authLoading, updateProfile } = useAuth();
   const { language } = useLanguage();
   const isEnglish = language === "en";
+  const isMobile = useIsMobile();
   const navigate = useNavigate();
   const [stats, setStats] = useState<any>(null);
   const [badges, setBadges] = useState<any[]>([]);
-  const [progress, setProgress] = useState<any[]>([]);
+  const [allBadges, setAllBadges] = useState<any[]>([]);
+  const [progress, setProgress] = useState<UserProgressItem[]>([]);
   const [pointsHistory, setPointsHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -234,15 +244,18 @@ const Profile = () => {
 
     try {
       setLoading(true);
-      const [statsData, badgesData, progressData, historyData] = await Promise.all([
+      await gamificationService.backfillMissingPoints(user.id);
+      const [statsData, badgesData, allBadgesData, progressData, historyData] = await Promise.all([
         gamificationService.getUserStats(user.id),
         gamificationService.getUserBadges(user.id),
+        gamificationService.getAllBadgesWithProgress(user.id),
         progressService.getUserProgress(user.id),
         progressService.getPointsHistory(user.id),
       ]);
 
       setStats(statsData);
       setBadges(badgesData);
+      setAllBadges(allBadgesData);
       setProgress(progressData);
       setPointsHistory(historyData);
     } catch (error) {
@@ -350,10 +363,12 @@ const Profile = () => {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Carregando perfil...</p>
+          <Loader2 className="mx-auto mb-3 h-10 w-10 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">
+            {isEnglish ? "Loading profile..." : "Carregando perfil..."}
+          </p>
         </div>
       </div>
     );
@@ -365,173 +380,372 @@ const Profile = () => {
   const currentLevel = stats?.total_xp 
     ? Math.floor(Math.sqrt(stats.total_xp / 100))
     : 0;
+  const xpToNext = 100 - (stats?.total_xp % 100 || 0);
+  const profileInitial = profile?.full_name?.charAt(0)?.toUpperCase() || "U";
+  const studyHours = Math.floor((stats?.total_time_minutes || 0) / 60);
   const selectedBirthDate = profileForm.birthDate
     ? new Date(`${profileForm.birthDate}T00:00:00`)
     : undefined;
 
+  const labels = {
+    back: isEnglish ? "Dashboard" : "Dashboard",
+    title: isEnglish ? "Profile" : "Perfil",
+    edit: isEnglish ? "Edit" : "Editar",
+    level: isEnglish ? "Level" : "Nível",
+    xpTotal: isEnglish ? "Total XP" : "XP Total",
+    xpNext: isEnglish ? "XP to next level" : "XP p/ próximo nível",
+    streak: "Streak",
+    capsules: isEnglish ? "Capsules" : "Cápsulas",
+    modules: isEnglish ? "Modules" : "Módulos",
+    hours: isEnglish ? "Hours" : "Horas",
+    badges: "Badges",
+    progress: isEnglish ? "Progress" : "Progresso",
+    history: isEnglish ? "Points" : "Pontos",
+    password: isEnglish ? "Change password" : "Alterar senha",
+    noBadges: isEnglish ? "No badges yet" : "Nenhum badge ainda",
+    noBadgesHint: isEnglish
+      ? "Complete lessons and modules to earn badges."
+      : "Complete aulas e cápsulas para ganhar badges.",
+    badgesUnlocked: isEnglish ? "Unlocked" : "Desbloqueados",
+    badgesLocked: isEnglish ? "In progress" : "Em progresso",
+    noProgress: isEnglish ? "No progress yet" : "Nenhum progresso ainda",
+    noProgressHint: isEnglish
+      ? "Start studying to see your progress here."
+      : "Comece a estudar para ver seu progresso aqui.",
+    noHistory: isEnglish ? "No history yet" : "Nenhum histórico",
+    noHistoryHint: isEnglish
+      ? "Complete activities to earn points."
+      : "Complete atividades para ganhar pontos.",
+    completed: isEnglish ? "Completed" : "Concluído",
+    inProgress: isEnglish ? "In progress" : "Em progresso",
+    lesson: isEnglish ? "Lesson" : "Aula",
+    capsule: isEnglish ? "Capsule" : "Cápsula",
+    progressSummary: isEnglish ? "Your activity" : "Sua atividade",
+    goStudy: isEnglish ? "Explore content" : "Explorar conteúdo",
+  };
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b border-border">
-        <div className="container mx-auto px-4 py-6">
+    <div className="min-h-[100dvh] bg-background pb-24">
+      <header className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur">
+        <div className="container mx-auto flex items-center gap-2 px-3 py-3">
           <Button
             variant="ghost"
+            size="sm"
             onClick={() => navigate("/dashboard")}
-            className="mb-4"
+            className="h-9 shrink-0 px-2"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Voltar ao Dashboard
+            <ArrowLeft className="h-4 w-4" />
+            <span className="ml-1 hidden sm:inline">{labels.back}</span>
           </Button>
-
-          <div className="flex items-start gap-6">
-            <div className="h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center text-3xl font-bold">
-              {profile?.full_name?.charAt(0) || "U"}
-            </div>
-
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-3xl font-bold">{profile?.full_name || "Usuário"}</h1>
-                <Badge variant="outline">Nível {currentLevel}</Badge>
-              </div>
-              
-              {profile?.institution && (
-                <p className="text-muted-foreground mb-2">📍 {profile.institution}</p>
-              )}
-              
-              {profile?.professional_role && (
-                <p className="text-muted-foreground">{profile.professional_role}</p>
-              )}
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3"
-                onClick={() => setIsEditDialogOpen(true)}
-              >
-                <Edit className="mr-2 h-4 w-4" />
-                Editar Perfil
-              </Button>
-            </div>
-          </div>
+          <h1 className="min-w-0 flex-1 truncate text-base font-semibold">{labels.title}</h1>
+          <ThemeToggle />
         </div>
-      </div>
+      </header>
 
-      <div className="container mx-auto px-4 py-8">
-        {/* Estatísticas principais */}
-        <div className="grid md:grid-cols-4 gap-4 mb-8">
-          <Card className="p-6">
-            <div className="flex items-center gap-3">
-              <TrendingUp className="h-8 w-8 text-primary" />
-              <div>
-                <p className="text-sm text-muted-foreground">XP Total</p>
-                <p className="text-2xl font-bold">{stats?.total_xp || 0}</p>
-              </div>
+      <div className="container mx-auto space-y-4 px-3 py-4 sm:space-y-6 sm:py-6">
+        {/* Senha */}
+        {isMobile ? (
+          <details className="rounded-xl border border-border bg-card">
+            <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
+              <Lock className="h-4 w-4 text-muted-foreground" />
+              {labels.password}
+            </summary>
+            <div className="border-t border-border px-4 pb-4 pt-2">
+              <ChangePasswordForm />
             </div>
-            <Progress value={levelProgress} className="mt-4" />
-            <p className="text-xs text-muted-foreground mt-2">
-              {100 - (stats?.total_xp % 100 || 0)} XP para o próximo nível
-            </p>
+          </details>
+        ) : (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Lock className="h-4 w-4" />
+                {labels.password}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ChangePasswordForm />
+            </CardContent>
           </Card>
+        )}
 
-          <Card className="p-6">
-            <div className="flex items-center gap-3">
-              <Trophy className="h-8 w-8 text-yellow-500" />
-              <div>
-                <p className="text-sm text-muted-foreground">Streak</p>
-                <p className="text-2xl font-bold">{stats?.streak_days || 0} dias</p>
+        {/* Hero */}
+        <section className="overflow-hidden rounded-xl gradient-hero p-4 text-white shadow-glow sm:p-5">
+          <div className="flex items-start gap-3">
+            <Avatar className="h-14 w-14 shrink-0 border-2 border-white/25 sm:h-16 sm:w-16">
+              <AvatarFallback className="bg-white/15 text-lg font-bold text-white sm:text-xl">
+                {profileInitial}
+              </AvatarFallback>
+            </Avatar>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="truncate text-lg font-bold leading-tight sm:text-xl">
+                  {profile?.full_name || (isEnglish ? "User" : "Usuário")}
+                </h2>
+                <Badge className="shrink-0 border-white/25 bg-white/15 text-[10px] text-white hover:bg-white/15">
+                  {labels.level} {currentLevel}
+                </Badge>
               </div>
-            </div>
-          </Card>
 
-          <Card className="p-6">
-            <div className="flex items-center gap-3">
-              <BookOpen className="h-8 w-8 text-blue-500" />
-              <div>
-                <p className="text-sm text-muted-foreground">Módulos</p>
-                <p className="text-2xl font-bold">{stats?.modules_completed || 0}</p>
+              {(profile?.profession || profile?.professional_role) && (
+                <p className="mt-0.5 truncate text-xs text-white/70">
+                  {profile.profession || profile.professional_role}
+                </p>
+              )}
+            </div>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              className="h-8 shrink-0 bg-white/15 px-2.5 text-xs text-white hover:bg-white/25 sm:h-9 sm:px-3"
+              onClick={() => setIsEditDialogOpen(true)}
+            >
+              <Edit className="h-3.5 w-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">{labels.edit}</span>
+            </Button>
+          </div>
+
+          <div className="mt-4">
+            <div className="mb-1.5 flex items-center justify-between text-[11px] text-white/80 sm:text-xs">
+              <span>{labels.xpTotal}: {stats?.total_xp || 0}</span>
+              <span>{xpToNext} {labels.xpNext}</span>
+            </div>
+            <Progress value={levelProgress} className="h-1.5 bg-white/20 [&>div]:bg-white" />
+          </div>
+        </section>
+
+        {/* Stats compactos */}
+        <section className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+          <Card className="p-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/10">
+                <Trophy className="h-4 w-4 text-amber-600 dark:text-amber-400" />
               </div>
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <div className="flex items-center gap-3">
-              <Clock className="h-8 w-8 text-green-500" />
-              <div>
-                <p className="text-sm text-muted-foreground">Horas</p>
-                <p className="text-2xl font-bold">
-                  {Math.floor((stats?.total_time_minutes || 0) / 60)}h
+              <div className="min-w-0">
+                <p className="text-[10px] text-muted-foreground">{labels.streak}</p>
+                <p className="text-lg font-semibold leading-tight">
+                  {stats?.streak_days || 0}
+                  <span className="ml-0.5 text-xs font-normal text-muted-foreground">
+                    {isEnglish ? "d" : "d"}
+                  </span>
                 </p>
               </div>
             </div>
           </Card>
-        </div>
+
+          <Card className="p-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
+                <BookOpen className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] text-muted-foreground">{labels.capsules}</p>
+                <p className="text-lg font-semibold leading-tight">{stats?.capsules_completed || 0}</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10">
+                <Clock className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] text-muted-foreground">{labels.hours}</p>
+                <p className="text-lg font-semibold leading-tight">{studyHours}h</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <Award className="h-4 w-4 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] text-muted-foreground">{labels.badges}</p>
+                <p className="text-lg font-semibold leading-tight">{badges.length}</p>
+              </div>
+            </div>
+          </Card>
+        </section>
 
         {/* Tabs */}
-        <Tabs defaultValue="badges" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="badges">
-              <Award className="mr-2 h-4 w-4" />
-              Badges ({badges.length})
+        <Tabs defaultValue="badges" className="space-y-4">
+          <TabsList
+            className={cn(
+              "grid h-auto w-full gap-1 bg-muted/60 p-1",
+              isMobile ? "grid-cols-3" : "grid-cols-3 sm:w-auto sm:inline-flex",
+            )}
+          >
+            <TabsTrigger value="badges" className="min-w-0 px-1.5 text-[11px] sm:px-3 sm:text-sm">
+              <Award className="mr-1 h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{labels.badges} ({badges.length})</span>
             </TabsTrigger>
-            <TabsTrigger value="progress">
-              <BookOpen className="mr-2 h-4 w-4" />
-              Progresso
+            <TabsTrigger value="progress" className="min-w-0 px-1.5 text-[11px] sm:px-3 sm:text-sm">
+              <BookOpen className="mr-1 h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{labels.progress}</span>
             </TabsTrigger>
-            <TabsTrigger value="history">
-              <TrendingUp className="mr-2 h-4 w-4" />
-              Histórico de Pontos
+            <TabsTrigger value="history" className="min-w-0 px-1.5 text-[11px] sm:px-3 sm:text-sm">
+              <TrendingUp className="mr-1 h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{labels.history}</span>
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="badges">
-            {badges.length === 0 ? (
-              <Card className="p-12 text-center">
-                <Award className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Nenhum Badge Ainda</h3>
-                <p className="text-muted-foreground">
-                  Complete aulas e módulos para ganhar badges!
-                </p>
+          <TabsContent value="badges" className="mt-0 space-y-4">
+            {badges.length > 0 && (
+              <div>
+                <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {labels.badgesUnlocked}
+                </h3>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+                  {badges.map((badge) => (
+                    <Card key={badge.id} className="border-emerald-500/30 bg-emerald-500/5 p-3 text-center sm:p-4">
+                      <div className="mb-2 flex justify-center">
+                        <BadgeIcon iconName={badge.badges.icon_name} unlocked size="lg" />
+                      </div>
+                      <h4 className="line-clamp-2 text-xs font-semibold sm:text-sm">{badge.badges.name}</h4>
+                      <p className="mt-1 line-clamp-2 text-[10px] text-muted-foreground sm:text-xs">
+                        {badge.badges.description}
+                      </p>
+                      <p className="mt-2 text-[10px] text-emerald-600 dark:text-emerald-400">
+                        {new Date(badge.earned_at).toLocaleDateString(isEnglish ? "en-US" : "pt-BR")}
+                      </p>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {badges.length > 0 ? labels.badgesLocked : labels.badges}
+              </h3>
+              {allBadges.filter((b) => !b.unlocked).length === 0 && badges.length === 0 ? (
+                <Card className="p-8 text-center sm:p-12">
+                  <Award className="mx-auto mb-3 h-12 w-12 text-muted-foreground/60" />
+                  <h3 className="text-base font-semibold sm:text-lg">{labels.noBadges}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{labels.noBadgesHint}</p>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {allBadges
+                    .filter((b) => !b.unlocked)
+                    .map((badge) => (
+                      <Card key={badge.id} className="p-3 sm:p-4">
+                        <div className="flex items-start gap-3">
+                          <BadgeIcon iconName={badge.icon_name} unlocked={false} size="md" />
+                          <div className="min-w-0 flex-1">
+                            <h4 className="text-sm font-semibold">{badge.name}</h4>
+                            <p className="mt-0.5 text-xs text-muted-foreground">{badge.description}</p>
+                            <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
+                              <span>
+                                {badge.current}/{badge.target}
+                              </span>
+                              <span>+{badge.points} XP</span>
+                            </div>
+                            <Progress value={badge.progress} className="mt-1.5 h-1.5" />
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="progress" className="mt-0">
+            {progress.length === 0 ? (
+              <Card className="p-8 text-center sm:p-12">
+                <BookOpen className="mx-auto mb-3 h-12 w-12 text-muted-foreground/60" />
+                <h3 className="text-base font-semibold sm:text-lg">{labels.noProgress}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">{labels.noProgressHint}</p>
+                <Button className="mt-4" size="sm" onClick={() => navigate("/capsulas")}>
+                  {labels.goStudy}
+                </Button>
               </Card>
             ) : (
-              <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {badges.map((badge) => (
-                  <Card key={badge.id} className="p-6 text-center">
-                    <div className="text-4xl mb-3">{badge.badges.icon || "🏆"}</div>
-                    <h4 className="font-semibold mb-1">{badge.badges.name}</h4>
-                    <p className="text-sm text-muted-foreground mb-2">
-                      {badge.badges.description}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(badge.earned_at).toLocaleDateString("pt-BR")}
-                    </p>
-                  </Card>
-                ))}
+              <div className="space-y-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {labels.progressSummary}
+                </p>
+                <div className="space-y-2">
+                  {progress.map((item) => {
+                    const isDone = item.status === "concluido";
+                    const TypeIcon = item.type === "capsule" ? BookMarked : GraduationCap;
+                    return (
+                      <Card
+                        key={`${item.type}-${item.id}`}
+                        className="cursor-pointer p-3 transition-colors hover:bg-muted/30 sm:p-4"
+                        onClick={() =>
+                          navigate(item.type === "capsule" ? `/capsula/${item.resourceId}` : `/lesson/${item.resourceId}`)
+                        }
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={cn(
+                              "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border",
+                              isDone
+                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                : "border-border bg-muted/40 text-muted-foreground",
+                            )}
+                          >
+                            <TypeIcon className="h-4 w-4" strokeWidth={1.75} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                  {item.type === "capsule" ? labels.capsule : labels.lesson}
+                                </p>
+                                <h4 className="truncate text-sm font-semibold">{item.title}</h4>
+                              </div>
+                              {isDone ? (
+                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                              ) : (
+                                <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+                                  {item.progress_percentage}%
+                                </span>
+                              )}
+                            </div>
+                            {!isDone && item.progress_percentage > 0 && (
+                              <Progress value={item.progress_percentage} className="mt-2 h-1.5" />
+                            )}
+                            {item.data_conclusao && isDone && (
+                              <p className="mt-1 text-[10px] text-muted-foreground">
+                                {new Date(item.data_conclusao).toLocaleDateString(isEnglish ? "en-US" : "pt-BR")}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </TabsContent>
 
-          <TabsContent value="progress">
-            {progress.length === 0 ? (
-              <Card className="p-12 text-center">
-                <BookOpen className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Nenhum Progresso Ainda</h3>
-                <p className="text-muted-foreground">
-                  Comece a estudar para ver seu progresso aqui!
-                </p>
+          <TabsContent value="history" className="mt-0">
+            {pointsHistory.length === 0 ? (
+              <Card className="p-8 text-center sm:p-12">
+                <TrendingUp className="mx-auto mb-3 h-12 w-12 text-muted-foreground/60" />
+                <h3 className="text-base font-semibold sm:text-lg">{labels.noHistory}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">{labels.noHistoryHint}</p>
               </Card>
             ) : (
-              <div className="space-y-4">
-                {progress.map((item) => (
-                  <Card key={item.id} className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-semibold">{item.lessons?.title}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          Status: {item.status === "concluido" ? "✅ Concluído" : "📖 Em progresso"}
+              <div className="space-y-2">
+                {pointsHistory.map((entry) => (
+                  <Card key={entry.id} className="p-3 sm:p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{entry.descricao}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {new Date(entry.created_at).toLocaleString(isEnglish ? "en-US" : "pt-BR")}
                         </p>
                       </div>
-                      <Badge variant={item.status === "concluido" ? "default" : "outline"}>
-                        {item.status}
+                      <Badge className="shrink-0 bg-emerald-600 hover:bg-emerald-600">
+                        +{entry.pontos} XP
                       </Badge>
                     </div>
                   </Card>
@@ -539,48 +753,7 @@ const Profile = () => {
               </div>
             )}
           </TabsContent>
-
-          <TabsContent value="history">
-            {pointsHistory.length === 0 ? (
-              <Card className="p-12 text-center">
-                <TrendingUp className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Nenhum Histórico</h3>
-                <p className="text-muted-foreground">
-                  Complete atividades para ganhar pontos!
-                </p>
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                {pointsHistory.map((entry) => (
-                  <Card key={entry.id} className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{entry.descricao}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(entry.created_at).toLocaleString("pt-BR")}
-                        </p>
-                      </div>
-                      <Badge className="bg-green-500">+{entry.pontos} XP</Badge>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
         </Tabs>
-
-        {/* Change Password Section */}
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Lock className="h-5 w-5" />
-              Alterar Senha
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ChangePasswordForm />
-          </CardContent>
-        </Card>
       </div>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>

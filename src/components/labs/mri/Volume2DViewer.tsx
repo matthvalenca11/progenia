@@ -27,6 +27,8 @@ export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const touchStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
+  const pinchStartRef = useRef<{ distance: number; zoom: number } | null>(null);
 
   // Inicializar window/level do volume
   useEffect(() => {
@@ -280,6 +282,45 @@ export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
     setIsDragging(false);
   }, []);
 
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      touchStartRef.current = { x: touch.clientX, y: touch.clientY, panX: pan.x, panY: pan.y };
+      pinchStartRef.current = null;
+    } else if (e.touches.length === 2) {
+      const [a, b] = [e.touches[0], e.touches[1]];
+      const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      pinchStartRef.current = { distance, zoom };
+      touchStartRef.current = null;
+    }
+  }, [pan.x, pan.y, zoom]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 1 && touchStartRef.current) {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const dx = touch.clientX - touchStartRef.current.x;
+      const dy = touch.clientY - touchStartRef.current.y;
+      setPan({
+        x: touchStartRef.current.panX + dx,
+        y: touchStartRef.current.panY + dy,
+      });
+    } else if (e.touches.length === 2 && pinchStartRef.current) {
+      e.preventDefault();
+      const [a, b] = [e.touches[0], e.touches[1]];
+      const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      if (pinchStartRef.current.distance > 0) {
+        const scale = distance / pinchStartRef.current.distance;
+        setZoom(Math.max(0.1, Math.min(5.0, pinchStartRef.current.zoom * scale)));
+      }
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    touchStartRef.current = null;
+    pinchStartRef.current = null;
+  }, []);
+
   const resetView = useCallback(() => {
     setZoom(1.0);
     setPan({ x: 0, y: 0 });
@@ -344,6 +385,10 @@ export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
         style={{ cursor: isDragging ? "grabbing" : "grab" }}
       >
         <canvas
@@ -353,6 +398,7 @@ export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
             maxWidth: "100%",
             maxHeight: "100%",
             display: sliceImageData ? "block" : "none",
+            touchAction: "none",
           }}
         />
         
@@ -374,6 +420,9 @@ export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
         {/* Hybrid physics label */}
         <div className="absolute bottom-2 right-2 bg-emerald-500/15 text-emerald-300 text-[10px] px-2 py-1 rounded font-mono border border-emerald-500/40">
           Física Híbrida Ativa (1.5T Simulated)
+        </div>
+        <div className="absolute bottom-2 left-2 bg-black/65 text-white text-[10px] px-2 py-1 rounded md:hidden">
+          Arraste para mover • Pinça para zoom
         </div>
       </div>
       

@@ -9,6 +9,7 @@ import { Brain, Send, X, Minimize2, Maximize2, ArrowRight, BookOpen } from "luci
 import { AiDisclaimerPopover } from "@/components/ai/AiDisclaimerPopover";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -43,7 +44,7 @@ function cleanLinkDisplayText(text: string): string {
     .trim();
 }
 
-function findMatch(label: string, items: { title: string }[]) {
+function findMatch<T extends { title: string }>(label: string, items: T[]): T | null {
   const n = norm(stripPrefix(label));
   for (const item of items) {
     const tn = norm(item.title);
@@ -111,6 +112,7 @@ const AITutor = () => {
   const { user } = useAuth();
   const { language } = useLanguage();
   const isEnglish = language === "en";
+  const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -222,7 +224,7 @@ const AITutor = () => {
     return (
       <Button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 rounded-full h-14 px-5 shadow-glow gradient-accent text-white inline-flex items-center gap-2"
+        className="fixed z-50 inline-flex items-center gap-2 rounded-full gradient-accent text-white shadow-glow bottom-[calc(var(--sab,env(safe-area-inset-bottom,0px))+0.75rem)] right-[calc(var(--sar,env(safe-area-inset-right,0px))+0.75rem)] h-12 px-4 text-sm md:bottom-6 md:right-6 md:h-14 md:px-5 md:text-base"
       >
         <Brain className="h-5 w-5" />
         <span className="font-semibold" data-no-auto-translate="true">
@@ -234,12 +236,18 @@ const AITutor = () => {
 
   return (
     <Card
-      className={`fixed bottom-6 right-6 z-50 shadow-2xl transition-all ${
-        isMinimized ? "w-80 h-16" : "w-96 h-[600px]"
-      } flex flex-col`}
+      className={`fixed z-50 flex flex-col shadow-2xl transition-all ${
+        isMobile
+          ? isMinimized
+            ? "bottom-[calc(var(--sab,env(safe-area-inset-bottom,0px))+0.75rem)] left-[calc(var(--sal,env(safe-area-inset-left,0px))+0.75rem)] right-[calc(var(--sar,env(safe-area-inset-right,0px))+0.75rem)] h-16"
+            : "bottom-[calc(var(--sab,env(safe-area-inset-bottom,0px))+0.5rem)] left-[calc(var(--sal,env(safe-area-inset-left,0px))+0.5rem)] right-[calc(var(--sar,env(safe-area-inset-right,0px))+0.5rem)] h-[46dvh] max-h-[46dvh]"
+          : isMinimized
+            ? "bottom-6 right-6 w-80 h-16"
+            : "bottom-6 right-6 w-96 h-[600px]"
+      }`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border gradient-primary rounded-t-lg">
+      <div className={`flex items-center justify-between border-b border-border gradient-primary rounded-t-lg ${isMobile ? "p-3" : "p-4"}`}>
         <div className="flex items-center gap-2 text-white">
           <Brain className="h-5 w-5" />
           <span className="font-semibold" data-no-auto-translate="true">
@@ -248,18 +256,20 @@ const AITutor = () => {
         </div>
         <div className="flex items-center gap-2">
           <AiDisclaimerPopover />
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => setIsMinimized(!isMinimized)}
-            className="h-8 w-8 text-white hover:bg-white/20"
-          >
-            {isMinimized ? (
-              <Maximize2 className="h-4 w-4" />
-            ) : (
-              <Minimize2 className="h-4 w-4" />
-            )}
-          </Button>
+          {!isMobile && (
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setIsMinimized(!isMinimized)}
+              className="h-8 w-8 text-white hover:bg-white/20"
+            >
+              {isMinimized ? (
+                <Maximize2 className="h-4 w-4" />
+              ) : (
+                <Minimize2 className="h-4 w-4" />
+              )}
+            </Button>
+          )}
           <Button
             size="icon"
             variant="ghost"
@@ -274,7 +284,7 @@ const AITutor = () => {
       {!isMinimized && (
         <>
           {/* Messages */}
-          <ScrollArea ref={scrollRef} className="flex-1 p-4">
+          <ScrollArea ref={scrollRef} className={`flex-1 ${isMobile ? "p-3" : "p-4"}`}>
             <div className="space-y-4">
               {messages.map((message, index) => (
                 <div
@@ -284,7 +294,7 @@ const AITutor = () => {
                   }`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                    className={`max-w-[82%] rounded-lg ${isMobile ? "px-3 py-2" : "px-4 py-2"} ${
                       message.role === "user"
                         ? "bg-primary text-primary-foreground"
                         : "bg-orange-50 text-orange-900 border border-orange-200/70 dark:bg-orange-950/25 dark:text-orange-200 dark:border-orange-800/60"
@@ -347,7 +357,7 @@ const AITutor = () => {
           </ScrollArea>
 
           {/* Input */}
-          <div className="p-4 border-t border-border">
+          <div className={`border-t border-border ${isMobile ? "p-3" : "p-4"}`}>
             <div className="flex gap-2">
               <Input
                 value={input}

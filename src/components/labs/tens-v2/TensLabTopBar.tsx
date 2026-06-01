@@ -28,7 +28,7 @@ export function TensLabTopBar({ labName = "Laboratório TENS", showBackButton = 
   const riskLevel = simulationResult?.riskLevel || "baixo";
 
   return (
-    <header className="bg-card/95 border-b border-border backdrop-blur sticky top-0 z-50 px-4 py-2 shrink-0">
+    <header className="safe-sticky-top bg-card/95 border-b border-border backdrop-blur px-4 py-2 shrink-0">
       <div className="flex items-center justify-between gap-4">
         {/* Left */}
         <div className="flex items-center gap-3">

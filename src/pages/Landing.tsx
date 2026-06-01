@@ -402,10 +402,12 @@ const Landing = () => {
     void loadBlogPosts();
   }, []);
 
+  const accessPath = user ? "/dashboard" : "/auth";
+
   return (
     <div className="min-h-screen bg-background font-sans antialiased">
       {/* Minimal premium nav */}
-      <header className="fixed left-0 right-0 top-0 z-50 px-3 pt-1.5 sm:px-4 sm:pt-2">
+      <header className="safe-top left-0 right-0 top-0 z-50 px-3 sm:fixed sm:px-4 sm:pt-2">
         <div className="landing-glass-nav mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-[18px] px-4 py-2 sm:px-5 sm:py-2.5">
           <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-4 md:gap-5">
             <Link
@@ -449,9 +451,9 @@ const Landing = () => {
           </div>
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <ThemeToggle />
-            <Link to="/auth">
+            <Link to={accessPath}>
               <Button variant="default" className={landingMintCtaButtonClass}>
-                {t.navAccess}
+                {user ? (en ? "My dashboard" : "Meu painel") : t.navAccess}
               </Button>
             </Link>
           </div>
@@ -459,7 +461,7 @@ const Landing = () => {
       </header>
 
       {/* Hero — texto + vídeo adjacentes (lg+); empilhado no mobile */}
-      <section className="relative flex min-h-[min(64vh,600px)] flex-col justify-center pb-6 pt-20 sm:pt-24 lg:min-h-0 lg:pb-8 lg:pt-20">
+      <section className="relative flex min-h-[min(64vh,600px)] flex-col justify-center pb-6 pt-6 sm:pt-24 lg:min-h-0 lg:pb-8 lg:pt-20">
         <div className="relative z-10 mx-auto w-full max-w-6xl px-4">
           <div className="grid items-center gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(280px,0.95fr)] lg:gap-6 xl:gap-8">
             {/* Copy + CTAs — adjacente ao vídeo em lg+ */}
@@ -473,7 +475,7 @@ const Landing = () => {
                 {t.heroLead}
               </p>
               <div className="mt-5 flex flex-col items-stretch justify-center gap-2.5 sm:flex-row sm:items-center sm:justify-center lg:justify-start">
-                <Link to="/auth" className="sm:inline-flex">
+                <Link to={accessPath} className="sm:inline-flex">
                   <Button
                     size="lg"
                     className="h-12 w-full rounded-xl px-8 text-sm font-semibold sm:w-auto sm:text-base"
@@ -713,7 +715,7 @@ const Landing = () => {
                 <p className="mt-1.5 text-sm font-light leading-relaxed text-muted-foreground md:text-base">{t.ctaBandLead}</p>
               </div>
               <div className="shrink-0">
-                <Link to="/auth">
+                <Link to={accessPath}>
                   <Button
                     size="lg"
                     className="h-12 rounded-xl px-8 text-sm font-semibold sm:text-base"
@@ -769,7 +771,7 @@ const Landing = () => {
       <Dialog open={!!demoSlug} onOpenChange={(open) => !open && closeLabDemo()}>
         <DialogContent
           className={cn(
-            "z-[100] flex max-h-[85vh] w-[min(96vw,1280px)] max-w-7xl flex-col gap-0 overflow-hidden border bg-background p-0 shadow-lg sm:rounded-xl",
+            "z-[100] flex h-[92dvh] w-[96vw] max-w-7xl flex-col gap-0 overflow-hidden border bg-background p-0 shadow-lg sm:h-[85vh] sm:w-[min(96vw,1280px)] sm:rounded-xl",
           )}
         >
           {demoSlug ? (

@@ -684,9 +684,9 @@ export default function ContentSearch() {
     return (
       <Card key={`${item.kind}-${item.id}`}>
         <CardContent className="p-5">
-          <div className="flex gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row">
             {item.thumbnailUrl && (
-              <div className="w-32 h-20 rounded-md bg-muted overflow-hidden flex-shrink-0">
+              <div className="h-40 w-full rounded-md bg-muted overflow-hidden flex-shrink-0 sm:h-20 sm:w-32">
                 <img src={item.thumbnailUrl} alt={item.title} className="w-full h-full object-cover" />
               </div>
             )}
@@ -773,15 +773,18 @@ export default function ContentSearch() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <nav className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center gap-3">
+    <div className="min-h-[100dvh] bg-background">
+      <nav className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur">
+        <div className="container mx-auto flex flex-wrap items-center gap-2 px-3 py-3 sm:flex-nowrap sm:gap-3 sm:px-4 sm:py-4">
           <img src={logo} alt="ProGenia" className="h-8 w-auto progenia-logo shrink-0" />
-          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
+          <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")} className="sm:hidden" aria-label={isEnglish ? "Back" : "Voltar"}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="hidden sm:inline-flex">
             <ArrowLeft className="h-4 w-4 mr-2" />
             {isEnglish ? "Back" : "Voltar"}
           </Button>
-          <form onSubmit={handleSubmitSearch} className="flex-1 flex items-center gap-2">
+          <form onSubmit={handleSubmitSearch} className="flex w-full items-center gap-2 sm:w-auto sm:flex-1">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -796,7 +799,7 @@ export default function ContentSearch() {
         </div>
       </nav>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-3 py-6 sm:px-4 sm:py-8">
         <Card className="mb-6 relative">
           <CardHeader className="pb-3">
             <AiDisclaimerPopover

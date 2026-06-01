@@ -12,7 +12,7 @@ interface InsightsPanelProps {
   onClose?: () => void;
 }
 
-export function TensLabInsightsPanel({ onClose }: InsightsPanelProps) {
+export function TensLabInsightsPanel({ onClose, hideHeader = false }: InsightsPanelProps & { hideHeader?: boolean }) {
   const { simulationResult, electrodes } = useTensLabStore();
 
   if (!simulationResult) {
@@ -36,17 +36,18 @@ export function TensLabInsightsPanel({ onClose }: InsightsPanelProps) {
 
   return (
     <div className="h-full flex flex-col bg-card">
-      {/* Header */}
-      <div className="p-3 border-b border-border flex items-center justify-between">
-        <h2 className="text-sm font-medium text-foreground">Métricas</h2>
-        {onClose && typeof onClose === 'function' && (
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={onClose}>
-            <X className="h-3.5 w-3.5" />
-          </Button>
-        )}
-      </div>
+      {!hideHeader && (
+        <div className="p-3 border-b border-border flex items-center justify-between">
+          <h2 className="text-sm font-medium text-foreground">Métricas</h2>
+          {onClose && typeof onClose === "function" && (
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={onClose}>
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
+      )}
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div className={`flex-1 overflow-y-auto space-y-3 ${hideHeader ? "p-3 pb-6" : "p-3"}`}>
         {/* Risco - destaque */}
         <div className={`p-3 rounded-lg ${
           riskLevel === "baixo" ? "bg-emerald-500/10 border border-emerald-500/20" :

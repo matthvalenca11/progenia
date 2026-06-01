@@ -43,13 +43,15 @@ type LabDemoBoundaryProps = {
   children: ReactNode;
   /** No pop-up da landing: fecha o modal em vez de navegar para / (mesma rota). */
   onDismissSecondary?: () => void;
+  /** Lab ocupa a tela inteira — sem wrapper que corta bordas */
+  immersive?: boolean;
 };
 
 /**
  * Para visitantes: cronômetro por sessão (sessionStorage), banner informativo,
  * e ao expirar blur no conteúdo + convite para criar conta.
  */
-export function LabDemoBoundary({ slug, enabled, children, onDismissSecondary }: LabDemoBoundaryProps) {
+export function LabDemoBoundary({ slug, enabled, children, onDismissSecondary, immersive = false }: LabDemoBoundaryProps) {
   const { language } = useLanguage();
   const en = language === "en";
   /** Modal da landing: barra no fluxo do diálogo. Página /labs/:slug: barra fixa no topo da viewport (labs full-screen escondiam o aviso). */
@@ -104,6 +106,13 @@ export function LabDemoBoundary({ slug, enabled, children, onDismissSecondary }:
   }, [demoRemainingMs]);
 
   if (!enabled) {
+    if (immersive) {
+      return (
+        <LabDemoContext.Provider value={value}>
+          <div className="flex h-full min-h-0 w-full min-w-0 max-w-full flex-col">{children}</div>
+        </LabDemoContext.Provider>
+      );
+    }
     return <LabDemoContext.Provider value={value}>{children}</LabDemoContext.Provider>;
   }
 
@@ -125,14 +134,74 @@ export function LabDemoBoundary({ slug, enabled, children, onDismissSecondary }:
     </div>
   ) : null;
 
+  if (immersive) {
+    return (
+      <LabDemoContext.Provider value={value}>
+        <div className="relative flex h-full w-full min-w-0 max-w-full flex-col">
+          {fixedDemoBar && demoBanner ? (
+            <>
+              <div
+                className="pointer-events-none fixed left-0 right-0 z-[200] flex justify-center px-3"
+                style={{ top: "calc(var(--sat, env(safe-area-inset-top, 0px)) + 0.5rem)" }}
+              >
+                <div className="pointer-events-auto w-full max-w-4xl">{demoBanner}</div>
+              </div>
+              <div className="h-[3.25rem] shrink-0 sm:h-11" aria-hidden />
+            </>
+          ) : (
+            demoBanner
+          )}
+          <div className="relative min-h-0 min-w-0 flex-1">
+            <div
+              className={cn(
+                "h-full w-full min-w-0 max-w-full transition-[filter,opacity] duration-300",
+                demoExpired && "pointer-events-none select-none blur-md opacity-60",
+              )}
+            >
+              {children}
+            </div>
+            {demoExpired && (
+              <div
+                className="absolute inset-0 z-20 flex items-center justify-center bg-background/65 p-4 backdrop-blur-md"
+                data-no-auto-translate="true"
+              >
+                <div className="max-w-md rounded-2xl border border-border bg-card p-6 text-center shadow-lg">
+                  <p className="text-lg font-semibold text-foreground">
+                    {en ? "This preview has ended" : "Esta visualização terminou"}
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {en
+                      ? "Create a free account to keep exploring the labs, unlock the full toolset, and continue learning without limits."
+                      : "Crie uma conta gratuita para continuar explorando os laboratórios, liberar todos os recursos e seguir aprendendo sem limites."}
+                  </p>
+                  <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-center">
+                    <Button asChild className="rounded-xl">
+                      <Link to="/auth">
+                        <LogIn className="mr-2 h-4 w-4" />
+                        {en ? "Create account / Sign in" : "Criar conta / Entrar"}
+                      </Link>
+                    </Button>
+                    <Button variant="outline" asChild className="rounded-xl">
+                      <Link to="/">{en ? "Back to home" : "Voltar ao início"}</Link>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </LabDemoContext.Provider>
+    );
+  }
+
   return (
     <LabDemoContext.Provider value={value}>
-      <div className="relative w-full space-y-3">
+      <div className="relative w-full min-w-0 max-w-full space-y-3">
         {fixedDemoBar && demoBanner ? (
           <>
             <div
               className="pointer-events-none fixed left-0 right-0 z-[200] flex justify-center px-3"
-              style={{ top: "max(0.5rem, env(safe-area-inset-top, 0px))" }}
+              style={{ top: "calc(var(--sat, env(safe-area-inset-top, 0px)) + 0.5rem)" }}
             >
               <div className="pointer-events-auto w-full max-w-4xl">{demoBanner}</div>
             </div>

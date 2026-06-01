@@ -3,7 +3,7 @@
  * Versão V1 simplificada - mostra tecidos, feixe acústico e mapa de temperatura
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { PerspectiveCamera, OrbitControls, Grid } from '@react-three/drei';
 import { useUltrasoundTherapyStore } from '@/stores/ultrasoundTherapyStore';
@@ -19,16 +19,20 @@ import { MixedLayer } from './MixedLayer';
 
 type ViewerTab = "anatomy" | "beam" | "thermal";
 
-export function UltrasoundTherapy3DViewer() {
+interface UltrasoundTherapy3DViewerProps {
+  hideTabs?: boolean;
+}
+
+export function UltrasoundTherapy3DViewer({ hideTabs = false }: UltrasoundTherapy3DViewerProps) {
   const { 
     config, 
-    simulationResult 
+    simulationResult,
+    viewerTab,
+    setViewerTab,
   } = useUltrasoundTherapyStore();
   
-  const [viewerTab, setViewerTab] = useState<ViewerTab>("beam");
-  
   // V5: Animated scanning pattern
-  const [scanTime, setScanTime] = useState(0);
+  const [scanTime, setScanTime] = React.useState(0);
   
   useEffect(() => {
     if (config.movement === "scanning") {
@@ -53,23 +57,24 @@ export function UltrasoundTherapy3DViewer() {
   }, [config.movement, config.transducerPosition, scanTime]);
 
   return (
-    <div className="relative w-full h-full bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900">
-      {/* Tabs */}
-      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10">
-        <Tabs value={viewerTab} onValueChange={(v) => setViewerTab(v as ViewerTab)}>
-          <TabsList className="bg-slate-800/90 backdrop-blur-sm h-8">
-            <TabsTrigger value="anatomy" className="gap-1 text-[11px] h-6 px-3">
-              <Eye className="h-3 w-3" />Anatomia
-            </TabsTrigger>
-            <TabsTrigger value="beam" className="gap-1 text-[11px] h-6 px-3">
-              <Waves className="h-3 w-3" />Feixe
-            </TabsTrigger>
-            <TabsTrigger value="thermal" className="gap-1 text-[11px] h-6 px-3">
-              <Thermometer className="h-3 w-3" />Temperatura
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
+    <div className="relative h-full w-full bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900">
+      {!hideTabs && (
+        <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2">
+          <Tabs value={viewerTab} onValueChange={(v) => setViewerTab(v as ViewerTab)}>
+            <TabsList className="h-8 bg-slate-800/90 backdrop-blur-sm">
+              <TabsTrigger value="anatomy" className="h-6 gap-1 px-3 text-[11px]">
+                <Eye className="h-3 w-3" />Anatomia
+              </TabsTrigger>
+              <TabsTrigger value="beam" className="h-6 gap-1 px-3 text-[11px]">
+                <Waves className="h-3 w-3" />Feixe
+              </TabsTrigger>
+              <TabsTrigger value="thermal" className="h-6 gap-1 px-3 text-[11px]">
+                <Thermometer className="h-3 w-3" />Temperatura
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+      )}
 
       {/* 3D Canvas */}
       <Canvas>

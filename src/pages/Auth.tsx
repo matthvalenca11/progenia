@@ -571,24 +571,24 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-[100dvh] bg-background flex items-start justify-center p-3 pt-6 sm:items-center sm:p-4 safe-bottom">
       <div className="w-full max-w-2xl">
-        <div className="text-center mb-8">
+        <div className="text-center mb-6 sm:mb-8">
           <img src={logo} alt="ProGenia" className="h-16 mx-auto mb-4 progenia-logo" />
-          <h1 className="text-3xl font-bold">Bem-vindo à ProGenia</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Bem-vindo à ProGenia</h1>
           <p className="text-muted-foreground mt-2">
             Acesse sua conta e continue seu plano de estudos
           </p>
         </div>
 
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <Tabs value={activeAuthTab} onValueChange={(v) => setActiveAuthTab(v as "signin" | "signup")} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="signin">Entrar</TabsTrigger>
               <TabsTrigger value="signup">Cadastrar</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="signin">
+            <TabsContent value="signin" className="pb-1">
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signin-email">E-mail</Label>
@@ -632,7 +632,7 @@ const Auth = () => {
               </form>
             </TabsContent>
 
-            <TabsContent value="signup">
+            <TabsContent value="signup" className="pb-2">
               <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
@@ -683,7 +683,7 @@ const Auth = () => {
                           {birthDateInput || (isEnglish ? "MM/DD/YYYY" : "DD/MM/AAAA")}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent align="start" className="w-auto p-0">
+                      <PopoverContent align="start" className="w-[calc(100vw-2rem)] max-w-sm p-0">
                         <Calendar
                           mode="single"
                           selected={selectedBirthDate}
@@ -950,7 +950,7 @@ const Auth = () => {
       </div>
 
       <Dialog open={isLegalDialogOpen} onOpenChange={setIsLegalDialogOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-h-[85dvh] overflow-y-auto max-w-3xl">
           <DialogHeader>
             <DialogTitle>Termos de Privacidade e Uso</DialogTitle>
           </DialogHeader>

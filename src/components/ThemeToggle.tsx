@@ -15,9 +15,9 @@ export function ThemeToggle() {
   const isEnglish = language === "en";
 
   return (
-    <div className="flex items-center gap-5">
-      <div className="flex items-center gap-3">
-        <span className="text-sm font-medium">Aparência</span>
+    <div className="flex items-center gap-2 sm:gap-5">
+      <div className="flex items-center gap-1.5 sm:gap-3">
+        <span className="hidden text-sm font-medium sm:inline">Aparência</span>
         <SwitchPrimitives.Root
           checked={isDark}
           onCheckedChange={toggleTheme}
@@ -40,8 +40,8 @@ export function ThemeToggle() {
         </SwitchPrimitives.Root>
       </div>
 
-      <div className="flex items-center gap-3">
-        <span className="text-sm font-medium">Idioma</span>
+      <div className="flex items-center gap-1.5 sm:gap-3">
+        <span className="hidden text-sm font-medium sm:inline">Idioma</span>
         <SwitchPrimitives.Root
           checked={isEnglish}
           onCheckedChange={toggleLanguage}

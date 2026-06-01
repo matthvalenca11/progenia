@@ -250,11 +250,11 @@ export default function AllCapsules() {
   const selectedModule = modules.find(m => m.id === selectedModuleId);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-[100dvh] bg-background">
       {/* Header fixo */}
-      <div className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+      <div className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur">
+        <div className="container mx-auto flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-4">
+          <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start sm:gap-4">
             <img src={logo} alt="ProGenia" className="h-11 progenia-logo cursor-pointer" onClick={() => navigate("/dashboard")} />
             <Button
               variant="ghost"
@@ -266,41 +266,43 @@ export default function AllCapsules() {
             </Button>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
             {/* Campo de busca */}
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder={isEnglish ? "Search capsules..." : "Buscar cápsulas..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 w-[300px] text-base placeholder:font-semibold"
+                className="w-full pl-10 text-base placeholder:font-semibold sm:w-[320px]"
               />
             </div>
             
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <Select value={selectedModuleId} onValueChange={setSelectedModuleId}>
-              <SelectTrigger className="w-[200px] text-base">
-                <SelectValue placeholder={isEnglish ? "Filter by module" : "Filtrar por módulo"} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{isEnglish ? "All modules" : "Todos os módulos"}</SelectItem>
-                {modules.map((module) => (
-                  <SelectItem key={module.id} value={module.id}>
-                    {module.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={selectedModuleId} onValueChange={setSelectedModuleId}>
+                <SelectTrigger className="w-full text-base sm:w-[220px]">
+                  <SelectValue placeholder={isEnglish ? "Filter by module" : "Filtrar por módulo"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{isEnglish ? "All modules" : "Todos os módulos"}</SelectItem>
+                  {modules.map((module) => (
+                    <SelectItem key={module.id} value={module.id}>
+                      {module.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-3 py-6 sm:px-4 sm:py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Todas as Cápsulas</h1>
+          <h1 className="mobile-page-title mb-2">Todas as Cápsulas</h1>
           <p className="text-muted-foreground">
             {searchQuery.trim() 
               ? `Encontradas ${filteredCapsulas.length} cápsula${filteredCapsulas.length !== 1 ? 's' : ''} para "${searchQuery}"`
@@ -373,11 +375,11 @@ export default function AllCapsules() {
                           </Badge>
                         )}
                       </div>
-                      <h3 className="font-semibold text-lg mb-2 group-hover:text-primary transition-colors">
+                      <h3 className="content-break font-semibold text-lg mb-2 group-hover:text-primary transition-colors">
                         {capsula.title}
                       </h3>
                       {capsula.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
+                        <p className="content-break text-sm text-muted-foreground line-clamp-2 mb-4">
                           {capsula.description}
                         </p>
                       )}
@@ -449,11 +451,11 @@ export default function AllCapsules() {
                           </Badge>
                         )}
                       </div>
-                      <h3 className="font-semibold text-lg mb-2 group-hover:text-primary transition-colors">
+                      <h3 className="content-break font-semibold text-lg mb-2 group-hover:text-primary transition-colors">
                         {capsula.title}
                       </h3>
                       {capsula.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
+                        <p className="content-break text-sm text-muted-foreground line-clamp-2 mb-4">
                           {capsula.description}
                         </p>
                       )}
