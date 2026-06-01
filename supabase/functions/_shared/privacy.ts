@@ -7,12 +7,30 @@ const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "")
   .map((item) => item.trim())
   .filter(Boolean);
 
+const NATIVE_APP_ORIGIN_PREFIXES = ["capacitor://", "ionic://"];
+
+const NATIVE_APP_ORIGINS = new Set([
+  "capacitor://localhost",
+  "ionic://localhost",
+  "http://localhost",
+  "https://localhost",
+]);
+
 export const getCorsHeaders = (origin: string | null) => {
   const fallbackOrigin = Deno.env.get("APP_URL") ?? "*";
   let allowOrigin = fallbackOrigin;
 
-  if (origin && (ALLOWED_ORIGINS.includes(origin) || origin.startsWith("http://localhost:"))) {
-    allowOrigin = origin;
+  if (origin) {
+    const isAllowed =
+      ALLOWED_ORIGINS.includes(origin) ||
+      NATIVE_APP_ORIGINS.has(origin) ||
+      NATIVE_APP_ORIGIN_PREFIXES.some((prefix) => origin.startsWith(prefix)) ||
+      origin.startsWith("http://localhost:") ||
+      origin.startsWith("https://localhost:");
+
+    if (isAllowed) {
+      allowOrigin = origin;
+    }
   }
 
   return {

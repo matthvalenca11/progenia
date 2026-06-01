@@ -10,6 +10,7 @@ import { AiDisclaimerPopover } from "@/components/ai/AiDisclaimerPopover";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { invokeEdgeFunction } from "@/services/edgeFunctionService";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -158,13 +159,14 @@ const AITutor = () => {
 
     try {
       await fetchCatalog();
-      const { data, error } = await supabase.functions.invoke("ai-tutor", {
-        body: { 
+      const { data, error } = await invokeEdgeFunction<{ response?: string; error?: string }>(
+        "ai-tutor",
+        {
           message: userMessage,
           conversationHistory: messages.slice(-5),
           userId: user?.id ?? null,
         },
-      });
+      );
 
       if (error) {
         console.error("AI Tutor error:", error);
