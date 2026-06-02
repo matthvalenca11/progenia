@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ProGenia</string>
+    <string name="title_activity_main">ProGenia</string>
+    <string name="package_name">com.matthvalenca11.progenia</string>
+    <string name="custom_url_scheme">com.matthvalenca11.progenia</string>
+</resources>

@@ -5,13 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, CheckCircle2, Clock, XCircle } from "lucide-react";
-import logo from "@/assets/logo.png";
+import { ProGeniaLogo } from "@/components/ProGeniaLogo";
 import { toast } from "sonner";
 import { capsulaService, Capsula } from "@/services/capsulaService";
 import { gamificationService } from "@/services/gamificationService";
 import { VirtualLabRenderer } from "@/components/VirtualLabRenderer";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { cn } from "@/lib/utils";
+import { isNativeApp } from "@/lib/capacitor";
 
 const CapsuleViewer = () => {
   const { capsulaId } = useParams();
@@ -175,15 +177,20 @@ const CapsuleViewer = () => {
   ];
 
   return (
-    <div className="min-h-[100dvh] bg-background">
+    <div className="layout-contained min-h-[100dvh] w-full overflow-x-hidden bg-background">
       {/* Navigation */}
       <nav className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur">
-        <div className="container mx-auto flex items-center justify-between gap-3 px-3 py-3 sm:px-4 sm:py-4">
+        <div
+          className={cn(
+            "layout-contained mx-auto flex w-full max-w-4xl items-center justify-between gap-3 py-3 sm:py-4",
+            isNativeApp ? "px-0" : "px-3 sm:px-4",
+          )}
+        >
           <div className="flex items-center gap-2 sm:gap-3">
             <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <img src={logo} alt="ProGenia" className="h-10 progenia-logo" />
+            <ProGeniaLogo className="h-10 progenia-logo" />
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
             {capsula.duration_minutes && (
@@ -197,7 +204,12 @@ const CapsuleViewer = () => {
         </div>
       </nav>
 
-      <div className="container max-w-4xl mx-auto px-3 py-6 sm:px-4 sm:py-8">
+      <div
+        className={cn(
+          "layout-contained mx-auto w-full max-w-4xl py-6 sm:py-8",
+          isNativeApp ? "min-w-0 px-0" : "container px-3 sm:px-4",
+        )}
+      >
         {/* Header */}
         <div className="mb-8">
           <div className="inline-block px-3 py-1 bg-accent/10 text-accent text-sm rounded-full mb-4">
@@ -229,7 +241,7 @@ const CapsuleViewer = () => {
         </div>
 
         {/* Content */}
-        <div className="space-y-6 mb-8">
+        <div className="layout-contained mb-8 min-w-0 w-full max-w-full space-y-6 overflow-x-hidden">
           {hasContent ? (
             <>
               {orderedTokens.map((token) => {
@@ -311,7 +323,7 @@ const CapsuleViewer = () => {
 
                 if (token === "virtualLab" && contentData.virtualLabId) {
                   return (
-                    <Card key="virtualLab" className="overflow-hidden p-0 sm:p-6">
+                    <Card key="virtualLab" className="layout-contained min-w-0 w-full overflow-hidden p-0 sm:p-6">
                       <VirtualLabRenderer labId={contentData.virtualLabId} />
                     </Card>
                   );

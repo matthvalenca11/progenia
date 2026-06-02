@@ -5,8 +5,9 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { authService } from "@/services/authService";
 import { toast } from "sonner";
-import logo from "@/assets/logo.png";
+import { ProGeniaLogo } from "@/components/ProGeniaLogo";
 import { Lock } from "lucide-react";
 import { z } from "zod";
 
@@ -84,7 +85,7 @@ const ResetPassword = () => {
         toast.success("Senha redefinida com sucesso!", {
           description: "Você já pode fazer login com sua nova senha.",
         });
-        await supabase.auth.signOut();
+        await authService.signOut();
         setTimeout(() => navigate("/auth"), 1500);
       }
     } catch (error) {
@@ -100,7 +101,7 @@ const ResetPassword = () => {
 
   if (!hasSession) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 safe-top safe-bottom">
         <Card className="w-full max-w-md p-8">
           <div className="flex flex-col items-center text-center space-y-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -112,10 +113,10 @@ const ResetPassword = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 safe-top safe-bottom">
       <Card className="w-full max-w-md p-8">
         <div className="flex flex-col items-center mb-8">
-          <img src={logo} alt="ProGenia" className="h-16 mb-4 progenia-logo" />
+          <ProGeniaLogo className="h-16 mb-4 progenia-logo" />
           <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
             <Lock className="h-8 w-8 text-primary" />
           </div>

@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { VirtualLabRenderer } from "@/components/VirtualLabRenderer";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import logo from "@/assets/logo.png";
+import { ProGeniaLogo } from "@/components/ProGeniaLogo";
 export default function LessonViewer() {
   const {
     lessonId
@@ -142,7 +142,7 @@ export default function LessonViewer() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="flex items-center gap-2 min-w-0 sm:gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")} aria-label="Ir para o dashboard">
-            <img src={logo} alt="ProGenia" className="h-8 progenia-logo" />
+            <ProGeniaLogo className="h-8 progenia-logo" />
           </Button>
           <Button variant="ghost" size="sm" onClick={() => navigate(`/module/${lesson.module_id}`)} className="hidden sm:inline-flex">
             <ChevronLeft className="h-4 w-4 mr-2" />

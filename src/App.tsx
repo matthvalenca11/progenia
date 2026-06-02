@@ -2,15 +2,15 @@ import { Toaster } from "./components/ui/toaster";
 import { Toaster as Sonner } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, HashRouter, Routes, Route, useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { BrowserRouter, HashRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
+import { lazy, Suspense, useEffect } from "react";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
+import { useLabImmersiveShell } from "./hooks/useLabImmersiveShell";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { ConsentProvider, useConsent } from "./contexts/ConsentContext";
 import { isNativeApp } from "@/lib/capacitor";
 import AITutor from "@/components/AITutor";
-import Landing from "@/pages/Landing";
 import Sobre from "@/pages/Sobre";
 import Contact from "@/pages/Contact";
 import Auth from "@/pages/Auth";
@@ -37,6 +37,8 @@ import { CookiePreferencesDialog } from "@/components/privacy/CookiePreferencesD
 import { CookiePreferencesButton } from "@/components/privacy/CookiePreferencesButton";
 import { applyTelemetryFromConsent, initConsentAwareTelemetry } from "@/lib/telemetry";
 
+const Landing = lazy(() => import("@/pages/Landing"));
+
 const queryClient = new QueryClient();
 
 const PrivacyBootstrap = () => {
@@ -55,12 +57,20 @@ const PrivacyBootstrap = () => {
 };
 
 const AppContent = () => {
-  const { user } = useAuth();
+  const { user, bootstrapped } = useAuth();
   const location = useLocation();
-  const isImmersiveLabRoute =
-    location.pathname.startsWith("/labs/") ||
-    location.pathname.startsWith("/admin/labs/novo") ||
-    location.pathname.startsWith("/admin/labs/editar/");
+  const isImmersiveLabRoute = useLabImmersiveShell();
+
+  if (!bootstrapped) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-primary" />
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Tutor de IA: oculto na landing/sobre/blog e em labs tela cheia
   const shouldShowAITutor =
@@ -73,9 +83,9 @@ const AppContent = () => {
 
   return (
     <div
-      className={`flex min-h-[100dvh] flex-col bg-background text-foreground overflow-x-clip${
-        isNativeApp && !isImmersiveLabRoute ? " native-safe-shell" : ""
-      }`}
+      className={`layout-contained flex min-h-[100dvh] flex-col bg-background text-foreground overflow-x-hidden${
+        isImmersiveLabRoute ? " touch-none overflow-hidden" : " touch-pan-y"
+      }${isNativeApp && !isImmersiveLabRoute ? " native-safe-shell" : ""}`}
       style={
         !isNativeApp && !isImmersiveLabRoute
           ? {
@@ -88,18 +98,27 @@ const AppContent = () => {
       <main
         className={
           isImmersiveLabRoute
-            ? "flex min-h-[100dvh] w-full flex-1 flex-col overflow-x-clip p-0"
+            ? "layout-contained flex min-h-[100dvh] w-full flex-1 flex-col overflow-hidden touch-none p-0"
             : isNativeApp
-              ? "native-shell-padding flex-1 flex flex-col overflow-y-auto overflow-x-clip pb-6 pt-2 md:px-8 md:pb-10 md:pt-4"
-              : "flex-1 flex flex-col overflow-y-auto overflow-x-clip px-3 pb-6 pt-2 sm:px-4 md:px-8 md:pb-10 md:pt-4"
+              ? "layout-contained native-shell-padding flex min-h-0 w-full flex-1 flex-col overflow-y-auto overflow-x-hidden touch-pan-y pb-6 pt-2 md:px-8 md:pb-10 md:pt-4"
+              : "layout-contained flex min-h-0 w-full flex-1 flex-col overflow-y-auto overflow-x-hidden touch-pan-y px-3 pb-6 pt-2 sm:px-4 md:px-8 md:pb-10 md:pt-4"
         }
       >
+        <div className="layout-contained flex min-h-0 w-full flex-1 flex-col">
         <Routes>
-          <Route path="/" element={<Landing />} />
+          <Route path="/" element={isNativeApp
+            ? <Navigate to={user ? "/dashboard" : "/auth"} replace />
+            : <Suspense fallback={null}><Landing /></Suspense>
+          } />
           <Route path="/sobre" element={<Sobre />} />
           <Route path="/contato" element={<Contact />} />
           <Route path="/blog" element={<BlogNoticias />} />
-          <Route path="/auth" element={<Auth />} />
+          {/* On native: if there is already a valid session, skip login screen. */}
+          <Route path="/auth" element={
+            isNativeApp && user
+              ? <Navigate to="/dashboard" replace />
+              : <Auth />
+          } />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
@@ -120,13 +139,19 @@ const AppContent = () => {
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </div>
       </main>
 
       {/* Tutor de IA disponível também no mobile */}
       {shouldShowAITutor && (
-        <AITutor />
+        <AITutor
+          mobileLeadingActions={<CookiePreferencesButton variant="icon" inlineFab />}
+        />
       )}
-      <CookiePreferencesButton shiftUpForAiTutorFab={shouldShowAITutor} />
+      <CookiePreferencesButton
+        shiftUpForAiTutorFab={shouldShowAITutor}
+        className={shouldShowAITutor ? "hidden md:inline-flex" : undefined}
+      />
       <CookieBanner />
       <CookiePreferencesDialog />
     </div>

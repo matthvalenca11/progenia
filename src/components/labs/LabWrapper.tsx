@@ -29,7 +29,7 @@ export function LabWrapper({
   const isMobile = useIsMobile();
 
   return (
-    <div className={cn("flex h-full min-h-0 w-full min-w-0 max-w-full flex-col", immersive ? "" : "space-y-6")}>
+    <div className={cn("layout-contained flex h-full min-h-0 w-full flex-col", immersive ? "" : "space-y-6")}>
       {/* Optional Video Section */}
       {videoUrl && !immersive && (
         <div className="w-full rounded-lg overflow-hidden border border-border bg-card">
@@ -57,7 +57,7 @@ export function LabWrapper({
       )}
       
       {/* Lab Content */}
-      <div className={cn("w-full min-w-0 max-w-full", immersive ? "flex min-h-0 flex-1 flex-col" : "")}>
+      <div className={cn("layout-contained w-full", immersive ? "flex min-h-0 flex-1 flex-col" : "")}>
         {children}
       </div>
       

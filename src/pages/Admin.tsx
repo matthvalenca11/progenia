@@ -21,7 +21,7 @@ import {
   Languages,
   Settings,
 } from "lucide-react";
-import logo from "@/assets/logo.png";
+import { ProGeniaLogo } from "@/components/ProGeniaLogo";
 import { toast } from "sonner";
 import { LessonsManager } from "@/components/admin/LessonsManager";
 import { CapsulasManager } from "@/components/admin/CapsulasManager";
@@ -101,7 +101,7 @@ const Admin = () => {
       <nav className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur">
         <div className="container mx-auto flex flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4 sm:py-4">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate("/dashboard")}>
-            <img src={logo} alt="ProGenia" className="h-10 progenia-logo" />
+            <ProGeniaLogo className="h-10 progenia-logo" />
             <span className="text-xl font-bold gradient-text">ProGenia Admin</span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">

@@ -4,10 +4,11 @@
  */
 
 import { useRef, useEffect } from "react";
-import { Canvas } from "@react-three/fiber";
+import { LabCanvas } from "@/components/labs/LabCanvas";
 import { OrbitControls, PerspectiveCamera, Grid } from "@react-three/drei";
 import * as THREE from "three";
 import { useMRILabStore } from "@/stores/mriLabStore";
+import { isAndroidNative } from "@/lib/labPerformance";
 
 interface Volume3DViewerProps {
   showDebug?: boolean;
@@ -118,7 +119,7 @@ export function Volume3DViewer({ showDebug = false }: Volume3DViewerProps) {
 
   return (
     <div className="w-full h-full bg-black">
-      <Canvas>
+      <LabCanvas>
         <PerspectiveCamera
           makeDefault
           position={[maxDim * 1.5, maxDim * 1.5, maxDim * 1.5]}
@@ -129,9 +130,11 @@ export function Volume3DViewer({ showDebug = false }: Volume3DViewerProps) {
         <pointLight position={[-10, -10, -5]} intensity={0.5} />
         
         <OrbitControls
+          makeDefault
           enablePan={true}
           enableZoom={true}
           enableRotate={true}
+          enableDamping={!isAndroidNative}
           minDistance={maxDim * 0.5}
           maxDistance={maxDim * 3}
         />
@@ -146,7 +149,7 @@ export function Volume3DViewer({ showDebug = false }: Volume3DViewerProps) {
           rotation={[0, 0, 0]}
           size={[scaleX, scaleY]}
         />
-      </Canvas>
+      </LabCanvas>
       
       {/* Overlay Info */}
       <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded font-mono">

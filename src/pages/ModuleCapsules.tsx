@@ -13,7 +13,7 @@ import {
   Clock
 } from "lucide-react";
 import { toast } from "sonner";
-import logo from "@/assets/logo.png";
+import { ProGeniaLogo } from "@/components/ProGeniaLogo";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -144,7 +144,7 @@ export default function ModuleCapsules() {
                 Voltar
               </Button>
               <div className="flex items-center gap-3 flex-1 min-w-0">
-                <img src={logo} alt="ProGenia" className="h-8 progenia-logo" />
+                <ProGeniaLogo className="h-8 progenia-logo" />
                 <h1 className="text-base sm:text-xl font-semibold truncate">{module.title}</h1>
               </div>
             </div>

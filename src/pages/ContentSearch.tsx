@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Search, ArrowLeft, BookOpen, GraduationCap, Pill, Loader2 } from "lucide-react";
 import { AiDisclaimerPopover } from "@/components/ai/AiDisclaimerPopover";
 import { toast } from "sonner";
-import logo from "@/assets/logo.png";
+import { ProGeniaLogo } from "@/components/ProGeniaLogo";
 
 type ModuleItem = {
   id: string;
@@ -776,7 +776,7 @@ export default function ContentSearch() {
     <div className="min-h-[100dvh] bg-background">
       <nav className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur">
         <div className="container mx-auto flex flex-wrap items-center gap-2 px-3 py-3 sm:flex-nowrap sm:gap-3 sm:px-4 sm:py-4">
-          <img src={logo} alt="ProGenia" className="h-8 w-auto progenia-logo shrink-0" />
+          <ProGeniaLogo className="h-8 w-auto progenia-logo shrink-0" />
           <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")} className="sm:hidden" aria-label={isEnglish ? "Back" : "Voltar"}>
             <ArrowLeft className="h-4 w-4" />
           </Button>

@@ -9,9 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase, APP_URL } from "@/integrations/supabase/client";
+import { authService } from "@/services/authService";
+import { isNative, saveNativeSession } from "@/lib/nativeSessionPersistence";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
-import logo from "@/assets/logo.png";
+import { ProGeniaLogo } from "@/components/ProGeniaLogo";
 import { z } from "zod";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -502,7 +504,7 @@ const Auth = () => {
         setIsEmailConfirmDialogOpen(true);
 
         // Sign out até o usuário confirmar o email
-        await supabase.auth.signOut();
+        await authService.signOut();
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -549,12 +551,19 @@ const Auth = () => {
           .eq('id', data.user.id)
           .maybeSingle();
         if (!isEmailConfirmed && !profile?.email_verified) {
-          await supabase.auth.signOut();
+          await authService.signOut();
           toast.error("E-mail não verificado", {
             description: "Por favor, verifique seu e-mail e clique no link de confirmação para ativar sua conta.",
           });
           return;
         }
+      }
+
+      if (isNative && data.session) {
+        await saveNativeSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
       }
 
       toast.success("Bem-vindo de volta!");
@@ -571,13 +580,13 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-background flex items-start justify-center p-3 pt-6 sm:items-center sm:p-4 safe-bottom">
+    <div className="min-h-[100dvh] bg-background flex items-start justify-center p-3 sm:items-center sm:p-4 safe-top safe-bottom">
       <div className="w-full max-w-2xl">
         <div className="text-center mb-6 sm:mb-8">
-          <img src={logo} alt="ProGenia" className="h-16 mx-auto mb-4 progenia-logo" />
+          <ProGeniaLogo className="h-16 mx-auto mb-4 progenia-logo" />
           <h1 className="text-2xl sm:text-3xl font-bold">Bem-vindo à ProGenia</h1>
           <p className="text-muted-foreground mt-2">
-            Acesse sua conta e continue seu plano de estudos
+            Entre e continue seus estudos
           </p>
         </div>
 
@@ -626,7 +635,7 @@ const Auth = () => {
                     Esqueceu sua senha?
                   </Button>
                   <p className="text-xs text-muted-foreground mt-2 px-4">
-                    Após criar sua conta, você receberá um e-mail de verificação. Clique no link para ativar sua conta antes de fazer login.
+                    Confirme sua conta pelo link do e-mail antes de entrar.
                   </p>
                 </div>
               </form>

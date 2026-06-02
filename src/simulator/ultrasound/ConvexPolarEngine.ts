@@ -13,6 +13,8 @@
 import { UltrasoundLayerConfig, UltrasoundInclusionConfig, getAcousticMedium } from '@/types/acousticMedia';
 import { UnifiedPhysicsCore, PhysicsConfig, TissueProperties } from './UnifiedPhysicsCore';
 
+type ConvexCanvasContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
 export interface ConvexPolarConfig {
   // Geometria do transdutor
   fovDegrees: number;           // Abertura total do leque (60-90°)
@@ -100,7 +102,7 @@ export class ConvexPolarEngine {
   /**
    * Renderiza um frame completo
    */
-  render(ctx: CanvasRenderingContext2D) {
+  render(ctx: ConvexCanvasContext) {
     this.time += 0.016;
     
     // Atualizar tempo no motor de física
@@ -1041,7 +1043,7 @@ export class ConvexPolarEngine {
    * ETAPA 2: Renderiza polar → canvas com ARCO DO TRANSDUTOR
    * ═══════════════════════════════════════════════════════════════════
    */
-  private renderPolarToCanvas(ctx: CanvasRenderingContext2D) {
+  private renderPolarToCanvas(ctx: ConvexCanvasContext) {
     const { canvasWidth, canvasHeight, fovDegrees, maxDepthCm, transducerRadiusCm, numDepthSamples, numAngleSamples } = this.config;
     
     const imageData = ctx.createImageData(canvasWidth, canvasHeight);
@@ -1217,7 +1219,7 @@ export class ConvexPolarEngine {
   /**
    * Desenha o arco do transdutor (para debug)
    */
-  private drawTransducerArc(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius: number, halfFOV: number) {
+  private drawTransducerArc(ctx: ConvexCanvasContext, cx: number, cy: number, radius: number, halfFOV: number) {
     ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
     ctx.lineWidth = 2;
     ctx.beginPath();

@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Mail, Phone, User, Send } from "lucide-react";
 import { z } from "zod";
-import logo from "@/assets/logo.png";
+import { ProGeniaLogo } from "@/components/ProGeniaLogo";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { loadLegalBundle } from "@/lib/legal";
 
@@ -112,7 +112,7 @@ const Contact = () => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
       <Link to="/" className="mb-8">
-        <img src={logo} alt="ProGenia" className="h-16 hover:opacity-80 transition-opacity cursor-pointer progenia-logo" />
+        <ProGeniaLogo className="h-16 hover:opacity-80 transition-opacity cursor-pointer progenia-logo" />
       </Link>
       <Card className="w-full max-w-2xl">
         <CardHeader>

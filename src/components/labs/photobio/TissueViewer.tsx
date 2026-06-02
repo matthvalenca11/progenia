@@ -1,8 +1,10 @@
 import { useMemo, useRef, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import { Html, OrbitControls, PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
 import { usePhotobioStore } from "@/stores/photobioStore";
+import { LabCanvasSurface } from "@/components/labs/LabCanvasSurface";
+import { isAndroidNative } from "@/lib/labPerformance";
 import { Button } from "@/components/ui/button";
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
@@ -842,7 +844,7 @@ export function TissueViewer() {
         </Button>
       </div>
       <div className="h-full w-full overflow-hidden rounded-lg bg-[#0f0f12]">
-        <Canvas dpr={[1, 1.8]} onContextMenu={(e) => e.preventDefault()}>
+        <LabCanvasSurface onContextMenu={(e) => e.preventDefault()}>
           <PerspectiveCamera makeDefault position={[0, 1.25, 8.6]} fov={42} />
           <TissueScene
             wavelength={wavelength}
@@ -866,8 +868,15 @@ export function TissueViewer() {
             onTransducerLeftDragMove={handleTransducerLeftDragMove}
             onTransducerRightDragEnd={handleTransducerRightDragEnd}
           />
-          <OrbitControls enablePan={false} minDistance={6.5} maxDistance={11.5} maxPolarAngle={Math.PI * 0.6} />
-        </Canvas>
+          <OrbitControls
+            makeDefault
+            enablePan={false}
+            minDistance={6.5}
+            maxDistance={11.5}
+            maxPolarAngle={Math.PI * 0.6}
+            enableDamping={!isAndroidNative}
+          />
+        </LabCanvasSurface>
       </div>
     </div>
   );

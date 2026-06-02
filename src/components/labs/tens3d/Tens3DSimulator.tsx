@@ -1,4 +1,4 @@
-import { Canvas } from '@react-three/fiber';
+import { LabCanvas } from '@/components/labs/LabCanvas';
 import { useState, useMemo, useEffect } from 'react';
 import { TensMode } from '@/lib/tensSimulation';
 import { TissueConfig, RiskResult } from '@/types/tissueConfig';
@@ -143,16 +143,7 @@ export function Tens3DSimulator({
       </div>
 
       {/* 3D Canvas */}
-      <Canvas 
-        gl={{ 
-          preserveDrawingBuffer: true, 
-          antialias: true,
-          alpha: true,
-          powerPreference: 'high-performance'
-        }}
-        shadows
-        dpr={[1, 2]}
-      >
+      <LabCanvas>
         {/* Configuração compartilhada da cena (câmera, controles, iluminação, fog) */}
         <Tens3DSceneSetup />
 
@@ -224,7 +215,7 @@ export function Tens3DSimulator({
 
         {/* Grid Helper (subtle) - aumentado para acomodar eletrodos mais distantes */}
         <gridHelper args={[24, 24, '#334155', '#1e293b']} position={[0, -4, 0]} />
-      </Canvas>
+      </LabCanvas>
 
       {/* Instructions */}
       <div className="absolute bottom-4 left-4 text-xs text-slate-400">

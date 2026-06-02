@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase, APP_URL } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import logo from "@/assets/logo.png";
+import { ProGeniaLogo } from "@/components/ProGeniaLogo";
 import { ArrowLeft, Mail } from "lucide-react";
 import { z } from "zod";
 
@@ -55,7 +55,7 @@ const ForgotPassword = () => {
 
   if (emailSent) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 safe-top safe-bottom">
         <Card className="w-full max-w-md p-8">
           <div className="flex flex-col items-center text-center space-y-4">
             <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
@@ -86,10 +86,10 @@ const ForgotPassword = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 safe-top safe-bottom">
       <Card className="w-full max-w-md p-8">
         <div className="flex flex-col items-center mb-8">
-          <img src={logo} alt="ProGenia" className="h-16 mb-4 progenia-logo" />
+          <ProGeniaLogo className="h-16 mb-4 progenia-logo" />
           <h2 className="text-2xl font-bold text-center mb-2">Esqueceu sua senha?</h2>
           <p className="text-muted-foreground text-center text-sm">
             Digite seu e-mail e enviaremos um link para redefinir sua senha.

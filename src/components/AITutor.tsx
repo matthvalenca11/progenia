@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
@@ -108,7 +108,12 @@ interface Message {
   content: string;
 }
 
-const AITutor = () => {
+interface AITutorProps {
+  /** Conteúdo à esquerda do FAB no mobile (ex.: cookies). */
+  mobileLeadingActions?: ReactNode;
+}
+
+const AITutor = ({ mobileLeadingActions }: AITutorProps) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { language } = useLanguage();
@@ -223,10 +228,10 @@ const AITutor = () => {
   };
 
   if (!isOpen) {
-    return (
+    const tutorFabButton = (
       <Button
         onClick={() => setIsOpen(true)}
-        className="fixed z-50 inline-flex items-center gap-2 rounded-full gradient-accent text-white shadow-glow bottom-[calc(var(--sab,env(safe-area-inset-bottom,0px))+0.75rem)] right-[calc(var(--sar,env(safe-area-inset-right,0px))+0.75rem)] h-12 px-4 text-sm md:bottom-6 md:right-6 md:h-14 md:px-5 md:text-base"
+        className="inline-flex h-12 shrink-0 items-center gap-2 rounded-full gradient-accent px-4 text-sm text-white shadow-glow md:fixed md:z-50 md:h-14 md:px-5 md:text-base md:bottom-6 md:right-6"
       >
         <Brain className="h-5 w-5" />
         <span className="font-semibold" data-no-auto-translate="true">
@@ -234,6 +239,17 @@ const AITutor = () => {
         </span>
       </Button>
     );
+
+    if (isMobile) {
+      return (
+        <div className="fixed z-50 flex items-center gap-2 bottom-[calc(var(--sab,env(safe-area-inset-bottom,0px))+0.75rem)] right-[calc(var(--sar,env(safe-area-inset-right,0px))+0.75rem)] md:hidden">
+          {mobileLeadingActions}
+          {tutorFabButton}
+        </div>
+      );
+    }
+
+    return tutorFabButton;
   }
 
   return (

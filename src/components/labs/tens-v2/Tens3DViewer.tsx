@@ -3,7 +3,7 @@
  * Agora usa os mesmos componentes avançados do builder para visualização idêntica
  */
 
-import { Canvas } from '@react-three/fiber';
+import { LabCanvasSurface } from '@/components/labs/LabCanvasSurface';
 import { useTensLabStore, ViewerTab } from '@/stores/tensLabStore';
 import { Tens3DSceneSetup } from '@/components/labs/tens3d/Tens3DSceneSetup';
 import { TissueLayersModel } from '@/components/labs/tens3d/TissueLayersModel';
@@ -96,16 +96,7 @@ export function Tens3DViewer() {
   return (
     <div className="relative w-full h-full bg-gradient-to-b from-slate-900 to-slate-950" style={{ touchAction: "none" }}>
       {/* Canvas */}
-      <Canvas 
-        gl={{ 
-          preserveDrawingBuffer: true, 
-          antialias: true,
-          alpha: true,
-          powerPreference: 'high-performance'
-        }}
-        shadows 
-        dpr={[1, 2]}
-      >
+      <LabCanvasSurface>
         {/* Configuração compartilhada da cena (câmera, controles, iluminação, fog) - igual ao builder */}
         <Tens3DSceneSetup />
 
@@ -177,7 +168,7 @@ export function Tens3DViewer() {
 
         {/* Grid Helper (subtle) - aumentado para acomodar eletrodos mais distantes */}
         <gridHelper args={[24, 24, '#334155', '#1e293b']} position={[0, -4, 0]} />
-      </Canvas>
+      </LabCanvasSurface>
 
       {/* Instrução */}
       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] text-slate-600 text-center px-2">

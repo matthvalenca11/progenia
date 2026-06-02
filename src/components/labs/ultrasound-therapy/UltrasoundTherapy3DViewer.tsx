@@ -3,10 +3,11 @@
  * Versão V1 simplificada - mostra tecidos, feixe acústico e mapa de temperatura
  */
 
-import React, { useEffect, useMemo } from 'react';
-import { Canvas } from '@react-three/fiber';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { LabCanvasSurface } from '@/components/labs/LabCanvasSurface';
 import { PerspectiveCamera, OrbitControls, Grid } from '@react-three/drei';
 import { useUltrasoundTherapyStore } from '@/stores/ultrasoundTherapyStore';
+import { isAndroidNative } from '@/lib/labPerformance';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Eye, Waves, Thermometer } from "lucide-react";
 import { TissueLayers } from './TissueLayers';
@@ -24,6 +25,7 @@ interface UltrasoundTherapy3DViewerProps {
 }
 
 export function UltrasoundTherapy3DViewer({ hideTabs = false }: UltrasoundTherapy3DViewerProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const { 
     config, 
     simulationResult,
@@ -56,8 +58,31 @@ export function UltrasoundTherapy3DViewer({ hideTabs = false }: UltrasoundTherap
     return config.transducerPosition || { x: 0, y: 0 };
   }, [config.movement, config.transducerPosition, scanTime]);
 
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root) return;
+
+    const syncCanvasSize = () => {
+      const canvas = root.querySelector("canvas");
+      if (!canvas) return;
+      canvas.style.display = "block";
+      canvas.style.width = "100%";
+      canvas.style.maxWidth = "100%";
+      canvas.style.minWidth = "0";
+      canvas.style.height = "100%";
+    };
+
+    syncCanvasSize();
+    const observer = new ResizeObserver(syncCanvasSize);
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="relative h-full w-full bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900">
+    <div
+      ref={containerRef}
+      className="relative h-full w-full min-w-0 max-w-full overflow-hidden bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900"
+    >
       {!hideTabs && (
         <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2">
           <Tabs value={viewerTab} onValueChange={(v) => setViewerTab(v as ViewerTab)}>
@@ -77,15 +102,20 @@ export function UltrasoundTherapy3DViewer({ hideTabs = false }: UltrasoundTherap
       )}
 
       {/* 3D Canvas */}
-      <Canvas>
+      <LabCanvasSurface
+        resize={{ scroll: false, debounce: { scroll: 50, resize: 0 } }}
+      >
         <PerspectiveCamera makeDefault position={[0, 2.5, 10]} fov={55} />
         <OrbitControls 
+          makeDefault
           maxPolarAngle={Math.PI / 2.1}
           minPolarAngle={Math.PI / 5}
           maxDistance={35}
           minDistance={5}
-          enableDamping={true}
+          enableDamping={!isAndroidNative}
           dampingFactor={0.05}
+          rotateSpeed={isAndroidNative ? 0.85 : 1}
+          zoomSpeed={isAndroidNative ? 0.9 : 1}
         />
         
         {/* Enhanced Lighting (local to this viewer) - brighter top/transducer without changing other labs */}
@@ -182,7 +212,7 @@ export function UltrasoundTherapy3DViewer({ hideTabs = false }: UltrasoundTherap
             frequency={config.frequency}
           />
         )}
-      </Canvas>
+      </LabCanvasSurface>
     </div>
   );
 }

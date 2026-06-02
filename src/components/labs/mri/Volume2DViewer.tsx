@@ -6,6 +6,7 @@
 import { useMemo, useRef, useEffect, useState, useCallback } from "react";
 import { useMRILabStore } from "@/stores/mriLabStore";
 import { calculateSyntheticVoxel } from "@/simulation/mriEngine";
+import { mriNativeRenderScale } from "@/lib/labRuntime";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -75,6 +76,9 @@ export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
 
     const { width, height, data } = normalizedVolume;
     const sliceZ = currentSlice;
+    const scale = mriNativeRenderScale;
+    const outW = Math.max(1, Math.round(width * scale));
+    const outH = Math.max(1, Math.round(height * scale));
 
     console.log('[Volume2DViewer] Generating ImageData:', {
       width,
@@ -97,8 +101,8 @@ export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
       return null;
     }
 
-    // Criar ImageData
-    const imageData = new ImageData(width, height);
+    // Criar ImageData (menor no app nativo)
+    const imageData = new ImageData(outW, outH);
     const imageDataArray = imageData.data;
 
     // Window/Level
@@ -117,11 +121,12 @@ export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
     const targetTR = config.tr;
     const targetTE = config.te;
 
-    // Extrair fatia, aplicar contraste sintético e depois window/level
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        // Volume index: x + y*width + z*width*height
-        const volumeIndex = x + y * width + sliceZ * width * height;
+    // Extrair fatia com subamostragem opcional (performance mobile)
+    for (let y = 0; y < outH; y++) {
+      for (let x = 0; x < outW; x++) {
+        const srcX = scale < 1 ? Math.min(width - 1, Math.floor(x / scale)) : x;
+        const srcY = scale < 1 ? Math.min(height - 1, Math.floor(y / scale)) : y;
+        const volumeIndex = srcX + srcY * width + sliceZ * width * height;
 
         if (volumeIndex >= data.length) {
           console.warn(`[Volume2DViewer] Volume index ${volumeIndex} out of bounds`);
@@ -132,7 +137,7 @@ export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
 
         if (isNaN(intensity) || !isFinite(intensity)) {
           // Preencher com preto se valor inválido
-          const pixelIndex = (y * width + x) * 4;
+          const pixelIndex = (y * outW + x) * 4;
           imageDataArray[pixelIndex] = 0;
           imageDataArray[pixelIndex + 1] = 0;
           imageDataArray[pixelIndex + 2] = 0;
@@ -157,7 +162,7 @@ export function Volume2DViewer({ showDebug = false }: Volume2DViewerProps) {
         const grayValue = Math.min(255, Math.max(0, Math.round(normalized * 255)));
 
         // Set RGBA
-        const pixelIndex = (y * width + x) * 4;
+        const pixelIndex = (y * outW + x) * 4;
         imageDataArray[pixelIndex] = grayValue;     // R
         imageDataArray[pixelIndex + 1] = grayValue; // G
         imageDataArray[pixelIndex + 2] = grayValue; // B

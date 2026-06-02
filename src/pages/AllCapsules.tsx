@@ -8,7 +8,7 @@ import { ArrowLeft, Sparkles, Clock, CheckCircle2, PlayCircle, Filter, Search } 
 import { toast } from "sonner";
 import { capsulaService, Capsula } from "@/services/capsulaService";
 import { useAuth } from "@/hooks/useAuth";
-import logo from "@/assets/logo.png";
+import { ProGeniaLogo } from "@/components/ProGeniaLogo";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -255,7 +255,7 @@ export default function AllCapsules() {
       <div className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur">
         <div className="container mx-auto flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-4">
           <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start sm:gap-4">
-            <img src={logo} alt="ProGenia" className="h-11 progenia-logo cursor-pointer" onClick={() => navigate("/dashboard")} />
+            <ProGeniaLogo className="h-11 progenia-logo cursor-pointer" onClick={() => navigate("/dashboard")} />
             <Button
               variant="ghost"
               onClick={() => navigate("/dashboard")}
@@ -303,14 +303,13 @@ export default function AllCapsules() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="mobile-page-title mb-2">Todas as Cápsulas</h1>
-          <p className="text-muted-foreground">
-            {searchQuery.trim() 
-              ? `Encontradas ${filteredCapsulas.length} cápsula${filteredCapsulas.length !== 1 ? 's' : ''} para "${searchQuery}"`
-              : selectedModuleId === "all" 
-                ? "Explore todas as cápsulas disponíveis"
-                : `Cápsulas do módulo: ${selectedModule?.title || ""}`
-            }
-          </p>
+          {(searchQuery.trim() || selectedModuleId !== "all") && (
+            <p className="text-muted-foreground">
+              {searchQuery.trim()
+                ? `Encontradas ${filteredCapsulas.length} cápsula${filteredCapsulas.length !== 1 ? "s" : ""} para "${searchQuery}"`
+                : `Cápsulas do módulo: ${selectedModule?.title || ""}`}
+            </p>
+          )}
         </div>
 
         {/* Cápsulas do módulo selecionado (em destaque) */}

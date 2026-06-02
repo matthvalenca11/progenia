@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import { OrbitControls, Stats } from "@react-three/drei";
+import { LabCanvas } from "@/components/labs/LabCanvas";
 import { useMRILabStore } from "@/stores/mriLabStore";
+import { isAndroidNative } from "@/lib/labPerformance";
+import { mriNativeSurfaceResolution } from "@/lib/labRuntime";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import * as THREE from "three";
@@ -143,7 +146,7 @@ export function ThreeVolumeSurfaceViewer({ showDebug = false }: ThreeVolumeSurfa
 
   // iso em [0,1] - faixa estreita para superfície cortical
   const [iso, setIso] = useState(0.56);
-  const res = 96;
+  const res = mriNativeSurfaceResolution;
 
   if (!volume || !(normalizedVolume?.isValid || dicomReady)) {
     return (
@@ -159,15 +162,15 @@ export function ThreeVolumeSurfaceViewer({ showDebug = false }: ThreeVolumeSurfa
   return (
     <div className="w-full h-full flex flex-col bg-background">
       <div className="flex-1 relative bg-black">
-        <Canvas camera={{ position: [0, 0, 220], fov: 35 }}>
+        <LabCanvas camera={{ position: [0, 0, 220], fov: 35 }}>
           <color attach="background" args={["#050509"]} />
           <ambientLight intensity={0.35} />
           <directionalLight intensity={0.9} position={[150, 200, 200]} />
           <directionalLight intensity={0.35} position={[-150, -100, 50]} />
           <BrainIsoSurface iso={iso} res={res} />
-          <OrbitControls enablePan enableRotate enableZoom />
+          <OrbitControls makeDefault enablePan enableRotate enableZoom enableDamping={!isAndroidNative} />
           {showDebug && <Stats />}
-        </Canvas>
+        </LabCanvas>
         <div className="pointer-events-none absolute bottom-2 left-2 bg-black/60 text-white text-[11px] px-2 py-1 rounded font-mono">
           Arraste para rotacionar · Scroll para zoom
         </div>

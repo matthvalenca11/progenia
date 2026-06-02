@@ -19,6 +19,7 @@ import { useNavigate } from "react-router-dom";
 import { clinicalPresets, applyPreset } from "@/config/ultrasoundTherapyPresets";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { LabMobilePanelTab, LabMobileTabBar } from "@/components/labs/LabMobileTabBar";
+import { labMobileInsetX, labMobileGridClass, labMobilePanelClass, labCanvasHostClass } from "@/components/labs/labMobileLayout";
 
 interface UltrasoundTherapyLabV2Props {
   config?: UltrasoundTherapyConfig;
@@ -138,16 +139,18 @@ export function UltrasoundTherapyLabV2({
 
   if (isMobile) {
     const shellHeight = embedded ? "h-[min(88dvh,780px)]" : "h-[100dvh]";
+    const insetX = labMobileInsetX(embedded);
 
     return (
       <div
         className={cn(
-          "grid w-full min-w-0 max-w-full overflow-hidden bg-background",
+          labMobileGridClass,
+          "bg-background",
           shellHeight,
-          "grid-rows-[auto_minmax(34dvh,40dvh)_auto_minmax(0,1fr)]",
+          "grid-rows-[auto_minmax(34dvh,40dvh)_minmax(0,1fr)]",
         )}
       >
-        <header className="safe-area-top z-50 shrink-0 border-b border-border bg-card/95 px-2 py-2 backdrop-blur sm:px-3">
+        <header className={cn("safe-area-top z-50 shrink-0 border-b border-border bg-card/95 py-2 backdrop-blur", insetX)}>
           <div className="flex items-center gap-1.5">
             {showBackButton && (
               <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")} className="h-8 w-8 shrink-0">
@@ -173,11 +176,11 @@ export function UltrasoundTherapyLabV2({
           </div>
         </header>
 
-        <section className="relative min-h-0 min-w-0 border-b border-border bg-background">
-          <div className="absolute inset-0 p-0.5">
+        <section className="relative min-h-0 min-w-0 max-w-full overflow-hidden border-b border-border bg-background">
+          <div className={labCanvasHostClass}>
             <UltrasoundTherapy3DViewer hideTabs />
           </div>
-          <div className="absolute bottom-2 left-2 right-2 z-10">
+          <div className={cn("absolute bottom-2 left-0 right-0 z-10", insetX)}>
             <div
               className="grid grid-cols-3 gap-1 rounded-lg border border-border/60 bg-background/95 p-1 shadow-sm backdrop-blur"
               style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}
@@ -207,22 +210,26 @@ export function UltrasoundTherapyLabV2({
           </div>
         </section>
 
-        <LabMobileTabBar
-          active={mobilePanel}
-          onChange={setMobilePanel}
-          tabs={[
-            { id: "controls", label: "Controles" },
-            { id: "metrics", label: "Métricas" },
-          ]}
-        />
+        <div className={labMobilePanelClass(embedded)}>
+          <LabMobileTabBar
+            active={mobilePanel}
+            onChange={setMobilePanel}
+            embedded={embedded}
+            disableInset
+            tabs={[
+              { id: "controls", label: "Controles" },
+              { id: "metrics", label: "Métricas" },
+            ]}
+          />
 
-        <section className="min-h-0 w-full min-w-0 max-w-full overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y bg-card pb-14 pr-1 pl-1 sm:pb-[max(0.5rem,var(--sab,env(safe-area-inset-bottom,0px)))] sm:px-0">
-          {mobilePanel === "controls" ? (
-            <UltrasoundTherapyControlPanel hideHeader compact />
-          ) : (
-            <UltrasoundTherapyInsightsPanel hideHeader compact />
-          )}
-        </section>
+          <section className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y pb-14 sm:pb-[max(0.5rem,var(--sab,env(safe-area-inset-bottom,0px)))]">
+            {mobilePanel === "controls" ? (
+              <UltrasoundTherapyControlPanel hideHeader compact />
+            ) : (
+              <UltrasoundTherapyInsightsPanel hideHeader compact />
+            )}
+          </section>
+        </div>
       </div>
     );
   }

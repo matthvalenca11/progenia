@@ -5,6 +5,11 @@ export const isNativeApp = Capacitor.isNativePlatform();
 export const isNativeMobile =
   isNativeApp && (Capacitor.getPlatform() === "ios" || Capacitor.getPlatform() === "android");
 
+/** Rota pública inicial / pós-logout: landing na web, login no app nativo. */
+export function getPublicEntryPath() {
+  return isNativeApp ? "/auth" : "/";
+}
+
 export async function initNativeApp() {
   if (!isNativeApp) return;
 
@@ -12,6 +17,11 @@ export async function initNativeApp() {
   if (Capacitor.getPlatform() === "ios") {
     document.documentElement.classList.add("native-ios");
   }
+  if (Capacitor.getPlatform() === "android") {
+    document.documentElement.classList.add("native-android");
+  }
+
+  document.documentElement.dataset.labRuntime = "native";
 
   let viewport = document.querySelector('meta[name="viewport"]');
   if (!viewport) {
@@ -30,5 +40,7 @@ export async function initNativeApp() {
   });
 
   document.body.style.overscrollBehavior = "none";
-  document.body.style.touchAction = "manipulation";
+  if (Capacitor.getPlatform() !== "android") {
+    document.body.style.touchAction = "manipulation";
+  }
 }

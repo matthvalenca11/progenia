@@ -1,8 +1,9 @@
 import { useRef, useMemo, useEffect, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { LabCanvas } from "@/components/labs/LabCanvas";
 import * as THREE from "three";
 
 // Fragment shader for realistic ultrasound rendering
@@ -271,7 +272,7 @@ const UltrasoundRealisticLab = () => {
         {/* ULTRASOUND DISPLAY */}
         <div className="space-y-4">
           <Card className="relative h-[500px] w-full overflow-hidden rounded-lg bg-black border border-slate-700">
-            <Canvas
+            <LabCanvas
               camera={{ position: [0, 0, 5], fov: 50 }}
               style={{ width: "100%", height: "100%" }}
             >
@@ -280,7 +281,7 @@ const UltrasoundRealisticLab = () => {
                 focus={shaderFocus}
                 frequency={shaderFreq}
               />
-            </Canvas>
+            </LabCanvas>
 
             {/* Overlay info */}
             <div className="absolute top-2 left-2 text-[10px] font-mono text-green-400 bg-black/60 px-2 py-1 rounded">

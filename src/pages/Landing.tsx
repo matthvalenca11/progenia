@@ -17,7 +17,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
-import logo from "@/assets/logo.png";
+import { ProGeniaLogo } from "@/components/ProGeniaLogo";
 import landingHeroVideoPoster from "@/assets/landing-hero-video-poster.png";
 import { PostCard } from "@/components/blog/PostCard";
 import { PostDetailModal } from "@/components/blog/PostDetailModal";
@@ -414,7 +414,7 @@ const Landing = () => {
               to="/"
               className="flex shrink-0 items-center gap-2 rounded-xl outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <img src={logo} alt="ProGenia" className="h-9 progenia-logo sm:h-10" />
+              <ProGeniaLogo className="h-9 progenia-logo sm:h-10" />
             </Link>
             <nav
               className="flex items-center gap-0.5 sm:gap-1"
@@ -733,7 +733,7 @@ const Landing = () => {
       <footer className="border-t border-border/40 py-6">
         <div className="mx-auto max-w-6xl px-4">
           <div className="flex flex-col items-center gap-3 md:flex-row md:justify-between md:gap-4">
-            <img src={logo} alt="ProGenia" className="h-8 progenia-logo" />
+            <ProGeniaLogo className="h-8 progenia-logo" />
             <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm font-medium text-muted-foreground">
               <Link to="/sobre" className="transition-colors hover:text-primary">
                 {t.footerAbout}

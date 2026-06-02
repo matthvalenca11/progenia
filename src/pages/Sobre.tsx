@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Users } from "lucide-react";
-import logo from "@/assets/logo.png";
+import { ProGeniaLogo } from "@/components/ProGeniaLogo";
 import { DynamicSectionRenderer } from "@/components/admin/DynamicSectionRenderer";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { loadLegalBundle } from "@/lib/legal";
@@ -140,7 +140,7 @@ const Sobre = () => {
         <div className="container mx-auto px-3 py-3 sm:px-6 sm:py-5">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 sm:gap-3 cursor-pointer hover-scale" onClick={() => navigate("/")}>
-              <img src={logo} alt="ProGenia" className="h-9 sm:h-12 progenia-logo" />
+              <ProGeniaLogo className="h-9 sm:h-12 progenia-logo" />
               <span className="text-lg sm:text-2xl font-bold gradient-text">ProGenia</span>
             </div>
             <div className="flex items-center gap-2">

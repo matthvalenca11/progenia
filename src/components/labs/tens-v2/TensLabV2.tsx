@@ -16,6 +16,7 @@ import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { LabMobilePanelTab, LabMobileTabBar } from "@/components/labs/LabMobileTabBar";
+import { labMobileFlexClass, labMobilePanelClass, labCanvasHostClass } from "@/components/labs/labMobileLayout";
 
 interface TensLabV2Props {
   config?: TensLabConfig;
@@ -83,8 +84,8 @@ export function TensLabV2({
 
   if (isMobile) {
     return (
-      <div className="flex h-[100dvh] flex-col overflow-hidden bg-background">
-        <header className="safe-area-top z-50 shrink-0 border-b border-border bg-card/95 px-3 py-2 backdrop-blur">
+      <div className={cn(labMobileFlexClass, "h-[100dvh] bg-background")}>
+        <header className="safe-area-top lab-mobile-inset-x z-50 shrink-0 border-b border-border bg-card/95 py-2 backdrop-blur">
           <div className="flex items-center gap-2">
             {showBackButton && (
               <Button
@@ -127,28 +128,31 @@ export function TensLabV2({
           {viewerTabs}
         </header>
 
-        <section className="relative h-[min(48dvh,55vh)] min-h-[40dvh] shrink-0 border-b border-border bg-background">
-          <div className="absolute inset-0 p-1">
+        <section className="relative h-[min(48dvh,55vh)] min-h-[40dvh] shrink-0 overflow-hidden border-b border-border bg-background">
+          <div className={labCanvasHostClass}>
             <Tens3DViewer />
           </div>
         </section>
 
-        <LabMobileTabBar
-          active={mobilePanel}
-          onChange={setMobilePanel}
-          tabs={[
-            { id: "controls", label: "Controles" },
-            { id: "metrics", label: "Métricas" },
-          ]}
-        />
+        <div className={labMobilePanelClass()}>
+          <LabMobileTabBar
+            active={mobilePanel}
+            onChange={setMobilePanel}
+            disableInset
+            tabs={[
+              { id: "controls", label: "Controles" },
+              { id: "metrics", label: "Métricas" },
+            ]}
+          />
 
-        <section className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-card pb-[max(0.5rem,var(--sab,env(safe-area-inset-bottom,0px)))]">
-          {mobilePanel === "controls" ? (
-            <TensLabControlPanel hideHeader />
-          ) : (
-            <TensLabInsightsPanel hideHeader />
-          )}
-        </section>
+          <section className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y pb-[max(0.5rem,var(--sab,env(safe-area-inset-bottom,0px)))]">
+            {mobilePanel === "controls" ? (
+              <TensLabControlPanel hideHeader />
+            ) : (
+              <TensLabInsightsPanel hideHeader />
+            )}
+          </section>
+        </div>
       </div>
     );
   }

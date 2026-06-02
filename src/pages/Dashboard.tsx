@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { GraduationCap, Trophy, Clock, BookOpen, LogOut, Zap, Award, TrendingUp, UserPlus, UserMinus, Sparkles, ArrowRight, Activity, FlaskConical, ChevronLeft, ChevronRight, Pill, FileText, CheckCircle2, RotateCcw, User, Bug, Trash2, Search, Shield, Waves, Magnet, Sun, Target } from "lucide-react";
-import logo from "@/assets/logo.png";
+import { ProGeniaLogo } from "@/components/ProGeniaLogo";
 import { toast } from "sonner";
 import { enrollmentService } from "@/services/enrollmentService";
 import { useCapsulasRecomendadas, useCapsulaInacabada } from "@/hooks/useCapsulas";
@@ -16,6 +16,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { getPublicEntryPath } from "@/lib/capacitor";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DeleteAccountDialog } from "@/components/dashboard/DeleteAccountDialog";
+import { LearningDiscoveryPrompt } from "@/components/dashboard/LearningDiscoveryPrompt";
 import { ReportBugDialog } from "@/components/dashboard/ReportBugDialog";
 
 interface UserProfile {
@@ -73,7 +75,7 @@ const getModuleIcon = (title: string) => {
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, signOut, user, session, bootstrapped } = useAuth();
   const { language } = useLanguage();
   const isEnglish = language === "en";
   const isMobile = useIsMobile();
@@ -113,53 +115,66 @@ const Dashboard = () => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const {
-        data: {
-          session
-        }
-      } = await supabase.auth.getSession();
-      if (!session) {
+      if (!bootstrapped) return;
+
+      if (!user || !session) {
         navigate("/auth");
         return;
       }
 
-      setUserId(session.user.id);
+      try {
+        const currentUserId = user.id;
+        setUserId(currentUserId);
+        setLoading(false);
 
-      // Fetch user profile
-      const {
-        data: profileData
-      } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
-      if (profileData) {
-        setProfile(profileData);
-      }
+        // Fetch user profile independently so it cannot block dashboard content.
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", currentUserId)
+          .maybeSingle();
+        if (profileError) console.error("Erro ao carregar perfil:", profileError);
+        if (profileData) {
+          setProfile(profileData);
+        }
 
-      // Fetch user stats
-      const {
-        data: statsData
-      } = await supabase.from("user_stats").select("*").eq("user_id", session.user.id).single();
-      if (statsData) {
-        setStats(statsData);
-      }
+        // Fetch user stats independently.
+        const { data: statsData, error: statsError } = await supabase
+          .from("user_stats")
+          .select("*")
+          .eq("user_id", currentUserId)
+          .maybeSingle();
+        if (statsError) console.error("Erro ao carregar stats:", statsError);
+        if (statsData) {
+          setStats(statsData);
+        }
 
-      // Fetch available modules
-      const {
-        data: modulesData
-      } = await supabase
-        .from("modules")
-        .select("*")
-        .eq("is_published", true)
-        .order("order_index");
-      if (modulesData) {
-        setModules(modulesData);
-        
-        // Fetch user enrollments
-        const enrollments = await enrollmentService.getUserEnrollments(session.user.id);
-        const enrolledModuleIds = new Set(enrollments.map(e => e.module_id));
-        setEnrolledModules(enrolledModuleIds);
+        // Fetch available modules
+        const { data: modulesData, error: modulesError } = await supabase
+          .from("modules")
+          .select("*")
+          .eq("is_published", true)
+          .order("order_index");
+        if (modulesError) {
+          console.error("Erro ao carregar módulos:", modulesError);
+        }
+        if (modulesData) {
+          setModules(modulesData);
+          
+          // Fetch user enrollments
+          let enrollments: Awaited<ReturnType<typeof enrollmentService.getUserEnrollments>> = [];
+          try {
+            enrollments = await enrollmentService.getUserEnrollments(currentUserId);
+          } catch (error) {
+            console.error("Erro ao carregar matrículas:", error);
+          }
+          const enrolledModuleIds = new Set(enrollments.map(e => e.module_id));
+          setEnrolledModules(enrolledModuleIds);
 
-        // Compute modules completed based on lesson and capsule progress (only enrolled modules)
-        if (enrolledModuleIds.size > 0) {
-          const enrolledModuleIdsArray = Array.from(enrolledModuleIds);
+        // Compute modules completed based on lesson and capsule progress (only enrolled modules).
+        try {
+          if (enrolledModuleIds.size > 0) {
+            const enrolledModuleIdsArray = Array.from(enrolledModuleIds);
           
           // Buscar aulas e cápsulas publicadas
           const { data: lessonsData } = await supabase
@@ -183,7 +198,7 @@ const Dashboard = () => {
             const { data } = await supabase
               .from("lesson_progress")
               .select("lesson_id,status")
-              .eq("user_id", session.user.id)
+              .eq("user_id", currentUserId)
               .in("lesson_id", lessonIds);
             lessonProgressData = data || [];
           }
@@ -193,7 +208,7 @@ const Dashboard = () => {
             const { data } = await supabase
               .from("capsula_progress")
               .select("capsula_id,status")
-              .eq("user_id", session.user.id)
+              .eq("user_id", currentUserId)
               .in("capsula_id", capsuleIds);
             capsuleProgressData = data || [];
           }
@@ -246,17 +261,25 @@ const Dashboard = () => {
             }
           });
 
-          setCompletedModules(completedModuleIds);
-          setModulesCompleted(count);
-        } else {
+            setCompletedModules(completedModuleIds);
+            setModulesCompleted(count);
+          } else {
+            setCompletedModules(new Set());
+            setModulesCompleted(0);
+          }
+        } catch (error) {
+          console.error("Erro ao calcular progresso dos módulos:", error);
           setCompletedModules(new Set());
           setModulesCompleted(0);
         }
+        }
+      } catch (error) {
+        console.error("Erro ao carregar dashboard:", error);
+        setLoading(false);
       }
-      setLoading(false);
     };
     checkAuth();
-  }, [navigate]);
+  }, [bootstrapped, navigate, session, user]);
 
   // Buscar contagem de cápsulas concluídas e calcular minutos de estudo
   useEffect(() => {
@@ -382,9 +405,9 @@ const Dashboard = () => {
     }
   }, [capsulaRecomendadas, capsulaInacabada, isEnglish]);
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await signOut();
     toast.success("Saiu com sucesso");
-    navigate("/");
+    navigate(getPublicEntryPath());
   };
   const handleStartModule = async (moduleId: string) => {
     if (!enrolledModules.has(moduleId)) {
@@ -772,7 +795,7 @@ const Dashboard = () => {
       <div className="min-h-[100dvh] bg-background">
         <nav className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <div className="mx-auto flex w-full max-w-full items-center justify-between gap-2 py-2.5">
-            <img src={logo} alt="ProGenia" className="h-8 progenia-logo" />
+            <ProGeniaLogo className="h-10 progenia-logo" />
             <div className="flex items-center gap-1.5">
               <Button
                 variant="outline"
@@ -835,47 +858,37 @@ const Dashboard = () => {
 
           <section className="grid grid-cols-2 gap-2">
             <Card className="p-2.5">
-              <p className="text-[10px] text-muted-foreground">Aulas</p>
+              <p className="text-[10px] text-muted-foreground">Aulas concluídas</p>
               <p className="text-lg font-semibold leading-tight">{stats?.total_lessons_completed || 0}</p>
             </Card>
             <Card className="p-2">
-              <p className="text-[10px] text-muted-foreground">Cápsulas</p>
+              <p className="text-[10px] text-muted-foreground">Cápsulas concluídas</p>
               <p className="text-lg font-semibold leading-tight">{capsulasConcluidas}</p>
             </Card>
             <Card className="p-2">
-              <p className="text-[10px] text-muted-foreground">Módulos</p>
+              <p className="text-[10px] text-muted-foreground">Módulos concluídos</p>
               <p className="text-lg font-semibold leading-tight">{modulesCompleted}</p>
             </Card>
             <Card className="p-2">
-              <p className="text-[10px] text-muted-foreground">Minutos</p>
+              <p className="text-[10px] text-muted-foreground">Minutos aprendidos</p>
               <p className="text-lg font-semibold leading-tight">{minutosEstudo}</p>
             </Card>
           </section>
 
-          <Card className="p-3">
-            <h2 className="mb-2 text-sm font-medium text-muted-foreground">Próxima ação</h2>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                className="flex-1"
-                onClick={() =>
-                  capsulaInacabada ? navigate(`/capsula/${capsulaInacabada.id}`) : navigate("/capsulas")
-                }
-              >
-                {capsulaInacabada ? "Continuar cápsula" : "Explorar cápsulas"}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => navigate("/search")}>
-                Buscar
-              </Button>
-            </div>
-          </Card>
+          <LearningDiscoveryPrompt capsulaInacabada={capsulaInacabada} />
 
           {!loadingRecomendadas && capsulaRecomendadas.length > 0 && (
             <section className="rounded-xl border border-border/70 bg-card/50 p-3">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h2 className="text-base font-bold sm:text-lg">Em alta hoje</h2>
-                <Button variant="ghost" size="sm" className="h-8 shrink-0 px-2 text-xs" onClick={() => navigate("/capsulas")}>
-                  Ver todas
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0 gap-1.5 border-accent/50 bg-accent/10 px-3 text-xs font-semibold text-accent shadow-sm hover:bg-accent/20 hover:text-accent"
+                  onClick={() => navigate("/capsulas")}
+                >
+                  <Pill className="h-3.5 w-3.5" />
+                  Todas as cápsulas
                 </Button>
               </div>
               <div className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -982,7 +995,7 @@ const Dashboard = () => {
       <nav className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur">
         <div className="container mx-auto flex flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4 sm:py-4">
           <div className="flex items-center gap-3">
-            <img src={logo} alt="ProGenia" className="h-10 progenia-logo" />
+            <ProGeniaLogo className="h-12 progenia-logo" />
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
             <form
@@ -1133,34 +1146,16 @@ const Dashboard = () => {
                 <span className="font-semibold">{modulesCompleted}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Minutos de estudo</span>
+                <span className="text-muted-foreground">Minutos aprendidos</span>
                 <span className="font-semibold">{minutosEstudo}</span>
               </div>
             </div>
           </Card>
         </div>
 
-        {/* Next Action */}
-        <Card className="p-6 mb-8">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h3 className="text-lg font-semibold mb-1">Próxima ação</h3>
-              <p className="text-sm text-muted-foreground">
-                {capsulaInacabada
-                  ? `Retome a cápsula "${capsulaInacabada.title}" para avançar no seu progresso.`
-                  : "Explore o catálogo de cápsulas para avançar no seu aprendizado."}
-              </p>
-            </div>
-            <Button
-              onClick={() =>
-                capsulaInacabada ? navigate(`/capsula/${capsulaInacabada.id}`) : navigate("/capsulas")
-              }
-            >
-              {capsulaInacabada ? "Continuar agora" : "Explorar cápsulas"}
-              <ArrowRight className="h-4 w-4 ml-2" />
-            </Button>
-          </div>
-        </Card>
+        <div className="mb-8">
+          <LearningDiscoveryPrompt capsulaInacabada={capsulaInacabada} />
+        </div>
 
         {/* Laboratórios Virtuais Destaque */}
         <VirtualLabsSection />
@@ -1173,6 +1168,15 @@ const Dashboard = () => {
                 <Pill className="h-6 w-6 text-accent" />
                 <h2 className="mobile-section-title">Em Alta Hoje</h2>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 border-accent/50 bg-accent/10 font-semibold text-accent shadow-sm hover:bg-accent/20 hover:text-accent"
+                onClick={() => navigate("/capsulas")}
+              >
+                <Pill className="h-4 w-4" />
+                Todas as cápsulas
+              </Button>
             </div>
             <div className="relative">
               {/* Seta esquerda - só aparece se não estiver no início */}

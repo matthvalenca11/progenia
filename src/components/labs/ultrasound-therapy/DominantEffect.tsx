@@ -106,7 +106,7 @@ export function DominantEffect({ compact = false }: { compact?: boolean }) {
 
   if (compact) {
     return (
-      <div className={`min-w-0 overflow-hidden rounded-md border px-2 py-1.5 ${dominantEffect.bgClass}`}>
+      <div className={`box-border w-full min-w-0 max-w-full overflow-hidden rounded-md border px-2 py-1.5 ${dominantEffect.bgClass}`}>
         <div className="flex min-w-0 items-start gap-2">
           <Icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${dominantEffect.color}`} />
           <div className="min-w-0 flex-1">

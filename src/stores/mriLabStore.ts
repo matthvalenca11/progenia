@@ -8,6 +8,7 @@ import { MRILabConfig, defaultMRILabConfig, VolumeMRI, DICOMSeries } from "@/typ
 import { simulateMRI, MRISimulationResult, applyMRIPreset } from "@/simulation/mriEngine";
 import { NormalizedVolume, ParsedVolume } from "@/lib/mri/volumeTypes";
 import { loadVolume } from "@/lib/mri/volumeLoader";
+import { isNativeLabRuntime, resolveBundledAssetUrl } from "@/lib/labRuntime";
 
 export interface DICOMVolume {
   width: number;  // Rows
@@ -80,7 +81,7 @@ interface MRILabActions {
   // Sincronização global de fatias (console de comando)
   syncSlices: (newIndex: number) => void;
   // Carregar um caso clínico (ex.: T1/T2 encéfalo)
-  loadClinicalCase: (caseId: string) => Promise<void>;
+  loadClinicalCase: (caseId: string, options?: { lite?: boolean }) => Promise<void>;
   // Selecionar sequência clínica globalmente (sincroniza Fatia 2D e MPR)
   setActiveSequence: (seq: "t1" | "t2" | "flair" | "t1ce") => void;
   // Atualizar rotações do MPR e mantê-las entre trocas de aba
@@ -553,8 +554,9 @@ export const useMRILabStore = create<MRILabStore>()((set, get) => {
       });
     },
 
-    loadClinicalCase: async (caseId: string) => {
-      console.log("[MRI Store] loadClinicalCase called with", caseId);
+    loadClinicalCase: async (caseId: string, options?: { lite?: boolean }) => {
+      const lite = options?.lite ?? isNativeLabRuntime;
+      console.log("[MRI Store] loadClinicalCase called with", caseId, lite ? "(lite)" : "");
       const state = get();
       if (state.loadingCase) {
         console.log("[MRI Store] loadClinicalCase: already loading, skipping");
@@ -601,8 +603,9 @@ export const useMRILabStore = create<MRILabStore>()((set, get) => {
         }
 
         const fetchAsFile = async (url: string, name: string): Promise<File> => {
-          console.log("[MRI Store] Baixando NIfTI de:", url);
-          const res = await fetch(url);
+          const resolvedUrl = resolveBundledAssetUrl(url);
+          console.log("[MRI Store] Carregando NIfTI local:", resolvedUrl);
+          const res = await fetch(resolvedUrl);
           if (!res.ok) {
             console.error("[MRI Store] Falha ao buscar arquivo:", url, res.status, res.statusText);
             throw new Error(`Falha ao carregar arquivo ${name} (${url}): ${res.status}`);
@@ -622,10 +625,10 @@ export const useMRILabStore = create<MRILabStore>()((set, get) => {
           loadVolume([fileT2]),
         ]);
 
-        // Volumes adicionais (FLAIR, T1ce) - opcionais
+        // Volumes adicionais (FLAIR, T1ce) — omitidos no modo lite (app nativo)
         let parsedFlair: ParsedVolume | null = null;
         let parsedT1ce: ParsedVolume | null = null;
-        if (flairUrl) {
+        if (!lite && flairUrl) {
           try {
             const fileFlair = await fetchAsFile(flairUrl, "brain_flair.nii");
             parsedFlair = await loadVolume([fileFlair]);
@@ -633,7 +636,7 @@ export const useMRILabStore = create<MRILabStore>()((set, get) => {
             console.warn("[MRI Store] FLAIR não carregado:", flairErr?.message ?? flairErr);
           }
         }
-        if (t1ceUrl) {
+        if (!lite && t1ceUrl) {
           try {
             const fileT1ce = await fetchAsFile(t1ceUrl, "brain_t1ce.nii");
             parsedT1ce = await loadVolume([fileT1ce]);
@@ -642,9 +645,9 @@ export const useMRILabStore = create<MRILabStore>()((set, get) => {
           }
         }
 
-        // Segmentação opcional: se falhar (ex.: formato diferente), continuamos sem overlay
+        // Segmentação opcional
         let parsedSeg: ParsedVolume | null = null;
-        if (segUrl) {
+        if (!lite && segUrl) {
           try {
             const fileSeg = await fetchAsFile(segUrl, "brain_seg.nii");
             parsedSeg = await loadVolume([fileSeg]);
@@ -769,8 +772,8 @@ export const useMRILabStore = create<MRILabStore>()((set, get) => {
           dicomError: null,
           loadingCase: false,
           caseError: null,
-          // limpar volumes normalizados genéricos para evitar conflitos
-          normalizedVolume: null,
+          // Mantém volume normalizado para viewer Canvas 2D (leve) em vez de Cornerstone
+          normalizedVolume: volNormA,
           dicomSeries: null,
           caseMetadataA: parsedT1.metadata ?? null,
           caseMetadataB: parsedT2.metadata ?? null,
@@ -779,6 +782,8 @@ export const useMRILabStore = create<MRILabStore>()((set, get) => {
           config: {
             ...get().config,
             sliceIndex: middleSlice,
+            activeViewer: isNativeLabRuntime ? "slice_2d" : get().config.activeViewer,
+            viewer2DMode: "canvas",
           },
         });
 

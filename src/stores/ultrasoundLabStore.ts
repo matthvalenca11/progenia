@@ -111,7 +111,7 @@ const DEFAULT_STUDENT_CONTROLS = {
   showDepth: true,
   showFrequency: true,
   showFocus: true,
-  showTransducerSelector: false,
+  showTransducerSelector: true,
   showModeSelector: false,
   lockGain: false,
   lockDepth: false,

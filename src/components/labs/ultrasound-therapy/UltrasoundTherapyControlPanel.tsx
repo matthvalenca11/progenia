@@ -240,7 +240,7 @@ export function UltrasoundTherapyControlPanel({
         </div>
       )}
       
-      <div className={`${compact ? "w-full min-w-0 max-w-full space-y-4 p-2 pb-8" : "flex-1 space-y-5 overflow-y-auto p-3"} ${hideHeader && !compact ? "pb-6" : ""}`}>
+      <div className={`${compact ? "w-full min-w-0 max-w-full space-y-4 pb-8 pt-1" : "flex-1 space-y-5 overflow-y-auto p-3"} ${hideHeader && !compact ? "pb-6" : ""}`}>
         {compact && (
           <div className="grid grid-cols-2 gap-2">
             <Select

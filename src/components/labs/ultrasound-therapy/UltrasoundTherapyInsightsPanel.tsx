@@ -70,9 +70,9 @@ function CompactMetricsPanel() {
     simulationResult.cumulativeDose > 60;
 
   return (
-    <div className="w-full min-w-0 max-w-full space-y-2 p-1.5 pb-4 sm:p-2">
+    <div className="box-border w-full min-w-0 max-w-full space-y-2 pb-4 pt-1">
       <div
-        className="grid grid-cols-2 gap-1.5"
+        className="grid min-w-0 grid-cols-2 gap-1.5"
         style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}
       >
         <MetricCell label="Risco" value={riskLabel} tone={riskTone as "emerald" | "amber" | "red"} />
@@ -83,18 +83,18 @@ function CompactMetricsPanel() {
 
       <DominantEffect compact />
 
-      <div className="space-y-1 rounded-md border border-border/60 bg-muted/20 px-2 py-2 text-[10px]">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-muted-foreground">Dose</span>
-          <span className="font-semibold">{simulationResult.doseJcm2.toFixed(1)} J/cm²</span>
+      <div className="min-w-0 space-y-1 rounded-md border border-border/60 bg-muted/20 px-2 py-2 text-[10px]">
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <span className="min-w-0 shrink text-muted-foreground">Dose</span>
+          <span className="shrink-0 font-semibold tabular-nums">{simulationResult.doseJcm2.toFixed(1)} J/cm²</span>
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-muted-foreground">Área</span>
-          <span className="font-semibold">{simulationResult.treatedArea.toFixed(1)} cm²</span>
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <span className="min-w-0 shrink text-muted-foreground">Área</span>
+          <span className="shrink-0 font-semibold tabular-nums">{simulationResult.treatedArea.toFixed(1)} cm²</span>
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-muted-foreground">Profundidade</span>
-          <span className="font-semibold">{simulationResult.effectiveDepth.toFixed(1)} cm</span>
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <span className="min-w-0 shrink text-muted-foreground">Profundidade</span>
+          <span className="shrink-0 font-semibold tabular-nums">{simulationResult.effectiveDepth.toFixed(1)} cm</span>
         </div>
       </div>
 

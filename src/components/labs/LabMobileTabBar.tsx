@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { labMobileInsetX } from "@/components/labs/labMobileLayout";
 
 export type LabMobilePanelTab = "controls" | "metrics" | "references";
 
@@ -12,14 +13,25 @@ interface LabMobileTabBarProps {
   active: LabMobilePanelTab;
   onChange: (tab: LabMobilePanelTab) => void;
   tabs: TabItem[];
+  embedded?: boolean;
+  /** Quando true, o padding horizontal vem do wrapper pai (painel unificado). */
+  disableInset?: boolean;
   className?: string;
 }
 
-export function LabMobileTabBar({ active, onChange, tabs, className }: LabMobileTabBarProps) {
+export function LabMobileTabBar({
+  active,
+  onChange,
+  tabs,
+  embedded = false,
+  disableInset = false,
+  className,
+}: LabMobileTabBarProps) {
   return (
     <nav
       className={cn(
-        "grid w-full min-w-0 max-w-full shrink-0 gap-1 border-b border-border bg-card/95 p-2",
+        !disableInset && labMobileInsetX(embedded),
+        "grid w-full min-w-0 max-w-full shrink-0 gap-1 border-b border-border bg-card/95 py-2",
         className,
       )}
       style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}

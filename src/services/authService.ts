@@ -1,5 +1,6 @@
 import { supabase, APP_URL } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
+import { clearNativeSession } from "@/lib/nativeSessionPersistence";
 
 export interface SignUpData {
   email: string;
@@ -127,22 +128,14 @@ export const authService = {
   async signOut() {
     try {
       const { error } = await supabase.auth.signOut({ scope: 'global' });
-      // Ignorar erro de sessão inexistente, mas avisar no console
       if (error && !String(error.message || '').toLowerCase().includes('session not found')) {
         console.warn('signOut warning:', error.message);
       }
     } catch (e) {
       console.warn('signOut error:', e);
     } finally {
-      // Limpeza defensiva: remover quaisquer tokens persistidos
-      try {
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
-            localStorage.removeItem(key);
-          }
-        }
-      } catch {}
+      // Always clear native Preferences so the session is not restored on next open.
+      await clearNativeSession();
     }
   },
 

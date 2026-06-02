@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { authService } from "@/services/authService";
+import { getPublicEntryPath } from "@/lib/capacitor";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
@@ -116,8 +118,8 @@ export function DeleteAccountDialog({ open, onOpenChange }: DeleteAccountDialogP
       }
       toast.success("Conta excluída. Até logo.");
       onOpenChange(false);
-      await supabase.auth.signOut();
-      navigate("/");
+      await authService.signOut();
+      navigate(getPublicEntryPath());
     } catch (e: unknown) {
       const msg = e && typeof e === "object" && "message" in e ? (e as Error).message : "Erro ao excluir conta.";
       toast.error(msg);

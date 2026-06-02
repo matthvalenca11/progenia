@@ -1,4 +1,4 @@
-import { Canvas } from "@react-three/fiber";
+import { LabCanvas } from "@/components/labs/LabCanvas";
 
 interface Magnetization3DViewerProps {
   showDebug?: boolean;
@@ -8,9 +8,9 @@ interface Magnetization3DViewerProps {
 export function Magnetization3DViewer({ showDebug = false }: Magnetization3DViewerProps) {
   return (
     <div className="w-full h-full bg-[#050a15] flex items-center justify-center">
-      <Canvas dpr={[1, 1.5]}>
+      <LabCanvas>
         <color attach="background" args={["#050a15"]} />
-      </Canvas>
+      </LabCanvas>
     </div>
   );
 }

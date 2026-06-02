@@ -17,6 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Beaker, ExternalLink, Loader2, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { isNativeLabRuntime } from "@/lib/labRuntime";
+import { cacheVirtualLab, getCachedVirtualLab } from "@/lib/virtualLabCache";
 
 interface VirtualLabRendererProps {
   labId: string;
@@ -27,14 +29,16 @@ function MobileLabFullscreen({ children, onClose }: { children: ReactNode; onClo
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    document.documentElement.classList.add("lab-immersive-shell");
     return () => {
       document.body.style.overflow = previousOverflow;
+      document.documentElement.classList.remove("lab-immersive-shell");
     };
   }, []);
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex flex-col overflow-hidden bg-background safe-area-bottom"
+      className="layout-contained fixed inset-0 z-[200] flex flex-col overflow-hidden bg-background safe-area-bottom touch-none"
       style={{ height: "100dvh" }}
     >
       <div
@@ -52,7 +56,7 @@ function MobileLabFullscreen({ children, onClose }: { children: ReactNode; onClo
           Fechar
         </Button>
       </div>
-      <div className="min-h-0 flex-1">{children}</div>
+      <div className="layout-contained min-h-0 flex-1 touch-none overflow-hidden">{children}</div>
     </div>,
     document.body,
   );
@@ -60,8 +64,12 @@ function MobileLabFullscreen({ children, onClose }: { children: ReactNode; onClo
 
 export function VirtualLabRenderer({ labId, className }: VirtualLabRendererProps) {
   const isMobile = useIsMobile();
-  const [lab, setLab] = useState<VirtualLab | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [lab, setLab] = useState<VirtualLab | null>(() =>
+    isNativeLabRuntime && labId ? getCachedVirtualLab(labId) : null,
+  );
+  const [loading, setLoading] = useState(() =>
+    !(isNativeLabRuntime && labId && getCachedVirtualLab(labId)),
+  );
   const [error, setError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
 
@@ -74,13 +82,20 @@ export function VirtualLabRenderer({ labId, className }: VirtualLabRendererProps
       }
 
       try {
-        setLoading(true);
+        if (!lab) setLoading(true);
         const labData = await virtualLabService.getById(labId);
+        if (labData) {
+          cacheVirtualLab(labData);
+        }
         setLab(labData);
         setError(null);
       } catch (err: any) {
         console.error("Erro ao carregar lab virtual:", err);
-        setError(err.message || "Erro ao carregar laboratório virtual");
+        if (isNativeLabRuntime && lab) {
+          setError(null);
+        } else {
+          setError(err.message || "Erro ao carregar laboratório virtual");
+        }
       } finally {
         setLoading(false);
       }
@@ -188,8 +203,8 @@ export function VirtualLabRenderer({ labId, className }: VirtualLabRendererProps
   if (isMobile) {
     return (
       <>
-        <div className={cn("w-full min-w-0 max-w-full", className)}>
-          <div className="mb-2 flex justify-end px-1">
+        <div className={cn("layout-contained w-full min-w-0 max-w-full overflow-hidden", className)}>
+          <div className="mb-2 flex justify-end">
             <Button
               type="button"
               variant="outline"
@@ -201,11 +216,9 @@ export function VirtualLabRenderer({ labId, className }: VirtualLabRendererProps
               Tela cheia
             </Button>
           </div>
-          <div className="w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-border/60">
-            <LabWrapper videoUrl={videoUrl} title={lab.title} immersive showDisclaimer={false}>
-              {renderLab(true)}
-            </LabWrapper>
-          </div>
+          <LabWrapper videoUrl={videoUrl} title={lab.title} immersive showDisclaimer={false}>
+            {renderLab(true)}
+          </LabWrapper>
         </div>
 
         {fullscreen && (

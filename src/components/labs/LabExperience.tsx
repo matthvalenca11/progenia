@@ -15,6 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { LabDemoBoundary } from "@/contexts/LabDemoContext";
 import { cn } from "@/lib/utils";
+import { createBundledLabFromSlug, isNativeLabRuntime } from "@/lib/labRuntime";
 
 export type LabExperienceProps = {
   slug: string;
@@ -35,8 +36,15 @@ export function LabExperience({
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { user, loading: authLoading } = useAuth();
-  const [lab, setLab] = useState<VirtualLab | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [lab, setLab] = useState<VirtualLab | null>(() => {
+    if (!isNativeLabRuntime || !slug) return null;
+    return createBundledLabFromSlug(slug, labId);
+  });
+  const [loading, setLoading] = useState(() => {
+    if (!isNativeLabRuntime || !slug) return true;
+    return !createBundledLabFromSlug(slug, labId);
+  });
+  const [syncingRemote, setSyncingRemote] = useState(false);
   const sessionIdRef = useRef<string | null>(null);
   const startedAtRef = useRef<number | null>(null);
   const userRef = useRef(user);
@@ -61,7 +69,8 @@ export function LabExperience({
       }
 
       try {
-        setLoading(true);
+        if (!lab) setLoading(true);
+        setSyncingRemote(isNativeLabRuntime && !!lab);
         let data = await virtualLabService.getBySlug(slug);
 
         if (!data && labId) {
@@ -69,6 +78,11 @@ export function LabExperience({
         }
 
         if (!data) {
+          if (isNativeLabRuntime && lab) {
+            setSyncingRemote(false);
+            setLoading(false);
+            return;
+          }
           toast.error("Laboratório não encontrado");
           exit();
           return;
@@ -83,10 +97,16 @@ export function LabExperience({
         setLab(data);
       } catch (error: unknown) {
         console.error("Error loading lab:", error);
+        if (isNativeLabRuntime && lab) {
+          setSyncingRemote(false);
+          setLoading(false);
+          return;
+        }
         const message = error instanceof Error ? error.message : String(error);
         toast.error("Erro ao carregar laboratório", { description: message });
         exit();
       } finally {
+        setSyncingRemote(false);
         setLoading(false);
       }
     };
@@ -192,14 +212,23 @@ export function LabExperience({
   );
 
   if (variant === "page" && isMobile) {
-    return <div className="min-h-[100dvh] w-full bg-background">{core}</div>;
+    return (
+      <div className="min-h-[100dvh] w-full bg-background">
+        {syncingRemote && (
+          <div className="pointer-events-none absolute right-3 top-[calc(var(--sat,env(safe-area-inset-top,0px))+0.5rem)] z-[60] rounded-full bg-background/90 px-2 py-1 text-[10px] text-muted-foreground shadow-sm backdrop-blur">
+            Sincronizando…
+          </div>
+        )}
+        {core}
+      </div>
+    );
   }
 
   if (variant === "modal") {
     return (
       <div className="flex h-full min-h-0 w-full flex-col bg-background safe-area-top safe-area-bottom">
-        <div className="mb-3 flex shrink-0 items-center justify-between gap-2 border-b border-border pb-3 pr-1">
-          <h2 className="truncate pr-2 text-left text-base font-semibold tracking-tight text-foreground sm:text-lg">
+        <div className="lab-mobile-inset-x mb-3 flex shrink-0 items-center justify-between gap-2 border-b border-border pb-3">
+          <h2 className="min-w-0 flex-1 truncate pr-2 text-left text-base font-semibold tracking-tight text-foreground sm:text-lg">
             {lab.title || lab.name}
           </h2>
           <Button
@@ -213,7 +242,7 @@ export function LabExperience({
             {backLabel}
           </Button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch] px-1 sm:px-0">
+        <div className="lab-mobile-inset-x min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch]">
           {core}
         </div>
       </div>

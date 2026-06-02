@@ -68,14 +68,14 @@ All colors MUST be HSL.
   .dark {
     /* Dark Mode - ProGenia Biomedical Theme */
     /* Fundo principal: azulado/cinza escuro biomédico (não preto puro) */
-    --background: 220 30% 8%; /* #0B1220 - tom azulado escuro */
+    --background: 220 26% 11%; /* levemente mais claro — melhora contraste do logo navy */
     --foreground: 210 20% 92%; /* #E5E7EB - quase branco para texto principal */
 
     /* Cards e superfícies: tons mais claros que o fundo */
-    --card: 220 28% 12%; /* #121A2A - superfícies elevadas */
+    --card: 220 24% 14%; /* superfícies elevadas */
     --card-foreground: 210 20% 92%;
 
-    --popover: 220 28% 12%;
+    --popover: 220 24% 14%;
     --popover-foreground: 210 20% 92%;
 
     /* Primary: mantém cor de marca, ajustada para dark mode */
@@ -87,7 +87,7 @@ All colors MUST be HSL.
     --secondary-foreground: 0 0% 100%;
 
     /* Muted: áreas secundárias com bom contraste */
-    --muted: 220 25% 16%; /* #1A2332 - áreas secundárias */
+    --muted: 220 22% 18%; /* áreas secundárias */
     --muted-foreground: 210 15% 65%; /* #9CA3AF - texto secundário legível */
 
     /* Accent: mantém identidade ProGenia */
@@ -107,7 +107,7 @@ All colors MUST be HSL.
     --slider-thumb: 173 68% 48%; /* thumb com cor de marca */
 
     /* Sidebar: consistente com tema dark */
-    --sidebar-background: 220 30% 10%; /* #0E1624 */
+    --sidebar-background: 220 26% 13%;
     --sidebar-foreground: 210 20% 92%;
     --sidebar-primary: 173 68% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
@@ -139,7 +139,9 @@ All colors MUST be HSL.
   #root {
     height: 100%;
     width: 100%;
+    min-width: 0;
     max-width: 100%;
+    overflow-x: hidden;
   }
 
   html.native-app {
@@ -158,8 +160,27 @@ All colors MUST be HSL.
 
   html.native-app .container {
     max-width: 100%;
-    padding-left: 1rem;
-    padding-right: 1rem;
+  }
+
+  html.native-app .native-shell-padding .container {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  html.native-app .native-shell-padding .container.px-3,
+  html.native-app .native-shell-padding .container.px-4 {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  html.native-app main.native-shell-padding {
+    overflow-x: hidden;
+  }
+
+  html.native-app canvas {
+    display: block;
+    max-width: 100%;
+    min-width: 0;
   }
 
   * {
@@ -205,6 +226,58 @@ All colors MUST be HSL.
     padding-top: var(--sat, env(safe-area-inset-top, 0px));
   }
 
+  /* Barra superior (logo): superfície mais clara que o fundo no dark mode */
+  .dark .safe-sticky-top.border-b {
+    background-color: hsl(220 22% 18%) !important;
+  }
+
+  .lab-mobile-inset-x {
+    padding-left: max(0.75rem, var(--sal, env(safe-area-inset-left, 0px)));
+    padding-right: max(0.75rem, var(--sar, env(safe-area-inset-right, 0px)));
+  }
+
+  .lab-mobile-grid {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .lab-canvas-host {
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  html.lab-immersive-shell,
+  html.lab-immersive-shell body {
+    overflow: hidden;
+    touch-action: none;
+  }
+
+  html.native-android .lab-canvas-host {
+    contain: none;
+  }
+
+  .lab-canvas-host canvas {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: 100% !important;
+  }
+
+  .layout-contained {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .mobile-page-title {
     @apply text-2xl font-bold tracking-tight sm:text-3xl;
   }
@@ -247,14 +320,9 @@ All colors MUST be HSL.
     transition: var(--transition-bounce);
   }
 
-  /* Logo ProGenia - melhor contraste no dark mode */
+  /* Logo ProGenia — variante dark via ProGeniaLogo + logo-dark.png */
   .progenia-logo {
-    filter: brightness(1) contrast(1);
-    transition: filter 0.3s ease;
-  }
-
-  .dark .progenia-logo {
-    filter: brightness(1.4) contrast(1.1);
+    transition: opacity 0.3s ease;
   }
 
   /* Landing — glass depth + premium card lift (ProGenia) */
