@@ -19,9 +19,14 @@ import type { UnifiedEngineConfig } from '@/simulator/ultrasound/UnifiedUltrasou
 import { createUltrasoundRenderer, type UltrasoundRenderer } from '@/simulator/ultrasound/UltrasoundRendererAdapter';
 import { Play, Pause, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { getUltrasoundLabCanvasSize, isAndroidNativeLabRuntime, isNativeLabRuntime } from '@/lib/labRuntime';
+import {
+  fitUltrasoundCanvasPixelSize,
+  getUltrasoundLabCanvasSize,
+  isAndroidNativeLabRuntime,
+  isNativeLabRuntime,
+} from '@/lib/labRuntime';
 import { normalizeUltrasoundLabConfig } from '@/lib/ultrasoundLabConfig';
-import { labCanvasHostClass, labMobileFlexClass, labMobilePanelClass } from '@/components/labs/labMobileLayout';
+import { labMobileFlexClass, labMobilePanelClass } from '@/components/labs/labMobileLayout';
 import { cn } from '@/lib/utils';
 
 interface UltrasoundUnifiedLabProps {
@@ -33,13 +38,34 @@ const MAX_GAIN_DB = 62;
 const clampGain = (value: number) => Math.max(MIN_GAIN_DB, Math.min(MAX_GAIN_DB, value));
 
 export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
-  const canvasRef   = useRef<HTMLCanvasElement>(null);
-  const engineRef   = useRef<UltrasoundRenderer | null>(null);
-  const isMobile    = useIsMobile();
-  const isNative    = isNativeLabRuntime;
-  const isAndroid   = isAndroidNativeLabRuntime;
+  const canvasRef     = useRef<HTMLCanvasElement>(null);
+  const canvasHostRef = useRef<HTMLDivElement>(null);
+  const engineRef     = useRef<UltrasoundRenderer | null>(null);
+  const isMobile      = useIsMobile();
+  const isNative      = isNativeLabRuntime;
+  const isAndroid     = isAndroidNativeLabRuntime;
   const compactLayout = isMobile || isNative;
-  const canvasSize  = useMemo(() => getUltrasoundLabCanvasSize(isNative), []);
+  const [canvasPixelSize, setCanvasPixelSize] = useState(() =>
+    getUltrasoundLabCanvasSize(isNative),
+  );
+
+  useEffect(() => {
+    const host = canvasHostRef.current;
+    if (!host) return;
+
+    const applySize = () => {
+      const { width, height } = host.getBoundingClientRect();
+      const next = fitUltrasoundCanvasPixelSize(width, height, isNative);
+      setCanvasPixelSize((prev) =>
+        prev.width === next.width && prev.height === next.height ? prev : next,
+      );
+    };
+
+    applySize();
+    const observer = new ResizeObserver(() => applySize());
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, [isNative]);
 
   const labConfig = useMemo(() => normalizeUltrasoundLabConfig(config), [config]);
   const { studentControls, simulationFeatures } = labConfig;
@@ -164,7 +190,7 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
       engineRef.current = null;
       setEngineReady(false);
     };
-  }, [canvasSize.width, canvasSize.height]);
+  }, [canvasPixelSize.width, canvasPixelSize.height]);
 
   // ── Push config changes to the engine ───────────────────────────────────
   // Web/iOS: every committed state change flows into the running loop.
@@ -300,7 +326,7 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
   };
 
   const handleMoveTransducer = (direction: 'left' | 'right') => {
-    const step = 0.05;
+    const step = 0.015;
     const max  = 0.8;
     setTransducerPosition((prev) => {
       const next = direction === 'left'
@@ -334,34 +360,58 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
       ? <span ref={ref} className="font-mono text-sm">{format(value)}</span>
       : <span className="font-mono text-sm">{format(value)}</span>;
 
-  // ── Canvas panel ─────────────────────────────────────────────────────────
-  const canvasPanel = (
-    <>
-      <div className={cn('bg-black overflow-hidden border-2 border-border', compactLayout ? 'h-full rounded-none border-0' : 'rounded-lg')}>
-        <canvas
-          ref={canvasRef}
-          width={canvasSize.width}
-          height={canvasSize.height}
-          className={cn('w-full touch-none', compactLayout ? 'h-full object-cover' : 'h-auto object-contain')}
-        />
-      </div>
+  // ── Viewport + toolbar (host medido só na área da imagem — evita letterbox) ──
+  const ultrasoundViewport = (
+    <div
+      ref={canvasHostRef}
+      className={cn(
+        'lab-canvas-host relative min-h-0 min-w-0 w-full overflow-hidden bg-black',
+        compactLayout
+          ? 'flex-1'
+          : 'aspect-[4/3] max-h-[min(70vh,600px)] rounded-lg border-2 border-border',
+      )}
+    >
+      <canvas
+        ref={canvasRef}
+        width={canvasPixelSize.width}
+        height={canvasPixelSize.height}
+        className="block h-full w-full touch-none"
+      />
+    </div>
+  );
 
-      {showMovement && (
-        <div className={cn('p-3 bg-muted/10 border border-muted/50', compactLayout ? 'mx-3 mt-2 rounded-md' : 'mt-4 rounded-md')}>
+  const canvasToolbar = (
+    <>
+      <div
+        className={cn(
+          'flex shrink-0 flex-col gap-2',
+          compactLayout ? 'border-t border-border/60 bg-background px-3 py-2' : 'mt-4',
+        )}
+      >
+        {showMovement && (
           <div className="flex items-center justify-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => handleMoveTransducer('left')} disabled={transducerPosition <= -0.8} className="h-8">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleMoveTransducer('left')}
+              disabled={transducerPosition <= -0.8}
+            >
               <ChevronLeft className="h-4 w-4 mr-1" />
               Esquerda
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => handleMoveTransducer('right')} disabled={transducerPosition >= 0.8} className="h-8">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleMoveTransducer('right')}
+              disabled={transducerPosition >= 0.8}
+            >
               Direita
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
-        </div>
-      )}
+        )}
 
-      <div className={cn('flex items-center justify-between', compactLayout ? 'px-3 py-2' : 'mt-4')}>
+        <div className="flex items-center justify-between">
         <div className="flex gap-2">
           <Button variant={isRunning ? 'default' : 'outline'} size="sm" onClick={handlePlayPause}>
             {isRunning ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
@@ -373,7 +423,15 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
           </Button>
         </div>
         <Badge variant="outline">{transducerType.toUpperCase()}</Badge>
+        </div>
       </div>
+    </>
+  );
+
+  const canvasPanel = (
+    <>
+      {ultrasoundViewport}
+      {canvasToolbar}
     </>
   );
 
@@ -484,8 +542,9 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
   if (compactLayout) {
     return (
       <div className={cn(labMobileFlexClass, 'h-full min-h-0 bg-background')}>
-        <section className="relative h-[min(48dvh,55vh)] min-h-[40dvh] shrink-0 overflow-hidden border-b border-border bg-black">
-          <div className={labCanvasHostClass}>{canvasPanel}</div>
+        <section className="flex h-[min(52dvh,58vh)] min-h-[42dvh] shrink-0 flex-col overflow-hidden border-b border-border bg-black">
+          {ultrasoundViewport}
+          {canvasToolbar}
         </section>
         <div className={cn(labMobilePanelClass(true), 'overflow-y-auto touch-pan-y')}>{controlsPanel}</div>
       </div>

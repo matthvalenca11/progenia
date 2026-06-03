@@ -60,12 +60,9 @@ export function getConvexSectorLayout(
   const arcRadiusPixels = transducerRadiusCm * pixelsPerCm;
   const sectorDepthPixels = layoutDepthCm * pixelsPerCm;
 
-  // If width-limited, nudge the fan down so the apex uses vertical space.
-  let virtualCenterY = -arcRadiusPixels;
-  const bottomYAtCenter = sectorDepthPixels;
-  if (bottomYAtCenter < maxBottomY) {
-    virtualCenterY += maxBottomY - bottomYAtCenter;
-  }
+  // Top-align the fan: transducer arc sits just below the top inset (no dead band above).
+  const topInsetY = height * inset;
+  const virtualCenterY = topInsetY - arcRadiusPixels;
 
   return {
     halfFOVRad,

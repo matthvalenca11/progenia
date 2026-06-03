@@ -79,10 +79,35 @@ export function resolveBundledAssetUrl(assetPath: string): string {
   return new URL(clean, `${window.location.origin}${window.location.pathname}`).href;
 }
 
-/** Resolução interna do canvas B-mode. Web = 800×600; app nativo reduz só no APK. */
+/** Resolução interna padrão do canvas B-mode (fallback antes do layout medir o host). */
 export function getUltrasoundLabCanvasSize(nativeCompact = false) {
   if (!nativeCompact) return { width: 800, height: 600 };
   return { width: 512, height: 384 };
+}
+
+/** Alinha pixels do canvas à caixa visível para evitar faixas pretas (letterbox). */
+export function fitUltrasoundCanvasPixelSize(
+  cssWidth: number,
+  cssHeight: number,
+  nativeCompact = false,
+): { width: number; height: number } {
+  if (cssWidth < 8 || cssHeight < 8) {
+    return getUltrasoundLabCanvasSize(nativeCompact);
+  }
+
+  const maxW = nativeCompact ? 720 : 960;
+  const maxH = nativeCompact ? 540 : 720;
+  const minW = 280;
+  const minH = 210;
+  const dpr = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+
+  let width = Math.round(cssWidth * dpr);
+  let height = Math.round(cssHeight * dpr);
+  const downscale = Math.min(1, maxW / width, maxH / height);
+  width = Math.max(minW, Math.round(width * downscale));
+  height = Math.max(minH, Math.round(height * downscale));
+
+  return { width, height };
 }
 
 /** Escala de renderização para viewers 2D de RM no app nativo. */

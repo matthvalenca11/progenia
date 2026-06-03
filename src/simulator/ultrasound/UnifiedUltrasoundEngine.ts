@@ -1513,8 +1513,8 @@ export class UnifiedUltrasoundEngine {
     }
     this.pulseEchoModel.setTime(this.time);
 
-    const rw = Math.max(280, Math.floor(width * 0.82));
-    const rh = Math.max(200, Math.floor(height * 0.82));
+    const rw = Math.max(280, width);
+    const rh = Math.max(200, height);
     const buffer = this.pulseEchoModel.renderLinear(rw, rh, fieldWidthCm);
     this.ensurePreviewCanvas(rw, rh);
     const lowData = this.previewCtx!.createImageData(rw, rh).data;
