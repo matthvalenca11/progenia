@@ -9,12 +9,15 @@ import { toast } from "sonner";
 interface LabVideoUploaderProps {
   videoUrl?: string;
   onVideoChange: (url: string | undefined) => void;
+  /** Fired when user selects a file (before upload) — used for ultrasound feature extraction. */
+  onFileSelected?: (file: File | null) => void;
   disabled?: boolean;
 }
 
 export function LabVideoUploader({ 
   videoUrl, 
-  onVideoChange, 
+  onVideoChange,
+  onFileSelected,
   disabled = false 
 }: LabVideoUploaderProps) {
   const [isUploading, setIsUploading] = useState(false);
@@ -38,6 +41,8 @@ export function LabVideoUploader({
       });
       return;
     }
+
+    onFileSelected?.(file);
 
     try {
       setIsUploading(true);
@@ -63,7 +68,7 @@ export function LabVideoUploader({
       setIsUploading(false);
       setUploadProgress(0);
     }
-  }, [onVideoChange]);
+  }, [onVideoChange, onFileSelected]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -97,6 +102,7 @@ export function LabVideoUploader({
         console.error("Error deleting video file:", error);
       }
     }
+    onFileSelected?.(null);
     onVideoChange(undefined);
     toast.success("Vídeo removido");
   };
@@ -109,8 +115,9 @@ export function LabVideoUploader({
           Vídeo de Apoio (Opcional)
         </CardTitle>
         <CardDescription>
-          Adicione um vídeo explicativo que será exibido dentro da área do laboratório virtual.
-          O vídeo será carregado diretamente na plataforma.
+          Envie um clipe de ultrassom real (linear ou convexo). O vídeo pode ser exibido no lab e
+          também serve de referência para extrair ganho, profundidade, speckle e camadas acústicas
+          na seção abaixo.
         </CardDescription>
       </CardHeader>
       <CardContent>

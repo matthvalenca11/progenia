@@ -580,7 +580,7 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-background flex items-start justify-center p-3 sm:items-center sm:p-4 safe-top safe-bottom">
+    <div className="min-h-[100dvh] bg-background flex items-start justify-center native-content-pad py-3 sm:items-center sm:py-4 safe-top safe-bottom">
       <div className="w-full max-w-2xl">
         <div className="text-center mb-6 sm:mb-8">
           <ProGeniaLogo className="h-16 mx-auto mb-4 progenia-logo" />

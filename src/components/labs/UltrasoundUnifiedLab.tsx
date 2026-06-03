@@ -300,7 +300,7 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
   };
 
   const handleMoveTransducer = (direction: 'left' | 'right') => {
-    const step = 0.1;
+    const step = 0.05;
     const max  = 0.8;
     setTransducerPosition((prev) => {
       const next = direction === 'left'
@@ -353,9 +353,6 @@ export function UltrasoundUnifiedLab({ config }: UltrasoundUnifiedLabProps) {
               <ChevronLeft className="h-4 w-4 mr-1" />
               Esquerda
             </Button>
-            <div className="px-3 py-1 bg-muted/30 rounded text-center min-w-[80px]">
-              <div className="font-mono text-sm">{transducerPosition >= 0 ? '+' : ''}{transducerPosition.toFixed(1)} cm</div>
-            </div>
             <Button variant="ghost" size="sm" onClick={() => handleMoveTransducer('right')} disabled={transducerPosition >= 0.8} className="h-8">
               Direita
               <ChevronRight className="h-4 w-4 ml-1" />

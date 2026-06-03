@@ -3,13 +3,15 @@ import { Toaster as Sonner } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, HashRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { useLabImmersiveShell } from "./hooks/useLabImmersiveShell";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { ConsentProvider, useConsent } from "./contexts/ConsentContext";
-import { isNativeApp } from "@/lib/capacitor";
+import { isNativeApp, isNativeMobile } from "@/lib/capacitor";
+import { hasCompletedNativeLanguageOnboarding } from "@/lib/nativeLanguageOnboarding";
+import { NativeLanguageOnboarding } from "@/components/onboarding/NativeLanguageOnboarding";
 import AITutor from "@/components/AITutor";
 import Sobre from "@/pages/Sobre";
 import Contact from "@/pages/Contact";
@@ -60,8 +62,31 @@ const AppContent = () => {
   const { user, bootstrapped } = useAuth();
   const location = useLocation();
   const isImmersiveLabRoute = useLabImmersiveShell();
+  const [languageOnboardingChecked, setLanguageOnboardingChecked] = useState(!isNativeMobile);
+  const [showLanguageOnboarding, setShowLanguageOnboarding] = useState(false);
 
-  if (!bootstrapped) {
+  useEffect(() => {
+    if (!bootstrapped) return;
+
+    if (!isNativeMobile || user) {
+      setLanguageOnboardingChecked(true);
+      setShowLanguageOnboarding(false);
+      return;
+    }
+
+    let cancelled = false;
+    void hasCompletedNativeLanguageOnboarding().then((done) => {
+      if (cancelled) return;
+      setShowLanguageOnboarding(!done);
+      setLanguageOnboardingChecked(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bootstrapped, user]);
+
+  if (!bootstrapped || (isNativeMobile && !user && !languageOnboardingChecked)) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-background">
         <div className="text-center">
@@ -70,6 +95,10 @@ const AppContent = () => {
         </div>
       </div>
     );
+  }
+
+  if (showLanguageOnboarding) {
+    return <NativeLanguageOnboarding onComplete={() => setShowLanguageOnboarding(false)} />;
   }
 
   // Tutor de IA: oculto na landing/sobre/blog e em labs tela cheia
@@ -83,8 +112,8 @@ const AppContent = () => {
 
   return (
     <div
-      className={`layout-contained flex min-h-[100dvh] flex-col bg-background text-foreground overflow-x-hidden${
-        isImmersiveLabRoute ? " touch-none overflow-hidden" : " touch-pan-y"
+      className={`layout-contained flex min-h-[100dvh] flex-col bg-background text-foreground${
+        isImmersiveLabRoute ? " touch-none overflow-hidden" : isNativeApp ? " touch-pan-y" : " overflow-x-hidden touch-pan-y"
       }${isNativeApp && !isImmersiveLabRoute ? " native-safe-shell" : ""}`}
       style={
         !isNativeApp && !isImmersiveLabRoute
@@ -100,7 +129,7 @@ const AppContent = () => {
           isImmersiveLabRoute
             ? "layout-contained flex min-h-[100dvh] w-full flex-1 flex-col overflow-hidden touch-none p-0"
             : isNativeApp
-              ? "layout-contained native-shell-padding flex min-h-0 w-full flex-1 flex-col overflow-y-auto overflow-x-hidden touch-pan-y pb-6 pt-2 md:px-8 md:pb-10 md:pt-4"
+              ? "layout-contained native-shell-padding flex min-h-0 w-full flex-1 flex-col overflow-y-auto touch-pan-y pb-6 pt-2"
               : "layout-contained flex min-h-0 w-full flex-1 flex-col overflow-y-auto overflow-x-hidden touch-pan-y px-3 pb-6 pt-2 sm:px-4 md:px-8 md:pb-10 md:pt-4"
         }
       >

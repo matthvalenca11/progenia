@@ -1,4 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Preferences } from "@capacitor/preferences";
+import { isNativeMobile } from "@/lib/capacitor";
+import { readPersistedAppLanguage } from "@/lib/nativeLanguageOnboarding";
 import { supabase } from "@/integrations/supabase/client";
 
 type Language = "pt" | "en";
@@ -71,6 +74,20 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved === "en" ? "en" : "pt";
   });
+  const [languageHydrated, setLanguageHydrated] = useState(!isNativeMobile);
+
+  useEffect(() => {
+    if (!isNativeMobile) return;
+    let cancelled = false;
+    void readPersistedAppLanguage().then((saved) => {
+      if (cancelled) return;
+      if (saved) setLanguageState(saved);
+      setLanguageHydrated(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const cacheRef = useRef<Map<string, string>>(new Map());
   const originalTextByNodeRef = useRef<Map<Text, string>>(new Map());
@@ -92,9 +109,26 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!languageHydrated) return;
     localStorage.setItem(STORAGE_KEY, language);
     document.documentElement.lang = language === "en" ? "en" : "pt-BR";
-  }, [language]);
+    if (isNativeMobile) {
+      void Preferences.set({ key: STORAGE_KEY, value: language });
+    }
+  }, [language, languageHydrated]);
+
+  const setLanguage = useCallback((next: Language) => {
+    setLanguageState(next);
+    try {
+      localStorage.setItem(STORAGE_KEY, next);
+      document.documentElement.lang = next === "en" ? "en" : "pt-BR";
+      if (isNativeMobile) {
+        void Preferences.set({ key: STORAGE_KEY, value: next });
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const flushCacheToStorage = () => {
     const obj = Object.fromEntries(cacheRef.current.entries());
@@ -415,32 +449,36 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }, [language]);
 
   const toggleLanguage = useCallback(() => {
-    setLanguageState((prev) => {
-      const next = prev === "pt" ? "en" : "pt";
-      try {
-        localStorage.setItem(STORAGE_KEY, next);
-        if (next === "en") {
-          localStorage.removeItem(TRANSLATION_CACHE_KEY);
-        }
-      } catch {
-        // ignore
+    const next: Language = language === "pt" ? "en" : "pt";
+    try {
+      if (next === "en") {
+        localStorage.removeItem(TRANSLATION_CACHE_KEY);
       }
-      document.documentElement.lang = next === "en" ? "en" : "pt-BR";
-      return next;
-    });
+    } catch {
+      // ignore
+    }
+    setLanguage(next);
     window.setTimeout(() => {
       window.location.reload();
     }, 0);
-  }, []);
+  }, [language, setLanguage]);
 
   const value = useMemo<LanguageContextType>(
     () => ({
       language,
-      setLanguage: setLanguageState,
+      setLanguage,
       toggleLanguage,
     }),
-    [language, toggleLanguage],
+    [language, setLanguage, toggleLanguage],
   );
+
+  if (!languageHydrated) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }

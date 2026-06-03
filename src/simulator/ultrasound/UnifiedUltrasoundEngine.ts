@@ -12,6 +12,31 @@ import {
   calculateReflectionCoefficient 
 } from '@/types/acousticMedia';
 import { ConvexPolarEngine } from './ConvexPolarEngine';
+import { PulseEchoAcousticModel } from './PulseEchoAcousticModel';
+import { wavyInterfaceDepthCm } from './LayerInterfaceWobble';
+import {
+  computeHandheldProbeMotionCm,
+  handheldMotionToPixelShift,
+} from './HandheldProbeMotion';
+import {
+  applyConvexSectorMaskBuffer,
+  buildConvexSectorMask,
+  convexClampSampleToMask,
+  convexInternalHandSamplePixel,
+  convexBeamToPixel,
+  convexPixelToBeam,
+  convexPixelToAnatomical,
+  convexSectorEdgeFactor,
+  getConvexSectorLayout,
+  convexPixelsPerCmAt,
+  getConvexScanGeom,
+  type ConvexScanGeom,
+} from './ConvexScanGeometry';
+import {
+  buildVesselProximity,
+  computeVesselLiveMotion,
+  isBloodVessel,
+} from './VesselLiveMotion';
 
 export type LinearDebugView = 'base' | 'base_shadow' | 'final';
 type UltrasoundCanvas = HTMLCanvasElement | OffscreenCanvas;
@@ -96,15 +121,20 @@ export class UnifiedUltrasoundEngine {
   
   // Motor polar para convexo
   private convexEngine: ConvexPolarEngine | null = null;
+  private pulseEchoModel: PulseEchoAcousticModel | null = null;
   private staticRenderPending = false;
   private staticRenderTimer: ReturnType<typeof setTimeout> | null = null;
   private previewCanvas: UltrasoundCanvas | null = null;
   private previewCtx: UltrasoundCanvasContext | null = null;
   private structuralCache: Uint8ClampedArray | null = null;
   private structuralDepthRatio: Float32Array | null = null;
+  /** Frozen convex wedge — prevents cone from resizing during live motion. */
+  private convexSectorMask: Uint8Array | null = null;
+  private convexSectorMaskKey = '';
+  private convexScanGeomCache: ConvexScanGeom | null = null;
   private structuralCacheSignature = '';
   private motionFrameBuffer: ImageData | null = null;
-  private readonly cachedMotionKeyframeInterval = 3;
+  private readonly cachedMotionKeyframeInterval = 10;
   private lastStructuralKeyframeMs = 0;
   
   constructor(canvas: UltrasoundCanvas, config: UnifiedEngineConfig) {
@@ -326,6 +356,8 @@ export class UnifiedUltrasoundEngine {
     }
     // Se mudou tipo de transdutor, reinicializar motor convexo
     if (oldType !== this.config.transducerType) {
+      this.convexSectorMask = null;
+      this.convexSectorMaskKey = '';
       if (this.config.transducerType === 'convex' || this.config.transducerType === 'microconvex') {
         this.initConvexEngine();
       } else {
@@ -387,7 +419,7 @@ export class UnifiedUltrasoundEngine {
   private getConvexSampleCount(): number {
     if (this.config.renderQuality === 'preview') return 96;
     if (this.config.performanceProfile === 'mobile') return 160;
-    return 512;
+    return 360;
   }
 
   private scheduleStaticRender(): void {
@@ -423,6 +455,8 @@ export class UnifiedUltrasoundEngine {
     const samples = this.getConvexSampleCount();
     
     this.convexEngine = new ConvexPolarEngine({
+      transducerType:
+        this.config.transducerType === 'microconvex' ? 'microconvex' : 'convex',
       fovDegrees,
       transducerRadiusCm,
       maxDepthCm: this.config.depth,
@@ -511,13 +545,19 @@ export class UnifiedUltrasoundEngine {
     
     // USAR MOTOR POLAR PURO para convexo/microconvexo
     if ((this.config.transducerType === 'convex' || this.config.transducerType === 'microconvex') && this.convexEngine) {
+      const useMotionCache = this.useCachedLiveMotion();
+      if (useMotionCache && this.shouldRebuildStructuralCache()) {
+        this.convexEngine.updateConfig({ highQualityPost: true });
+        this.convexEngine.render(this.ctx, { structuralOnly: true });
+        this.enforceConvexSectorMask();
+        this.captureStructuralCacheFromCanvas();
+      }
       if (this.shouldUseCachedMotionShortcut()) {
         this.renderLiveMotionFromStructuralCache();
       } else {
+        this.convexEngine.updateConfig({ highQualityPost: true });
         this.convexEngine.render(this.ctx);
-        if (this.config.performanceProfile === 'mobile' && this.config.renderQuality !== 'preview') {
-          this.captureStructuralCacheFromCanvas();
-        }
+        this.enforceConvexSectorMask();
       }
     } else {
       // LINEAR: renderização cartesiana padrão
@@ -555,6 +595,7 @@ export class UnifiedUltrasoundEngine {
 
   private invalidateStructuralCache(): void {
     this.structuralCacheSignature = '';
+    this.convexScanGeomCache = null;
   }
 
   private getStructuralCacheSignature(): string {
@@ -576,28 +617,14 @@ export class UnifiedUltrasoundEngine {
 
   private useCachedLiveMotion(): boolean {
     if (this.config.mode === "color-doppler" || this.config.enableColorDoppler) return false;
-    return (
-      this.config.performanceProfile === "mobile" &&
-      this.config.renderMode === "animated" &&
-      this.config.renderQuality === "full"
-    );
+    return this.config.renderMode === "animated" && this.config.renderQuality === "full";
   }
 
-  /**
-   * Usa cache na maioria dos frames, mas força keyframes completos periódicos
-   * para preservar o motion "orgânico" da física original.
-   */
+  /** Convex/linear: exibe sempre via cache + motion (evita flash keyframe vs cache). */
   private shouldUseCachedMotionShortcut(): boolean {
     if (!this.useCachedLiveMotion()) return false;
-    if (this.shouldRebuildStructuralCache()) return false;
-    if (this.lastStructuralKeyframeMs <= 0) return false;
-    if (this.config.performanceProfile === 'mobile') {
-      return true;
-    }
-    const elapsedMs = this.time * 1000 - this.lastStructuralKeyframeMs;
-    const keyframePeriodMs = 1000 / 9; // ~9 Hz full-physics keyframes
-    const frameGate = this.frameCount % this.cachedMotionKeyframeInterval !== 0;
-    return frameGate && elapsedMs < keyframePeriodMs;
+    if (!this.structuralCache || this.shouldRebuildStructuralCache()) return false;
+    return true;
   }
 
   private shouldRebuildStructuralCache(): boolean {
@@ -610,7 +637,8 @@ export class UnifiedUltrasoundEngine {
     const highFreqNoise = Math.sin(x * 0.3 + y * 0.2 + temporalSeed * 12) * 0.012;
     const midFreqNoise = Math.sin(x * 0.08 + y * 0.1 + temporalSeed * 4) * 0.018;
     const lowFreqNoise = Math.sin(temporalSeed * 1.5) * 0.008;
-    const frameNoise = (Math.random() - 0.5) * 0.025 * (1 + depthRatio * 0.5);
+    const rnd = Math.sin(x * 12.9898 + y * 78.233 + temporalSeed * 43.891) * 43758.5453;
+    const frameNoise = ((rnd - Math.floor(rnd)) - 0.5) * 0.025 * (1 + depthRatio * 0.5);
     const totalLiveNoise = (highFreqNoise + midFreqNoise + lowFreqNoise + frameNoise) * (1 + depthRatio * 0.8);
     intensity *= 1 + totalLiveNoise;
 
@@ -622,27 +650,132 @@ export class UnifiedUltrasoundEngine {
     return intensity;
   }
 
+  private ensureConvexSectorMask(width: number, height: number): void {
+    if (this.config.transducerType !== 'convex' && this.config.transducerType !== 'microconvex') {
+      return;
+    }
+    const transducerKind =
+      this.config.transducerType === 'convex' ? 'convex' : 'microconvex';
+    const maskKey = `e4:${width}x${height}:${transducerKind}`;
+    if (!this.convexSectorMask || this.convexSectorMaskKey !== maskKey) {
+      this.convexSectorMask = buildConvexSectorMask(width, height, transducerKind, 4);
+      this.convexSectorMaskKey = maskKey;
+    }
+    this.convexScanGeomCache = getConvexScanGeom(
+      width,
+      height,
+      transducerKind,
+      this.config.depth,
+    );
+  }
+
+  private enforceConvexSectorMask(): void {
+    if (this.config.transducerType !== 'convex' && this.config.transducerType !== 'microconvex') {
+      return;
+    }
+    const { width, height } = this.canvas;
+    this.ensureConvexSectorMask(width, height);
+    if (!this.convexSectorMask) return;
+    const img = this.ctx.getImageData(0, 0, width, height);
+    applyConvexSectorMaskBuffer(img.data, this.convexSectorMask, width, height);
+    this.ctx.putImageData(img, 0, 0);
+  }
+
   private captureStructuralCacheFromCanvas(): void {
     const { width, height } = this.canvas;
+    this.ensureConvexSectorMask(width, height);
     const img = this.ctx.getImageData(0, 0, width, height);
+    if (this.convexSectorMask) {
+      applyConvexSectorMaskBuffer(img.data, this.convexSectorMask, width, height);
+    }
     this.structuralCache = new Uint8ClampedArray(img.data);
     if (!this.structuralDepthRatio || this.structuralDepthRatio.length !== width * height) {
       this.structuralDepthRatio = new Float32Array(width * height);
     }
+    const isConvex =
+      this.config.transducerType === 'convex' || this.config.transducerType === 'microconvex';
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const idx = y * width + x;
-        const physCoords = this.pixelToPhysical(x, y);
-        this.structuralDepthRatio[idx] = Math.min(1, Math.max(0, physCoords.depth / this.config.depth));
+        if (isConvex && this.convexScanGeomCache) {
+          const beam = convexPixelToBeam(x, y, this.convexScanGeomCache);
+          this.structuralDepthRatio[idx] = beam.inside
+            ? beam.depthCm / Math.max(0.05, this.config.depth)
+            : 0;
+        } else {
+          const physCoords = this.pixelToPhysical(x, y);
+          this.structuralDepthRatio[idx] = Math.min(
+            1,
+            Math.max(0, physCoords.depth / this.config.depth),
+          );
+        }
       }
     }
     this.structuralCacheSignature = this.getStructuralCacheSignature();
     this.lastStructuralKeyframeMs = this.time * 1000;
   }
 
+  private getFieldWidthCm(): number {
+    return this.config.transducerType === 'linear' ? 5.0 : this.config.depth * 0.9;
+  }
+
+  /** Attenuates live motion near canvas edges (linear panning must not clamp to bright border). */
+  private linearCanvasEdgeFactor(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    featherPx = 10,
+  ): number {
+    const distX = Math.min(x + 0.5, width - x - 0.5);
+    const distY = Math.min(y + 0.5, height - y - 0.5);
+    return Math.min(1, Math.min(distX, distY) / Math.max(1, featherPx));
+  }
+
+  private sampleStructuralCacheIntensity(
+    sx: number,
+    sy: number,
+    width: number,
+    height: number,
+    mask?: Uint8Array,
+  ): number {
+    if (!this.structuralCache) return 0;
+    if (sx < 0 || sx > width - 1 || sy < 0 || sy > height - 1) return 0;
+    const sxFloat = sx;
+    const syFloat = sy;
+    const sx0 = Math.floor(sxFloat);
+    const sy0 = Math.floor(syFloat);
+    const sx1 = Math.min(width - 1, sx0 + 1);
+    const sy1 = Math.min(height - 1, sy0 + 1);
+    const tx = sxFloat - sx0;
+    const ty = syFloat - sy0;
+    const idx00 = sy0 * width + sx0;
+    const idx10 = sy0 * width + sx1;
+    const idx01 = sy1 * width + sx0;
+    const idx11 = sy1 * width + sx1;
+
+    const sampleCorner = (idx: number, weight: number) => {
+      const m = mask ? (mask[idx] ? weight : 0) : weight;
+      return { value: (this.structuralCache![idx * 4] / 255) * m, weight: m };
+    };
+
+    const c00 = sampleCorner(idx00, (1 - tx) * (1 - ty));
+    const c10 = sampleCorner(idx10, tx * (1 - ty));
+    const c01 = sampleCorner(idx01, (1 - tx) * ty);
+    const c11 = sampleCorner(idx11, tx * ty);
+    const weightSum = c00.weight + c10.weight + c01.weight + c11.weight;
+    if (weightSum < 1e-6) return 0;
+    return (
+      c00.value + c10.value + c01.value + c11.value
+    ) / weightSum;
+  }
+
   private renderLiveMotionFromStructuralCache(): void {
     const { width, height } = this.canvas;
-    if (!this.structuralCache || !this.structuralDepthRatio) return;
+    if (!this.structuralCache || !this.structuralDepthRatio) {
+      this.renderBModeKeyframe();
+      return;
+    }
 
     if (!this.motionFrameBuffer || this.motionFrameBuffer.width !== width || this.motionFrameBuffer.height !== height) {
       this.motionFrameBuffer = this.ctx.createImageData(width, height);
@@ -652,82 +785,126 @@ export class UnifiedUltrasoundEngine {
     const frameLowNoise = Math.sin(seed * 1.5) * 0.008;
     const scanlinePos = (seed * 50) % height;
     const speckleScale = this.getFrequencyDependentPSF().speckleScale;
+    const fieldWidthCm = this.getFieldWidthCm();
+    const isConvex =
+      this.config.transducerType === 'convex' || this.config.transducerType === 'microconvex';
+    let convexGeom: ConvexScanGeom | null = null;
+    if (isConvex) {
+      this.ensureConvexSectorMask(width, height);
+      convexGeom = this.convexScanGeomCache;
+    }
 
     for (let y = 0; y < height; y++) {
-      const baseDepth = (y / Math.max(1, height - 1)) * this.config.depth;
-      const motion = this.getMotionOffsets(baseDepth);
-      const yWavePx =
-        Math.sin(this.time * 5 + y * 0.018) * 0.45 +
-        Math.cos(this.time * 2.5 + y * 0.009) * 0.25;
-      const xMotionPx = (motion.lateralOffset / 5.0) * width;
-      const yMotionPx = (motion.depthOffset / Math.max(0.001, this.config.depth)) * height + yWavePx;
+      const depthRatioRow = y / Math.max(1, height - 1);
       const scanlineDistance = Math.abs(y - scanlinePos);
       const scanlineGain = Math.exp(-scanlineDistance * 0.3) * 0.015 * Math.sin(seed * 15);
+
+      let probeDxPx = 0;
+      let probeDyPx = 0;
+      if (!isConvex) {
+        const handheldMotion = computeHandheldProbeMotionCm(this.time, depthRatioRow);
+        const shift = handheldMotionToPixelShift(
+          handheldMotion,
+          width,
+          height,
+          fieldWidthCm,
+          this.config.depth,
+        );
+        probeDxPx = shift.dxPx;
+        probeDyPx = shift.dyPx;
+      }
 
       for (let x = 0; x < width; x++) {
         const idx = y * width + x;
         const pi = idx * 4;
-        const tissueTremor = Math.sin(x * 0.02 + this.time * 3) * Math.cos(y * 0.015 + this.time * 2.5) * 0.55;
-        const tissueStrain =
-          Math.sin(this.time * 1.35 + x * 0.01 + y * 0.022) *
-          Math.sin(this.time * 0.8 + y * 0.014) *
-          (0.25 + (baseDepth / Math.max(0.001, this.config.depth)) * 0.75);
-        let sxFloat = x + xMotionPx + tissueTremor * 0.65;
-        let syFloat = y + yMotionPx + tissueTremor * 0.35 + tissueStrain * 0.9;
-        const vesselDeformation = this.getCachedVesselDeformation(x, y, width, height);
-        sxFloat += vesselDeformation.dxPx;
-        syFloat += vesselDeformation.dyPx;
-        sxFloat = Math.max(0, Math.min(width - 1, sxFloat));
-        syFloat = Math.max(0, Math.min(height - 1, syFloat));
-        const sx0 = Math.floor(sxFloat);
-        const sy0 = Math.floor(syFloat);
-        const sx1 = Math.min(width - 1, sx0 + 1);
-        const sy1 = Math.min(height - 1, sy0 + 1);
-        const tx = sxFloat - sx0;
-        const ty = syFloat - sy0;
-        const idx00 = sy0 * width + sx0;
-        const idx10 = sy0 * width + sx1;
-        const idx01 = sy1 * width + sx0;
-        const idx11 = sy1 * width + sx1;
-        const pi00 = idx00 * 4;
-        const pi10 = idx10 * 4;
-        const pi01 = idx01 * 4;
-        const pi11 = idx11 * 4;
+        const vesselFx = this.getVesselLiveEffects(x, y, width, height, seed);
 
-        const alpha =
-          this.structuralCache[pi00 + 3] * (1 - tx) * (1 - ty) +
-          this.structuralCache[pi10 + 3] * tx * (1 - ty) +
-          this.structuralCache[pi01 + 3] * (1 - tx) * ty +
-          this.structuralCache[pi11 + 3] * tx * ty;
-        if (alpha <= 1) {
-          out[pi] = out[pi + 1] = out[pi + 2] = 0;
-          out[pi + 3] = 255;
-          continue;
+        let intensity: number;
+        let convexEdgeGuard = 1;
+        if (isConvex && this.convexSectorMask && convexGeom) {
+          if (!this.convexSectorMask[idx]) {
+            intensity = 0;
+          } else {
+            convexEdgeGuard = convexSectorEdgeFactor(
+              x,
+              y,
+              this.convexSectorMask,
+              width,
+              height,
+              convexGeom,
+              8,
+            );
+            if (convexEdgeGuard < 0.4) {
+              intensity =
+                this.sampleStructuralCacheIntensity(x, y, width, height, this.convexSectorMask) *
+                convexEdgeGuard;
+            } else {
+              const handSample = convexInternalHandSamplePixel(x, y, this.time, convexGeom);
+              const baseSx = handSample?.sx ?? x;
+              const baseSy = handSample?.sy ?? y;
+              let sx = baseSx + vesselFx.dxPx;
+              let sy = baseSy + vesselFx.dyPx;
+              ({ sx, sy } = convexClampSampleToMask(
+                sx,
+                sy,
+                baseSx,
+                baseSy,
+                this.convexSectorMask,
+                width,
+                height,
+              ));
+              intensity =
+                this.sampleStructuralCacheIntensity(sx, sy, width, height, this.convexSectorMask) *
+                convexEdgeGuard;
+            }
+          }
+        } else {
+          const linearEdge = this.linearCanvasEdgeFactor(x, y, width, height);
+          const sx = x + probeDxPx + vesselFx.dxPx;
+          const sy = y + probeDyPx + vesselFx.dyPx;
+          if (linearEdge < 0.4 || sx < 0 || sx > width - 1 || sy < 0 || sy > height - 1) {
+            intensity =
+              this.sampleStructuralCacheIntensity(x, y, width, height) * linearEdge;
+          } else {
+            intensity =
+              this.sampleStructuralCacheIntensity(sx, sy, width, height) * linearEdge;
+          }
+          convexEdgeGuard = linearEdge;
         }
 
-        const topGray = this.structuralCache[pi00] * (1 - tx) + this.structuralCache[pi10] * tx;
-        const bottomGray = this.structuralCache[pi01] * (1 - tx) + this.structuralCache[pi11] * tx;
-        let intensity = (topGray * (1 - ty) + bottomGray * ty) / 255;
+        intensity = intensity * vesselFx.intensityMult + vesselFx.intensityAdd;
 
-        // Deterministic version of the original live speckle shimmer. It avoids
-        // Math.random() per pixel, but keeps the scanline and high/mid frequency motion.
-        const depthTop = this.structuralDepthRatio[idx00] * (1 - tx) + this.structuralDepthRatio[idx10] * tx;
-        const depthBottom = this.structuralDepthRatio[idx01] * (1 - tx) + this.structuralDepthRatio[idx11] * tx;
-        const depthRatio = depthTop * (1 - ty) + depthBottom * ty;
-        const noise =
-          Math.sin(x * 0.3 + y * 0.2 + seed * 12) * 0.012 +
-          Math.sin(x * 0.08 + y * 0.1 + seed * 4) * 0.018 +
+        // Live speckle / strain on top of geometric hand motion (cone mask applied after).
+        const speckleShimmer =
+          Math.sin(x * 0.3 + y * 0.2 + seed * 12) * 0.02 +
+          Math.sin(x * 0.08 + y * 0.1 + seed * 4) * 0.026 +
           frameLowNoise +
           scanlineGain;
-        intensity *= 1 + noise * (1 + depthRatio * 0.8);
+        const tissueStrain =
+          Math.sin(this.time * 1.35 + x * 0.012 + y * 0.02) *
+          Math.sin(this.time * 0.85 + y * 0.014) *
+          0.018 *
+          (0.3 + depthRatioRow * 0.7);
+        const tissueTremor =
+          Math.sin(x * 0.025 + this.time * 3.2) * Math.cos(y * 0.018 + this.time * 2.6) *
+          (isConvex ? 0.016 : 0.012);
+        const handheldIntensity = isConvex
+          ? Math.sin(this.time * 6.1 + x * 0.06 + y * 0.05) *
+            Math.cos(this.time * 4.8 + y * 0.04) *
+            0.028
+          : 0;
+        const liveMod =
+          (speckleShimmer + tissueStrain + tissueTremor + handheldIntensity) *
+          (1 + depthRatioRow * 0.75) *
+          convexEdgeGuard;
+        intensity *= 1 + liveMod;
 
-        const physCoords = this.pixelToPhysical(sxFloat, syFloat);
-        intensity = this.applyCachedInternalMotion(
+        const physCoords = this.pixelToPhysical(x, y);
+        intensity = this.applyCachedSpeckleMotion(
           intensity,
           x,
           y,
           physCoords.depth,
-          physCoords.lateral,
           seed,
           speckleScale,
         );
@@ -740,118 +917,123 @@ export class UnifiedUltrasoundEngine {
       }
     }
 
+    if (isConvex && this.convexSectorMask) {
+      applyConvexSectorMaskBuffer(out, this.convexSectorMask, width, height);
+    }
+
     this.ctx.putImageData(this.motionFrameBuffer, 0, 0);
   }
 
-  private applyCachedInternalMotion(
+  /** Full physics render when structural cache is missing (bootstrap / recovery). */
+  private renderBModeKeyframe(): void {
+    if (
+      (this.config.transducerType === 'convex' || this.config.transducerType === 'microconvex') &&
+      this.convexEngine
+    ) {
+      this.convexEngine.updateConfig({ highQualityPost: true });
+      this.convexEngine.render(this.ctx, { structuralOnly: true });
+      this.enforceConvexSectorMask();
+      if (this.config.renderMode === 'animated' && this.config.renderQuality !== 'preview') {
+        this.captureStructuralCacheFromCanvas();
+        this.renderLiveMotionFromStructuralCache();
+      }
+      return;
+    }
+    if (this.config.transducerType === 'linear') {
+      this.renderLinearPulseEcho({ structuralOnly: true });
+      if (this.config.renderMode === 'animated' && this.config.renderQuality !== 'preview') {
+        this.renderLiveMotionFromStructuralCache();
+      }
+    }
+  }
+
+  private applyCachedSpeckleMotion(
     intensity: number,
     x: number,
     y: number,
     depth: number,
-    lateral: number,
     seed: number,
     speckleScale: number,
   ): number {
-    let multiplier = 1;
-    let additive = 0;
+    if (!this.config.enableSpeckle) return intensity;
 
-    if (this.config.enableSpeckle) {
-      const scaledX = x / speckleScale;
-      const scaledY = y / speckleScale;
-      const px = scaledX * 0.1 + this.time * 0.5;
-      const py = scaledY * 0.1;
-      const hashNoise = this.noise(px * 12.9898 + py * 78.233) * 2 - 1;
-      const fineHash = this.noise((px + 100) * 45.123 + (py + 50) * 91.456) * 2 - 1;
-      const depthRatio = Math.min(1, Math.max(0, depth / Math.max(0.001, this.config.depth)));
-      multiplier *= 1 + (hashNoise * 0.035 + fineHash * 0.025) * (1 + depthRatio * 0.35);
-    }
-
-    for (const inclusion of this.config.inclusions) {
-      if (inclusion.mediumInsideId !== 'blood' && inclusion.mediumInsideId !== 'water') continue;
-
-      const result = this.getDistanceFromInclusion(depth, lateral, inclusion);
-      if (!result.isInside) continue;
-
-      const inclLateral = inclusion.centerLateralPos * 2.5;
-      const dx = lateral - inclLateral;
-      const dy = depth - inclusion.centerDepthCm;
-      const vesselRadius = Math.max(0.001, Math.min(inclusion.sizeCm.width, inclusion.sizeCm.height) / 2);
-      const radialPos = Math.min(1, Math.sqrt(dx * dx + dy * dy) / vesselRadius);
-      const flowSpeed = Math.max(0, 1 - radialPos * radialPos) * 0.8;
-      const flowPhase = this.time * flowSpeed * 25;
-      const pulse = 0.5 + 0.5 * Math.sin(this.time * 1.2 * 2 * Math.PI);
-      const edgeFactor = Math.max(0, 1 - result.distanceFromEdge / vesselRadius);
-
-      // Same pulsatile blood-flow idea as the full renderer. In cached mode we also
-      // add a tiny moving echo signal because blood is mostly anechoic; multiplying a
-      // near-black cached lumen is not visible enough to look like internal flow.
-      const flowMultiplier = 1 + Math.sin(flowPhase + depth * 8 + lateral * 6) * 0.2 * pulse;
-      const pulseMultiplier = 1 + (pulse - 0.5) * 0.08 * edgeFactor;
-      const laminarCore = 1 - radialPos;
-      const flowTexture =
-        Math.sin(flowPhase + lateral * 22 + depth * 12) * 0.5 +
-        Math.sin(flowPhase * 1.7 + lateral * 37 - depth * 18) * 0.3 +
-        Math.cos(seed * 8 + dx * 28) * 0.2;
-      const laminarTexture = 1 + flowTexture * 0.08 * laminarCore;
-      const movingEcho = Math.max(0, flowTexture) * 0.14 * pulse * (0.35 + laminarCore * 0.65);
-      const wallFlutter = Math.sin(this.time * 7.5 + lateral * 18) * 0.035 * edgeFactor;
-      multiplier *= flowMultiplier * pulseMultiplier * laminarTexture;
-      additive += movingEcho + wallFlutter;
-      break;
-    }
-
-    return Math.max(0, Math.min(1, intensity * Math.max(0.65, Math.min(1.35, multiplier)) + additive));
+    const scaledX = x / speckleScale;
+    const scaledY = y / speckleScale;
+    const px = scaledX * 0.1 + this.time * 0.5;
+    const py = scaledY * 0.1;
+    const hashNoise = this.noise(px * 12.9898 + py * 78.233) * 2 - 1;
+    const fineHash = this.noise((px + 100) * 45.123 + (py + 50) * 91.456) * 2 - 1;
+    const depthRatio = Math.min(1, Math.max(0, depth / Math.max(0.001, this.config.depth)));
+    const multiplier = 1 + (hashNoise * 0.035 + fineHash * 0.025) * (1 + depthRatio * 0.35);
+    return Math.max(0, Math.min(1, intensity * multiplier));
   }
 
-  private getCachedVesselDeformation(
+  private getVesselLiveEffects(
     x: number,
     y: number,
     width: number,
     height: number,
-  ): { dxPx: number; dyPx: number } {
-    if (this.config.inclusions.length === 0) return { dxPx: 0, dyPx: 0 };
+    seed: number,
+  ): { dxPx: number; dyPx: number; intensityMult: number; intensityAdd: number } {
+    const none = { dxPx: 0, dyPx: 0, intensityMult: 1, intensityAdd: 0 };
+    if (!this.config.inclusions.length) return none;
 
-    const coords = this.pixelToPhysical(x, y);
+    const isConvex =
+      this.config.transducerType === 'convex' || this.config.transducerType === 'microconvex';
+    const offsetCm = (this.config.lateralOffset ?? 0) * this.config.depth * 0.5;
+
+    let coords: { depth: number; lateral: number } | null = null;
+    if (isConvex && this.convexScanGeomCache) {
+      const anatomical = convexPixelToAnatomical(x, y, this.convexScanGeomCache, offsetCm);
+      if (anatomical) coords = { depth: anatomical.depth, lateral: anatomical.lateral };
+    } else {
+      coords = this.pixelToPhysical(x, y);
+    }
+    if (!coords) return none;
+
+    let best: ReturnType<typeof computeVesselLiveMotion> | null = null;
+    let bestStrength = 0;
+    const motionScale = isConvex ? 1.0 : 0.82;
+
     for (const inclusion of this.config.inclusions) {
-      if (inclusion.mediumInsideId !== 'blood' && inclusion.mediumInsideId !== 'water') continue;
+      if (!isBloodVessel(inclusion)) continue;
 
-      const result = this.getDistanceFromInclusion(coords.depth, coords.lateral, inclusion);
-      const vesselRadiusCm = Math.max(0.001, Math.min(inclusion.sizeCm.width, inclusion.sizeCm.height) / 2);
-      const nearVessel = result.isInside || result.distanceFromEdge < vesselRadiusCm * 0.35;
-      if (!nearVessel) continue;
+      const dist = this.getDistanceFromInclusion(coords.depth, coords.lateral, inclusion);
+      const prox = buildVesselProximity(coords.depth, coords.lateral, inclusion, dist);
+      const nearVessel =
+        prox.isInside || prox.distanceFromEdge < prox.vesselRadiusCm * 0.55;
+      if (!nearVessel || prox.insideStrength < 0.04) continue;
 
-      const pulse = Math.sin(this.time * 1.2 * 2 * Math.PI);
-      const inclLateralCm = inclusion.centerLateralPos * 2.5;
-      const localLateralCm = coords.lateral - inclLateralCm;
-      const localDepthCm = coords.depth - inclusion.centerDepthCm;
-      const lateralPxPerCm = width / 5.0;
-      const depthPxPerCm = height / Math.max(0.001, this.config.depth);
-      const insideStrength = result.isInside
-        ? 1
-        : Math.max(0, 1 - result.distanceFromEdge / (vesselRadiusCm * 0.35));
-
-      if (inclusion.shape === 'capsule') {
-        const flowDirection = (inclusion.rotationDegrees ?? 0) >= 0 ? 1 : -1;
-        const travelingFlowPx =
-          Math.sin(this.time * 9 + localLateralCm * 12) * 1.8 +
-          Math.sin(this.time * 14 + localLateralCm * 20 + localDepthCm * 8) * 0.9;
-        const wallCompressionPx = localDepthCm * depthPxPerCm * pulse * 0.13;
-        return {
-          dxPx: flowDirection * travelingFlowPx * insideStrength,
-          dyPx: wallCompressionPx * insideStrength,
-        };
+      let lateralPxPerCm = width / 5.0;
+      let depthPxPerCm = height / Math.max(0.001, this.config.depth);
+      if (isConvex && this.convexScanGeomCache) {
+        const pxScale = convexPixelsPerCmAt(x, y, this.convexScanGeomCache);
+        lateralPxPerCm = pxScale.lateralPxPerCm;
+        depthPxPerCm = pxScale.depthPxPerCm;
       }
 
-      const radialCm = Math.max(0.001, Math.sqrt(localLateralCm * localLateralCm + localDepthCm * localDepthCm));
-      const radialPulse = pulse * 0.14 * insideStrength;
-      const swirl = Math.sin(this.time * 10 + radialCm * 18) * 0.8 * insideStrength;
-      return {
-        dxPx: (localLateralCm / radialCm) * vesselRadiusCm * lateralPxPerCm * radialPulse + swirl,
-        dyPx: (localDepthCm / radialCm) * vesselRadiusCm * depthPxPerCm * radialPulse,
-      };
+      const fx = computeVesselLiveMotion(
+        this.time,
+        seed + inclusion.id.length,
+        inclusion,
+        prox,
+        lateralPxPerCm * motionScale,
+        depthPxPerCm * motionScale,
+      );
+
+      if (prox.insideStrength > bestStrength) {
+        bestStrength = prox.insideStrength;
+        best = fx;
+      }
     }
 
-    return { dxPx: 0, dyPx: 0 };
+    if (!best) return none;
+    return {
+      dxPx: best.dxPx,
+      dyPx: best.dyPx,
+      intensityMult: best.intensityMult,
+      intensityAdd: best.intensityAdd,
+    };
   }
 
   private saveLinearStructuralCache(data: Uint8ClampedArray, width: number, height: number): void {
@@ -992,7 +1174,8 @@ export class UnifiedUltrasoundEngine {
         const highFreqNoise = Math.sin(x * 0.3 + y * 0.2 + temporalSeed * 12) * 0.012;
         const midFreqNoise = Math.sin(x * 0.08 + y * 0.1 + temporalSeed * 4) * 0.018;
         const lowFreqNoise = Math.sin(temporalSeed * 1.5) * 0.008;
-        const frameNoise = (Math.random() - 0.5) * 0.025 * (1 + depthRatio * 0.5);
+        const rnd = Math.sin(x * 12.9898 + y * 78.233 + temporalSeed * 43.891) * 43758.5453;
+        const frameNoise = ((rnd - Math.floor(rnd)) - 0.5) * 0.025 * (1 + depthRatio * 0.5);
         const totalLiveNoise = (highFreqNoise + midFreqNoise + lowFreqNoise + frameNoise) * (1 + depthRatio * 0.8);
         intensity *= (1 + totalLiveNoise);
         
@@ -1289,37 +1472,100 @@ export class UnifiedUltrasoundEngine {
 
     const imageData = this.previewCtx!.createImageData(pw, ph);
     const data = imageData.data;
-    const gainLinear = Math.pow(10, (this.config.gain - 50) / 20);
-    const drFactor = this.config.dynamicRange / 60;
+    const fieldWidthCm = 5.0;
+    const lateralOffsetCm = (this.config.lateralOffset ?? 0) * fieldWidthCm * 0.5;
+    const modelConfig = this.getPulseEchoModelConfig(lateralOffsetCm);
 
-    for (let y = 0; y < ph; y++) {
-      for (let x = 0; x < pw; x++) {
-        const srcX = Math.min(width - 1, Math.floor(((x + 0.5) / pw) * width));
-        const srcY = Math.min(height - 1, Math.floor(((y + 0.5) / ph) * height));
-        const idx = (y * pw + x) * 4;
-        const physCoords = this.pixelToPhysical(srcX, srcY);
+    if (!this.pulseEchoModel) {
+      this.pulseEchoModel = new PulseEchoAcousticModel(modelConfig);
+    } else {
+      this.pulseEchoModel.updateConfig(modelConfig);
+    }
+    this.pulseEchoModel.setTime(this.time);
 
-        if (physCoords.depth > this.config.depth) {
-          data[idx] = data[idx + 1] = data[idx + 2] = 0;
-          data[idx + 3] = 255;
-          continue;
-        }
-
-        let intensity = this.calculatePixelIntensityNoShadow(srcX, srcY, physCoords);
-        intensity *= gainLinear;
-        intensity = Math.pow(Math.max(0, intensity), drFactor);
-        const gray = Math.max(0, Math.min(255, intensity * 255));
-        data[idx] = gray;
-        data[idx + 1] = gray;
-        data[idx + 2] = gray;
-        data[idx + 3] = 255;
-      }
+    const buffer = this.pulseEchoModel.renderLinear(pw, ph, fieldWidthCm);
+    for (let i = 0; i < buffer.length; i++) {
+      const gray = Math.max(0, Math.min(255, Math.round(buffer[i] * 255)));
+      const p = i * 4;
+      data[p] = gray;
+      data[p + 1] = gray;
+      data[p + 2] = gray;
+      data[p + 3] = 255;
     }
 
     this.previewCtx!.putImageData(imageData, 0, 0);
     this.ctx.imageSmoothingEnabled = true;
     this.ctx.imageSmoothingQuality = 'low';
     this.ctx.drawImage(this.previewCanvas!, 0, 0, width, height);
+  }
+
+  private renderLinearPulseEcho(options?: { structuralOnly?: boolean }): void {
+    const { width, height } = this.canvas;
+    const fieldWidthCm = 5.0;
+    const lateralOffsetCm = (this.config.lateralOffset ?? 0) * fieldWidthCm * 0.5;
+
+    const modelConfig = this.getPulseEchoModelConfig(lateralOffsetCm, options?.structuralOnly);
+
+    if (!this.pulseEchoModel) {
+      this.pulseEchoModel = new PulseEchoAcousticModel(modelConfig);
+    } else {
+      this.pulseEchoModel.updateConfig(modelConfig);
+    }
+    this.pulseEchoModel.setTime(this.time);
+
+    const rw = Math.max(280, Math.floor(width * 0.82));
+    const rh = Math.max(200, Math.floor(height * 0.82));
+    const buffer = this.pulseEchoModel.renderLinear(rw, rh, fieldWidthCm);
+    this.ensurePreviewCanvas(rw, rh);
+    const lowData = this.previewCtx!.createImageData(rw, rh).data;
+    for (let i = 0; i < buffer.length; i++) {
+      const gray = Math.max(0, Math.min(255, Math.round(buffer[i] * 255)));
+      const p = i * 4;
+      lowData[p] = gray;
+      lowData[p + 1] = gray;
+      lowData[p + 2] = gray;
+      lowData[p + 3] = 255;
+    }
+    this.previewCtx!.putImageData(new ImageData(lowData, rw, rh), 0, 0);
+    this.ctx.imageSmoothingEnabled = true;
+    this.ctx.imageSmoothingQuality = 'high';
+    this.ctx.drawImage(this.previewCanvas!, 0, 0, width, height);
+
+    if (
+      options?.structuralOnly &&
+      this.config.renderMode === 'animated' &&
+      this.config.renderQuality === 'full'
+    ) {
+      const data = this.ctx.getImageData(0, 0, width, height).data;
+      this.saveLinearStructuralCache(data, width, height);
+    }
+  }
+
+  private getPulseEchoModelConfig(lateralOffsetCm: number, structuralOnly = false) {
+    return {
+      layers: this.config.acousticLayers,
+      inclusions: this.config.inclusions,
+      depthCm: this.config.depth,
+      frequencyMHz: this.config.frequency,
+      focusCm: this.config.focus,
+      gainDb: this.config.gain,
+      dynamicRangeDb: this.config.dynamicRange,
+      lateralOffsetCm,
+      animated: structuralOnly ? false : this.config.renderMode === 'animated',
+      highQualityPost: true,
+    };
+  }
+
+  private cardiacPulseEnvelope(): number {
+    const phase = (this.time * 1.2) % 1;
+    if (phase < 0.18) return phase / 0.18;
+    return Math.max(0, 1 - (phase - 0.18) / 0.82);
+  }
+
+  private isArteryInclusion(inclusion: UltrasoundInclusionConfig): boolean {
+    if (inclusion.type !== 'vessel' || inclusion.mediumInsideId !== 'blood') return false;
+    const id = `${inclusion.id} ${inclusion.label}`.toLowerCase();
+    return id.includes('arter') || id.includes('arté') || id.includes('carot');
   }
 
   private renderBMode(): void {
@@ -1336,10 +1582,18 @@ export class UnifiedUltrasoundEngine {
         return;
       }
 
+      const useMotionCache = this.useCachedLiveMotion();
+      if (useMotionCache && this.shouldRebuildStructuralCache()) {
+        this.renderLinearPulseEcho({ structuralOnly: true });
+      }
+
       if (this.shouldUseCachedMotionShortcut()) {
         this.renderLiveMotionFromStructuralCache();
         return;
       }
+
+      this.renderLinearPulseEcho({ structuralOnly: false });
+      return;
 
       const isMobileOptimized = this.config.performanceProfile === 'mobile';
 
@@ -1563,7 +1817,8 @@ export class UnifiedUltrasoundEngine {
         const highFreqNoise = Math.sin(x * 0.3 + y * 0.2 + temporalSeed * 12) * 0.012;
         const midFreqNoise = Math.sin(x * 0.08 + y * 0.1 + temporalSeed * 4) * 0.018;
         const lowFreqNoise = Math.sin(temporalSeed * 1.5) * 0.008;
-        const frameNoise = (Math.random() - 0.5) * 0.025 * (1 + depthRatio * 0.5);
+        const rnd = Math.sin(x * 12.9898 + y * 78.233 + temporalSeed * 43.891) * 43758.5453;
+        const frameNoise = ((rnd - Math.floor(rnd)) - 0.5) * 0.025 * (1 + depthRatio * 0.5);
         
         const totalLiveNoise = (highFreqNoise + midFreqNoise + lowFreqNoise + frameNoise) * (1 + depthRatio * 0.8);
         intensity *= (1 + totalLiveNoise);
@@ -2432,7 +2687,9 @@ export class UnifiedUltrasoundEngine {
     let cumulativeDepth = 0;
     for (let i = 0; i < this.config.acousticLayers.length - 1; i++) {
       cumulativeDepth += this.config.acousticLayers[i].thicknessCm;
-      const distToInterface = Math.abs(depth - cumulativeDepth);
+      const distToInterface = Math.abs(
+        depth - wavyInterfaceDepthCm(cumulativeDepth, lateral, i),
+      );
       
       if (distToInterface < 0.15) {
         const m1 = getAcousticMedium(this.config.acousticLayers[i].mediumId);
@@ -3371,24 +3628,11 @@ export class UnifiedUltrasoundEngine {
    * ═══════════════════════════════════════════════════════════════════════════════
    */
   private getMotionOffsets(depth: number): { lateralOffset: number; depthOffset: number } {
-    // 1. Breathing motion (cyclic vertical displacement)
-    const breathingCycle = Math.sin(this.time * 0.3) * 0.035;
-    const breathingDepthEffect = depth / this.config.depth;
-    const breathingOffset = breathingCycle * breathingDepthEffect;
-    
-    // 2. Probe micro-jitter (operator hand tremor) - LATERAL AND DEPTH
-    const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.025;
-    const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.018;
-    
-    // 3. Additional low-frequency sway (natural arm movement) - LATERAL
-    const armSway = Math.sin(this.time * 1.2) * Math.cos(this.time * 0.7) * 0.015;
-    
-    // 4. Slow drift (longer period lateral movement)
-    const slowDrift = Math.sin(this.time * 0.5) * 0.02;
-    
+    const depthNorm = depth / Math.max(0.1, this.config.depth);
+    const motion = computeHandheldProbeMotionCm(this.time, depthNorm);
     return {
-      lateralOffset: jitterLateral + armSway + slowDrift,
-      depthOffset: breathingOffset + jitterDepth
+      lateralOffset: motion.lateralCm,
+      depthOffset: motion.depthCm,
     };
   }
   
@@ -3827,61 +4071,55 @@ export class UnifiedUltrasoundEngine {
   }
   
   private drawDepthScale(): void {
-    const { height } = this.canvas;
+    const { width, height } = this.canvas;
     this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
     this.ctx.font = '11px monospace';
-    
+
     const steps = 5;
-    for (let i = 0; i <= steps; i++) {
-      const y = (i / steps) * height;
-      const depth = (i / steps) * this.config.depth;
-      this.ctx.fillText(`${depth.toFixed(1)}cm`, 5, y + 12);
+
+    if (this.config.transducerType === 'linear') {
+      for (let i = 0; i <= steps; i++) {
+        const y = (i / steps) * height;
+        const depth = (i / steps) * this.config.depth;
+        this.ctx.fillText(`${depth.toFixed(1)}cm`, 5, y + 12);
+      }
+      return;
     }
+
+    const transducerKind =
+      this.config.transducerType === 'convex' ? 'convex' : 'microconvex';
+    const geom = getConvexScanGeom(width, height, transducerKind, this.config.depth);
+    const edgeTheta = -geom.halfFOVRad;
+    const tickSpanRad = 0.035;
+
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.38)';
+    this.ctx.textAlign = 'right';
+
+    for (let i = 0; i <= steps; i++) {
+      const depthCm = (i / steps) * this.config.depth;
+      const { x, y } = convexBeamToPixel(edgeTheta, depthCm, geom);
+      const depthFrac = depthCm / Math.max(0.05, geom.maxDepthCm);
+      const tickRadius = geom.arcRadiusPixels + depthFrac * geom.sectorDepthPixels;
+
+      this.ctx.beginPath();
+      this.ctx.arc(
+        geom.centerX,
+        geom.virtualCenterY,
+        tickRadius,
+        edgeTheta,
+        edgeTheta + tickSpanRad,
+      );
+      this.ctx.stroke();
+
+      this.ctx.fillText(`${depthCm.toFixed(1)}cm`, x - 5, y + 4);
+    }
+
+    this.ctx.textAlign = 'left';
   }
   
   private drawFocusMarker(): void {
-    const { width, height } = this.canvas;
-    const focusY = (this.config.focus / this.config.depth) * height;
-    
-    this.ctx.strokeStyle = 'rgba(255, 165, 0, 0.8)';
-    this.ctx.lineWidth = 2;
-    this.ctx.beginPath();
-    
-    if (this.config.transducerType === 'linear') {
-      // Linear: linha reta horizontal
-      this.ctx.moveTo(width * 0.1, focusY);
-      this.ctx.lineTo(width * 0.9, focusY);
-    } else {
-      // Convex/Microconvex: arco curvo COM GEOMETRIA CORRETA
-      const fovDegrees = this.config.transducerType === 'convex' ? 60 : 50;
-      const transducerRadiusCm = this.config.transducerType === 'convex' ? 5.0 : 2.5;
-      
-      // MESMA geometria correta do ConvexPolarEngine
-      const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
-      const centerX = width / 2;
-      
-      // Escala para que maxDepth coincida com fundo do canvas
-      const totalDistanceFromCenter = transducerRadiusCm + this.config.depth;
-      const pixelsPerCm = height / totalDistanceFromCenter;
-      
-      // Centro virtual posicionado corretamente
-      const arcRadiusPixels = transducerRadiusCm * pixelsPerCm;
-      const virtualCenterY = -arcRadiusPixels;
-      
-      // Raio do arco de foco (do centro virtual até a profundidade de foco)
-      const focusRadiusPixels = (transducerRadiusCm + this.config.focus) * pixelsPerCm;
-      
-      // Desenhar arco
-      this.ctx.arc(
-        centerX,
-        virtualCenterY,
-        focusRadiusPixels,
-        Math.PI / 2 - halfFOVRad,
-        Math.PI / 2 + halfFOVRad
-      );
-    }
-    
-    this.ctx.stroke();
+    // Intentionally no-op: focus is represented by controls/labels outside the B-mode
+    // content. Drawing an orange line/arc inside the ultrasound image breaks realism.
   }
   
   private drawLabels(): void {
@@ -3919,24 +4157,22 @@ export class UnifiedUltrasoundEngine {
         this.ctx.stroke();
       }
     } else {
-      // Convex/Microconvex: concentric arcs from transducer center
-      const fovDegrees = this.config.transducerType === 'convex' ? 60 : 50;
-      const transducerRadiusCm = this.config.transducerType === 'convex' ? 5.0 : 2.5;
-      const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
-      const centerX = width / 2;
-      
-      const totalDistanceFromCenter = transducerRadiusCm + this.config.depth;
-      const pixelsPerCm = height / totalDistanceFromCenter;
-      const arcRadiusPixels = transducerRadiusCm * pixelsPerCm;
-      const virtualCenterY = -arcRadiusPixels;
-      
+      const transducerKind =
+        this.config.transducerType === 'convex' ? 'convex' : 'microconvex';
+      const layout = getConvexSectorLayout(width, height, transducerKind);
       const numArcs = 8;
       for (let i = 1; i <= numArcs; i++) {
-        const depthCm = (i / numArcs) * this.config.depth;
-        const arcRadius = (transducerRadiusCm + depthCm) * pixelsPerCm;
-        
+        const depthFrac = i / numArcs;
+        const arcRadius =
+          layout.arcRadiusPixels + depthFrac * layout.sectorDepthPixels;
         this.ctx.beginPath();
-        this.ctx.arc(centerX, virtualCenterY, arcRadius, Math.PI / 2 - halfFOVRad, Math.PI / 2 + halfFOVRad);
+        this.ctx.arc(
+          layout.centerX,
+          layout.virtualCenterY,
+          arcRadius,
+          Math.PI / 2 - layout.halfFOVRad,
+          Math.PI / 2 + layout.halfFOVRad,
+        );
         this.ctx.stroke();
       }
     }

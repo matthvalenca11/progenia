@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { BasicInfoSection } from "./BasicInfoSection";
+import { UltrasoundVideoFeaturePanel } from "./UltrasoundVideoFeaturePanel";
 import { AnatomyPresetSection } from "./AnatomyPresetSection";
 import { SimulationFeaturesSection } from "./SimulationFeaturesSection";
 import { StudentControlsSection } from "./StudentControlsSection";
@@ -22,6 +24,7 @@ interface UltrasoundLabBuilderProps {
 
 export const UltrasoundLabBuilder = ({ videoUrl, onVideoChange }: UltrasoundLabBuilderProps) => {
   const { layers, setLayers, acousticLayers, setAcousticLayers, inclusions, setInclusions } = useUltrasoundLabStore();
+  const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null);
   
   // Convert AnatomyLayer to UltrasoundLayerConfig for the editor
   const convertToLayerConfigs = (): UltrasoundLayerConfig[] => {
@@ -84,10 +87,17 @@ export const UltrasoundLabBuilder = ({ videoUrl, onVideoChange }: UltrasoundLabB
         
         {/* Video Uploader - integrated in left column */}
         {onVideoChange && (
-          <LabVideoUploader
-            videoUrl={videoUrl}
-            onVideoChange={onVideoChange}
-          />
+          <>
+            <LabVideoUploader
+              videoUrl={videoUrl}
+              onVideoChange={onVideoChange}
+              onFileSelected={setPendingVideoFile}
+            />
+            <UltrasoundVideoFeaturePanel
+              videoUrl={videoUrl}
+              pendingFile={pendingVideoFile}
+            />
+          </>
         )}
         
         <AnatomyPresetSection />

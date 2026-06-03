@@ -153,7 +153,13 @@ All colors MUST be HSL.
     padding-bottom: var(--sab, env(safe-area-inset-bottom, 0px));
   }
 
+  /* Padding lateral só no conteúdo (.native-content-pad), não no main — barras do topo vão edge-to-edge */
   html.native-app .native-shell-padding {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  html.native-app .native-content-pad {
     padding-left: max(1rem, var(--sal, env(safe-area-inset-left, 0px)));
     padding-right: max(1rem, var(--sar, env(safe-area-inset-right, 0px)));
   }
@@ -229,6 +235,25 @@ All colors MUST be HSL.
   /* Barra superior (logo): superfície mais clara que o fundo no dark mode */
   .dark .safe-sticky-top.border-b {
     background-color: hsl(220 22% 18%) !important;
+  }
+
+  /* Barras do topo: fundo edge-to-edge; recuo só no conteúdo interno */
+  html.native-app .safe-sticky-top.border-b,
+  html.native-app header.safe-sticky-top.border-b {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  html.native-app .safe-sticky-top.border-b > :first-child,
+  html.native-app header.safe-sticky-top.border-b > :first-child,
+  html.native-app .safe-sticky-top.border-b .container,
+  html.native-app header.safe-sticky-top.border-b .container {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    padding-left: max(1rem, var(--sal, env(safe-area-inset-left, 0px))) !important;
+    padding-right: max(1rem, var(--sar, env(safe-area-inset-right, 0px))) !important;
   }
 
   .lab-mobile-inset-x {

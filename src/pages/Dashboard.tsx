@@ -849,7 +849,7 @@ const Dashboard = () => {
           </div>
         </nav>
 
-        <div className="mx-auto w-full max-w-full space-y-4 py-4">
+        <div className="native-content-pad mx-auto w-full max-w-full space-y-4 py-4">
           <section>
             <h1 className="text-xl font-bold leading-tight sm:text-2xl">
               Bem-vindo, {getFirstName(profile?.full_name)}.

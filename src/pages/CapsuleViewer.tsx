@@ -177,7 +177,7 @@ const CapsuleViewer = () => {
   ];
 
   return (
-    <div className="layout-contained min-h-[100dvh] w-full overflow-x-hidden bg-background">
+    <div className="layout-contained min-h-[100dvh] w-full bg-background">
       {/* Navigation */}
       <nav className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur">
         <div
@@ -207,7 +207,7 @@ const CapsuleViewer = () => {
       <div
         className={cn(
           "layout-contained mx-auto w-full max-w-4xl py-6 sm:py-8",
-          isNativeApp ? "min-w-0 px-0" : "container px-3 sm:px-4",
+          isNativeApp ? "native-content-pad min-w-0" : "container px-3 sm:px-4",
         )}
       >
         {/* Header */}

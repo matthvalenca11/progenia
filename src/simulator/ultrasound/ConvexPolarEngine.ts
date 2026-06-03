@@ -1,21 +1,35 @@
 /**
  * ConvexPolarEngine.ts
- * 
- * Motor de renderização para transdutor CONVEXO com geometria correta:
- * - Transdutor é um ARCO (não um ponto)
- * - Raios divergem a partir de múltiplos pontos do arco
- * - Renderização em coordenadas polares puras
- * - Inclusões, sombras e speckle em espaço polar
- * 
- * Geometria física correta de ultrassom abdominal convexo.
+ *
+ * B-mode renderer for convex/microconvex diagnostic ultrasound.
+ *
+ * Core design:
+ * - The image is scan-converted through the fan, but anatomy lives in stable
+ *   Cartesian centimeters: x = lateral cm, z = depth cm from the transducer.
+ * - Inclusions are signed-distance fields (SDFs) in that anatomical space.
+ * - Acoustic artifacts are beam path integrals along each angular ray.
+ * - Speckle is tissue-specific scatterer texture, then blurred by a frequency PSF.
+ *
+ * This file renders only the active B-mode image content. UI, overlays, rulers,
+ * labels and lab layout are handled elsewhere and intentionally untouched.
  */
 
-import { UltrasoundLayerConfig, UltrasoundInclusionConfig, getAcousticMedium } from '@/types/acousticMedia';
-import { UnifiedPhysicsCore, PhysicsConfig, TissueProperties } from './UnifiedPhysicsCore';
+import {
+  type AcousticMedium,
+  type AcousticMediumId,
+  type Echogenicity,
+  type UltrasoundInclusionConfig,
+  type UltrasoundLayerConfig,
+  getAcousticMedium,
+} from '@/types/acousticMedia';
+import { PulseEchoAcousticModel } from './PulseEchoAcousticModel';
+import { wavyInterfaceDepthCm } from './LayerInterfaceWobble';
+import { getConvexSectorLayout } from './ConvexScanGeometry';
 
 type ConvexCanvasContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
 export interface ConvexPolarConfig {
+  transducerType: 'convex' | 'microconvex';
   // Geometria do transdutor
   fovDegrees: number;           // Abertura total do leque (60-90°)
   transducerRadiusCm: number;   // Raio do arco do transdutor (footprint)
@@ -38,22 +52,55 @@ export interface ConvexPolarConfig {
   // Dados anatômicos
   layers?: UltrasoundLayerConfig[];
   inclusions?: UltrasoundInclusionConfig[];
+  highQualityPost?: boolean;
 }
+
+type AnatomicalPoint = {
+  x: number;
+  z: number;
+};
+
+type InclusionSdf = {
+  inclusion: UltrasoundInclusionConfig;
+  medium: AcousticMedium;
+  sdf: number;
+  distanceFromEdge: number;
+  normalX: number;
+  normalZ: number;
+  localX: number;
+  localZ: number;
+};
+
+type TissueSample = {
+  echogenicity: Echogenicity;
+  attenuation: number;
+  reflectivity: number;
+  impedance: number;
+  scatterDensity: number;
+  scatterSize: number;
+  heterogeneity: number;
+  isInclusion: boolean;
+  isFluid: boolean;
+  inclusion?: UltrasoundInclusionConfig;
+  sdf: number;
+  boundaryStrength: number;
+  impedanceContrast: number;
+  sdfNormalX: number;
+  sdfNormalZ: number;
+  localX: number;
+  localZ: number;
+};
 
 export class ConvexPolarEngine {
   private config: ConvexPolarConfig;
-  private polarImage: Float32Array;      // Imagem polar (r, θ)
-  private shadowMap: Float32Array;       // Mapa de sombras acústicas
+  private polarImage: Float32Array;
   private time: number = 0;
-  private physicsCore: UnifiedPhysicsCore; // Motor de física unificado
+  private pulseEchoModel: PulseEchoAcousticModel;
 
   constructor(config: ConvexPolarConfig) {
     this.config = config;
     this.polarImage = new Float32Array(config.numDepthSamples * config.numAngleSamples);
-    this.shadowMap = new Float32Array(config.numDepthSamples * config.numAngleSamples);
-    
-    // Inicializar motor de física unificado
-    this.physicsCore = new UnifiedPhysicsCore(config.canvasWidth, config.canvasHeight);
+    this.pulseEchoModel = new PulseEchoAcousticModel(this.toPulseEchoConfig());
   }
 
   /**
@@ -90,269 +137,426 @@ export class ConvexPolarEngine {
    */
   updateConfig(config: Partial<ConvexPolarConfig>) {
     this.config = { ...this.config, ...config };
+    this.pulseEchoModel.updateConfig(this.toPulseEchoConfig());
     
     // Realocar arrays se tamanho mudou
     const newSize = this.config.numDepthSamples * this.config.numAngleSamples;
     if (this.polarImage.length !== newSize) {
       this.polarImage = new Float32Array(newSize);
-      this.shadowMap = new Float32Array(newSize);
     }
   }
 
-  /**
-   * Renderiza um frame completo
-   */
-  render(ctx: ConvexCanvasContext) {
-    this.time += 0.016;
-    
-    // Atualizar tempo no motor de física
-    this.physicsCore.updateTime(this.time);
-    
-    // Etapa 1: Gerar imagem polar interna com física
-    this.generatePolarImageWithPhysics();
-    
-    // Etapa 2: Converter polar → XY e renderizar no canvas
-    this.renderPolarToCanvas(ctx);
+  private toPulseEchoConfig(animated = true) {
+    return {
+      layers: this.config.layers,
+      inclusions: this.config.inclusions,
+      depthCm: this.config.maxDepthCm,
+      frequencyMHz: this.config.frequency,
+      focusCm: this.config.focus || this.config.maxDepthCm * 0.5,
+      gainDb: this.config.gain,
+      dynamicRangeDb: 60,
+      lateralOffsetCm: Math.max(-0.3, Math.min(0.3, this.config.lateralOffset || 0)) * this.config.maxDepthCm * 0.5,
+      animated,
+      highQualityPost: this.config.highQualityPost ?? true,
+      fixScanWindow: true,
+    };
   }
 
-  /**
-   * ═══════════════════════════════════════════════════════════════════════════════
-   * GENERATE POLAR IMAGE - PHOTOMETRICALLY IDENTICAL TO LINEAR MODE
-   * ═══════════════════════════════════════════════════════════════════════════════
-   * 
-   * All photometric parameters (speckle, attenuation, gain, contrast, noise) are
-   * EXACTLY copied from Linear mode. Only beam geometry differs (fan vs parallel).
-   */
-  private generatePolarImageWithPhysics() {
-    const { numDepthSamples, numAngleSamples, maxDepthCm, frequency, gain, fovDegrees } = this.config;
-    
-    const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
-    
-    // Configuração de física para motor unificado
-    const physicsConfig: PhysicsConfig = {
-      frequency,
-      depth: maxDepthCm,
-      focus: this.config.focus || maxDepthCm * 0.5,
-      gain,
-      dynamicRange: 60,
-      enableSpeckle: true,
-      enablePosteriorEnhancement: true,
-      enableAcousticShadow: true,
-      enableReverberation: false,
+  private clamp01(v: number): number {
+    return Math.max(0, Math.min(1, v));
+  }
+
+  private saturate(v: number, min = 0, max = 1): number {
+    return Math.max(min, Math.min(max, v));
+  }
+
+  private smoothstep(edge0: number, edge1: number, x: number): number {
+    const t = this.clamp01((x - edge0) / Math.max(1e-6, edge1 - edge0));
+    return t * t * (3 - 2 * t);
+  }
+
+  private beamToAnatomical(r: number, theta: number): AnatomicalPoint {
+    const clampedOffset = Math.max(-0.3, Math.min(0.3, this.config.lateralOffset || 0));
+    const offsetCm = clampedOffset * this.config.maxDepthCm * 0.5;
+
+    // Stable anatomical coordinates. Convex geometry only affects where the beam samples.
+    return {
+      x: r * Math.sin(theta) + offsetCm,
+      z: r * Math.cos(theta),
     };
-    
-    // Limpar shadow map - será recalculado COM motion a cada frame
-    this.shadowMap.fill(1.0);
-    
-    // ═══ RECALCULAR SHADOW MAP COM MOTION ═══
-    this.computeAcousticShadowsWithMotion(physicsConfig);
-    
-    // ═══ GERAR IMAGEM POLAR ═══
-    for (let rIdx = 0; rIdx < numDepthSamples; rIdx++) {
-      for (let thetaIdx = 0; thetaIdx < numAngleSamples; thetaIdx++) {
-        const idx = rIdx * numAngleSamples + thetaIdx;
-        
-        // Profundidade em cm
-        let r = (rIdx / numDepthSamples) * maxDepthCm;
-        
-        // Ângulo em radianos [-halfFOV, +halfFOV]
-        const theta = ((thetaIdx / numAngleSamples) * 2 - 1) * halfFOVRad;
-        
-        // Converter para coordenadas cartesianas para física
-        let x = r * Math.sin(theta);
-        let y = r * Math.cos(theta);
-        
-        // ═══ MOTION ARTIFACTS - SCALED FOR CM COORDINATES ═══
-        // In Convex, x/y are in CM, so motion must be scaled by maxDepthCm
-        // Linear uses normalized 0-1 coords, so we multiply by depth to get equivalent visual motion
-        
-        const motionScale = maxDepthCm; // Scale factor: motion in cm units
-        
-        // 1. Breathing motion (cyclic vertical displacement)
-        const breathingCycle = Math.sin(this.time * 0.3) * 0.035 * motionScale;
-        const breathingDepthEffect = r / maxDepthCm;
-        y += breathingCycle * breathingDepthEffect;
-        
-        // 2. Probe micro-jitter (operator hand tremor)
-        const jitterLateral = Math.sin(this.time * 8.5 + Math.cos(this.time * 12)) * 0.025 * motionScale;
-        const jitterDepth = Math.cos(this.time * 7.2 + Math.sin(this.time * 9.5)) * 0.018 * motionScale;
-        x += jitterLateral;
-        y += jitterDepth;
-        
-        // 3. Additional low-frequency sway (natural arm movement)
-        const armSway = Math.sin(this.time * 1.2) * Math.cos(this.time * 0.7) * 0.015 * motionScale;
-        x += armSway;
-        
-        // 4. Tissue micro-movements (random fibrillar motion)
-        const tissueTremor = Math.sin(x * 0.02 + this.time * 5) * 
-                             Math.cos(y * 0.015 + this.time * 4) * 0.008 * motionScale;
-        y += tissueTremor;
-        
-        // Reconverter para polar com motion aplicado
-        const rWithMotion = Math.sqrt(x * x + y * y);
-        const thetaWithMotion = Math.atan2(x, y);
-        
-        // Índices de pixel fictícios para cache (mapeamento polar → cartesiano)
-        const pixelX = Math.floor((theta / (2 * halfFOVRad) + 0.5) * this.config.canvasWidth);
-        const pixelY = Math.floor((r / maxDepthCm) * this.config.canvasHeight);
-        
-        // ═══════════════════════════════════════════════════════════════════════════════
-        // PIPELINE IDENTICAL TO LINEAR MODE:
-        // 1. Base intensity (clean, no noise)
-        // 2. Physical effects (attenuation, TGC, focal gain)
-        // 3. Interface reflections
-        // 4. Beam falloff
-        // 5. SHADOW (applied to clean image)
-        // 6. SPECKLE (applied last, multiplicative noise)
-        // 7. LOG COMPRESSION
-        // ═══════════════════════════════════════════════════════════════════════════════
-        
-        // ═══ 1. OBTER TECIDO EM (r, θ) COM MOTION ═══
-        const tissue = this.getTissueAtPolar(rWithMotion, thetaWithMotion);
-        
-        // ═══ 2. ECHOGENICIDADE BASE - IDENTICAL TO LINEAR ═══
-        let intensity = this.getBaseEchogenicityLinear(tissue.echogenicity);
-        
-        // ═══ 3. ATENUAÇÃO - IDENTICAL TO LINEAR ═══
-        const attenuationDb = tissue.attenuation * frequency * r;
-        const attenuation = Math.pow(10, -attenuationDb / 20);
-        intensity *= attenuation;
-        
-        // ═══ 4. GANHO FOCAL - IDENTICAL TO LINEAR ═══
-        const focusDepth = physicsConfig.focus;
-        const focalDist = Math.abs(r - focusDepth);
-        const focalGain = 1 + 0.4 * Math.exp(-focalDist * focalDist * 2);
-        intensity *= focalGain;
-        
-        // ═══ 5. TGC - IDENTICAL TO LINEAR ═══
-        const tgc = 1 + r / maxDepthCm * 0.3;
-        intensity *= tgc;
-        
-        // ═══ 6. INTERFACE REFLECTIONS - IDENTICAL TO LINEAR (multiplicative) ═══
-        // Simplified reflection at layer boundaries
-        const reflection = this.calculateInterfaceReflectionPolar(r, theta);
-        intensity *= (1 + reflection * 0.3);
-        
-        // ═══ 7. REFLECTIVITY ADJUSTMENT - From layer configuration ═══
-        // reflectivity ranges 0-1, with 0.5 being neutral (no change)
-        const reflectivityFactor = 0.5 + tissue.reflectivity; // 0.5 to 1.5 range
-        intensity *= reflectivityFactor;
-        
-        // ═══ 8. BEAM FALLOFF (adapted for polar geometry) ═══
-        const normalizedLateral = Math.abs(theta) / halfFOVRad; // 0 to 1
-        const beamFalloff = 1 - normalizedLateral * normalizedLateral * 0.15;
-        intensity *= beamFalloff;
-        
-        // ═══ 8. APLICAR SOMBRA ACÚSTICA - ANTES DO SPECKLE ═══
-        const rIdxWithMotion = Math.floor((rWithMotion / maxDepthCm) * numDepthSamples);
-        const thetaIdxWithMotion = Math.floor(((thetaWithMotion / halfFOVRad) + 1) * 0.5 * numAngleSamples);
-        
-        const clampedRIdx = Math.max(0, Math.min(numDepthSamples - 1, rIdxWithMotion));
-        const clampedThetaIdx = Math.max(0, Math.min(numAngleSamples - 1, thetaIdxWithMotion));
-        const shadowIdx = clampedRIdx * numAngleSamples + clampedThetaIdx;
-        
-        intensity *= this.shadowMap[shadowIdx];
-        
-        // ═══ 9. REALCE POSTERIOR (se aplicável) ═══
-        if (tissue.posteriorEnhancement) {
-          const enhancementFactor = 1.2 + (r / maxDepthCm) * 0.4;
-          intensity *= enhancementFactor;
+  }
+
+  private inclusionCenterX(inclusion: UltrasoundInclusionConfig): number {
+    // Keep compatibility with existing presets/admin tools: centerLateralPos is -1..+1.
+    return inclusion.centerLateralPos * 2.5;
+  }
+
+  private getLayerSample(x: number, z: number): TissueSample {
+    if (this.config.layers?.length) {
+      let cumulativeDepth = 0;
+      for (let li = 0; li < this.config.layers.length; li++) {
+        const layer = this.config.layers[li];
+        cumulativeDepth += layer.thicknessCm;
+        const boundaryZ = wavyInterfaceDepthCm(cumulativeDepth, x, li);
+        if (z <= boundaryZ) {
+          const medium = getAcousticMedium(layer.mediumId);
+          return this.sampleFromMedium(medium, false, undefined, {
+            reflectivity: layer.reflectivityBias !== undefined ? 0.5 + layer.reflectivityBias : 0.5,
+            scatterDensity: this.layerScatterDensity(layer.mediumId, layer.noiseScale),
+            scatterSize: layer.noiseScale ?? 1,
+            heterogeneity: this.layerHeterogeneity(layer.mediumId),
+          });
         }
-        
-        // ═══ 10. REVERBERATION ARTIFACTS - NEW (from Linear) ═══
-        // Adds horizontal echo lines at shallow depths - common ultrasound artifact
-        const reverberationDepth = 0.15; // Only in superficial region
-        if (r / maxDepthCm < reverberationDepth) {
-          const reverbFreq = 8; // Multiple reverb lines
-          const reverbPhase = Math.sin(r * reverbFreq * Math.PI / (maxDepthCm * reverberationDepth));
-          const reverbStrength = (1 - r / (maxDepthCm * reverberationDepth)) * 0.15;
-          intensity *= (1 + reverbPhase * reverbStrength);
-        }
-        
-        // ═══════════════════════════════════════════════════════════════════════════════
-        // 11. SPECKLE - ENHANCED REALISM (matching Linear quality)
-        // ═══════════════════════════════════════════════════════════════════════════════
-        
-        // Get frequency-dependent scaling
-        const psf = this.getFrequencyDependentPSF();
-        const speckleScale = psf.speckleScale;
-        
-        // Scale sampling coordinates inversely with frequency
-        const scaledX = pixelX / speckleScale;
-        const scaledY = pixelY / speckleScale;
-        
-        const speckleIdx = Math.floor(scaledY) * this.config.canvasWidth + Math.floor(scaledX);
-        
-        // Enhanced Rayleigh noise with better distribution
-        const rayleighSeed = Math.abs(speckleIdx) * 12.9898 + 78.233;
-        const u1 = Math.max(0.001, this.noise(rayleighSeed));
-        const u2 = this.noise(rayleighSeed + 1000);
-        const rayleigh = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-        const rayleighAbs = Math.abs(rayleigh);
-        
-        // Multi-octave Perlin noise for texture
-        const perlin = this.multiOctaveNoiseLinear(scaledX, scaledY, 6);
-        
-        // Depth-dependent speckle intensity (more visible in deeper regions)
-        const depthFactor = 1 + (r / maxDepthCm) * 0.35;
-        
-        // Per-pixel granular noise - ENHANCED for more realistic texture
-        const px = scaledX * 0.1 + this.time * 0.3; // Slower temporal variation
-        const py = scaledY * 0.1;
-        const hashNoise = this.noise(px * 12.9898 + py * 78.233) * 2 - 1;
-        const fineHash = this.noise((px + 100) * 45.123 + (py + 50) * 91.456) * 2 - 1;
-        const microHash = this.noise((px + 200) * 67.891 + (py + 100) * 23.456) * 2 - 1; // Extra fine detail
-        
-        // Base speckle from Rayleigh/Perlin - INCREASED contribution
-        const baseSpeckle = (rayleighAbs * 0.55 + (perlin * 0.5 + 0.5) * 0.45) * depthFactor;
-        
-        // Enhanced pixel variation with micro-texture
-        const pixelVariation = 1.0 + hashNoise * 0.18 + fineHash * 0.12 + microHash * 0.06;
-        
-        // Combined speckle multiplier - more pronounced effect
-        const speckleMultiplier = (0.45 + baseSpeckle * 0.55) * pixelVariation;
-        
-        // Blood flow modulation (if applicable)
-        let flowMultiplier = 1.0;
-        if (tissue.isInclusion) {
-          const inclusion = this.config.inclusions?.find(inc => 
-            this.isPointInInclusionPolar(r, theta, inc)
-          );
-          if (inclusion?.mediumInsideId === 'blood') {
-            const inclLateral = inclusion.centerLateralPos * maxDepthCm * Math.tan(halfFOVRad);
-            const inclX = r * Math.sin(theta);
-            const dx = inclX - inclLateral;
-            const dy = r - inclusion.centerDepthCm;
-            const radialPos = Math.sqrt(dx * dx + dy * dy) / (inclusion.sizeCm.width / 2);
-            const flowSpeed = Math.max(0, 1 - radialPos * radialPos) * 0.8;
-            const flowPhase = this.time * flowSpeed * 25;
-            const pulse = 0.5 + 0.5 * Math.sin(this.time * 1.2 * 2 * Math.PI);
-            flowMultiplier = 1.0 + Math.sin(flowPhase + r * 8 + theta * 6) * 0.2 * pulse;
-          }
-        }
-        
-        // Apply speckle with enhanced multiplier
-        intensity *= speckleMultiplier * flowMultiplier;
-        
-        // ═══════════════════════════════════════════════════════════════════════════════
-        // 11. LOG COMPRESSION - IDENTICAL TO LINEAR
-        // ═══════════════════════════════════════════════════════════════════════════════
-        const gainLinear = Math.pow(10, (gain - 50) / 20);
-        intensity *= gainLinear;
-        
-        // Log compression - IDENTICAL TO LINEAR
-        intensity = Math.log(1 + intensity * 10) / Math.log(11);
-        
-        // ═══ 12. FINAL CLAMP ═══
-        this.polarImage[idx] = Math.max(0, Math.min(1, intensity));
       }
     }
-    
-    // ═══════════════════════════════════════════════════════════════════════════════
-    // STEP 13: FREQUENCY-DEPENDENT PSF BLUR (on polar image)
-    // Lower frequency → larger PSF → blurrier image
-    // ═══════════════════════════════════════════════════════════════════════════════
-    this.applyFrequencyDependentBlurToPolar();
+
+    const medium = getAcousticMedium('generic_soft');
+    return this.sampleFromMedium(medium, false, undefined, {
+      reflectivity: 0.55,
+      scatterDensity: 0.88,
+      scatterSize: 1.05,
+      heterogeneity: 0.35,
+    });
+  }
+
+  private sampleFromMedium(
+    medium: AcousticMedium,
+    isInclusion: boolean,
+    inclusion?: UltrasoundInclusionConfig,
+    overrides: Partial<TissueSample> = {},
+  ): TissueSample {
+    return {
+      echogenicity: medium.baseEchogenicity,
+      attenuation: medium.attenuation_dB_per_cm_MHz,
+      reflectivity: overrides.reflectivity ?? this.mediumReflectivity(medium.id),
+      impedance: medium.acousticImpedance_MRayl,
+      scatterDensity: overrides.scatterDensity ?? this.mediumScatterDensity(medium.id),
+      scatterSize: overrides.scatterSize ?? this.mediumScatterSize(medium.id),
+      heterogeneity: overrides.heterogeneity ?? this.mediumHeterogeneity(medium.id),
+      isInclusion,
+      isFluid: medium.id === 'cyst_fluid' || medium.id === 'water' || medium.id === 'blood',
+      inclusion,
+      sdf: overrides.sdf ?? Number.POSITIVE_INFINITY,
+      boundaryStrength: overrides.boundaryStrength ?? 0,
+      impedanceContrast: overrides.impedanceContrast ?? 0,
+      sdfNormalX: overrides.sdfNormalX ?? 0,
+      sdfNormalZ: overrides.sdfNormalZ ?? 0,
+      localX: overrides.localX ?? 0,
+      localZ: overrides.localZ ?? 0,
+    };
+  }
+
+  private getTissueAtAnatomical(x: number, z: number): TissueSample {
+    const base = this.getLayerSample(x, z);
+    let best: InclusionSdf | null = null;
+
+    for (const inclusion of this.config.inclusions ?? []) {
+      const sdf = this.evaluateInclusionSdf(x, z, inclusion);
+      if (!best || sdf.sdf < best.sdf) best = sdf;
+    }
+
+    if (!best) return base;
+
+    const edgeWidthCm = 0.07;
+    const boundaryStrength = Math.exp(-Math.abs(best.sdf) / edgeWidthCm);
+    const impedanceContrast = Math.abs(best.medium.acousticImpedance_MRayl - base.impedance) /
+      Math.max(0.1, best.medium.acousticImpedance_MRayl + base.impedance);
+
+    if (best.sdf <= 0) {
+      const innerBlend = this.smoothstep(0, edgeWidthCm, best.distanceFromEdge);
+      const edgeBoost = (best.inclusion.borderEchogenicity === 'sharp' ? 0.34 : 0.14) * boundaryStrength;
+      const mediumReflectivity = this.mediumReflectivity(best.medium.id);
+
+      return this.sampleFromMedium(best.medium, true, best.inclusion, {
+        reflectivity: (mediumReflectivity + edgeBoost) * (0.65 + 0.35 * innerBlend),
+        scatterDensity: this.mediumScatterDensity(best.medium.id, best.inclusion.type),
+        scatterSize: this.mediumScatterSize(best.medium.id, best.inclusion.type),
+        heterogeneity: this.mediumHeterogeneity(best.medium.id, best.inclusion.type),
+        sdf: best.sdf,
+        boundaryStrength,
+        impedanceContrast,
+        sdfNormalX: best.normalX,
+        sdfNormalZ: best.normalZ,
+        localX: best.localX,
+        localZ: best.localZ,
+      });
+    }
+
+    if (best.sdf < edgeWidthCm && best.inclusion.borderEchogenicity === 'sharp') {
+      return {
+        ...base,
+        echogenicity: 'hyperechoic',
+        reflectivity: base.reflectivity + boundaryStrength * 0.42,
+        boundaryStrength,
+        impedanceContrast,
+        sdfNormalX: best.normalX,
+        sdfNormalZ: best.normalZ,
+        sdf: best.sdf,
+      };
+    }
+
+    return base;
+  }
+
+  private evaluateInclusionSdf(x: number, z: number, inclusion: UltrasoundInclusionConfig): InclusionSdf {
+    const cx = this.inclusionCenterX(inclusion);
+    const cz = inclusion.centerDepthCm;
+    const dx = x - cx;
+    const dz = z - cz;
+    const rotationRad = ((inclusion.rotationDegrees ?? 0) * Math.PI) / 180;
+    const cosR = Math.cos(rotationRad);
+    const sinR = Math.sin(rotationRad);
+    const localX = dx * cosR + dz * sinR;
+    const localZ = -dx * sinR + dz * cosR;
+
+    const halfW = Math.max(0.03, inclusion.sizeCm.width * 0.5);
+    const halfH = Math.max(0.03, inclusion.sizeCm.height * 0.5);
+
+    let sdf: number;
+    let nxLocal = 0;
+    let nzLocal = -1;
+
+    if (inclusion.shape === 'capsule') {
+      const radius = halfH + this.wallPerturbation(localX, localZ, inclusion);
+      const lineHalf = Math.max(0, halfW - radius);
+      const qx = localX - this.saturate(localX, -lineHalf, lineHalf);
+      const qz = localZ;
+      const len = Math.sqrt(qx * qx + qz * qz) || 1;
+      sdf = len - radius;
+      nxLocal = qx / len;
+      nzLocal = qz / len;
+    } else if (inclusion.shape === 'rectangle') {
+      const qx = Math.abs(localX) - halfW;
+      const qz = Math.abs(localZ) - halfH;
+      const ox = Math.max(qx, 0);
+      const oz = Math.max(qz, 0);
+      sdf = Math.sqrt(ox * ox + oz * oz) + Math.min(Math.max(qx, qz), 0);
+      if (qx > qz) {
+        nxLocal = Math.sign(localX);
+        nzLocal = 0;
+      } else {
+        nxLocal = 0;
+        nzLocal = Math.sign(localZ);
+      }
+    } else {
+      const irregularity = this.lobulation(localX, localZ, inclusion);
+      const px = localX / halfW;
+      const pz = localZ / halfH;
+      const len = Math.sqrt(px * px + pz * pz) || 1;
+      sdf = (len - (1 + irregularity)) * Math.min(halfW, halfH);
+      nxLocal = px / len;
+      nzLocal = pz / len;
+    }
+
+    const normalX = nxLocal * cosR - nzLocal * sinR;
+    const normalZ = nxLocal * sinR + nzLocal * cosR;
+    const medium = getAcousticMedium(inclusion.mediumInsideId);
+
+    return {
+      inclusion,
+      medium,
+      sdf,
+      distanceFromEdge: Math.max(0, -sdf),
+      normalX,
+      normalZ,
+      localX,
+      localZ,
+    };
+  }
+
+  private lobulation(localX: number, localZ: number, inclusion: UltrasoundInclusionConfig): number {
+    const amount =
+      inclusion.type === 'heterogeneous_lesion' || inclusion.type === 'solid_mass'
+        ? 0.09
+        : (inclusion.wallIrregularity ?? 0) * 0.7;
+    if (amount <= 0) return 0;
+    const a = Math.atan2(localZ, localX);
+    return amount * (
+      0.55 * Math.sin(a * 5.0 + this.hash1(inclusion.id.length * 17.13)) +
+      0.30 * Math.sin(a * 9.0 + 1.7) +
+      0.15 * Math.cos(a * 13.0 - 0.9)
+    );
+  }
+
+  private wallPerturbation(localX: number, localZ: number, inclusion: UltrasoundInclusionConfig): number {
+    const irregularity = inclusion.wallIrregularity ?? 0;
+    const asymmetry = inclusion.wallAsymmetry ?? 0;
+    if (irregularity <= 0 && asymmetry <= 0) return 0;
+    return (
+      irregularity * (0.5 * Math.sin(localX * 8) + 0.3 * Math.cos(localX * 15) + 0.2 * Math.sin(localX * 23)) +
+      (localZ > 0 ? asymmetry : -asymmetry)
+    );
+  }
+
+  private mediumReflectivity(id: AcousticMediumId): number {
+    switch (id) {
+      case 'water':
+      case 'cyst_fluid':
+      case 'blood':
+        return 0.08;
+      case 'bone_cortical':
+        return 1.05;
+      case 'tendon':
+      case 'fascia':
+        return 0.9;
+      case 'fat':
+        return 0.42;
+      case 'liver':
+        return 0.62;
+      default:
+        return 0.55;
+    }
+  }
+
+  private mediumScatterDensity(id: AcousticMediumId, type?: string): number {
+    if (id === 'water' || id === 'cyst_fluid') return 0.05;
+    if (id === 'blood') return 0.16;
+    if (id === 'fat') return 0.62;
+    if (id === 'liver') return 0.95;
+    if (type === 'heterogeneous_lesion') return 1.25;
+    if (type === 'solid_mass') return 1.08;
+    if (id === 'bone_cortical') return 1.35;
+    return 0.88;
+  }
+
+  private mediumScatterSize(id: AcousticMediumId, type?: string): number {
+    if (id === 'water' || id === 'cyst_fluid') return 1.9;
+    if (id === 'blood') return 1.25;
+    if (id === 'fat') return 1.55;
+    if (type === 'heterogeneous_lesion') return 0.85;
+    return 1.0;
+  }
+
+  private mediumHeterogeneity(id: AcousticMediumId, type?: string): number {
+    if (id === 'water' || id === 'cyst_fluid') return 0.04;
+    if (id === 'blood') return 0.22;
+    if (id === 'fat') return 0.32;
+    if (id === 'liver') return 0.48;
+    if (type === 'heterogeneous_lesion') return 0.78;
+    if (type === 'solid_mass') return 0.62;
+    return 0.38;
+  }
+
+  private layerScatterDensity(id: AcousticMediumId, noiseScale = 1): number {
+    return this.mediumScatterDensity(id) * Math.max(0.35, noiseScale);
+  }
+
+  private layerHeterogeneity(id: AcousticMediumId): number {
+    return this.mediumHeterogeneity(id);
+  }
+
+  private getInclusionPathLossDb(tissue: TissueSample, stepCm: number): number {
+    if (!tissue.inclusion) return 0;
+    if (tissue.isFluid) return -0.015 * stepCm;
+    const density = tissue.inclusion.hasStrongShadow ? 5.5 : 1.25;
+    const impedance = tissue.impedanceContrast * 8.0;
+    return (density + impedance) * stepCm;
+  }
+
+  private estimateLateralEdgeFactor(normalX: number, theta: number): number {
+    const beamX = Math.sin(theta);
+    return Math.pow(Math.abs(normalX - beamX * 0.35), 0.7);
+  }
+
+  private tissueSpeckle(x: number, z: number, r: number, theta: number, tissue: TissueSample): number {
+    const psf = this.getFrequencyDependentPSF();
+    const scale = Math.max(0.3, tissue.scatterSize * psf.speckleScale);
+    const sx = x / scale;
+    const sz = z / scale;
+
+    const u1 = Math.max(0.001, this.hash2(sx * 15.1, sz * 15.1, 11));
+    const u2 = this.hash2(sx * 15.1, sz * 15.1, 29);
+    const rayleigh = Math.sqrt(-2 * Math.log(u1)) * Math.abs(Math.cos(2 * Math.PI * u2));
+    const macro = this.fbm(sx * 0.9, sz * 0.9, 4, 71);
+    const meso = this.fbm(sx * 2.4 + this.time * 0.015, sz * 2.1, 3, 137);
+    const micro = this.fbm(sx * 7.5, sz * 7.5, 2, 223);
+
+    const hetero = 1 + tissue.heterogeneity * (macro * 0.38 + meso * 0.22);
+    const scatter =
+      0.72 +
+      tissue.scatterDensity * (rayleigh * 0.23 + micro * 0.06 + meso * 0.05);
+
+    let flow = 1;
+    if (tissue.inclusion?.mediumInsideId === 'blood') {
+      const radial = Math.sqrt(tissue.localX * tissue.localX + tissue.localZ * tissue.localZ) /
+        Math.max(0.05, tissue.inclusion.sizeCm.width * 0.5);
+      const laminar = Math.max(0, 1 - radial * radial);
+      flow += Math.sin(this.time * 16 * laminar + r * 7 + theta * 12) * 0.18 * laminar;
+    }
+
+    return Math.max(0.18, scatter * hetero * flow);
+  }
+
+  private hash1(seed: number): number {
+    const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
+  private hash2(x: number, y: number, seed = 0): number {
+    const n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453123;
+    return n - Math.floor(n);
+  }
+
+  private valueNoise2D(x: number, y: number, seed = 0): number {
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+    const fx = x - ix;
+    const fy = y - iy;
+    const ux = fx * fx * (3 - 2 * fx);
+    const uy = fy * fy * (3 - 2 * fy);
+    const a = this.hash2(ix, iy, seed);
+    const b = this.hash2(ix + 1, iy, seed);
+    const c = this.hash2(ix, iy + 1, seed);
+    const d = this.hash2(ix + 1, iy + 1, seed);
+    const x0 = a * (1 - ux) + b * ux;
+    const x1 = c * (1 - ux) + d * ux;
+    return (x0 * (1 - uy) + x1 * uy) * 2 - 1;
+  }
+
+  private fbm(x: number, y: number, octaves: number, seed = 0): number {
+    let value = 0;
+    let amplitude = 0.5;
+    let sum = 0;
+    for (let i = 0; i < octaves; i++) {
+      value += this.valueNoise2D(x, y, seed + i * 19) * amplitude;
+      sum += amplitude;
+      x *= 2.03;
+      y *= 1.97;
+      amplitude *= 0.5;
+    }
+    return value / Math.max(1e-6, sum);
+  }
+
+  /**
+   * Renderiza um frame completo.
+   * @param structuralOnly B-mode estrutural sem ruído temporal (para cache / motion pass).
+   */
+  render(ctx: ConvexCanvasContext, options?: { structuralOnly?: boolean }) {
+    this.time += 0.016;
+    this.generatePolarImageWithPhysics();
+    this.renderPolarToCanvas(ctx, !options?.structuralOnly);
+  }
+
+  /**
+   * Generates the internal polar image one beam at a time.
+   *
+   * Crucial correction versus the previous pipeline:
+   * - No beamWidthFactor
+   * - No distortedDx
+   * - No pre-warped lesion membership test
+   *
+   * Each sample is inverse-mapped from beam coordinates into anatomical x/z space,
+   * SDFs are evaluated there, and the fan projection happens only when the polar
+   * buffer is scan-converted in renderPolarToCanvas().
+   */
+  private generatePolarImageWithPhysics() {
+    this.pulseEchoModel.updateConfig(this.toPulseEchoConfig());
+    this.pulseEchoModel.setTime(this.time);
+    this.polarImage = this.pulseEchoModel.renderConvexPolar(
+      this.config.numDepthSamples,
+      this.config.numAngleSamples,
+      this.config.fovDegrees,
+    );
   }
   
   /**
@@ -438,7 +642,10 @@ export class ConvexPolarEngine {
     
     for (let i = 0; i < this.config.layers.length - 1; i++) {
       cumulativeDepth += this.config.layers[i].thicknessCm;
-      const distFromInterface = Math.abs(r - cumulativeDepth);
+      const lateralCm = r * Math.sin(theta);
+      const distFromInterface = Math.abs(
+        r - wavyInterfaceDepthCm(cumulativeDepth, lateralCm, i),
+      );
       
       // Sharper interface detection for visible layer boundaries
       if (distFromInterface < 0.08) {
@@ -1003,10 +1210,13 @@ export class ConvexPolarEngine {
     
     // ═══ LAYERS POR PROFUNDIDADE ═══
     if (this.config.layers && this.config.layers.length > 0) {
+      const lateralCm = r * Math.sin(theta);
       let cumulativeDepth = 0;
-      for (const layer of this.config.layers) {
+      for (let li = 0; li < this.config.layers.length; li++) {
+        const layer = this.config.layers[li];
         cumulativeDepth += layer.thicknessCm;
-        if (r <= cumulativeDepth) {
+        const boundaryZ = wavyInterfaceDepthCm(cumulativeDepth, lateralCm, li);
+        if (r <= boundaryZ) {
           const medium = getAcousticMedium(layer.mediumId);
           return {
             echogenicity: medium.baseEchogenicity,
@@ -1043,26 +1253,32 @@ export class ConvexPolarEngine {
    * ETAPA 2: Renderiza polar → canvas com ARCO DO TRANSDUTOR
    * ═══════════════════════════════════════════════════════════════════
    */
-  private renderPolarToCanvas(ctx: ConvexCanvasContext) {
-    const { canvasWidth, canvasHeight, fovDegrees, maxDepthCm, transducerRadiusCm, numDepthSamples, numAngleSamples } = this.config;
+  private renderPolarToCanvas(ctx: ConvexCanvasContext, applyLiveNoise = true) {
+    const {
+      canvasWidth,
+      canvasHeight,
+      maxDepthCm,
+      transducerType,
+      numDepthSamples,
+      numAngleSamples,
+    } = this.config;
     
     const imageData = ctx.createImageData(canvasWidth, canvasHeight);
     const data = imageData.data;
     
-    // ═══ GEOMETRIA CORRETA - PROFUNDIDADE MÁXIMA NO FUNDO DO CANVAS ═══
-    const halfFOVRad = (fovDegrees / 2) * (Math.PI / 180);
-    const centerX = canvasWidth / 2;
-    
-    // Calcular escala para que maxDepthCm coincida EXATAMENTE com o fundo do canvas
-    // A distância do centro virtual até o fundo = transducerRadius + maxDepth
-    const totalDistanceFromCenter = transducerRadiusCm + maxDepthCm;
-    const pixelsPerCm = canvasHeight / totalDistanceFromCenter;
-    
-    // Posicionar centro virtual para que:
-    // - O arco do transdutor fique logo acima do canvas (ou no topo)
-    // - A profundidade máxima chegue exatamente no fundo
-    const arcRadiusPixels = transducerRadiusCm * pixelsPerCm;
-    const virtualCenterY = -arcRadiusPixels; // Centro virtual está acima por 1 raio do arco
+    // Fixed on-screen fan; depth control scales anatomy inside the wedge.
+    const layout = getConvexSectorLayout(
+      canvasWidth,
+      canvasHeight,
+      transducerType === 'microconvex' ? 'microconvex' : 'convex',
+    );
+    const {
+      halfFOVRad,
+      arcRadiusPixels,
+      centerX,
+      virtualCenterY,
+      sectorDepthPixels,
+    } = layout;
     
     
     let pixelsRendered = 0;
@@ -1094,7 +1310,6 @@ export class ConvexPolarEngine {
         }
         
         // ═══ MÁSCARA 2: ACIMA DO ARCO DO TRANSDUTOR ═══
-        const arcRadiusPixels = transducerRadiusCm * pixelsPerCm;
         if (radiusFromCenter < arcRadiusPixels) {
           data[pixelIdx] = 0;
           data[pixelIdx + 1] = 0;
@@ -1104,13 +1319,10 @@ export class ConvexPolarEngine {
           continue;
         }
         
-        // ═══ PROFUNDIDADE FÍSICA ═══
-        // Distância do pixel até a superfície do arco (ao longo do raio)
         const depthFromTransducer = radiusFromCenter - arcRadiusPixels;
-        const physDepthCm = depthFromTransducer / pixelsPerCm;
-        
-        // ═══ MÁSCARA 3: PROFUNDIDADE MÁXIMA ═══
-        if (physDepthCm > maxDepthCm || physDepthCm < 0) {
+
+        // ═══ MÁSCARA 3: FORA DO SETOR FIXO ═══
+        if (depthFromTransducer > sectorDepthPixels) {
           data[pixelIdx] = 0;
           data[pixelIdx + 1] = 0;
           data[pixelIdx + 2] = 0;
@@ -1118,9 +1330,12 @@ export class ConvexPolarEngine {
           pixelsBlocked++;
           continue;
         }
+
+        const physDepthCm =
+          (depthFromTransducer / Math.max(1, sectorDepthPixels)) * maxDepthCm;
         
         // ═══ SAMPLE DA IMAGEM POLAR COM INTERPOLAÇÃO BILINEAR ═══
-        const rNorm = physDepthCm / maxDepthCm;
+        const rNorm = depthFromTransducer / Math.max(1, sectorDepthPixels);
         const thetaNorm = (pixelAngle / halfFOVRad + 1) / 2; // [0, 1]
         
         // Posições contínuas (não inteiras)
@@ -1148,35 +1363,49 @@ export class ConvexPolarEngine {
         const v1 = v10 * (1 - tFrac) + v11 * tFrac;
         let intensity = v0 * (1 - rFrac) + v1 * rFrac;
         
-        // ═══ RUÍDO TEMPORAL - IDENTICAL TO LINEAR ═══
-        const depthRatio = physDepthCm / maxDepthCm;
-        const temporalSeed = this.time * 2.5;
-        
-        // Multi-frequency temporal noise - IDENTICAL TO LINEAR coefficients
-        const highFreqNoise = Math.sin(x * 0.3 + y * 0.2 + temporalSeed * 12) * 0.012;
-        const midFreqNoise = Math.sin(x * 0.08 + y * 0.1 + temporalSeed * 4) * 0.018;
-        const lowFreqNoise = Math.sin(temporalSeed * 1.5) * 0.008;
-        const frameNoise = (Math.random() - 0.5) * 0.025 * (1 + depthRatio * 0.5);
-        
-        const totalLiveNoise = (highFreqNoise + midFreqNoise + lowFreqNoise + frameNoise) * (1 + depthRatio * 0.8);
-        intensity *= (1 + totalLiveNoise);
-        
-        // Scanline/refresh effect - IDENTICAL TO LINEAR
-        const scanlinePos = (temporalSeed * 50) % canvasHeight;
-        const scanlineDistance = Math.abs(y - scanlinePos);
-        const scanlineEffect = Math.exp(-scanlineDistance * 0.3) * 0.015 * Math.sin(temporalSeed * 15);
-        intensity *= (1 + scanlineEffect);
-        
-        // Vertical banding - IDENTICAL TO LINEAR
-        const bandingNoise = Math.sin(x * 0.15 + temporalSeed * 2) * 0.006;
-        intensity *= (1 + bandingNoise);
-        
-        // ═══ FEATHERING NAS BORDAS ═══
         const angleFromEdge = halfFOVRad - Math.abs(pixelAngle);
-        const edgeFeatherAngle = halfFOVRad * 0.05;
+
+        if (applyLiveNoise) {
+          const depthRatio = physDepthCm / maxDepthCm;
+          const temporalSeed = this.time * 2.5;
+          const highFreqNoise = Math.sin(x * 0.3 + y * 0.2 + temporalSeed * 12) * 0.012;
+          const midFreqNoise = Math.sin(x * 0.08 + y * 0.1 + temporalSeed * 4) * 0.018;
+          const lowFreqNoise = Math.sin(temporalSeed * 1.5) * 0.008;
+          const rnd =
+            Math.sin(x * 12.9898 + y * 78.233 + temporalSeed * 43.891) * 43758.5453;
+          const frameNoise = ((rnd - Math.floor(rnd)) - 0.5) * 0.025 * (1 + depthRatio * 0.5);
+
+          const depthFromEdge = maxDepthCm - physDepthCm;
+          const edgeMotionGuard = Math.min(
+            Math.min(1, angleFromEdge / (halfFOVRad * 0.14)),
+            Math.min(1, depthFromEdge / Math.max(0.25, maxDepthCm * 0.1)),
+          );
+
+          const totalLiveNoise =
+            (highFreqNoise + midFreqNoise + lowFreqNoise + frameNoise) * (1 + depthRatio * 0.8);
+          intensity *= 1 + totalLiveNoise * edgeMotionGuard;
+
+          const scanlinePos = (temporalSeed * 50) % canvasHeight;
+          const scanlineDistance = Math.abs(y - scanlinePos);
+          intensity *=
+            1 +
+            Math.exp(-scanlineDistance * 0.3) *
+              0.015 *
+              Math.sin(temporalSeed * 15) *
+              edgeMotionGuard;
+
+          intensity *= 1 + Math.sin(x * 0.15 + temporalSeed * 2) * 0.006 * edgeMotionGuard;
+        }
+
+        const edgeFeatherAngle = halfFOVRad * 0.07;
         if (angleFromEdge < edgeFeatherAngle) {
-          const edgeFalloff = angleFromEdge / edgeFeatherAngle;
-          intensity *= edgeFalloff;
+          intensity *= angleFromEdge / edgeFeatherAngle;
+        }
+
+        const radialFromOuter = sectorDepthPixels - depthFromTransducer;
+        const outerFeatherPx = sectorDepthPixels * 0.05;
+        if (radialFromOuter < outerFeatherPx) {
+          intensity *= Math.max(0, radialFromOuter / outerFeatherPx);
         }
         
         // Near-field feathering - IDENTICAL TO LINEAR
@@ -1198,33 +1427,6 @@ export class ConvexPolarEngine {
     }
     
     ctx.putImageData(imageData, 0, 0);
-    
-    // Debug log apenas na primeira vez
-    if (this.time < 0.1) {
-      console.log('🔍 Convex Debug:', {
-        canvasSize: `${canvasWidth}x${canvasHeight}`,
-        transducerRadiusCm,
-        maxDepthCm,
-        fovDegrees,
-        pixelsPerCm: pixelsPerCm.toFixed(2),
-        virtualCenterY: virtualCenterY.toFixed(2),
-        arcRadiusPixels: (transducerRadiusCm * pixelsPerCm).toFixed(2),
-        pixelsRendered,
-        pixelsBlocked,
-        percentRendered: ((pixelsRendered / (canvasWidth * canvasHeight)) * 100).toFixed(1) + '%'
-      });
-    }
-  }
-
-  /**
-   * Desenha o arco do transdutor (para debug)
-   */
-  private drawTransducerArc(ctx: ConvexCanvasContext, cx: number, cy: number, radius: number, halfFOV: number) {
-    ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, -halfFOV, halfFOV);
-    ctx.stroke();
   }
 
   /**
