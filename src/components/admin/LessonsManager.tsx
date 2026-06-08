@@ -23,6 +23,14 @@ import {
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { storageService, StorageBucket } from "@/services/storageService";
 import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
+import { EmbeddedVideo } from "@/components/EmbeddedVideo";
+import {
+  assertValidYouTubeUrl,
+  YOUTUBE_URL_HINT,
+  YOUTUBE_URL_PLACEHOLDER,
+  validateYouTubeUrl,
+} from "@/lib/youtube";
+import { IMAGE_UPLOAD_MAX_MB } from "@/lib/uploadLimits";
 
 type Lesson = {
   id: string;
@@ -164,7 +172,10 @@ export function LessonsManager() {
   };
 
   const uploadMedia = async (file: File, lessonId: string, type: "video" | "image"): Promise<string> => {
-    const bucket = type === "video" ? "lesson-videos" : "lesson-assets";
+    if (type === "video") {
+      throw new Error("Upload de vídeo não é permitido. Use um link do YouTube.");
+    }
+    const bucket = "lesson-assets";
     const fileName = storageService.generateUniqueFileName(file.name);
     const path = `lessons/${lessonId}/${fileName}`;
 
@@ -177,28 +188,56 @@ export function LessonsManager() {
     return storageService.getPublicUrl(bucket, result.path);
   };
 
+  const validateLessonVideoBlocks = (blocks: ContentBlock[]) => {
+    for (const block of blocks) {
+      if (block.type !== "video") continue;
+      const url = (block.data.url || block.data.videoUrl || "").trim();
+      if (block.data.file) {
+        throw new Error("Upload de vídeo não é permitido. Use um link do YouTube.");
+      }
+      if (url) assertValidYouTubeUrl(url, "vídeo da aula");
+    }
+  };
+
   const processContentBlocks = async (blocks: ContentBlock[], lessonId: string) => {
     const processedBlocks = await Promise.all(
       blocks.map(async (block) => {
-        if ((block.type === "video" || block.type === "image") && block.data.source === "upload" && block.data.file) {
-          const url = await uploadMedia(block.data.file, lessonId, block.type);
-          return {
-            ...block,
-            data: {
-              ...block.data, // Preservar todos os campos existentes (caption, etc.)
-              url, // Adicionar/atualizar a URL
-              source: "upload"
-            }
-          };
-        }
-        // Se for link, garantir que url está presente
-        if ((block.type === "video" || block.type === "image") && block.data.source === "link") {
+        if (block.type === "video") {
+          if (block.data.file || block.data.source === "upload") {
+            throw new Error("Upload de vídeo não é permitido. Use um link do YouTube.");
+          }
+          const url = (block.data.url || block.data.videoUrl || "").trim();
+          if (url) assertValidYouTubeUrl(url, "vídeo da aula");
           return {
             ...block,
             data: {
               ...block.data,
-              url: block.data.url || block.data.imageUrl || block.data.videoUrl
-            }
+              url,
+              videoUrl: url,
+              source: "link",
+              file: undefined,
+            },
+          };
+        }
+
+        if (block.type === "image" && block.data.source === "upload" && block.data.file) {
+          const url = await uploadMedia(block.data.file, lessonId, "image");
+          return {
+            ...block,
+            data: {
+              ...block.data,
+              url,
+              source: "upload",
+            },
+          };
+        }
+        if (block.type === "image" && block.data.source === "link") {
+          return {
+            ...block,
+            data: {
+              ...block.data,
+              url: block.data.url || block.data.imageUrl || block.data.videoUrl,
+            },
           };
         }
         if (block.type === "image") {
@@ -237,6 +276,7 @@ export function LessonsManager() {
   const handleCreate = async () => {
     try {
       setSaving(true);
+      validateLessonVideoBlocks(formData.contentBlocks);
 
       // Criar aula primeiro para obter o ID
       const { data: newLesson, error: createError } = await supabase
@@ -317,6 +357,7 @@ export function LessonsManager() {
 
     try {
       setSaving(true);
+      validateLessonVideoBlocks(formData.contentBlocks);
 
       // Processar blocos de conteúdo
       const processedBlocks = await processContentBlocks(formData.contentBlocks, editingLesson.id);
@@ -777,6 +818,7 @@ export function LessonsManager() {
                             <Label className="text-sm">Arquivo (PT)</Label>
                             <FileUploadField
                               accept="image/*"
+                              maxSize={IMAGE_UPLOAD_MAX_MB}
                               multiple={false}
                               onFilesSelected={(files) =>
                                 setFormData({
@@ -860,6 +902,7 @@ export function LessonsManager() {
                             <Label className="text-sm">Arquivo (EN)</Label>
                             <FileUploadField
                               accept="image/*"
+                              maxSize={IMAGE_UPLOAD_MAX_MB}
                               multiple={false}
                               onFilesSelected={(files) =>
                                 setFormData({
@@ -996,126 +1039,66 @@ export function LessonsManager() {
                                   </div>
                                 )}
 
-                                {(block.type === "video" || block.type === "image") && (
+                                {block.type === "video" && (
                                   <div className="space-y-3">
-                                    {/* Mostrar preview do arquivo já enviado */}
-                                    {block.type === "video" && (block.data.url || block.data.videoUrl) && !block.data.file && (
-                                      <div className="border rounded-lg p-3 bg-muted/50">
-                                        <div className="flex items-center justify-between mb-2">
-                                          <Label className="text-sm font-medium">
-                                            Vídeo Atual
-                                          </Label>
+                                    {(block.data.url || block.data.videoUrl) && (
+                                      <div className="border rounded-lg p-3 bg-muted/50 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                          <Label className="text-sm font-medium">Pré-visualização</Label>
                                           <Button
                                             type="button"
                                             variant="ghost"
                                             size="sm"
                                             onClick={async () => {
-                                              const urlToDelete = block.data.url || block.data.imageUrl || block.data.videoUrl;
-                                              
-                                              // Deletar do storage se for URL do Supabase
-                                              if (urlToDelete && urlToDelete.includes('supabase.co/storage')) {
-                                                await deleteMediaFromStorage(urlToDelete, block.type as "video" | "image");
+                                              const urlToDelete = block.data.url || block.data.videoUrl;
+                                              if (urlToDelete?.includes("supabase.co/storage")) {
+                                                await deleteMediaFromStorage(urlToDelete, "video");
                                               }
-                                              
-                                              // Remover do estado
-                                              updateContentBlock(block.id, { url: "", imageUrl: "", videoUrl: "" });
+                                              updateContentBlock(block.id, {
+                                                url: "",
+                                                videoUrl: "",
+                                                source: "link",
+                                                file: null,
+                                              });
                                             }}
                                           >
                                             <Trash2 className="h-4 w-4" />
                                           </Button>
                                         </div>
-                                        <div className="aspect-video w-full rounded-lg overflow-hidden bg-black">
-                                          <video
-                                            src={block.data.url || block.data.videoUrl}
-                                            controls
-                                            className="w-full h-full"
-                                          >
-                                            Seu navegador não suporta vídeo.
-                                          </video>
-                                        </div>
-                                        <p className="text-xs text-muted-foreground mt-2 break-all">
-                                          {block.data.url || block.data.videoUrl}
-                                        </p>
+                                        <EmbeddedVideo
+                                          url={block.data.url || block.data.videoUrl || ""}
+                                          title="Vídeo da aula"
+                                        />
                                       </div>
                                     )}
-
-                                    {/* Mostrar preview do arquivo selecionado mas ainda não enviado */}
-                                    {block.type === "video" && block.data.file && (
-                                      <div className="border rounded-lg p-3 bg-blue-50 dark:bg-blue-950">
-                                        <div className="flex items-center justify-between mb-2">
-                                          <Label className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                                            Novo Arquivo Selecionado
-                                          </Label>
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => updateContentBlock(block.id, { file: null })}
-                                          >
-                                            <Trash2 className="h-4 w-4" />
-                                          </Button>
-                                        </div>
-                                        <p className="text-sm text-blue-600 dark:text-blue-400">
-                                          {block.data.file.name} ({(block.data.file.size / 1024 / 1024).toFixed(2)} MB)
-                                        </p>
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                          O arquivo será enviado ao salvar a aula.
-                                        </p>
-                                      </div>
-                                    )}
-
                                     <div>
-                                      {block.type === "video" && (
-                                        <>
-                                          <Label>Origem do Arquivo</Label>
-                                          <Select
-                                            value={block.data.source || "link"}
-                                            onValueChange={(value: "upload" | "link") => {
-                                              // Não limpar URL se já existe um arquivo enviado
-                                              if (block.data.url || block.data.videoUrl) {
-                                                updateContentBlock(block.id, { source: value, file: null });
-                                              } else {
-                                                updateContentBlock(block.id, { source: value, url: "", file: null });
-                                              }
-                                            }}
-                                          >
-                                            <SelectTrigger>
-                                              <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              <SelectItem value="link">Link Externo</SelectItem>
-                                              <SelectItem value="upload">Upload</SelectItem>
-                                            </SelectContent>
-                                          </Select>
-                                        </>
-                                      )}
+                                      <Label>Link do YouTube</Label>
+                                      <Input
+                                        value={block.data.url || block.data.videoUrl || ""}
+                                        onChange={(e) =>
+                                          updateContentBlock(block.id, {
+                                            url: e.target.value,
+                                            videoUrl: e.target.value,
+                                            source: "link",
+                                            file: null,
+                                          })
+                                        }
+                                        placeholder={YOUTUBE_URL_PLACEHOLDER}
+                                      />
+                                      <p className="text-xs text-muted-foreground mt-2">{YOUTUBE_URL_HINT}</p>
                                     </div>
+                                    {(block.data.url || block.data.videoUrl) &&
+                                      validateYouTubeUrl(block.data.url || block.data.videoUrl || "") && (
+                                        <EmbeddedVideo
+                                          url={block.data.url || block.data.videoUrl || ""}
+                                          title="Pré-visualização"
+                                        />
+                                      )}
+                                  </div>
+                                )}
 
-                                    {block.type === "video" && (
-                                      <>
-                                        {block.data.source === "link" ? (
-                                          <div>
-                                            <Label>URL do Vídeo</Label>
-                                            <Input
-                                              value={block.data.url || block.data.videoUrl || ""}
-                                              onChange={(e) => updateContentBlock(block.id, { url: e.target.value })}
-                                              placeholder="https://..."
-                                            />
-                                          </div>
-                                        ) : (
-                                          <div>
-                                            <Label>Arquivo</Label>
-                                            <FileUploadField
-                                              accept="video/*"
-                                              multiple={false}
-                                              onFilesSelected={(files) => updateContentBlock(block.id, { file: files[0] || null })}
-                                            />
-                                          </div>
-                                        )}
-                                      </>
-                                    )}
-
-                                    {block.type === "image" && (
+                                {block.type === "image" && (
+                                  <div className="space-y-3">
                                       <div className="space-y-4">
                                         <div className="text-sm font-medium">
                                           Imagem do conteúdo por idioma
@@ -1164,6 +1147,7 @@ export function LessonsManager() {
                                               <Label>Arquivo (PT)</Label>
                                               <FileUploadField
                                                 accept="image/*"
+                                                maxSize={IMAGE_UPLOAD_MAX_MB}
                                                 multiple={false}
                                                 onFilesSelected={(files) =>
                                                   updateContentBlock(block.id, { imageFilePt: files[0] || null })
@@ -1211,6 +1195,7 @@ export function LessonsManager() {
                                               <Label>Arquivo (EN)</Label>
                                               <FileUploadField
                                                 accept="image/*"
+                                                maxSize={IMAGE_UPLOAD_MAX_MB}
                                                 multiple={false}
                                                 onFilesSelected={(files) =>
                                                   updateContentBlock(block.id, { imageFileEn: files[0] || null })
@@ -1220,7 +1205,6 @@ export function LessonsManager() {
                                           </div>
                                         </div>
                                       </div>
-                                    )}
                                   </div>
                                 )}
 

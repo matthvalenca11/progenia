@@ -12,6 +12,13 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: "https",
     iosScheme: "https",
+    allowNavigation: [
+      "*.youtube.com",
+      "*.youtube-nocookie.com",
+      "*.youtu.be",
+      "*.googlevideo.com",
+      "*.ytimg.com",
+    ],
   },
 };
 

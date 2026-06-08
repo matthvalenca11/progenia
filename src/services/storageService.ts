@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { assertImageUploadSize } from "@/lib/uploadLimits";
 
 export type StorageBucket = 
   | "lesson-videos" 
@@ -28,7 +29,12 @@ export const storageService = {
    */
   async uploadFile({ bucket, path, file, onProgress }: UploadFileParams): Promise<UploadResult> {
     try {
-      // Validar tamanho do arquivo (máximo 100MB)
+      const imageBuckets: StorageBucket[] = ["lesson-assets", "team-photos", "partner-logos"];
+      if (file.type.startsWith("image/") && imageBuckets.includes(bucket)) {
+        assertImageUploadSize(file);
+      }
+
+      // Validar tamanho do arquivo (máximo 100MB — vídeos e outros)
       const maxSize = 100 * 1024 * 1024;
       if (file.size > maxSize) {
         throw new Error("Arquivo muito grande. Tamanho máximo: 100MB");

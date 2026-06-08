@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+    />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <title>ProGenia — Vídeo</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: #000;
+        overflow: hidden;
+      }
+      iframe {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border: 0;
+      }
+      .error {
+        color: #fff;
+        font-family: system-ui, sans-serif;
+        font-size: 14px;
+        padding: 16px;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <iframe
+      id="player"
+      title="YouTube"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      allowfullscreen
+      referrerpolicy="strict-origin-when-cross-origin"
+    ></iframe>
+    <script>
+      (function () {
+        var params = new URLSearchParams(window.location.search);
+        var videoId = params.get("v");
+        var player = document.getElementById("player");
+        if (!videoId || !/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+          document.body.innerHTML =
+            '<p class="error">Link do YouTube inválido.</p>';
+          return;
+        }
+        var appReferer =
+          params.get("referrer") || "https://com.matthvalenca11.progenia";
+        var pageOrigin = window.location.origin;
+        var embed = new URL(
+          "https://www.youtube-nocookie.com/embed/" + videoId
+        );
+        embed.searchParams.set("rel", "0");
+        embed.searchParams.set("playsinline", "1");
+        embed.searchParams.set("modestbranding", "1");
+        embed.searchParams.set("enablejsapi", "1");
+        embed.searchParams.set("origin", pageOrigin);
+        embed.searchParams.set("widget_referrer", appReferer);
+        player.src = embed.toString();
+      })();
+    </script>
+  </body>
+</html>

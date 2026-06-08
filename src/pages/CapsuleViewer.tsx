@@ -14,6 +14,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 import { isNativeApp } from "@/lib/capacitor";
+import { EmbeddedVideo } from "@/components/EmbeddedVideo";
 
 const CapsuleViewer = () => {
   const { capsulaId } = useParams();
@@ -259,10 +260,6 @@ const CapsuleViewer = () => {
                   const index = Number(token.replace("media:", ""));
                   const item = mediaItems[index];
                   if (!item) return null;
-                  const videoUrl = item.url;
-                  const isYouTube = videoUrl && (videoUrl.includes("youtube.com") || videoUrl.includes("youtu.be"));
-                  const isVimeo = videoUrl && videoUrl.includes("vimeo.com");
-
                   return (
                     <Card key={token} className="p-6">
                       {item.type === "image" && (
@@ -272,50 +269,8 @@ const CapsuleViewer = () => {
                           className="w-full rounded-lg"
                         />
                       )}
-                      {item.type === "video" && isYouTube && (() => {
-                        let videoId = "";
-                        if (videoUrl.includes("youtube.com/watch?v=")) {
-                          videoId = videoUrl.split("v=")[1]?.split("&")[0] || "";
-                        } else if (videoUrl.includes("youtu.be/")) {
-                          videoId = videoUrl.split("youtu.be/")[1]?.split("?")[0] || "";
-                        } else if (videoUrl.includes("youtube.com/embed/")) {
-                          videoId = videoUrl.split("embed/")[1]?.split("?")[0] || "";
-                        }
-
-                        const embedUrl = `https://www.youtube.com/embed/${videoId}`;
-                        return (
-                          <div className="aspect-video w-full rounded-lg overflow-hidden bg-muted">
-                            <iframe
-                              src={embedUrl}
-                              title={`Vídeo ${index + 1}`}
-                              className="w-full h-full"
-                              allowFullScreen
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            />
-                          </div>
-                        );
-                      })()}
-                      {item.type === "video" && isVimeo && (() => {
-                        const vimeoId = videoUrl.split("vimeo.com/")[1]?.split("?")[0] || "";
-                        const embedUrl = `https://player.vimeo.com/video/${vimeoId}`;
-                        return (
-                          <div className="aspect-video w-full rounded-lg overflow-hidden bg-muted">
-                            <iframe
-                              src={embedUrl}
-                              title={`Vídeo ${index + 1}`}
-                              className="w-full h-full"
-                              allowFullScreen
-                              allow="autoplay; fullscreen; picture-in-picture"
-                            />
-                          </div>
-                        );
-                      })()}
-                      {item.type === "video" && !isYouTube && !isVimeo && (
-                        <video controls className="w-full rounded-lg" preload="metadata">
-                          <source src={item.url} type="video/mp4" />
-                          <source src={item.url} type="video/webm" />
-                          Seu navegador não suporta reprodução de vídeo.
-                        </video>
+                      {item.type === "video" && item.url && (
+                        <EmbeddedVideo url={item.url} title={`Vídeo ${index + 1}`} />
                       )}
                     </Card>
                   );

@@ -18,6 +18,14 @@ import { Plus, Pencil, Trash2, Eye, EyeOff, Zap, Link as LinkIcon, Upload, Loade
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { storageService } from "@/services/storageService";
 import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
+import { EmbeddedVideo } from "@/components/EmbeddedVideo";
+import {
+  assertValidYouTubeUrl,
+  YOUTUBE_URL_HINT,
+  YOUTUBE_URL_PLACEHOLDER,
+  validateYouTubeUrl,
+} from "@/lib/youtube";
+import { IMAGE_UPLOAD_MAX_MB } from "@/lib/uploadLimits";
 
 type Capsula = {
   id: string;
@@ -174,6 +182,14 @@ export function CapsulasManager() {
   };
 
   const uploadMedia = async (media: MediaItem, capsulaId: string): Promise<string> => {
+    if (media.type === "video") {
+      if (media.file || media.source === "upload") {
+        throw new Error("Vídeos devem ser adicionados apenas com link do YouTube.");
+      }
+      assertValidYouTubeUrl(media.url || "", "vídeo");
+      return (media.url || "").trim();
+    }
+
     // Conteúdo legado pode vir sem "source", mas com URL já salva.
     if (media.source === "link" || (!!media.url && !media.file)) {
       return media.url || "";
@@ -183,7 +199,7 @@ export function CapsulasManager() {
       throw new Error("Arquivo não encontrado");
     }
 
-    const bucket = media.type === "video" ? "lesson-videos" : "lesson-assets";
+    const bucket = "lesson-assets";
     const fileName = storageService.generateUniqueFileName(media.file.name);
     const path = `capsulas/${capsulaId}/${fileName}`;
 
@@ -196,9 +212,18 @@ export function CapsulasManager() {
     return storageService.getPublicUrl(bucket, result.path);
   };
 
+  const validateVideoMedia = () => {
+    for (const media of formData.media) {
+      if (media.type === "video" && (media.url?.trim() || media.file)) {
+        assertValidYouTubeUrl(media.url || "", "vídeo");
+      }
+    }
+  };
+
   const handleCreate = async () => {
     try {
       setSaving(true);
+      validateVideoMedia();
 
       // Criar cápsula primeiro para obter o ID
       const { data: newCapsula, error: createError } = await supabase
@@ -308,6 +333,7 @@ export function CapsulasManager() {
 
     try {
       setSaving(true);
+      validateVideoMedia();
 
       // Upload de mídia
       const mediaWithUrls = await Promise.all(
@@ -690,7 +716,7 @@ export function CapsulasManager() {
                             <Label className="text-xs text-muted-foreground">Ou fazer Upload</Label>
                             <FileUploadField
                               accept="image/*"
-                              maxSize={5}
+                              maxSize={IMAGE_UPLOAD_MAX_MB}
                               onFilesSelected={(files) => setFormData({ ...formData, thumbnailFile: files[0], thumbnailSource: "upload" })}
                             />
                           </div>
@@ -732,7 +758,7 @@ export function CapsulasManager() {
                             <Label className="text-xs text-muted-foreground">Ou fazer Upload (EN)</Label>
                             <FileUploadField
                               accept="image/*"
-                              maxSize={5}
+                              maxSize={IMAGE_UPLOAD_MAX_MB}
                               onFilesSelected={(files) =>
                                 setFormData({
                                   ...formData,
@@ -950,23 +976,25 @@ export function CapsulasManager() {
                                 </CardHeader>
                                 <CardContent className="space-y-3">
                                   {media.type === "video" ? (
-                                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                    <div className="space-y-3">
                                       <div>
-                                        <Label className="text-xs text-muted-foreground">Link</Label>
+                                        <Label className="text-xs text-muted-foreground">Link do YouTube</Label>
                                         <Input
-                                          placeholder="https://..."
+                                          placeholder={YOUTUBE_URL_PLACEHOLDER}
                                           value={media.url || ""}
-                                          onChange={(e) => handleMediaChange(mediaIndex, { url: e.target.value, source: "link" })}
+                                          onChange={(e) =>
+                                            handleMediaChange(mediaIndex, {
+                                              url: e.target.value,
+                                              source: "link",
+                                              file: undefined,
+                                            })
+                                          }
                                         />
                                       </div>
-                                      <div>
-                                        <Label className="text-xs text-muted-foreground">Ou fazer Upload</Label>
-                                        <FileUploadField
-                                          accept="video/*"
-                                          maxSize={100}
-                                          onFilesSelected={(files) => handleMediaChange(mediaIndex, { file: files[0], source: "upload" })}
-                                        />
-                                      </div>
+                                      <p className="text-xs text-muted-foreground">{YOUTUBE_URL_HINT}</p>
+                                      {media.url && validateYouTubeUrl(media.url) && (
+                                        <EmbeddedVideo url={media.url} title="Pré-visualização" />
+                                      )}
                                     </div>
                                   ) : (
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -984,7 +1012,7 @@ export function CapsulasManager() {
                                           <Label className="text-xs text-muted-foreground">Upload (PT)</Label>
                                           <FileUploadField
                                             accept="image/*"
-                                            maxSize={10}
+                                            maxSize={IMAGE_UPLOAD_MAX_MB}
                                             onFilesSelected={(files) => handleMediaChange(mediaIndex, { file: files[0], source: "upload" })}
                                           />
                                         </div>
@@ -1003,7 +1031,7 @@ export function CapsulasManager() {
                                           <Label className="text-xs text-muted-foreground">Upload (EN)</Label>
                                           <FileUploadField
                                             accept="image/*"
-                                            maxSize={10}
+                                            maxSize={IMAGE_UPLOAD_MAX_MB}
                                             onFilesSelected={(files) => handleMediaChange(mediaIndex, { fileEn: files[0] })}
                                           />
                                         </div>

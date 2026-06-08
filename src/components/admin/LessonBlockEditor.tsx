@@ -4,7 +4,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileUploadField } from "@/components/ui/FileUploadField";
+import { EmbeddedVideo } from "@/components/EmbeddedVideo";
+import {
+  YOUTUBE_URL_HINT,
+  YOUTUBE_URL_PLACEHOLDER,
+  validateYouTubeUrl,
+} from "@/lib/youtube";
+import { IMAGE_UPLOAD_MAX_MB } from "@/lib/uploadLimits";
 import { 
   Video, 
   FileText, 
@@ -14,7 +20,6 @@ import {
   Trash2,
   ChevronUp,
   ChevronDown,
-  Upload
 } from "lucide-react";
 import { BlockData } from "@/components/lesson/ContentBlock";
 import { useState } from "react";
@@ -27,7 +32,7 @@ interface LessonBlockEditorProps {
   onMoveDown: () => void;
   canMoveUp: boolean;
   canMoveDown: boolean;
-  onFileChange?: (blockId: string, file: File | null, type: 'video' | 'image') => void;
+  onFileChange?: (blockId: string, file: File | null, type: "image") => void;
 }
 
 export const LessonBlockEditor = ({
@@ -40,17 +45,8 @@ export const LessonBlockEditor = ({
   canMoveDown,
   onFileChange
 }: LessonBlockEditorProps) => {
-  const [videoFile, setVideoFile] = useState<File | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
-  
-  const handleVideoFileChange = (files: File[]) => {
-    const file = files[0] || null;
-    setVideoFile(file);
-    if (onFileChange) {
-      onFileChange(block.id, file, 'video');
-    }
-  };
-  
+
   const handleImageFileChange = (files: File[]) => {
     const file = files[0] || null;
     setImageFile(file);
@@ -103,31 +99,23 @@ export const LessonBlockEditor = ({
         />
       </div>
       <div>
-        <Label>Upload de Vídeo ou URL Externa</Label>
-        <div className="space-y-3">
-          <FileUploadField
-            accept="video/*"
-            onFilesSelected={handleVideoFileChange}
-            label="Fazer upload de vídeo"
-            description="MP4, MOV, AVI - Máx 100MB"
-            maxSize={100}
-          />
-          <div className="text-center text-sm text-muted-foreground">ou</div>
-          <div>
-            <Label htmlFor={`video-url-${block.id}`}>URL Externa (YouTube, Vimeo, etc.)</Label>
-            <Input
-              id={`video-url-${block.id}`}
-              value={block.data.videoUrl || ''}
-              onChange={(e) => updateBlockData({ videoUrl: e.target.value })}
-              placeholder="https://www.youtube.com/watch?v=..."
-            />
-          </div>
-        </div>
-        {videoFile && (
-          <p className="text-sm text-green-600 mt-2">
-            ✓ Arquivo selecionado: {videoFile.name}
-          </p>
-        )}
+        <Label htmlFor={`video-url-${block.id}`}>Link do YouTube</Label>
+        <Input
+          id={`video-url-${block.id}`}
+          value={block.data.videoUrl || block.data.url || ""}
+          onChange={(e) => updateBlockData({ videoUrl: e.target.value, url: e.target.value })}
+          placeholder={YOUTUBE_URL_PLACEHOLDER}
+        />
+        <p className="text-xs text-muted-foreground mt-2">{YOUTUBE_URL_HINT}</p>
+        {(block.data.videoUrl || block.data.url) &&
+          validateYouTubeUrl(block.data.videoUrl || block.data.url || "") && (
+            <div className="mt-3">
+              <EmbeddedVideo
+                url={block.data.videoUrl || block.data.url || ""}
+                title={block.data.videoTitle || "Pré-visualização"}
+              />
+            </div>
+          )}
       </div>
     </div>
   );
@@ -168,8 +156,8 @@ export const LessonBlockEditor = ({
           accept="image/*"
           onFilesSelected={handleImageFileChange}
           label="Fazer upload de imagem"
-          description="JPG, PNG, WEBP - Máx 10MB"
-          maxSize={10}
+          description={`JPG, PNG, WEBP - Máx ${IMAGE_UPLOAD_MAX_MB}MB`}
+          maxSize={IMAGE_UPLOAD_MAX_MB}
         />
         {imageFile && (
           <p className="text-sm text-green-600 mt-2">

@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { useState } from "react";
+import { EmbeddedVideo } from "@/components/EmbeddedVideo";
 
 export interface BlockData {
   id: string;
@@ -9,6 +9,7 @@ export interface BlockData {
   data: {
     // Video
     videoUrl?: string;
+    url?: string;
     videoTitle?: string;
     videoStoragePath?: string;
     // Text
@@ -30,68 +31,16 @@ interface ContentBlockProps {
 }
 
 export const ContentBlock = ({ block, isPreview = false }: ContentBlockProps) => {
-  const [videoError, setVideoError] = useState(false);
-
   const renderVideoBlock = () => {
-    const videoUrl = block.data.videoUrl;
+    const videoUrl = block.data.videoUrl || block.data.url;
     if (!videoUrl) return null;
 
-    // Check if it's a YouTube URL
-    const isYouTube = videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be');
-    
-    if (isYouTube) {
-      // Extract video ID from various YouTube URL formats
-      let videoId = '';
-      if (videoUrl.includes('youtube.com/watch?v=')) {
-        videoId = videoUrl.split('v=')[1]?.split('&')[0] || '';
-      } else if (videoUrl.includes('youtu.be/')) {
-        videoId = videoUrl.split('youtu.be/')[1]?.split('?')[0] || '';
-      } else if (videoUrl.includes('youtube.com/embed/')) {
-        videoId = videoUrl.split('embed/')[1]?.split('?')[0] || '';
-      }
-
-      const embedUrl = `https://www.youtube.com/embed/${videoId}`;
-
-      return (
-        <div className="space-y-3">
-          {block.data.videoTitle && (
-            <h3 className="text-lg font-semibold">{block.data.videoTitle}</h3>
-          )}
-          <div className="aspect-video w-full rounded-lg overflow-hidden bg-muted">
-            <iframe
-              src={embedUrl}
-              title={block.data.videoTitle || 'Vídeo'}
-              className="w-full h-full"
-              allowFullScreen
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            />
-          </div>
-        </div>
-      );
-    }
-
-    // For other video URLs, use video tag
     return (
       <div className="space-y-3">
         {block.data.videoTitle && (
           <h3 className="text-lg font-semibold">{block.data.videoTitle}</h3>
         )}
-        <div className="aspect-video w-full rounded-lg overflow-hidden bg-muted">
-          {!videoError ? (
-            <video
-              src={videoUrl}
-              controls
-              className="w-full h-full"
-              onError={() => setVideoError(true)}
-            >
-              Seu navegador não suporta vídeos.
-            </video>
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-              Erro ao carregar vídeo
-            </div>
-          )}
-        </div>
+        <EmbeddedVideo url={videoUrl} title={block.data.videoTitle || "Vídeo"} />
       </div>
     );
   };

@@ -15,6 +15,7 @@ import { VirtualLabRenderer } from "@/components/VirtualLabRenderer";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ProGeniaLogo } from "@/components/ProGeniaLogo";
+import { EmbeddedVideo } from "@/components/EmbeddedVideo";
 export default function LessonViewer() {
   const {
     lessonId
@@ -229,23 +230,11 @@ export default function LessonViewer() {
                           <Video className="h-5 w-5" />
                           <h3 className="font-semibold">Vídeo</h3>
                         </div>
-                        {block.data.url ? (
-                          block.data.source === "link" ? (
-                            <div className="aspect-video">
-                              <iframe
-                                src={block.data.url}
-                                className="w-full h-full rounded-lg"
-                                allowFullScreen
-                              />
-                            </div>
-                          ) : (
-                            <video controls className="w-full rounded-lg">
-                              <source src={block.data.url} type="video/mp4" />
-                              <source src={block.data.url} type="video/webm" />
-                              <source src={block.data.url} type="video/ogg" />
-                              Seu navegador não suporta vídeo HTML5.
-                            </video>
-                          )
+                        {block.data.url || block.data.videoUrl ? (
+                          <EmbeddedVideo
+                            url={block.data.url || block.data.videoUrl}
+                            title="Vídeo da aula"
+                          />
                         ) : (
                           <div className="aspect-video flex items-center justify-center bg-muted rounded-lg">
                             <p className="text-muted-foreground">Vídeo não disponível</p>

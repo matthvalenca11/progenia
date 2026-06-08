@@ -12,6 +12,14 @@ import { storageService } from "@/services/storageService";
 import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
 import { toast } from "sonner";
 import { Loader2, Link as LinkIcon, Upload, Trash2, Plus } from "lucide-react";
+import { EmbeddedVideo } from "@/components/EmbeddedVideo";
+import {
+  assertValidYouTubeUrl,
+  YOUTUBE_URL_HINT,
+  YOUTUBE_URL_PLACEHOLDER,
+  validateYouTubeUrl,
+} from "@/lib/youtube";
+import { IMAGE_UPLOAD_MAX_MB } from "@/lib/uploadLimits";
 
 interface CapsuleContentEditorProps {
   capsulaId: string;
@@ -152,6 +160,14 @@ export function CapsuleContentEditor({ capsulaId, open, onOpenChange, onSave }: 
   };
 
   const uploadMedia = async (media: MediaItem): Promise<string> => {
+    if (media.type === "video") {
+      if (media.file || media.source === "upload") {
+        throw new Error("Vídeos devem ser adicionados apenas com link do YouTube.");
+      }
+      assertValidYouTubeUrl(media.url || "", "vídeo");
+      return (media.url || "").trim();
+    }
+
     if (media.source === "link") {
       return media.url || "";
     }
@@ -160,7 +176,7 @@ export function CapsuleContentEditor({ capsulaId, open, onOpenChange, onSave }: 
       throw new Error("Arquivo não encontrado");
     }
 
-    const bucket = media.type === "video" ? "lesson-videos" : "lesson-assets";
+    const bucket = "lesson-assets";
     const fileName = storageService.generateUniqueFileName(media.file.name);
     const path = `capsulas/${capsulaId}/${fileName}`;
 
@@ -176,6 +192,12 @@ export function CapsuleContentEditor({ capsulaId, open, onOpenChange, onSave }: 
   const handleSave = async () => {
     try {
       setSaving(true);
+
+      for (const media of content.media) {
+        if (media.type === "video" && media.url?.trim()) {
+          assertValidYouTubeUrl(media.url, "vídeo");
+        }
+      }
 
       // Upload de mídia
       const mediaWithUrls = await Promise.all(
@@ -306,40 +328,60 @@ export function CapsuleContentEditor({ capsulaId, open, onOpenChange, onSave }: 
                       </Button>
                     </div>
 
-                    <Tabs
-                      value={media.source}
-                      onValueChange={(value) =>
-                        handleMediaChange(index, { source: value as "upload" | "link" })
-                      }
-                    >
-                      <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="link">
-                          <LinkIcon className="h-4 w-4 mr-2" />
-                          Link
-                        </TabsTrigger>
-                        <TabsTrigger value="upload">
-                          <Upload className="h-4 w-4 mr-2" />
-                          Upload
-                        </TabsTrigger>
-                      </TabsList>
-
-                      <TabsContent value="link">
+                    {media.type === "video" ? (
+                      <div className="space-y-3">
                         <Input
-                          placeholder={`URL do ${media.type === "video" ? "vídeo" : "imagem"}`}
+                          placeholder={YOUTUBE_URL_PLACEHOLDER}
                           value={media.url || ""}
-                          onChange={(e) => handleMediaChange(index, { url: e.target.value })}
+                          onChange={(e) =>
+                            handleMediaChange(index, {
+                              url: e.target.value,
+                              source: "link",
+                              file: undefined,
+                            })
+                          }
                         />
-                      </TabsContent>
+                        <p className="text-xs text-muted-foreground">{YOUTUBE_URL_HINT}</p>
+                        {media.url && validateYouTubeUrl(media.url) && (
+                          <EmbeddedVideo url={media.url} title="Pré-visualização" />
+                        )}
+                      </div>
+                    ) : (
+                      <Tabs
+                        value={media.source}
+                        onValueChange={(value) =>
+                          handleMediaChange(index, { source: value as "upload" | "link" })
+                        }
+                      >
+                        <TabsList className="grid w-full grid-cols-2">
+                          <TabsTrigger value="link">
+                            <LinkIcon className="h-4 w-4 mr-2" />
+                            Link
+                          </TabsTrigger>
+                          <TabsTrigger value="upload">
+                            <Upload className="h-4 w-4 mr-2" />
+                            Upload
+                          </TabsTrigger>
+                        </TabsList>
 
-                      <TabsContent value="upload">
-                        <FileUploadField
-                          accept={media.type === "video" ? "video/*" : "image/*"}
-                          maxSize={media.type === "video" ? 100 : 10}
-                          onFilesSelected={(files) => handleMediaChange(index, { file: files[0] })}
-                          label={`Selecione o ${media.type === "video" ? "vídeo" : "imagem"}`}
-                        />
-                      </TabsContent>
-                    </Tabs>
+                        <TabsContent value="link">
+                          <Input
+                            placeholder="URL da imagem"
+                            value={media.url || ""}
+                            onChange={(e) => handleMediaChange(index, { url: e.target.value })}
+                          />
+                        </TabsContent>
+
+                        <TabsContent value="upload">
+                          <FileUploadField
+                            accept="image/*"
+                            maxSize={IMAGE_UPLOAD_MAX_MB}
+                            onFilesSelected={(files) => handleMediaChange(index, { file: files[0] })}
+                            label="Selecione a imagem"
+                          />
+                        </TabsContent>
+                      </Tabs>
+                    )}
                   </div>
                 ))}
               </div>
@@ -371,7 +413,7 @@ export function CapsuleContentEditor({ capsulaId, open, onOpenChange, onSave }: 
               <TabsContent value="upload">
                 <FileUploadField
                   accept="image/*"
-                  maxSize={5}
+                  maxSize={IMAGE_UPLOAD_MAX_MB}
                   onFilesSelected={(files) => setThumbnailFile(files[0])}
                   label="Selecione a thumbnail"
                 />
