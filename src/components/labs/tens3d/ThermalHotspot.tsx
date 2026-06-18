@@ -19,6 +19,7 @@ export function ThermalHotspot({
 }: ThermalHotspotProps) {
   const hotspotRef = useRef<THREE.Mesh>(null);
   const particlesRef = useRef<THREE.Points>(null);
+  const basePositionsRef = useRef<Float32Array | null>(null);
 
   // Calcular posição do hotspot térmico
   const position = useMemo(() => {
@@ -49,6 +50,7 @@ export function ThermalHotspot({
       positions[i * 3 + 2] = (Math.random() - 0.5) * 0.3;
     }
     
+    basePositionsRef.current = positions.slice();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     return geometry;
   }, [size, thermalHotspot.intensity]);
@@ -69,10 +71,14 @@ export function ThermalHotspot({
     
     // Animar partículas
     if (particlesRef.current) {
+      const base = basePositionsRef.current;
+      if (!base) return;
+
       const positions = particlesRef.current.geometry.attributes.position.array as Float32Array;
-      for (let i = 0; i < positions.length / 3; i++) {
-        const offset = Math.sin(time * 2 + i * 0.1) * 0.05;
-        positions[i * 3 + 1] += offset;
+      const count = Math.min(base.length, positions.length) / 3;
+      for (let i = 0; i < count; i++) {
+        const wobble = Math.sin(time * 2 + i * 0.1) * 0.05;
+        positions[i * 3 + 1] = base[i * 3 + 1] + wobble;
       }
       particlesRef.current.geometry.attributes.position.needsUpdate = true;
     }

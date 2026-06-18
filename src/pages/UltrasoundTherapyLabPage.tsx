@@ -2,9 +2,10 @@
  * UltrasoundTherapyLabPage - Página do Laboratório de Ultrassom Terapêutico
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { UltrasoundTherapyLabV2 } from "@/components/labs/ultrasound-therapy/UltrasoundTherapyLabV2";
 import { UltrasoundTherapyConfig, defaultUltrasoundTherapyConfig } from "@/types/ultrasoundTherapyConfig";
+import { useUltrasoundTherapyStore } from "@/stores/ultrasoundTherapyStore";
 
 interface UltrasoundTherapyLabPageProps {
   config?: UltrasoundTherapyConfig | any;
@@ -62,6 +63,12 @@ export default function UltrasoundTherapyLabPage({
     const merged: UltrasoundTherapyConfig = {
       ...defaultUltrasoundTherapyConfig,
       ...config,
+      mixedLayer: {
+        ...defaultUltrasoundTherapyConfig.mixedLayer,
+        ...(config.mixedLayer || {}),
+      },
+      tissuePerfusionProfile:
+        config.tissuePerfusionProfile ?? defaultUltrasoundTherapyConfig.tissuePerfusionProfile,
       enabledControls: {
         ...defaultUltrasoundTherapyConfig.enabledControls,
         ...(config.enabledControls || {}),
@@ -69,6 +76,18 @@ export default function UltrasoundTherapyLabPage({
       ranges: {
         ...defaultUltrasoundTherapyConfig.ranges,
         ...(config.ranges || {}),
+        mixedLayer: {
+          ...defaultUltrasoundTherapyConfig.ranges.mixedLayer,
+          ...(config.ranges?.mixedLayer || {}),
+          depth: {
+            ...defaultUltrasoundTherapyConfig.ranges.mixedLayer?.depth,
+            ...(config.ranges?.mixedLayer?.depth || {}),
+          },
+          division: {
+            ...defaultUltrasoundTherapyConfig.ranges.mixedLayer?.division,
+            ...(config.ranges?.mixedLayer?.division || {}),
+          },
+        },
       },
     };
     
@@ -81,6 +100,12 @@ export default function UltrasoundTherapyLabPage({
     
     return merged;
   }, [config]);
+
+  useEffect(() => {
+    return () => {
+      useUltrasoundTherapyStore.getState().clear();
+    };
+  }, []);
   
   return (
     <UltrasoundTherapyLabV2 

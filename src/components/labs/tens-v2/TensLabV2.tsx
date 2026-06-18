@@ -7,7 +7,8 @@ import { useEffect, useState } from "react";
 import { TensLabControlPanel } from "./TensLabControlPanel";
 import { TensLabInsightsPanel } from "./TensLabInsightsPanel";
 import { Tens3DViewer } from "./Tens3DViewer";
-import { useTensLabStore } from "@/stores/tensLabStore";
+import { TensLabBottomDock } from "./TensLabBottomDock";
+import { useTensLabStore, ViewerTab } from "@/stores/tensLabStore";
 import { TensLabConfig, defaultTensLabConfig } from "@/types/tensLabConfig";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,6 +18,8 @@ import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { LabMobilePanelTab, LabMobileTabBar } from "@/components/labs/LabMobileTabBar";
 import { labMobileFlexClass, labMobilePanelClass, labCanvasHostClass } from "@/components/labs/labMobileLayout";
+import { cn } from "@/lib/utils";
+import { EducationalSimulationDisclaimer } from "@/components/labs/EducationalSimulationDisclaimer";
 
 interface TensLabV2Props {
   config?: TensLabConfig;
@@ -65,18 +68,21 @@ export function TensLabV2({
   const viewerTabs = (
     <Tabs
       value={viewerTab}
-      onValueChange={(v) => setViewerTab(v as "anatomy" | "electric" | "activation")}
+      onValueChange={(v) => setViewerTab(v as ViewerTab)}
       className="mt-2 w-full"
     >
-      <TabsList className="grid h-auto w-full grid-cols-3 bg-muted/50">
+      <TabsList className="grid h-auto w-full grid-cols-4 bg-muted/50">
         <TabsTrigger value="anatomy" className="px-1 text-[10px] leading-tight sm:text-xs">
           Anatomia
         </TabsTrigger>
         <TabsTrigger value="electric" className="px-1 text-[10px] leading-tight sm:text-xs">
           Campo Elétrico
         </TabsTrigger>
-        <TabsTrigger value="activation" className="px-1 text-[10px] leading-tight sm:text-xs">
+        <TabsTrigger value="activated" className="px-1 text-[10px] leading-tight sm:text-xs">
           Região Ativada
+        </TabsTrigger>
+        <TabsTrigger value="lesion" className="px-1 text-[10px] leading-tight sm:text-xs">
+          Risco/Lesão
         </TabsTrigger>
       </TabsList>
     </Tabs>
@@ -146,6 +152,9 @@ export function TensLabV2({
           />
 
           <section className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y pb-[max(0.5rem,var(--sab,env(safe-area-inset-bottom,0px)))]">
+            <div className="border-b border-border px-3 py-2">
+              <EducationalSimulationDisclaimer compact />
+            </div>
             {mobilePanel === "controls" ? (
               <TensLabControlPanel hideHeader />
             ) : (
@@ -153,6 +162,8 @@ export function TensLabV2({
             )}
           </section>
         </div>
+
+        <TensLabBottomDock />
       </div>
     );
   }
@@ -215,7 +226,7 @@ export function TensLabV2({
           <div className="order-2 ml-auto flex items-center gap-2 md:order-3">
             <Tabs
               value={viewerTab}
-              onValueChange={(v) => setViewerTab(v as "anatomy" | "electric" | "activation")}
+              onValueChange={(v) => setViewerTab(v as ViewerTab)}
               className="w-full sm:w-auto"
             >
               <TabsList className="bg-muted/50 w-full sm:w-auto">
@@ -225,8 +236,11 @@ export function TensLabV2({
                 <TabsTrigger value="electric" className="text-xs">
                   Campo Elétrico
                 </TabsTrigger>
-                <TabsTrigger value="activation" className="text-xs">
+                <TabsTrigger value="activated" className="text-xs">
                   Região Ativada
+                </TabsTrigger>
+                <TabsTrigger value="lesion" className="text-xs">
+                  Risco/Lesão
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -235,7 +249,8 @@ export function TensLabV2({
               variant="ghost"
               size="sm"
               onClick={resetToDefaults}
-              className="text-muted-foreground hover:text-foreground gap-1.5 text-xs"
+              className="text-muted-foreground hover:text-foreground gap-1.5 text-xs min-h-[44px]"
+              aria-label="Resetar parâmetros TENS para valores padrão"
             >
               <RotateCcw className="h-3.5 w-3.5" />
               Reset
@@ -261,14 +276,22 @@ export function TensLabV2({
       </main>
 
       {/* LINHA 3 - CONTROLES + MÉTRICAS (duas colunas) */}
-      <div className="flex border-t border-border shrink-0 h-[40%]">
+      <div className="flex shrink-0 flex-col border-t border-border h-[36%]">
+        <div className="shrink-0 border-b border-border px-3 py-1.5">
+          <EducationalSimulationDisclaimer compact />
+        </div>
+        <div className="flex min-h-0 flex-1">
         <aside className="w-1/2 border-r border-border overflow-y-auto bg-card">
           <TensLabControlPanel />
         </aside>
         <aside className="w-1/2 overflow-y-auto bg-card">
           <TensLabInsightsPanel onClose={() => {}} />
         </aside>
+        </div>
       </div>
+
+      {/* LINHA 4 - DOCK (forma de onda, segurança, notas) */}
+      <TensLabBottomDock />
     </div>
   );
 }

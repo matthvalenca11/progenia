@@ -1,7 +1,23 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { RoundedBox } from '@react-three/drei';
 import * as THREE from 'three';
 import { TissueConfig } from '@/types/tissueConfig';
+import type { ClinicalSkinTone } from '@/lib/clinicalSkinTones';
+import { CLINICAL_SKIN_TONES } from '@/lib/clinicalSkinTones';
+import { shouldCastTherapeuticShadows } from '@/lib/therapeuticLabsPerformance';
+import {
+  clinicalTissueMaterialProps,
+  createClinicalTissueTextureSet,
+} from '@/lib/clinicalTissueTextures';
+import {
+  buildOrganicLayerGeometry,
+  createTissueStackSeed,
+  ORGANIC_LAYER_SEGMENTS,
+  tissueBoundarySeed,
+} from '@/lib/clinicalTissueGeometry';
+
+const CAST_SHADOW = shouldCastTherapeuticShadows();
 
 type VisualizationMode = 'anatomical' | 'electric' | 'lesion';
 
@@ -10,6 +26,7 @@ interface TissueLayersModelProps {
   visualMode: VisualizationMode;
   intensityNorm: number;
   lesionIndex?: number;
+  skinTone?: ClinicalSkinTone;
 }
 
 export function TissueLayersModel({
@@ -17,7 +34,9 @@ export function TissueLayersModel({
   visualMode,
   intensityNorm,
   lesionIndex = 0,
+  skinTone,
 }: TissueLayersModelProps) {
+  const tone = skinTone ?? CLINICAL_SKIN_TONES[1];
   // Calculate layer dimensions - tissueConfig valores já estão normalizados (0-1)
   const { skinHeight, fatHeight, muscleHeight, boneHeight, skinY, fatY, muscleY, boneY } = useMemo(() => {
     // Multiplicar por 5 para ter dimensões visíveis (ao invés de /10)
@@ -48,325 +67,156 @@ export function TissueLayersModel({
     };
   }, [tissueConfig.skinThickness, tissueConfig.fatThickness, tissueConfig.muscleThickness]);
 
-  // Create procedural textures
-  const skinTexture = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d')!;
-    
-    // Skin base color - com eritema se houver lesão
-    const baseR = 250;
-    const baseG = 212 - Math.floor(lesionIndex * 100); // Mais vermelho com lesão
-    const baseB = 192 - Math.floor(lesionIndex * 120);
-    ctx.fillStyle = `rgb(${baseR}, ${baseG}, ${baseB})`;
-    ctx.fillRect(0, 0, 512, 512);
-    
-    // Add subtle noise for skin texture
-    for (let i = 0; i < 5000; i++) {
-      const x = Math.random() * 512;
-      const y = Math.random() * 512;
-      const size = Math.random() * 2;
-      const opacity = Math.random() * 0.3;
-      ctx.fillStyle = `rgba(255, ${220 - lesionIndex * 100}, 200, ${opacity})`;
-      ctx.fillRect(x, y, size, size);
-    }
-    
-    // LESION: Adicionar manchas de eritema se lesionIndex > 0.3
-    if (lesionIndex > 0.3) {
-      const numSpots = Math.floor(lesionIndex * 20);
-      for (let i = 0; i < numSpots; i++) {
-        const x = Math.random() * 512;
-        const y = Math.random() * 512;
-        const radius = 10 + Math.random() * 30;
-        const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
-        const intensity = lesionIndex * 0.8;
-        gradient.addColorStop(0, `rgba(255, 50, 50, ${intensity})`);
-        gradient.addColorStop(0.5, `rgba(255, 100, 100, ${intensity * 0.5})`);
-        gradient.addColorStop(1, 'rgba(255, 150, 150, 0)');
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(2, 2);
-    return texture;
-  }, [lesionIndex]);
+  const textures = useMemo(
+    () => createClinicalTissueTextureSet({ skinTone: tone, lesionIndex }),
+    [tone, lesionIndex],
+  );
 
-  const fatTexture = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d')!;
-    
-    // Fat base color
-    ctx.fillStyle = '#ffe4b5';
-    ctx.fillRect(0, 0, 512, 512);
-    
-    // Add nodular pattern
-    for (let i = 0; i < 30; i++) {
-      const x = Math.random() * 512;
-      const y = Math.random() * 512;
-      const radius = 10 + Math.random() * 20;
-      const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
-      gradient.addColorStop(0, 'rgba(255, 240, 180, 0.8)');
-      gradient.addColorStop(1, 'rgba(255, 228, 181, 0.2)');
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(1.5, 1.5);
-    return texture;
-  }, []);
+  const stackSeed = useMemo(() => createTissueStackSeed(), []);
 
-  const muscleTexture = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d')!;
-    
-    // Muscle base color - mais escuro com lesão profunda
-    const baseR = 197 + Math.floor(lesionIndex * 40);
-    const baseG = 69 - Math.floor(lesionIndex * 30);
-    const baseB = 69 - Math.floor(lesionIndex * 30);
-    ctx.fillStyle = `rgb(${baseR}, ${baseG}, ${baseB})`;
-    ctx.fillRect(0, 0, 512, 512);
-    
-    // Add fiber pattern - mais desorganizado com lesão
-    const disorganization = lesionIndex * 30;
-    ctx.strokeStyle = `rgba(139, 0, 0, ${0.3 + lesionIndex * 0.3})`;
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 50; i++) {
-      const y = (i * 512) / 50;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(512, y + Math.random() * (20 + disorganization) - (10 + disorganization / 2));
-      ctx.stroke();
-    }
-    
-    // Add muscle bundles
-    for (let i = 0; i < 100; i++) {
-      const x = Math.random() * 512;
-      const y = Math.random() * 512;
-      ctx.fillStyle = `rgba(180, 50, 50, ${Math.random() * 0.3})`;
-      ctx.fillRect(x, y, 2, 10 + Math.random() * 20);
-    }
-    
-    // LESION: Adicionar áreas de dano muscular se lesionIndex > 0.5
-    if (lesionIndex > 0.5) {
-      const numDamageAreas = Math.floor((lesionIndex - 0.5) * 15);
-      for (let i = 0; i < numDamageAreas; i++) {
-        const x = Math.random() * 512;
-        const y = Math.random() * 512;
-        const radius = 15 + Math.random() * 40;
-        const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
-        const intensity = (lesionIndex - 0.5) * 1.5;
-        gradient.addColorStop(0, `rgba(100, 0, 0, ${intensity})`);
-        gradient.addColorStop(0.5, `rgba(150, 20, 20, ${intensity * 0.6})`);
-        gradient.addColorStop(1, 'rgba(197, 69, 69, 0)');
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      
-      // Adicionar "rasgos" nas fibras para simular ruptura
-      const tearIntensity = (lesionIndex - 0.5) * 1.5;
-      ctx.strokeStyle = `rgba(80, 0, 0, ${tearIntensity})`;
-      ctx.lineWidth = 3;
-      for (let i = 0; i < 20; i++) {
-        const startX = Math.random() * 512;
-        const startY = Math.random() * 512;
-        ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.lineTo(startX + (Math.random() - 0.5) * 60, startY + Math.random() * 40);
-        ctx.stroke();
-      }
-    }
-    
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(3, 3);
-    return texture;
-  }, [lesionIndex]);
+  const layerGeometries = useMemo(() => {
+    let idx = 0;
+    const skinGeo = buildOrganicLayerGeometry({
+      width: 20,
+      height: skinHeight,
+      depth: 8,
+      boundarySeedTop: tissueBoundarySeed(stackSeed, idx),
+      boundarySeedBottom: tissueBoundarySeed(stackSeed, idx + 1),
+      kind: 'skin',
+      topAmplitudeScale: 0.018,
+      segments: ORGANIC_LAYER_SEGMENTS,
+    });
+    idx += 1;
 
-  const boneTexture = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d')!;
-    
-    // Bone base color
-    ctx.fillStyle = '#f0f0f0';
-    ctx.fillRect(0, 0, 512, 512);
-    
-    // Add cortical bone texture
-    for (let i = 0; i < 8000; i++) {
-      const x = Math.random() * 512;
-      const y = Math.random() * 512;
-      ctx.fillStyle = `rgba(200, 200, 200, ${Math.random() * 0.5})`;
-      ctx.fillRect(x, y, 1, 1);
-    }
-    
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(4, 4);
-    return texture;
-  }, []);
+    const fatGeo =
+      tissueConfig.fatThickness > 0
+        ? buildOrganicLayerGeometry({
+            width: 20,
+            height: fatHeight,
+            depth: 8,
+            boundarySeedTop: tissueBoundarySeed(stackSeed, idx),
+            boundarySeedBottom: tissueBoundarySeed(stackSeed, idx + 1),
+            kind: 'fat',
+            segments: ORGANIC_LAYER_SEGMENTS,
+          })
+        : null;
+    if (fatGeo) idx += 1;
 
-  // Adjust opacity and appearance based on visualization mode
-  // Se há implante metálico, tornar camadas mais transparentes para visualizar o implante
-  const hasMetalImplant = tissueConfig.hasMetalImplant;
-  
-  const getLayerOpacity = (layer: string) => {
-    // Se há implante metálico, tornar mais transparente para visualizar
-    if (hasMetalImplant) {
-      if (visualMode === 'anatomical') {
-        // Modo anatômico com implante: semi-transparente para ver o implante
-        if (layer === 'skin') return 0.6;
-        if (layer === 'fat') return 0.5;
-        if (layer === 'muscle') return 0.6;
-        if (layer === 'bone') return 0.7;
-      }
-      if (visualMode === 'electric') {
-        // Make tissues semi-transparent to see field and implant
-        if (layer === 'skin') return 0.5;
-        if (layer === 'fat') return 0.4;
-        if (layer === 'muscle') return 0.5;
-        if (layer === 'bone') return 0.6;
-      }
-      if (visualMode === 'lesion') {
-        // Even more transparent to see heatmap and implant
-        if (layer === 'skin') return 0.4;
-        if (layer === 'fat') return 0.3;
-        if (layer === 'muscle') return 0.4;
-        if (layer === 'bone') return 0.5;
-      }
-    } else {
-      // Sem implante: opacidade normal
-      if (visualMode === 'anatomical') return 1.0;
-      if (visualMode === 'electric') {
-        // Make tissues semi-transparent to see field
-        if (layer === 'skin') return 0.7;
-        if (layer === 'fat') return 0.6;
-        if (layer === 'muscle') return 0.8;
-        if (layer === 'bone') return 0.9;
-      }
-      if (visualMode === 'lesion') {
-        // Even more transparent to see heatmap
-        if (layer === 'skin') return 0.5;
-        if (layer === 'fat') return 0.4;
-        if (layer === 'muscle') return 0.6;
-        if (layer === 'bone') return 0.7;
-      }
-    }
-    return 1.0;
-  };
+    const muscleGeo = buildOrganicLayerGeometry({
+      width: 20,
+      height: muscleHeight,
+      depth: 8,
+      boundarySeedTop: tissueBoundarySeed(stackSeed, idx),
+      boundarySeedBottom: tissueBoundarySeed(stackSeed, idx + 1),
+      kind: 'muscle',
+      segments: ORGANIC_LAYER_SEGMENTS,
+    });
+    idx += 1;
+
+    const boneGeo = buildOrganicLayerGeometry({
+      width: 20,
+      height: boneHeight,
+      depth: 8,
+      boundarySeedTop: tissueBoundarySeed(stackSeed, idx),
+      boundarySeedBottom: tissueBoundarySeed(stackSeed, idx + 1),
+      kind: 'bone',
+      segments: ORGANIC_LAYER_SEGMENTS,
+    });
+
+    return { skinGeo, fatGeo, muscleGeo, boneGeo };
+  }, [
+    stackSeed,
+    skinHeight,
+    fatHeight,
+    muscleHeight,
+    boneHeight,
+    tissueConfig.fatThickness,
+  ]);
 
   const getLayerEmissive = (layer: string) => {
-    if (visualMode === 'electric' && intensityNorm > 0.3) {
-      // Add slight glow when field is active
-      if (layer === 'muscle') return new THREE.Color('#441111').multiplyScalar(intensityNorm * 0.3);
+    if (visualMode === 'electric' && intensityNorm > 0.3 && layer === 'muscle') {
+      return new THREE.Color('#552020');
     }
-    
-    // LESION: Adicionar emissão quando há lesão
-    if (visualMode === 'lesion' && lesionIndex > 0.4) {
-      if (layer === 'skin' && lesionIndex > 0.3) {
-        return new THREE.Color('#ff3333').multiplyScalar((lesionIndex - 0.3) * 0.5);
-      }
-      if (layer === 'muscle' && lesionIndex > 0.5) {
-        return new THREE.Color('#990000').multiplyScalar((lesionIndex - 0.5) * 0.8);
-      }
+    if (visualMode === 'lesion' && lesionIndex > 0.3 && layer === 'skin') {
+      return new THREE.Color('#cc2222');
     }
-    
+    if (visualMode === 'lesion' && lesionIndex > 0.5 && layer === 'muscle') {
+      return new THREE.Color('#771111');
+    }
     return new THREE.Color('#000000');
+  };
+
+  const getLayerEmissiveIntensity = (layer: string) => {
+    if (visualMode === 'electric' && intensityNorm > 0.3 && layer === 'muscle') {
+      return intensityNorm * 0.35;
+    }
+    if (visualMode === 'lesion' && lesionIndex > 0.3 && layer === 'skin') {
+      return (lesionIndex - 0.3) * 0.55;
+    }
+    if (visualMode === 'lesion' && lesionIndex > 0.5 && layer === 'muscle') {
+      return (lesionIndex - 0.5) * 0.75;
+    }
+    return 0;
   };
 
   return (
     <group>
       {/* Skin Layer */}
-      <mesh position={[0, skinY, 0]} castShadow receiveShadow>
-        <boxGeometry args={[20, skinHeight, 8]} />
+      <mesh geometry={layerGeometries.skinGeo} position={[0, skinY, 0]} castShadow={CAST_SHADOW} receiveShadow={CAST_SHADOW}>
         <meshStandardMaterial
-          map={skinTexture}
-          transparent
-          opacity={getLayerOpacity('skin')}
-          roughness={0.7}
-          metalness={0.1}
+          {...clinicalTissueMaterialProps('skin', textures.skin)}
           emissive={getLayerEmissive('skin')}
+          emissiveIntensity={getLayerEmissiveIntensity('skin')}
         />
       </mesh>
 
       {/* Fat Layer */}
-      {tissueConfig.fatThickness > 0 && (
-        <mesh position={[0, fatY, 0]} castShadow receiveShadow>
-          <boxGeometry args={[20, fatHeight, 8]} />
+      {layerGeometries.fatGeo && (
+        <mesh geometry={layerGeometries.fatGeo} position={[0, fatY, 0]} castShadow={CAST_SHADOW} receiveShadow={CAST_SHADOW}>
           <meshStandardMaterial
-            map={fatTexture}
-            transparent
-            opacity={getLayerOpacity('fat')}
-            roughness={0.8}
-            metalness={0.0}
+            {...clinicalTissueMaterialProps('fat', textures.fat)}
             emissive={getLayerEmissive('fat')}
+            emissiveIntensity={getLayerEmissiveIntensity('fat')}
           />
         </mesh>
       )}
 
       {/* Muscle Layer */}
-      <mesh position={[0, muscleY, 0]} castShadow receiveShadow>
-        <boxGeometry args={[20, muscleHeight, 8]} />
+      <mesh geometry={layerGeometries.muscleGeo} position={[0, muscleY, 0]} castShadow={CAST_SHADOW} receiveShadow={CAST_SHADOW}>
         <meshStandardMaterial
-          map={muscleTexture}
-          transparent
-          opacity={getLayerOpacity('muscle')}
-          roughness={0.6}
-          metalness={0.2}
+          {...clinicalTissueMaterialProps('muscle', textures.muscle)}
           emissive={getLayerEmissive('muscle')}
+          emissiveIntensity={getLayerEmissiveIntensity('muscle')}
         />
       </mesh>
 
       {/* Bone Layer */}
-      <mesh position={[0, boneY, 0]} castShadow receiveShadow>
-        <boxGeometry args={[20, boneHeight, 8]} />
+      <mesh geometry={layerGeometries.boneGeo} position={[0, boneY, 0]} castShadow={CAST_SHADOW} receiveShadow={CAST_SHADOW}>
         <meshStandardMaterial
-          map={boneTexture}
-          transparent
-          opacity={getLayerOpacity('bone')}
-          roughness={0.3}
-          metalness={0.4}
+          {...clinicalTissueMaterialProps('bone', textures.bone)}
           emissive={getLayerEmissive('bone')}
+          emissiveIntensity={getLayerEmissiveIntensity('bone')}
         />
       </mesh>
 
       {/* Metal Implant (if present) - AGORA USA PROFUNDIDADE E EXTENSÃO REAIS */}
       {tissueConfig.hasMetalImplant && tissueConfig.metalImplantDepth !== undefined && tissueConfig.metalImplantSpan !== undefined && (
         <group>
-          {/* Implante metálico principal - mais visível */}
-          <mesh
+          <RoundedBox
             position={[
               0,
               skinY - (tissueConfig.metalImplantDepth * (skinHeight + fatHeight + muscleHeight)),
               0,
             ]}
-            castShadow
+            args={[
+              tissueConfig.metalImplantSpan * 4,
+              0.3,
+              tissueConfig.metalImplantSpan * 3,
+            ]}
+            radius={0.08}
+            smoothness={4}
+            castShadow={CAST_SHADOW}
           >
-            <boxGeometry args={[
-              (tissueConfig.metalImplantSpan * 4), // Largura aumentada para melhor visualização
-              0.3, // Espessura aumentada
-              (tissueConfig.metalImplantSpan * 3) // Profundidade aumentada
-            ]} />
             <meshStandardMaterial
               color="#475569"
               roughness={0.05}
@@ -374,22 +224,23 @@ export function TissueLayersModel({
               emissive={visualMode === 'electric' || visualMode === 'lesion' ? '#3b82f6' : '#60a5fa'}
               emissiveIntensity={visualMode === 'electric' ? intensityNorm * 1.0 : (visualMode === 'lesion' ? intensityNorm * 1.5 : 0.3)}
             />
-          </mesh>
-          
-          {/* Glow ao redor do implante quando há campo elétrico */}
+          </RoundedBox>
+
           {(visualMode === 'electric' || visualMode === 'lesion') && intensityNorm > 0.2 && (
-            <mesh
+            <RoundedBox
               position={[
                 0,
                 skinY - (tissueConfig.metalImplantDepth * (skinHeight + fatHeight + muscleHeight)),
                 0,
               ]}
-            >
-              <boxGeometry args={[
-                (tissueConfig.metalImplantSpan * 4.5),
+              args={[
+                tissueConfig.metalImplantSpan * 4.5,
                 0.4,
-                (tissueConfig.metalImplantSpan * 3.5)
-              ]} />
+                tissueConfig.metalImplantSpan * 3.5,
+              ]}
+              radius={0.1}
+              smoothness={4}
+            >
               <meshBasicMaterial
                 color="#3b82f6"
                 transparent
@@ -397,7 +248,7 @@ export function TissueLayersModel({
                 side={THREE.DoubleSide}
                 depthWrite={false}
               />
-            </mesh>
+            </RoundedBox>
           )}
         </group>
       )}
@@ -427,19 +278,45 @@ export function TissueLayersModel({
           inclusionEmissive = visualMode === 'electric' ? '#3b82f6' : '#000000';
         }
         
+        if (inclusion.type === 'bone' || inclusion.type === 'metal_implant') {
+          return (
+            <RoundedBox
+              key={inclusion.id}
+              position={[inclusionX, inclusionY, 0]}
+              args={[inclusionWidth, inclusionHeight, 1.3]}
+              radius={0.14}
+              smoothness={4}
+              castShadow={CAST_SHADOW}
+            >
+              <meshStandardMaterial
+                color={inclusionColor}
+                roughness={inclusion.type === 'metal_implant' ? 0.1 : 0.55}
+                metalness={inclusion.type === 'metal_implant' ? 0.95 : 0.15}
+                emissive={inclusionEmissive}
+                emissiveIntensity={visualMode === 'electric' ? intensityNorm * 0.6 : 0}
+              />
+            </RoundedBox>
+          );
+        }
+
         return (
           <mesh
             key={inclusion.id}
             position={[inclusionX, inclusionY, 0]}
-            castShadow
+            scale={
+              inclusion.type === 'fat'
+                ? [inclusionWidth * 1.1, inclusionHeight * 1.2, 1.2]
+                : [inclusionWidth * 0.95, inclusionHeight * 0.9, 1.1]
+            }
+            castShadow={CAST_SHADOW}
           >
-            <boxGeometry args={[inclusionWidth, inclusionHeight, 1.5]} />
+            <sphereGeometry args={[0.55, 20, 16]} />
             <meshStandardMaterial
               color={inclusionColor}
-              roughness={inclusion.type === 'metal_implant' ? 0.1 : 0.7}
-              metalness={inclusion.type === 'metal_implant' ? 0.95 : 0.2}
+              roughness={0.65}
+              metalness={0.15}
               emissive={inclusionEmissive}
-              emissiveIntensity={visualMode === 'electric' ? intensityNorm * 0.6 : 0}
+              emissiveIntensity={visualMode === 'electric' ? intensityNorm * 0.5 : 0}
             />
           </mesh>
         );

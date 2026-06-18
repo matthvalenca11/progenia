@@ -3,20 +3,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Sparkles, Loader2, CheckCircle2, AlertCircle, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  extractUltrasoundVideoProfileFromFile,
   extractUltrasoundVideoProfileFromUrl,
   type UltrasoundVideoProfile,
 } from '@/simulator/ultrasound/UltrasoundVideoFeatureExtractor';
 import { applyVideoProfileToLabStore } from '@/simulator/ultrasound/applyVideoProfileToLab';
 import { useUltrasoundLabStore } from '@/stores/ultrasoundLabStore';
+import { isYouTubeUrl } from '@/lib/youtube';
 
 interface UltrasoundVideoFeaturePanelProps {
   videoUrl?: string;
-  /** Local file selected before upload completes. */
-  pendingFile?: File | null;
 }
 
 const TRANSDUCER_LABELS: Record<string, string> = {
@@ -87,7 +85,6 @@ function ProfileSummary({ profile }: { profile: UltrasoundVideoProfile }) {
 
 export function UltrasoundVideoFeaturePanel({
   videoUrl,
-  pendingFile,
 }: UltrasoundVideoFeaturePanelProps) {
   const loadConfig = useUltrasoundLabStore((s) => s.loadConfig);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -95,40 +92,31 @@ export function UltrasoundVideoFeaturePanel({
   const [profile, setProfile] = useState<UltrasoundVideoProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const runExtraction = useCallback(
-    async (source: 'file' | 'url') => {
-      setIsAnalyzing(true);
-      setProgress(0);
-      setError(null);
+  const isYouTube = Boolean(videoUrl && isYouTubeUrl(videoUrl));
+  const canAnalyzeDirectUrl = Boolean(videoUrl && !isYouTube);
 
-      try {
-        let result: UltrasoundVideoProfile;
-        if (source === 'file' && pendingFile) {
-          result = await extractUltrasoundVideoProfileFromFile(pendingFile, {
-            maxFrames: 20,
-            onProgress: setProgress,
-          });
-        } else if (source === 'url' && videoUrl) {
-          result = await extractUltrasoundVideoProfileFromUrl(videoUrl, {
-            maxFrames: 20,
-            onProgress: setProgress,
-          });
-        } else {
-          throw new Error('Nenhum vídeo disponível para análise');
-        }
+  const runExtraction = useCallback(async () => {
+    if (!videoUrl || isYouTube) return;
 
-        setProfile(result);
-        toast.success('Features extraídas do vídeo de referência');
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : 'Falha na análise do vídeo';
-        setError(msg);
-        toast.error('Análise falhou', { description: msg });
-      } finally {
-        setIsAnalyzing(false);
-      }
-    },
-    [pendingFile, videoUrl],
-  );
+    setIsAnalyzing(true);
+    setProgress(0);
+    setError(null);
+
+    try {
+      const result = await extractUltrasoundVideoProfileFromUrl(videoUrl, {
+        maxFrames: 20,
+        onProgress: setProgress,
+      });
+      setProfile(result);
+      toast.success('Features extraídas do vídeo de referência');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Falha na análise do vídeo';
+      setError(msg);
+      toast.error('Análise falhou', { description: msg });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, [videoUrl, isYouTube]);
 
   const applyToLab = useCallback(() => {
     if (!profile) return;
@@ -138,7 +126,7 @@ export function UltrasoundVideoFeaturePanel({
     });
   }, [profile, loadConfig]);
 
-  if (!videoUrl && !pendingFile) return null;
+  if (!videoUrl) return null;
 
   return (
     <Card className="border-primary/20">
@@ -153,37 +141,31 @@ export function UltrasoundVideoFeaturePanel({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {isYouTube && (
+          <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+            <Info className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>
+              Links do YouTube servem como referência visual no lab. A extração automática de
+              parâmetros exige um link direto para arquivo de vídeo (legado).
+            </span>
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-2">
-          {pendingFile && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={isAnalyzing}
-              onClick={() => runExtraction('file')}
-            >
-              {isAnalyzing ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4 mr-2" />
-              )}
-              Analisar arquivo local
-            </Button>
-          )}
-          {videoUrl && (
+          {canAnalyzeDirectUrl && (
             <Button
               type="button"
               variant="outline"
               size="sm"
               disabled={isAnalyzing}
-              onClick={() => runExtraction('url')}
+              onClick={runExtraction}
             >
               {isAnalyzing ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Sparkles className="h-4 w-4 mr-2" />
               )}
-              Analisar vídeo enviado
+              Analisar link do vídeo
             </Button>
           )}
           {profile && (

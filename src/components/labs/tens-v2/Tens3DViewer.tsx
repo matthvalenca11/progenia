@@ -4,10 +4,11 @@
  */
 
 import { LabCanvasSurface } from '@/components/labs/LabCanvasSurface';
-import { useTensLabStore, ViewerTab } from '@/stores/tensLabStore';
+import { useTensLabStore } from '@/stores/tensLabStore';
 import { Tens3DSceneSetup } from '@/components/labs/tens3d/Tens3DSceneSetup';
 import { TissueLayersModel } from '@/components/labs/tens3d/TissueLayersModel';
 import { ElectricFieldVisualization } from '@/components/labs/tens3d/ElectricFieldVisualization';
+import { TensActivationZone } from '@/components/labs/tens3d/TensActivationZone';
 import { ElectrodeModel } from '@/components/labs/tens3d/ElectrodeModel';
 import { StressHeatmap } from '@/components/labs/tens3d/StressHeatmap';
 import { MetalImplantHotspot } from '@/components/labs/tens3d/MetalImplantHotspot';
@@ -15,13 +16,13 @@ import { ThermalHotspot } from '@/components/labs/tens3d/ThermalHotspot';
 import { useMemo, useEffect, useState } from 'react';
 import { TensMode } from '@/lib/tensSimulation';
 import { RiskResult } from '@/types/tissueConfig';
+import { pickRandomClinicalSkinTone } from '@/lib/clinicalSkinTones';
 
 type VisualizationMode = 'anatomical' | 'electric' | 'lesion';
 
 export function Tens3DViewer() {
   const { 
     viewerTab, 
-    setViewerTab, 
     tissueConfig, 
     electrodes, 
     intensity, 
@@ -56,7 +57,8 @@ export function Tens3DViewer() {
   const visualMode: VisualizationMode = useMemo(() => {
     if (viewerTab === 'anatomy') return 'anatomical';
     if (viewerTab === 'electric') return 'electric';
-    if (viewerTab === 'activated') return 'electric'; // Mostrar campo elétrico na zona ativada
+    if (viewerTab === 'activated') return 'anatomical';
+    if (viewerTab === 'lesion') return 'lesion';
     return 'electric';
   }, [viewerTab]);
 
@@ -92,6 +94,7 @@ export function Tens3DViewer() {
   // Calcular activationLevel e comfortLevel
   const activationLevel = simulationResult?.sensoryActivation || 0;
   const comfortLevel = simulationResult?.comfortScore || 0;
+  const skinTone = useMemo(() => pickRandomClinicalSkinTone(), []);
 
   return (
     <div className="relative w-full h-full bg-gradient-to-b from-slate-900 to-slate-950" style={{ touchAction: "none" }}>
@@ -102,11 +105,12 @@ export function Tens3DViewer() {
 
         {/* Tissue Layers - usando o mesmo componente do builder */}
         <TissueLayersModel
-          key={`${tissueConfig.skinThickness}-${tissueConfig.fatThickness}-${tissueConfig.muscleThickness}-${tissueConfig.hasMetalImplant}`}
+          key={`${tissueConfig.skinThickness}-${tissueConfig.fatThickness}-${tissueConfig.muscleThickness}-${tissueConfig.hasMetalImplant}-${skinTone.id}`}
           tissueConfig={tissueConfig}
           visualMode={visualMode}
           intensityNorm={intensityNorm}
           lesionIndex={lesionIndex}
+          skinTone={skinTone}
         />
 
         {/* Electrodes - usando o mesmo componente do builder */}
@@ -123,8 +127,8 @@ export function Tens3DViewer() {
           intensity={Math.max(0.2, intensityNorm)}
         />
 
-        {/* Electric Field Visualization - sempre mostrar algo mesmo com intensidade baixa */}
-        {(visualMode === 'electric' || viewerTab === 'activated') && (
+        {/* Electric Field — modo campo elétrico */}
+        {viewerTab === 'electric' && (
           <ElectricFieldVisualization
             electrodePositions={electrodePositions}
             intensityNorm={Math.max(0.15, intensityNorm)}
@@ -132,15 +136,25 @@ export function Tens3DViewer() {
             mode={mode as TensMode}
             tissueConfig={tissueConfig}
             activationLevel={activationLevel}
-            visualMode={visualMode}
+            visualMode="electric"
           />
         )}
 
-        {/* Stress/Lesion Heatmap - sempre mostrar quando há risco significativo */}
-        {lesionIndex > 0.2 && (
+        {/* Região ativada — overlay anatômico */}
+        {viewerTab === 'activated' && simulationResult?.activationZone && (
+          <TensActivationZone
+            zone={simulationResult.activationZone}
+            tissueConfig={tissueConfig}
+            electrodePositions={electrodePositions}
+            sensoryActivation={simulationResult.sensoryActivation}
+          />
+        )}
+
+        {/* Stress/Lesion Heatmap — modo risco/lesão */}
+        {viewerTab === 'lesion' && (
           <StressHeatmap
             electrodePositions={electrodePositions}
-            intensityNorm={intensityNorm}
+            intensityNorm={Math.max(0.15, intensityNorm)}
             pulseNorm={pulseNorm}
             tissueConfig={tissueConfig}
             riskResult={riskResult}
@@ -172,8 +186,14 @@ export function Tens3DViewer() {
 
       {/* Instrução */}
       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] text-slate-600 text-center px-2">
-        <span className="hidden md:inline">Arraste para rotacionar • Scroll para zoom</span>
-        <span className="md:hidden">Arraste para rotacionar • Pinça para zoom</span>
+        <span className="hidden md:inline">
+          {viewerTab === 'anatomy' && 'Camadas teciduais — arraste para rotacionar'}
+          {viewerTab === 'electric' && 'Campo elétrico entre eletrodos'}
+          {viewerTab === 'activated' && 'Região de ativação neural estimada'}
+          {viewerTab === 'lesion' && 'Mapa de risco/estresse tecidual'}
+          {' · Scroll para zoom'}
+        </span>
+        <span className="md:hidden">Arraste para rotacionar · Pinça para zoom</span>
       </div>
     </div>
   );

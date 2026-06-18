@@ -14,6 +14,10 @@ interface ThreeVolumeSurfaceViewerProps {
   showDebug?: boolean;
 }
 
+function clampSurfaceResolution(res: number): number {
+  return Math.max(24, Math.min(96, res));
+}
+
 function buildDownsampledField(opts: {
   width: number;
   height: number;
@@ -86,13 +90,13 @@ function BrainIsoSurface({ iso, res }: { iso: number; res: number }) {
   const { field, size } = useMemo(() => {
     if (!volume) return { field: new Float32Array(0), size: 1 };
     const data = (volume as any).data ?? (volume as any).voxels;
-    const outRes = Math.max(24, Math.min(96, res));
+    const surfaceRes = clampSurfaceResolution(res);
     const f = buildDownsampledField({
       width: volume.width,
       height: volume.height,
       depth: volume.depth,
       data,
-      outRes,
+      outRes: surfaceRes,
       min: volume.min,
       max: volume.max,
     });
@@ -112,8 +116,8 @@ function BrainIsoSurface({ iso, res }: { iso: number; res: number }) {
 
   // Instância estável do MarchingCubes (recria só quando muda a resolução)
   const marching = useMemo(() => {
-    const outRes = Math.max(24, Math.min(160, res));
-    const mc = new MarchingCubes(outRes, material, false, false, 900000);
+    const surfaceRes = clampSurfaceResolution(res);
+    const mc = new MarchingCubes(surfaceRes, material, false, false, 900000);
     mc.frustumCulled = false;
     return mc;
   }, [res, material]);
@@ -122,6 +126,12 @@ function BrainIsoSurface({ iso, res }: { iso: number; res: number }) {
   useEffect(() => {
     const mc = marching;
     if (!mc || field.length === 0) return;
+    if (field.length !== mc.field.length) {
+      console.warn(
+        `[BrainIsoSurface] Campo (${field.length}) ≠ marching cubes (${mc.field.length}); ignorando frame.`,
+      );
+      return;
+    }
     // Copiar dados para o buffer interno do marching cubes
     mc.field.set(field);
     mc.isolation = iso;

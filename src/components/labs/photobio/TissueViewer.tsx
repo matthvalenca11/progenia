@@ -5,31 +5,51 @@ import * as THREE from "three";
 import { usePhotobioStore } from "@/stores/photobioStore";
 import { LabCanvasSurface } from "@/components/labs/LabCanvasSurface";
 import { isAndroidNative } from "@/lib/labPerformance";
+import {
+  getPhotobioBeamNodeCount,
+  getPhotobioLedCount,
+  getPhotobioRingCount,
+  getPhotobioScatterCount,
+  shouldCastTherapeuticShadows,
+} from "@/lib/therapeuticLabsPerformance";
+
+const CAST_SHADOW = shouldCastTherapeuticShadows();
 import { Button } from "@/components/ui/button";
+import type { ClinicalSkinTone } from "@/lib/clinicalSkinTones";
+import { pickRandomClinicalSkinTone } from "@/lib/clinicalSkinTones";
+import {
+  clinicalTissueMaterialProps,
+  createClinicalTissueTexture,
+} from "@/lib/clinicalTissueTextures";
+import {
+  buildOrganicLayerGeometry,
+  createTissueStackSeed,
+  ORGANIC_LAYER_SEGMENTS,
+  tissueBoundarySeed,
+} from "@/lib/clinicalTissueGeometry";
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const TRANSDUCER_BASE_OFFSET = 1.01;
 
-function buildDeformedLayerGeometry({
-  width,
-  height,
-  depth,
-  centerX,
-  indent,
-  radiusX,
-  radiusZ,
-  topWeighted,
-}: {
-  width: number;
-  height: number;
-  depth: number;
-  centerX: number;
-  indent: number;
-  radiusX: number;
-  radiusZ: number;
-  topWeighted?: boolean;
-}) {
-  const geometry = new THREE.BoxGeometry(width, height, depth, 44, 10, 24);
+function applyContactIndent(
+  geometry: THREE.BufferGeometry,
+  {
+    height,
+    centerX,
+    indent,
+    radiusX,
+    radiusZ,
+    topWeighted,
+  }: {
+    height: number;
+    centerX: number;
+    indent: number;
+    radiusX: number;
+    radiusZ: number;
+    topWeighted?: boolean;
+  },
+) {
+  if (indent <= 0) return;
   const pos = geometry.attributes.position;
   const halfH = height / 2;
 
@@ -44,112 +64,18 @@ function buildDeformedLayerGeometry({
     const gaussian = Math.exp(-radial * 2.2);
     const yNorm = clamp((y + halfH) / Math.max(height, 0.001), 0, 1);
     const verticalWeight = topWeighted ? 0.3 + 0.7 * yNorm : 0.7 + 0.3 * yNorm;
-    const displacement = indent * gaussian * verticalWeight;
-    pos.setY(i, y - displacement);
+    pos.setY(i, y - indent * gaussian * verticalWeight);
   }
 
   pos.needsUpdate = true;
   geometry.computeVertexNormals();
-  return geometry;
-}
-
-function makeOrganicTexture(kind: "epidermis" | "dermis" | "adipose" | "muscle") {
-  const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 512;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
-
-  if (kind === "epidermis") {
-    ctx.fillStyle = "#dcb899";
-    ctx.fillRect(0, 0, 512, 512);
-    for (let i = 0; i < 3000; i += 1) {
-      const x = Math.random() * 512;
-      const y = Math.random() * 512;
-      const r = Math.random() * 1.4 + 0.4;
-      ctx.fillStyle = `rgba(95,68,52,${Math.random() * 0.18})`;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  if (kind === "dermis") {
-    ctx.fillStyle = "#c98f79";
-    ctx.fillRect(0, 0, 512, 512);
-    for (let i = 0; i < 45; i += 1) {
-      ctx.strokeStyle = `rgba(178,36,52,${0.17 + Math.random() * 0.15})`;
-      ctx.lineWidth = 1 + Math.random() * 1.6;
-      ctx.beginPath();
-      const x0 = Math.random() * 512;
-      const y0 = Math.random() * 512;
-      ctx.moveTo(x0, y0);
-      for (let j = 0; j < 4; j += 1) {
-        ctx.quadraticCurveTo(
-          Math.random() * 512,
-          Math.random() * 512,
-          Math.random() * 512,
-          Math.random() * 512
-        );
-      }
-      ctx.stroke();
-    }
-  }
-
-  if (kind === "adipose") {
-    ctx.fillStyle = "#e2c36d";
-    ctx.fillRect(0, 0, 512, 512);
-    for (let i = 0; i < 260; i += 1) {
-      const x = Math.random() * 512;
-      const y = Math.random() * 512;
-      const r = 8 + Math.random() * 20;
-      ctx.fillStyle = `rgba(248,224,145,${0.2 + Math.random() * 0.3})`;
-      ctx.beginPath();
-      ctx.ellipse(x, y, r * 1.1, r * 0.85, Math.random() * Math.PI, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(130,110,70,0.15)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-    for (let i = 0; i < 25; i += 1) {
-      ctx.strokeStyle = "rgba(140,120,90,0.25)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(Math.random() * 512, Math.random() * 512);
-      ctx.lineTo(Math.random() * 512, Math.random() * 512);
-      ctx.stroke();
-    }
-  }
-
-  if (kind === "muscle") {
-    ctx.fillStyle = "#8f4b4b";
-    ctx.fillRect(0, 0, 512, 512);
-    for (let y = 0; y < 512; y += 6) {
-      ctx.fillStyle = y % 12 === 0 ? "rgba(220,120,110,0.38)" : "rgba(120,40,40,0.24)";
-      ctx.fillRect(0, y, 512, 3);
-    }
-    for (let i = 0; i < 70; i += 1) {
-      ctx.strokeStyle = "rgba(240,170,170,0.12)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(Math.random() * 512, Math.random() * 512);
-      ctx.lineTo(Math.random() * 512, Math.random() * 512);
-      ctx.stroke();
-    }
-  }
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(2.2, 2.2);
-  texture.needsUpdate = true;
-  return texture;
 }
 
 function TissueScene({
   wavelength,
   irradiance,
   mode,
+  dutyCycle,
   bioActive,
   translucentView,
   layerConfig,
@@ -167,10 +93,12 @@ function TissueScene({
   onTransducerRightDragStart,
   onTransducerRightDragMove,
   onTransducerRightDragEnd,
+  skinTone,
 }: {
   wavelength: 660 | 808;
   irradiance: number;
   mode: "CW" | "Pulsed";
+  dutyCycle: number;
   bioActive: boolean;
   translucentView: boolean;
   layerConfig: {
@@ -193,6 +121,7 @@ function TissueScene({
   onTransducerRightDragStart: (clientX: number, clientY: number) => void;
   onTransducerRightDragMove: (clientX: number, clientY: number) => void;
   onTransducerRightDragEnd: () => void;
+  skinTone: ClinicalSkinTone;
 }) {
   const beamCoreRefs = useRef<THREE.Mesh[]>([]);
   const beamHaloRefs = useRef<THREE.Mesh[]>([]);
@@ -203,12 +132,12 @@ function TissueScene({
 
   const textures = useMemo(
     () => ({
-      epidermis: makeOrganicTexture("epidermis"),
-      dermis: makeOrganicTexture("dermis"),
-      adipose: makeOrganicTexture("adipose"),
-      muscle: makeOrganicTexture("muscle"),
+      epidermis: createClinicalTissueTexture("epidermis", { skinTone }),
+      dermis: createClinicalTissueTexture("dermis", { skinTone }),
+      adipose: createClinicalTissueTexture("adipose", { skinTone }),
+      muscle: createClinicalTissueTexture("muscle", { skinTone }),
     }),
-    []
+    [skinTone],
   );
 
   const baseY = -0.6;
@@ -245,6 +174,9 @@ function TissueScene({
     )
   );
   const thermalRisk = irradiance > 500;
+  const badAngle = transducerAngle < 70 || transducerAngle > 110;
+  const badPressureLow = contactPressure < 20;
+  const badPressureHigh = contactPressure > 80;
   const translucentBoost = translucentView ? 1.35 : 1;
   const tiltZ = ((transducerAngle - 90) * Math.PI) / 180;
   const pressureNorm = clamp(contactPressure / 100, 0, 1);
@@ -256,38 +188,121 @@ function TissueScene({
   const contactRadiusZ = 0.24 + spotScale * 0.5;
   const contactSurfaceY = topSurfaceY - contactIndent;
   const doseTickRef = useRef(0);
+  const stackSeed = useMemo(() => createTissueStackSeed(), []);
+  const beamNodeCount = getPhotobioBeamNodeCount(wavelength);
+  const scatterCount = getPhotobioScatterCount(wavelength);
+  const ledCount = getPhotobioLedCount();
+  const ringCount = getPhotobioRingCount();
 
-  const epidermisGeometry = useMemo(
+  const scatterOffsets = useMemo(
     () =>
-      buildDeformedLayerGeometry({
-        width: sizes.width,
-        height: sizes.epidermis,
-        depth: sizes.depth,
-        centerX: transducerX,
-        indent: contactIndent,
-        radiusX: contactRadiusX,
-        radiusZ: contactRadiusZ,
-      }),
-    [sizes.width, sizes.epidermis, sizes.depth, transducerX, contactIndent, contactRadiusX, contactRadiusZ]
+      Array.from({ length: scatterCount }, (_, i) => ({
+        xOffset: Math.sin(i * 2.17 + stackSeed * 0.01) * 0.8,
+        zOffset: Math.cos(i * 1.83 + stackSeed * 0.013) * 0.6,
+        size: wavelength === 660 ? 0.22 + (i % 5) * 0.02 : 0.2 + (i % 4) * 0.03,
+      })),
+    [scatterCount, stackSeed, wavelength],
   );
-  const dermisGeometry = useMemo(
+
+  const epidermisGeometry = useMemo(() => {
+    const geo = buildOrganicLayerGeometry({
+      width: sizes.width,
+      height: sizes.epidermis,
+      depth: sizes.depth,
+      boundarySeedTop: tissueBoundarySeed(stackSeed, 0),
+      boundarySeedBottom: tissueBoundarySeed(stackSeed, 1),
+      kind: "epidermis",
+      topAmplitudeScale: 0.022,
+      segments: ORGANIC_LAYER_SEGMENTS,
+    });
+    applyContactIndent(geo, {
+      height: sizes.epidermis,
+      centerX: transducerX,
+      indent: contactIndent,
+      radiusX: contactRadiusX,
+      radiusZ: contactRadiusZ,
+    });
+    return geo;
+  }, [
+    stackSeed,
+    sizes.width,
+    sizes.epidermis,
+    sizes.depth,
+    transducerX,
+    contactIndent,
+    contactRadiusX,
+    contactRadiusZ,
+  ]);
+
+  const dermisGeometry = useMemo(() => {
+    const geo = buildOrganicLayerGeometry({
+      width: sizes.width,
+      height: sizes.dermis,
+      depth: sizes.depth,
+      boundarySeedTop: tissueBoundarySeed(stackSeed, 1),
+      boundarySeedBottom: tissueBoundarySeed(stackSeed, 2),
+      kind: "dermis",
+      segments: ORGANIC_LAYER_SEGMENTS,
+    });
+    applyContactIndent(geo, {
+      height: sizes.dermis,
+      centerX: transducerX,
+      indent: contactIndent * 0.7,
+      radiusX: contactRadiusX * 1.12,
+      radiusZ: contactRadiusZ * 1.12,
+      topWeighted: true,
+    });
+    return geo;
+  }, [
+    stackSeed,
+    sizes.width,
+    sizes.dermis,
+    sizes.depth,
+    transducerX,
+    contactIndent,
+    contactRadiusX,
+    contactRadiusZ,
+  ]);
+
+  const adiposeGeometry = useMemo(
     () =>
-      buildDeformedLayerGeometry({
+      buildOrganicLayerGeometry({
         width: sizes.width,
-        height: sizes.dermis,
+        height: sizes.adipose,
         depth: sizes.depth,
-        centerX: transducerX,
-        indent: contactIndent * 0.7,
-        radiusX: contactRadiusX * 1.12,
-        radiusZ: contactRadiusZ * 1.12,
-        topWeighted: true,
+        boundarySeedTop: tissueBoundarySeed(stackSeed, 2),
+        boundarySeedBottom: tissueBoundarySeed(stackSeed, 3),
+        kind: "adipose",
+        segments: ORGANIC_LAYER_SEGMENTS,
       }),
-    [sizes.width, sizes.dermis, sizes.depth, transducerX, contactIndent, contactRadiusX, contactRadiusZ]
+    [stackSeed, sizes.width, sizes.adipose, sizes.depth],
+  );
+
+  const muscleGeometry = useMemo(
+    () =>
+      buildOrganicLayerGeometry({
+        width: sizes.width,
+        height: sizes.muscle,
+        depth: sizes.depth,
+        boundarySeedTop: tissueBoundarySeed(stackSeed, 3),
+        boundarySeedBottom: tissueBoundarySeed(stackSeed, 4),
+        kind: "muscle",
+        segments: ORGANIC_LAYER_SEGMENTS,
+      }),
+    [stackSeed, sizes.width, sizes.muscle, sizes.depth],
   );
 
   useFrame(({ clock }, delta) => {
     const t = clock.getElapsedTime();
-    const pulse = mode === "Pulsed" ? 0.68 + Math.sin(t * 14) * 0.32 : 1;
+    const pulsePeriod = 0.85;
+    const dutyNorm = clamp(dutyCycle / 100, 0.1, 0.9);
+    const phase = (t % pulsePeriod) / pulsePeriod;
+    const pulse =
+      mode === "Pulsed"
+        ? phase < dutyNorm
+          ? 1
+          : 0.12 + 0.08 * Math.sin(t * 22)
+        : 1;
     beamCoreRefs.current.forEach((node, idx) => {
       const mat = node.material as THREE.MeshStandardMaterial;
       const progress = idx / Math.max(1, beamCoreRefs.current.length - 1);
@@ -381,54 +396,53 @@ function TissueScene({
 
   return (
     <>
-      <ambientLight intensity={0.35} color="#f8f4ef" />
-      <pointLight position={[0, contactSurfaceY + 0.85, 0]} intensity={2.3} color={beamColor} distance={8} />
-      <directionalLight position={[4, 4, 3]} intensity={0.45} color="#ffffff" />
+      <ambientLight intensity={0.38} color="#f8f4ef" />
+      <hemisphereLight args={["#fff8f0", "#6b5344", 0.28]} />
+      <directionalLight
+        castShadow={CAST_SHADOW}
+        position={[5, 6, 4]}
+        intensity={0.82}
+        color="#fff8f0"
+        shadow-mapSize={CAST_SHADOW ? [1024, 1024] : undefined}
+        shadow-bias={-0.0002}
+      />
+      <directionalLight position={[-4, 3, -2]} intensity={0.22} color="#ffe8d8" />
+      <pointLight position={[0, contactSurfaceY + 0.85, 0]} intensity={1.6} color={beamColor} distance={8} />
 
-      {/* Tissue slab (stacked without overlap) */}
+      {/* Tissue slab — camadas orgânicas irregulares */}
       <group>
-        <mesh position={[0, epidermisCenterY, 0]} geometry={epidermisGeometry}>
+        <mesh position={[0, epidermisCenterY, 0]} geometry={epidermisGeometry} castShadow={CAST_SHADOW} receiveShadow={CAST_SHADOW}>
           <meshStandardMaterial
-            map={textures.epidermis || undefined}
-            roughness={0.72}
-            metalness={0.02}
+            {...clinicalTissueMaterialProps("skin", textures.epidermis)}
             transparent={translucentView}
-            opacity={translucentView ? 0.39 : 1}
+            opacity={translucentView ? 0.55 : 1}
             depthWrite={!translucentView}
             side={translucentView ? THREE.DoubleSide : THREE.FrontSide}
           />
         </mesh>
-        <mesh position={[0, dermisCenterY, 0]} geometry={dermisGeometry}>
+        <mesh position={[0, dermisCenterY, 0]} geometry={dermisGeometry} castShadow={CAST_SHADOW} receiveShadow={CAST_SHADOW}>
           <meshStandardMaterial
-            map={textures.dermis || undefined}
-            roughness={0.65}
-            metalness={0.01}
+            {...clinicalTissueMaterialProps("skin", textures.dermis)}
             transparent={translucentView}
-            opacity={translucentView ? 0.39 : 1}
+            opacity={translucentView ? 0.5 : 1}
             depthWrite={!translucentView}
             side={translucentView ? THREE.DoubleSide : THREE.FrontSide}
           />
         </mesh>
-        <mesh position={[0, adiposeCenterY, 0]}>
-          <boxGeometry args={[sizes.width, sizes.adipose, sizes.depth]} />
+        <mesh position={[0, adiposeCenterY, 0]} geometry={adiposeGeometry} castShadow={CAST_SHADOW} receiveShadow={CAST_SHADOW}>
           <meshStandardMaterial
-            map={textures.adipose || undefined}
-            roughness={0.7}
-            metalness={0.01}
+            {...clinicalTissueMaterialProps("fat", textures.adipose)}
             transparent={translucentView}
-            opacity={translucentView ? 0.38 : 1}
+            opacity={translucentView ? 0.48 : 1}
             depthWrite={!translucentView}
             side={translucentView ? THREE.DoubleSide : THREE.FrontSide}
           />
         </mesh>
-        <mesh position={[0, muscleCenterY, 0]}>
-          <boxGeometry args={[sizes.width, sizes.muscle, sizes.depth]} />
+        <mesh position={[0, muscleCenterY, 0]} geometry={muscleGeometry} castShadow={CAST_SHADOW} receiveShadow={CAST_SHADOW}>
           <meshStandardMaterial
-            map={textures.muscle || undefined}
-            roughness={0.66}
-            metalness={0.03}
+            {...clinicalTissueMaterialProps("muscle", textures.muscle)}
             transparent={translucentView}
-            opacity={translucentView ? 0.37 : 1}
+            opacity={translucentView ? 0.46 : 1}
             depthWrite={!translucentView}
             side={translucentView ? THREE.DoubleSide : THREE.FrontSide}
           />
@@ -513,7 +527,7 @@ function TissueScene({
         </mesh>
 
         {/* LED/Laser concentric matrix */}
-        {Array.from({ length: 19 }).map((_, i) => {
+        {Array.from({ length: ledCount }).map((_, i) => {
           const ring = i === 0 ? 0 : i < 7 ? 0.045 : i < 13 ? 0.085 : 0.125;
           const idxInRing = i === 0 ? 0 : i < 7 ? i - 1 : i < 13 ? i - 7 : i - 13;
           const countInRing = i === 0 ? 1 : i < 7 ? 6 : i < 13 ? 6 : 6;
@@ -570,8 +584,8 @@ function TissueScene({
       </mesh>
 
       {/* Biologically faithful beam: luminous nodes with depth attenuation */}
-      {Array.from({ length: 12 }).map((_, i) => {
-        const progress = i / 11;
+      {Array.from({ length: beamNodeCount }).map((_, i) => {
+        const progress = i / Math.max(1, beamNodeCount - 1);
         const y = contactSurfaceY - 0.08 - progress * beamDepth;
         const xTilt = Math.sin(tiltZ) * progress * 1.25;
         return (
@@ -595,8 +609,8 @@ function TissueScene({
           </mesh>
         );
       })}
-      {Array.from({ length: 12 }).map((_, i) => {
-        const progress = i / 11;
+      {Array.from({ length: beamNodeCount }).map((_, i) => {
+        const progress = i / Math.max(1, beamNodeCount - 1);
         const y = contactSurfaceY - 0.08 - progress * beamDepth;
         const lateral =
           (wavelength === 660 ? 0.15 : 0.08) * Math.sin(i * 0.75) +
@@ -624,7 +638,7 @@ function TissueScene({
       })}
 
       {/* Cascata pulsante de aneis concentricos */}
-      {Array.from({ length: 10 }).map((_, i) => (
+      {Array.from({ length: ringCount }).map((_, i) => (
         <mesh
           key={`ring-${i}`}
           ref={(el) => {
@@ -672,21 +686,18 @@ function TissueScene({
       </mesh>
 
       {/* Scattering organico no tecido */}
-      {Array.from({ length: wavelength === 660 ? 8 : 12 }).map((_, i) => {
+      {scatterOffsets.map((scatter, i) => {
         const zSpread = wavelength === 660 ? 1.7 : 2.7;
-        const yBase = contactSurfaceY - 0.45 - (i / (wavelength === 660 ? 8 : 12)) * zSpread;
-        const xOffset = (Math.random() - 0.5) * 1.6;
-        const zOffset = (Math.random() - 0.5) * 1.2;
-        const s = wavelength === 660 ? 0.22 + Math.random() * 0.12 : 0.2 + Math.random() * 0.18;
+        const yBase = contactSurfaceY - 0.45 - (i / Math.max(1, scatterCount)) * zSpread;
         return (
           <mesh
             key={`scatter-${i}`}
             ref={(el) => {
               if (el) scatterRefs.current[i] = el;
             }}
-            position={[transducerX + xOffset, yBase, zOffset]}
+            position={[transducerX + scatter.xOffset, yBase, scatter.zOffset]}
           >
-            <sphereGeometry args={[s, 16, 16]} />
+            <sphereGeometry args={[scatter.size, 16, 16]} />
             <meshStandardMaterial
               color={beamColor}
               emissive={beamColor}
@@ -752,8 +763,32 @@ function TissueScene({
 
       {thermalRisk && (
         <Html position={[0, topSurfaceY + 0.42, 0.75]} center distanceFactor={9}>
-          <div className="rounded-md border border-red-400/70 bg-red-500/20 px-2 py-1 text-[11px] font-semibold text-red-100">
-            Risco Térmico
+          <div className="rounded-md border-2 border-red-400 bg-red-600/35 px-2.5 py-1 text-[11px] font-bold text-red-50 shadow-lg shadow-red-500/30 animate-pulse">
+            ⚠ Risco Térmico — {irradiance.toFixed(0)} mW/cm²
+          </div>
+        </Html>
+      )}
+
+      {badAngle && (
+        <Html position={[transducerX, contactSurfaceY + 1.05, 0.4]} center distanceFactor={9}>
+          <div className="rounded-md border border-amber-400/80 bg-amber-500/25 px-2 py-1 text-[10px] font-semibold text-amber-100 whitespace-nowrap">
+            Ângulo inadequado ({transducerAngle.toFixed(0)}°)
+          </div>
+        </Html>
+      )}
+
+      {badPressureLow && (
+        <Html position={[transducerX - 0.55, contactSurfaceY + 0.55, 0.5]} center distanceFactor={9}>
+          <div className="rounded-md border border-sky-400/70 bg-sky-500/20 px-2 py-1 text-[10px] font-semibold text-sky-100 whitespace-nowrap">
+            Contato insuficiente
+          </div>
+        </Html>
+      )}
+
+      {badPressureHigh && (
+        <Html position={[transducerX + 0.55, contactSurfaceY + 0.55, 0.5]} center distanceFactor={9}>
+          <div className="rounded-md border border-orange-400/70 bg-orange-500/25 px-2 py-1 text-[10px] font-semibold text-orange-100 whitespace-nowrap">
+            Pressão excessiva
           </div>
         </Html>
       )}
@@ -765,6 +800,7 @@ export function TissueViewer() {
   const wavelength = usePhotobioStore((s) => s.wavelength);
   const irradiance = usePhotobioStore((s) => s.irradiance());
   const mode = usePhotobioStore((s) => s.mode);
+  const dutyCycle = usePhotobioStore((s) => s.dutyCycle);
   const spotSize = usePhotobioStore((s) => s.spotSize);
   const zone = usePhotobioStore((s) => s.interaction.arndtSchulzZone);
   const muscleFluenceRatio = usePhotobioStore((s) => s.interaction.muscleFluenceRatio);
@@ -782,6 +818,7 @@ export function TissueViewer() {
   const accumulateDoseAt = usePhotobioStore((s) => s.accumulateDoseAt);
   const bioActive = zone === "Janela Terapêutica Ativa";
   const [translucentView, setTranslucentView] = useState(false);
+  const skinTone = useMemo(() => pickRandomClinicalSkinTone(), []);
   const dragRef = useRef<{ x: number; y: number; t: number; button: number } | null>(null);
 
   const handleTransducerRightDragStart = (clientX: number, clientY: number) => {
@@ -838,7 +875,8 @@ export function TissueViewer() {
           variant={translucentView ? "default" : "secondary"}
           size="sm"
           onClick={() => setTranslucentView((prev) => !prev)}
-          className="shadow-md"
+          className="shadow-md min-h-[44px]"
+          aria-label={translucentView ? "Desativar visão translúcida dos tecidos" : "Ativar visão translúcida dos tecidos"}
         >
           {translucentView ? "Visão normal" : "Visão translúcida"}
         </Button>
@@ -850,6 +888,7 @@ export function TissueViewer() {
             wavelength={wavelength}
             irradiance={irradiance}
             mode={mode}
+            dutyCycle={dutyCycle}
             bioActive={bioActive}
             translucentView={translucentView}
             layerConfig={layerConfig}
@@ -867,6 +906,7 @@ export function TissueViewer() {
             onTransducerLeftDragStart={handleTransducerLeftDragStart}
             onTransducerLeftDragMove={handleTransducerLeftDragMove}
             onTransducerRightDragEnd={handleTransducerRightDragEnd}
+            skinTone={skinTone}
           />
           <OrbitControls
             makeDefault

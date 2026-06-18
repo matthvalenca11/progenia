@@ -3,9 +3,10 @@ import { LabLayout } from "./LabLayout";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Card } from "@/components/ui/card";
+import { ERA_CLINICAL_REFERENCE } from "@/types/ultrasoundTherapyConfig";
 
 export function UltrasoundBeamProfileLab() {
-  const [era, setEra] = useState(5); // cm²
+  const [era, setEra] = useState(5); // cm² — faixa clínica típica ~3–6
   const [bnr, setBnr] = useState(5); // Beam Non-uniformity Ratio
   const [power, setPower] = useState(10); // W
 
@@ -100,9 +101,9 @@ export function UltrasoundBeamProfileLab() {
         <Slider
           value={[era]}
           onValueChange={([v]) => setEra(v)}
-          min={3}
-          max={10}
-          step={0.5}
+          min={ERA_CLINICAL_REFERENCE.sliderMin}
+          max={ERA_CLINICAL_REFERENCE.sliderMax}
+          step={0.25}
         />
       </div>
 

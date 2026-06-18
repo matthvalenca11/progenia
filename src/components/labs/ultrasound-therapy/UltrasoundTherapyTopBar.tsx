@@ -18,23 +18,10 @@ export function UltrasoundTherapyTopBar({ labName = "Ultrassom Terapêutico", sh
   const {
     config,
     simulationResult,
-    updateConfig,
+    reset,
   } = useUltrasoundTherapyStore();
 
   const riskLevel = simulationResult?.risk || "low";
-
-  const resetToDefaults = () => {
-    updateConfig({
-      frequency: 1.0,
-      intensity: 1.0,
-      era: 5.0,
-      mode: "continuous",
-      dutyCycle: 50,
-      duration: 8,
-      coupling: "good",
-      movement: "scanning",
-    });
-  };
 
   return (
     <header className="bg-slate-900/95 border-b border-slate-800 px-4 py-2 shrink-0">
@@ -91,7 +78,7 @@ export function UltrasoundTherapyTopBar({ labName = "Ultrassom Terapêutico", sh
         <Button 
           variant="ghost" 
           size="sm" 
-          onClick={resetToDefaults}
+          onClick={() => reset()}
           className="text-slate-400 hover:text-white gap-1.5 text-xs"
         >
           <RotateCcw className="h-3.5 w-3.5" />

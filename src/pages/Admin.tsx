@@ -54,45 +54,55 @@ const Admin = () => {
 
   useEffect(() => {
     const checkAdminAccess = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
-      if (!session) {
+        if (!session) {
+          navigate("/auth");
+          return;
+        }
+
+        const { data: roleData, error } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", session.user.id)
+          .single();
+
+        if (error || roleData?.role !== "admin") {
+          toast.error("Acesso restrito a administradores");
+          navigate("/dashboard");
+          return;
+        }
+
+        setIsAdmin(true);
+      } catch (error) {
+        console.error("Erro ao verificar permissões de admin:", error);
+        toast.error("Não foi possível verificar permissões");
         navigate("/auth");
-        return;
+      } finally {
+        setLoading(false);
       }
-
-      // Verificar se é admin via tabela user_roles
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", session.user.id)
-        .single();
-
-      if (roleData?.role !== "admin") {
-        toast.error("Acesso restrito a administradores");
-        navigate("/dashboard");
-        return;
-      }
-
-      setIsAdmin(true);
-      setLoading(false);
     };
 
-    checkAdminAccess();
+    void checkAdminAccess();
   }, [navigate]);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background">
         <p className="text-muted-foreground">Verificando permissões...</p>
       </div>
     );
   }
 
   if (!isAdmin) {
-    return null;
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background">
+        <p className="text-muted-foreground">Redirecionando...</p>
+      </div>
+    );
   }
 
   return (

@@ -26,7 +26,7 @@
           "min": 1
         },
         "intensity": {
-          "max": 100,
+          "max": 5.0,
           "min": 0.1
         },
         "customThicknesses": {
@@ -116,7 +116,7 @@
           "min": 1
         },
         "intensity": {
-          "max": 100,
+          "max": 5.0,
           "min": 0.1
         },
         "customThicknesses": {

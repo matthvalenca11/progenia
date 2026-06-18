@@ -11,6 +11,8 @@ import { LabConfigMenu } from "./LabConfigMenu";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { LabMobilePanelTab, LabMobileTabBar } from "@/components/labs/LabMobileTabBar";
 import { labMobileFlexClass, labMobilePanelClass, labCanvasHostClass } from "@/components/labs/labMobileLayout";
+import { cn } from "@/lib/utils";
+import { EducationalSimulationDisclaimer } from "@/components/labs/EducationalSimulationDisclaimer";
 
 interface PhotobioLabV2Props {
   config?: Record<string, unknown>;
@@ -32,6 +34,7 @@ export function PhotobioLabV2({
   const resetDefaults = usePhotobioStore((s) => s.resetDefaults);
   const interaction = usePhotobioStore((s) => s.interaction);
   const fluence = usePhotobioStore((s) => s.fluence());
+  const irradiance = usePhotobioStore((s) => s.irradiance());
   const [mobilePanel, setMobilePanel] = useState<LabMobilePanelTab>("controls");
 
   const isAdminConfigMode =
@@ -100,6 +103,11 @@ export function PhotobioLabV2({
             <Badge variant="outline" className="text-[10px]">
               {fluence.toFixed(2)} J/cm²
             </Badge>
+            {interaction.thermalWarning && (
+              <Badge className="text-[10px] bg-red-500/20 text-red-500 border-red-500/40 animate-pulse">
+                Térmico {irradiance.toFixed(0)} mW/cm²
+              </Badge>
+            )}
             <Badge className={`text-[10px] ${interaction.arndtSchulzZone === "Janela Terapêutica Ativa" ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:text-emerald-400" : "bg-muted text-foreground border-border"}`}>
               {interaction.arndtSchulzZone}
             </Badge>
@@ -124,6 +132,9 @@ export function PhotobioLabV2({
           />
 
           <section className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y pb-[max(0.5rem,var(--sab,env(safe-area-inset-bottom,0px)))]">
+            <div className="border-b border-border px-3 py-2">
+              <EducationalSimulationDisclaimer compact />
+            </div>
             {mobilePanel === "controls" ? <PhotobioControls /> : <PhotobioInsightsPanel />}
           </section>
         </div>
@@ -157,6 +168,11 @@ export function PhotobioLabV2({
             <Badge variant="outline" className="text-xs">
               Fluência: {fluence.toFixed(2)} J/cm²
             </Badge>
+            {interaction.thermalWarning && (
+              <Badge className="text-xs bg-red-500/20 text-red-400 border-red-500/40 animate-pulse">
+                ⚠ Térmico {irradiance.toFixed(0)} mW/cm²
+              </Badge>
+            )}
             <Badge
               className={
                 interaction.arndtSchulzZone === "Janela Terapêutica Ativa"
@@ -187,13 +203,18 @@ export function PhotobioLabV2({
         </div>
       </main>
 
-      <div className="flex border-t border-border shrink-0 h-[40%]">
+      <div className="flex border-t border-border shrink-0 h-[40%] flex-col">
+        <div className="shrink-0 border-b border-border px-3 py-1.5">
+          <EducationalSimulationDisclaimer compact />
+        </div>
+        <div className="flex min-h-0 flex-1">
         <aside className="w-1/2 border-r border-border overflow-y-auto bg-card">
           <PhotobioControls />
         </aside>
         <aside className="w-1/2 overflow-y-auto bg-card">
           <PhotobioInsightsPanel />
         </aside>
+        </div>
       </div>
     </div>
   );

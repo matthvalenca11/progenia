@@ -26,9 +26,16 @@ export function Tens3DSceneSetup() {
         zoomSpeed={isAndroidNative ? 0.9 : 1}
       />
 
-      <ambientLight intensity={0.4} />
-      <directionalLight position={[10, 10, 5]} intensity={1.0} castShadow={!isAndroidNative} />
-      <directionalLight position={[-10, -10, -5]} intensity={0.5} />
+      <ambientLight intensity={0.42} />
+      <hemisphereLight args={["#fff6ee", "#3d3028", 0.32]} />
+      <directionalLight
+        position={[10, 10, 5]}
+        intensity={1.05}
+        castShadow={!isAndroidNative}
+        shadow-mapSize={[1024, 1024]}
+        shadow-bias={-0.0002}
+      />
+      <directionalLight position={[-8, 6, -4]} intensity={0.28} color="#ffe8d0" />
       <pointLight position={[0, 5, 0]} intensity={0.6} color="#60a5fa" />
       <pointLight position={[-5, 3, -5]} intensity={0.3} color="#a855f7" />
       <hemisphereLight args={["#ffffff", "#444444", 0.25]} />

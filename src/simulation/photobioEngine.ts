@@ -165,6 +165,17 @@ export function calculateTissueInteraction(
   if (!input.isDragging && effectiveFluence > 30) {
     techniqueWarnings.push("Transdutor parado por muito tempo. Risco de Bioinibição local no ponto central.");
   }
+  if (input.transducerAngle < 70 || input.transducerAngle > 110) {
+    techniqueWarnings.push(
+      "Ângulo de incidência inadequado. Perpendicularidade comprometida reduz a dose efetiva."
+    );
+  }
+  if (input.contactPressure < 20) {
+    techniqueWarnings.push("Contato insuficiente. Pressão baixa reduz a transmissão de energia.");
+  }
+  if (input.contactPressure > 80) {
+    techniqueWarnings.push("Pressão excessiva. Risco de desconforto e concentração térmica local.");
+  }
 
   return {
     penetrationProfile,

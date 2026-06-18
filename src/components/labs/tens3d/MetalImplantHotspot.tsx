@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { TissueConfig } from '@/types/tissueConfig';
+import { getMetalHotspotRayCount } from "@/lib/therapeuticLabsPerformance";
 
 interface MetalImplantHotspotProps {
   electrodePositions: {
@@ -82,8 +82,9 @@ export function MetalImplantHotspot({
       </mesh>
       
       {/* Linhas de campo distorcidas ao redor */}
-      {Array.from({ length: 8 }).map((_, i) => {
-        const angle = (i / 8) * Math.PI * 2;
+      {Array.from({ length: getMetalHotspotRayCount() }).map((_, i) => {
+        const count = getMetalHotspotRayCount();
+        const angle = (i / count) * Math.PI * 2;
         const radius = size * 0.7;
         const startX = Math.cos(angle) * radius;
         const startY = Math.sin(angle) * radius;

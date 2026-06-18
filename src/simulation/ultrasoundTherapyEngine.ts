@@ -3,10 +3,33 @@
  * 
  * Models:
  * - Attenuation with depth and frequency
- * - Beam distribution (Gaussian/conical)
+ * - Beam distribution (Gaussian/conical) — shared with visual via ultrasoundTherapyPhysics
  * - Thermal effects (heating and dissipation)
  * - Tissue-specific properties
  */
+
+import type { TherapeuticTransducerType } from "@/config/therapeuticTransducerDefinitions";
+import type { TransducerBeamProfile, UltrasoundTherapyConfig } from "@/types/ultrasoundTherapyConfig";
+import {
+  buildAcousticProfile,
+  getBeamGeometryFactor,
+  getThermalBeamGeometryFactor,
+  getBeamRadiusAtDepthCm,
+  getEquivalentDiameterCm,
+  getFocusedGain,
+  getNearFieldLengthCm,
+  resolveFocusDepthCm,
+  type AcousticPhysicsInput,
+} from "@/lib/ultrasoundTherapyPhysics";
+import {
+  buildUltrasoundInteractionMap,
+  getDefaultInteractionMapResolution,
+  type UltrasoundInteractionMap,
+} from "@/lib/ultrasoundTherapyInteractionMap";
+import {
+  buildUltrasoundPhysiologyResponse,
+  type UltrasoundPhysiologyResponse,
+} from "@/lib/ultrasoundPhysiologyResponse";
 
 export interface TissueLayer {
   type: "skin" | "fat" | "muscle" | "bone";
@@ -48,6 +71,40 @@ export interface UltrasoundTherapyResult {
   // Bone interaction
   boneReflection: number; // Fraction of energy reflected at bone (0-1)
   periostealRisk: number; // Risk factor near bone (0-1)
+  /** Profundidade onde o osso começa (cm), ou null se ausente */
+  boneStartDepthCm: number | null;
+  /** Distância do hotspot de temperatura até a interface óssea (cm) */
+  hotspotBoneDistanceCm: number | null;
+  /** Na camada mista: transdutor sobre região óssea; null se camada mista desligada */
+  transducerOverBone: boolean | null;
+
+  /** Perfil acústico compartilhado com o visual 3D */
+  acousticProfile?: {
+    equivalentDiameterCm: number;
+    wavelengthCm: number;
+    nearFieldCm: number;
+    focusDepthCm: number;
+    focusGain: number;
+    beamProfile: string;
+    transducerType: string;
+    depthSamples: Array<{
+      depthCm: number;
+      relativeIntensity: number;
+      tissueKind: string;
+      heatSource: number;
+    }>;
+  };
+
+  /** Mapa educacional de interação acústica nos tecidos */
+  interactionMap?: UltrasoundInteractionMap;
+
+  /** Resposta fisiológica educacional heurística */
+  physiologyResponse?: UltrasoundPhysiologyResponse;
+
+  /** Perfil de perfusão usado na simulação */
+  tissuePerfusionProfile?: TissuePerfusionProfile;
+  /** Fator de dissipação térmica (1 = normal; menor = retém mais calor) */
+  perfusionDissipationFactor?: number;
 }
 
 export interface UltrasoundTherapyParams {
@@ -60,11 +117,14 @@ export interface UltrasoundTherapyParams {
   coupling: "good" | "poor";
   movement: "stationary" | "scanning";
   scenario: "shoulder" | "knee" | "lumbar" | "forearm" | "custom";
+  transducerType?: TherapeuticTransducerType;
+  beamProfile?: TransducerBeamProfile;
+  focusDepth?: number;
   customThicknesses?: {
     skin: number;
     fat: number;
     muscle: number;
-    boneThickness?: number; // Opcional: espessura do osso (STACK model)
+    boneDepth?: number; // Profundidade (cm) onde o osso começa (modo custom)
   };
   mixedLayer?: {
     enabled: boolean;
@@ -75,89 +135,66 @@ export interface UltrasoundTherapyParams {
     x: number;
     y: number;
   };
+  tissuePerfusionProfile?: TissuePerfusionProfile;
+  /** Resolução do mapa de interação (default: desktop ou mobile) */
+  interactionMapResolution?: { width: number; height: number };
 }
 
 type UltrasoundMode = "continuous" | "pulsed";
 
-// Tissue properties (simplified)
-const TISSUE_PROPERTIES: Record<string, Partial<TissueLayer>> = {
-  skin: {
-    attenuationCoeff: 0.5,
-    heatCapacity: 0.8,
-    perfusion: 1.0,
-  },
-  fat: {
-    attenuationCoeff: 0.3,
-    heatCapacity: 0.6,
-    perfusion: 0.3, // Lower perfusion = retains heat more
-  },
-  muscle: {
-    attenuationCoeff: 0.7,
-    heatCapacity: 1.0,
-    perfusion: 1.5, // Higher perfusion = dissipates heat faster
-  },
-  bone: {
-    attenuationCoeff: 2.0,
-    heatCapacity: 0.5,
-    perfusion: 0.2,
-  },
-};
-
-// Default tissue layers by scenario
-const SCENARIO_LAYERS: Record<string, TissueLayer[]> = {
-  shoulder: [
-    { type: "skin", depth: 0, thickness: 0.2, ...TISSUE_PROPERTIES.skin } as TissueLayer,
-    { type: "fat", depth: 0.2, thickness: 0.5, ...TISSUE_PROPERTIES.fat } as TissueLayer,
-    { type: "muscle", depth: 0.7, thickness: 2.0, ...TISSUE_PROPERTIES.muscle } as TissueLayer,
-    { type: "bone", depth: 2.7, thickness: 1.0, ...TISSUE_PROPERTIES.bone } as TissueLayer,
-  ],
-  knee: [
-    { type: "skin", depth: 0, thickness: 0.2, ...TISSUE_PROPERTIES.skin } as TissueLayer,
-    { type: "fat", depth: 0.2, thickness: 0.3, ...TISSUE_PROPERTIES.fat } as TissueLayer,
-    { type: "muscle", depth: 0.5, thickness: 1.5, ...TISSUE_PROPERTIES.muscle } as TissueLayer,
-    { type: "bone", depth: 2.0, thickness: 1.0, ...TISSUE_PROPERTIES.bone } as TissueLayer,
-  ],
-  lumbar: [
-    { type: "skin", depth: 0, thickness: 0.2, ...TISSUE_PROPERTIES.skin } as TissueLayer,
-    { type: "fat", depth: 0.2, thickness: 1.0, ...TISSUE_PROPERTIES.fat } as TissueLayer,
-    { type: "muscle", depth: 1.2, thickness: 3.0, ...TISSUE_PROPERTIES.muscle } as TissueLayer,
-  ],
-  forearm: [
-    { type: "skin", depth: 0, thickness: 0.2, ...TISSUE_PROPERTIES.skin } as TissueLayer,
-    { type: "fat", depth: 0.2, thickness: 0.2, ...TISSUE_PROPERTIES.fat } as TissueLayer,
-    { type: "muscle", depth: 0.4, thickness: 1.0, ...TISSUE_PROPERTIES.muscle } as TissueLayer,
-  ],
-  custom: [
-    { type: "skin", depth: 0, thickness: 0.2, ...TISSUE_PROPERTIES.skin } as TissueLayer,
-    { type: "fat", depth: 0.2, thickness: 0.5, ...TISSUE_PROPERTIES.fat } as TissueLayer,
-    { type: "muscle", depth: 0.7, thickness: 2.0, ...TISSUE_PROPERTIES.muscle } as TissueLayer,
-  ],
-};
+import {
+  buildStackLayers,
+  stackLayersToTissueLayers,
+} from "@/lib/ultrasoundTherapyStack";
+import { resolveMixedLayerConfig } from "@/lib/ultrasoundTherapyStackConfig";
+import {
+  getPerfusionProfileMultiplier,
+  getPerfusionVisualProfile,
+  type TissuePerfusionProfile,
+} from "@/types/ultrasoundTherapyConfig";
 
 /**
- * Calculate intensity at depth using exponential attenuation
+ * Atenuação tecidual linear I/I₀ (camadas em dB/cm/MHz)
+ */
+function getTissueAttenuationLinear(
+  depth: number,
+  frequency: number,
+  layers: TissueLayer[],
+): number {
+  let totalAttenuation = 0;
+  const frequencyFactor = 0.5 + (frequency - 1) * 0.8;
+
+  for (const layer of layers) {
+    if (depth <= layer.depth) break;
+    const layerDepth = Math.min(depth - layer.depth, layer.thickness);
+    totalAttenuation += layer.attenuationCoeff * frequencyFactor * layerDepth * 1.5;
+  }
+
+  return Math.pow(10, -totalAttenuation / 10);
+}
+
+function getLayerAtDepth(depth: number, layers: TissueLayer[]): TissueLayer {
+  for (const layer of layers) {
+    if (depth >= layer.depth && depth < layer.depth + layer.thickness) {
+      return layer;
+    }
+  }
+  return layers[layers.length - 1];
+}
+
+/**
+ * Intensidade a uma profundidade — atenuação tecidual × geometria do feixe (compartilhada com visual)
  */
 function calculateIntensityAtDepth(
   surfaceIntensity: number,
   depth: number,
   frequency: number,
-  layers: TissueLayer[]
+  layers: TissueLayer[],
+  acoustic: AcousticPhysicsInput,
 ): number {
-  let totalAttenuation = 0;
-  
-  // V5: Enhanced frequency effect - more perceptible
-  // Higher frequency = more attenuation per cm
-  const frequencyFactor = 0.5 + (frequency - 1) * 0.8; // 1 MHz = 0.5, 3 MHz = 2.1
-  
-  for (const layer of layers) {
-    if (depth <= layer.depth) break;
-    const layerDepth = Math.min(depth - layer.depth, layer.thickness);
-    // V5: Frequency has stronger effect on attenuation
-    totalAttenuation += layer.attenuationCoeff * frequencyFactor * layerDepth * 1.5;
-  }
-  
-  // Convert dB to linear: I = I0 * 10^(-dB/10)
-  return surfaceIntensity * Math.pow(10, -totalAttenuation / 10);
+  const tissueAtt = getTissueAttenuationLinear(depth, frequency, layers);
+  const beamGeo = getThermalBeamGeometryFactor(depth, acoustic);
+  return surfaceIntensity * tissueAtt * beamGeo;
 }
 
 /**
@@ -173,28 +210,19 @@ function calculateThermalEffectsAtDepth(
   dutyCycle: number,
   movement: "stationary" | "scanning",
   coupling: "good" | "poor",
-  isSurface: boolean = false
-): { 
+  acoustic: AcousticPhysicsInput,
+  isSurface: boolean = false,
+  perfusionMultiplier: number = 1.0,
+  perfusionHeatRetention: number = 1.0,
+): {
   temp: number; 
   thermalDose: number;
 } {
-  // Find tissue at depth
-  let currentLayer: TissueLayer | null = null;
-  for (const layer of layers) {
-    if (depth >= layer.depth && depth < layer.depth + layer.thickness) {
-      currentLayer = layer;
-      break;
-    }
-  }
+  const currentLayer = getLayerAtDepth(depth, layers);
   
-  if (!currentLayer) {
-    currentLayer = layers[layers.length - 1];
-  }
-  
-  // Calculate intensity at this specific depth (considering attenuation)
   const intensityAtDepth = isSurface 
-    ? surfaceIntensity // Surface gets full intensity (with coupling losses)
-    : calculateIntensityAtDepth(surfaceIntensity, depth, frequency, layers);
+    ? surfaceIntensity
+    : calculateIntensityAtDepth(surfaceIntensity, depth, frequency, layers, acoustic);
   
   // Effective intensity considering duty cycle
   const effectiveIntensity = intensityAtDepth * (dutyCycle / 100);
@@ -222,7 +250,7 @@ function calculateThermalEffectsAtDepth(
   // Perfusion removes heat: Q_perf = rho * c * w * (T - T_blood)
   const rho = 1000; // kg/m³ (water density)
   const c = 4180; // J/(kg·K) (specific heat)
-  const w = currentLayer.perfusion * 0.0008; // Perfusion rate (m³/s per m³ tissue) - increased for realism
+  const w = currentLayer.perfusion * 0.0008 * perfusionMultiplier;
   const T_blood = 37; // °C
   
   // Steady-state temperature (simplified)
@@ -250,7 +278,7 @@ function calculateThermalEffectsAtDepth(
   const intensityFactor = Math.min(2.0, effectiveIntensity * 0.8); // Scale by intensity (1 W/cm² = 0.8x, 2 W/cm² = 1.6x)
   const durationFactor = Math.min(1.5, 0.3 + (duration / 10) * 0.4); // Scale by duration (5 min = 0.5x, 10 min = 0.7x, 15 min = 0.9x)
   
-  tempRise = tempRise * intensityFactor * durationFactor;
+  tempRise = tempRise * intensityFactor * durationFactor * perfusionHeatRetention;
   
   // Base temperature
   const baseTemp = 37; // °C
@@ -288,7 +316,35 @@ export function simulateUltrasoundTherapy(
     coupling,
     movement,
     scenario,
+    transducerType = "planar_circular",
+    beamProfile = "planar",
+    focusDepth,
   } = params;
+
+  const resolvedMixedLayer = resolveMixedLayerConfig(
+    scenario,
+    params.customThicknesses,
+    params.mixedLayer,
+  );
+
+  const focusDepthCm = resolveFocusDepthCm(
+    beamProfile === "focused" ? focusDepth : undefined,
+    frequency,
+    beamProfile,
+    transducerType,
+  );
+  const acousticInput: AcousticPhysicsInput = {
+    frequencyMHz: frequency,
+    eraCm2: era,
+    transducerType,
+    beamProfile,
+    focusDepthCm,
+  };
+
+  const perfusionProfile = params.tissuePerfusionProfile ?? "normal";
+  const perfusionVisual = getPerfusionVisualProfile(perfusionProfile);
+  const perfusionMultiplier = perfusionVisual.multiplier;
+  const perfusionHeatRetention = perfusionVisual.heatRetention;
   
   // Coupling efficiency
   const couplingEfficiency = coupling === "good" ? 0.95 : 0.7;
@@ -303,53 +359,21 @@ export function simulateUltrasoundTherapy(
   const energyJ = powerW * timeSec * effectiveDuty;
   const doseJcm2 = effectiveIntensity * timeSec * effectiveDuty;
   
-  // Get tissue layers - STACK MODEL: Empilhamento cumulativo
-  let layers: TissueLayer[];
-  if (scenario === "custom" && params.customThicknesses) {
-    const ct = params.customThicknesses;
-    const TOTAL_BLOCK_DEPTH = 6.0; // Mesmo valor usado no TissueLayers.tsx
-    
-    // STACK: Calcular offsets cumulativos
-    const skinStart = 0;
-    const skinEnd = skinStart + ct.skin;
-    const fatStart = skinEnd;
-    const fatEnd = fatStart + ct.fat;
-    const muscleStart = fatEnd;
-    
-    // Validação: clamp músculo se necessário
-    const boneThickness = ct.boneThickness !== undefined ? ct.boneThickness : 1.0;
-    const maxMuscleEnd = TOTAL_BLOCK_DEPTH - boneThickness;
-    const actualMuscleEnd = Math.min(muscleStart + ct.muscle, maxMuscleEnd);
-    const actualMuscleThickness = Math.max(0, actualMuscleEnd - muscleStart);
-    
-    // Osso sempre começa onde músculo termina
-    const boneStart = muscleStart + actualMuscleThickness;
-    const actualBoneThickness = ct.boneThickness !== undefined 
-      ? ct.boneThickness 
-      : Math.max(0, TOTAL_BLOCK_DEPTH - boneStart);
-    
-    layers = [
-      { type: "skin", depth: skinStart, thickness: ct.skin, ...TISSUE_PROPERTIES.skin } as TissueLayer,
-      { type: "fat", depth: fatStart, thickness: ct.fat, ...TISSUE_PROPERTIES.fat } as TissueLayer,
-      { type: "muscle", depth: muscleStart, thickness: actualMuscleThickness, ...TISSUE_PROPERTIES.muscle } as TissueLayer,
-    ];
-    
-    if (actualBoneThickness > 0.01) {
-      layers.push({
-        type: "bone",
-        depth: boneStart,
-        thickness: actualBoneThickness,
-        ...TISSUE_PROPERTIES.bone
-      } as TissueLayer);
-    }
-  } else {
-    layers = SCENARIO_LAYERS[scenario] || SCENARIO_LAYERS.custom;
-  }
+  // Get tissue layers — STACK model (boneDepth = início do osso)
+  const layers = stackLayersToTissueLayers(
+    buildStackLayers(scenario, params.customThicknesses),
+  ) as TissueLayer[];
   
   // Calculate penetration depth (where intensity drops to 10% of surface)
   let penetrationDepth = 0;
   for (let d = 0; d < 10; d += 0.1) {
-    const intensityAtDepth = calculateIntensityAtDepth(effectiveIntensity, d, frequency, layers);
+    const intensityAtDepth = calculateIntensityAtDepth(
+      effectiveIntensity,
+      d,
+      frequency,
+      layers,
+      acousticInput,
+    );
     if (intensityAtDepth < effectiveIntensity * 0.1) {
       penetrationDepth = d;
       break;
@@ -359,39 +383,28 @@ export function simulateUltrasoundTherapy(
   // Effective depth (where 50% intensity remains) - typical therapeutic target
   let effectiveDepth = 0;
   for (let d = 0; d < 10; d += 0.1) {
-    const intensityAtDepth = calculateIntensityAtDepth(effectiveIntensity, d, frequency, layers);
+    const intensityAtDepth = calculateIntensityAtDepth(
+      effectiveIntensity,
+      d,
+      frequency,
+      layers,
+      acousticInput,
+    );
     if (intensityAtDepth < effectiveIntensity * 0.5) {
       effectiveDepth = d;
       break;
     }
   }
-  
-  // REFACTORED: Beam geometry is STABLE and independent of frequency
-  // Geometry based only on ERA (transducer size)
-  // Frequency affects ONLY attenuation (already handled in calculateIntensityAtDepth)
-  const transducerRadius = Math.sqrt(era / Math.PI); // cm
-  
-  // Near field length: based on transducer geometry only (not frequency)
-  // For therapeutic transducers, near field is typically 1-3 cm
-  const nearFieldLength = Math.max(1.0, Math.min(3.0, transducerRadius * 2.5));
-  
-  // Divergence angle: based on transducer geometry only (not frequency)
-  // For therapeutic transducers, typical divergence is 10-20 degrees
-  const baseDivergence = 0.2; // Base divergence in radians (~11 degrees)
-  const sizeFactor = Math.max(0.5, Math.min(1.5, 1.0 / (transducerRadius + 0.5))); // Larger ERA = less divergence
-  const fixedDivergenceAngle = baseDivergence * sizeFactor;
-  
-  let beamWidth: number;
-  if (effectiveDepth < nearFieldLength) {
-    // Near field: beam width approximately constant (minimal divergence)
-    beamWidth = transducerRadius * 2 * 1.05; // Starts at face diameter, very slight divergence
-  } else {
-    // Far field: diverges with fixed angle (independent of frequency)
-    const farFieldDepth = effectiveDepth - nearFieldLength;
-    const divergence = Math.tan(fixedDivergenceAngle);
-    const clampedDivergence = Math.min(divergence, 0.5); // Max 0.5 rad (~28 degrees)
-    beamWidth = transducerRadius * 2 + 2 * farFieldDepth * clampedDivergence;
-  }
+
+  const equivalentDiameterCm = getEquivalentDiameterCm(era, transducerType);
+  const nearFieldLength = getNearFieldLengthCm(
+    equivalentDiameterCm,
+    frequency,
+    transducerType,
+  );
+
+  const beamRadiusAtEffective = getBeamRadiusAtDepthCm(effectiveDepth, acousticInput);
+  const beamWidth = beamRadiusAtEffective * 2;
   
   // Calculate treated area considering movement
   let treatedArea: number;
@@ -415,7 +428,10 @@ export function simulateUltrasoundTherapy(
     effectiveDuty * 100,
     movement,
     coupling,
-    true // isSurface = true
+    acousticInput,
+    true,
+    perfusionMultiplier,
+    perfusionHeatRetention,
   );
   
   // Target thermal effects (at effective depth - therapeutic target)
@@ -428,7 +444,10 @@ export function simulateUltrasoundTherapy(
     effectiveDuty * 100,
     movement,
     coupling,
-    false // isSurface = false
+    acousticInput,
+    false,
+    perfusionMultiplier,
+    perfusionHeatRetention,
   );
   
   // Scan through depths to find maximum temperature
@@ -436,8 +455,8 @@ export function simulateUltrasoundTherapy(
   let maxTempDepth = 0.05;
   let maxThermalDose = surfaceThermal.thermalDose;
   
-  // Check multiple depths to find peak
-  for (let d = 0.1; d < Math.min(penetrationDepth, 5); d += 0.2) {
+  const scanMaxDepth = Math.max(penetrationDepth, focusDepthCm + 1, nearFieldLength + 0.5, 5);
+  for (let d = 0.1; d < Math.min(scanMaxDepth, 6); d += 0.1) {
     const thermalAtDepth = calculateThermalEffectsAtDepth(
       effectiveIntensity,
       d,
@@ -447,7 +466,10 @@ export function simulateUltrasoundTherapy(
       effectiveDuty * 100,
       movement,
       coupling,
-      false
+      acousticInput,
+      false,
+      perfusionMultiplier,
+      perfusionHeatRetention,
     );
     
     if (thermalAtDepth.temp > maxTemp) {
@@ -474,41 +496,68 @@ export function simulateUltrasoundTherapy(
   // V5: Check for bone interaction (including mixed layer)
   let boneReflection = 0;
   let periostealRisk = 0;
-  const boneLayer = layers.find(l => l.type === "bone");
-  
-  // V5: Check if transducer is over bone region in mixed layer
+  const boneLayer = layers.find((l) => l.type === "bone");
+  const boneStartDepthCm =
+    resolvedMixedLayer?.depth ?? boneLayer?.depth ?? null;
+  let hotspotBoneDistanceCm: number | null = null;
+
+  const mixedLayerEnabled = resolvedMixedLayer != null;
+  let transducerOverBone: boolean | null = null;
   let isOverBone = false;
-  if (params.mixedLayer?.enabled && params.transducerPosition) {
-    const division = params.mixedLayer.division / 100; // 0-1
-    const boundaryX = (division - 0.5) * 2; // -1 to 1
-    // If transducer X position is on bone side (right side)
+  if (mixedLayerEnabled && params.transducerPosition) {
+    const division = resolvedMixedLayer.division / 100;
+    const boundaryX = (division - 0.5) * 2;
     isOverBone = params.transducerPosition.x > boundaryX;
+    transducerOverBone = isOverBone;
   }
-  
-  if (boneLayer || isOverBone) {
-    // STACK MODEL: boneDepth é sempre boneLayer.depth (onde o osso começa)
-    const boneDepth = boneLayer?.depth || params.mixedLayer?.depth || 0;
-    const intensityAtBone = calculateIntensityAtDepth(effectiveIntensity, boneDepth, frequency, layers);
-    
-    if (intensityAtBone > effectiveIntensity * 0.1) {
-      // V5: Mixed layer bone has stronger reflection if directly over it
-      const reflectionMultiplier = isOverBone ? 1.3 : 1.0;
-      boneReflection = (0.3 + (intensityAtBone / effectiveIntensity) * 0.2) * reflectionMultiplier;
-      
-      // Periosteal risk increases if hotspot is near bone
-      const distanceToBone = Math.abs(thermal.maxTempDepth - boneDepth);
-      if (distanceToBone < 0.5) {
-        // Hotspot within 0.5cm of bone
-        periostealRisk = Math.min(1, (0.5 - distanceToBone) / 0.5);
-        if (thermal.maxTemp > 42) {
-          periostealRisk = Math.min(1, periostealRisk + 0.3);
-        }
-        // V5: Higher risk if directly over bone in mixed layer
-        if (isOverBone) {
-          periostealRisk = Math.min(1, periostealRisk + 0.2);
-        }
+
+  const boneClinicallyRelevant =
+    boneStartDepthCm != null && (!mixedLayerEnabled || isOverBone);
+
+  if (boneClinicallyRelevant && boneStartDepthCm != null) {
+    const boneDepth = boneStartDepthCm;
+    const intensityAtBone = calculateIntensityAtDepth(
+      effectiveIntensity,
+      boneDepth,
+      frequency,
+      layers,
+      acousticInput,
+    );
+
+    if (intensityAtBone > effectiveIntensity * 0.08) {
+      const reflectionMultiplier = isOverBone ? 1.25 : 1.0;
+      // R = ((Z_osso − Z_músculo) / (Z_osso + Z_músculo))² ≈ 0,41
+      const impedanceReflection = ((7.8 - 1.65) / (7.8 + 1.65)) ** 2;
+      boneReflection = Math.min(
+        1,
+        (impedanceReflection * 0.92 +
+          (intensityAtBone / effectiveIntensity) * 0.22) *
+          reflectionMultiplier,
+      );
+
+      hotspotBoneDistanceCm = Math.abs(thermal.maxTempDepth - boneDepth);
+      const proximityWindow = 1.0;
+      const proximity = Math.max(0, Math.min(1, 1 - hotspotBoneDistanceCm / proximityWindow));
+
+      if (proximity > 0.04) {
+        const thermalStress = Math.max(0, Math.min(1, (thermal.maxTemp - 38) / 10));
+        const boneEnergy = Math.max(0, Math.min(1, intensityAtBone / effectiveIntensity));
+        const movementMitigation = movement === "scanning" ? 0.5 : 1.0;
+        const frequencyFactor = frequency >= 2.5 ? 1.08 : frequency <= 1.5 ? 0.92 : 1.0;
+
+        periostealRisk =
+          proximity *
+          boneEnergy *
+          (0.28 + thermalStress * 0.72) *
+          movementMitigation *
+          frequencyFactor;
+        periostealRisk = Math.min(1, periostealRisk);
       }
     }
+  } else if (mixedLayerEnabled && boneStartDepthCm != null && !isOverBone) {
+    boneReflection = 0.04;
+    periostealRisk = 0;
+    hotspotBoneDistanceCm = Math.abs(thermal.maxTempDepth - boneStartDepthCm);
   }
   
   // Cumulative thermal dose (simplified - accumulates over time)
@@ -552,13 +601,23 @@ export function simulateUltrasoundTherapy(
   
   // Periosteal risk (separate from thermal risk)
   let periostealRiskLevel: "low" | "medium" | "high" = "low";
-  if (periostealRisk > 0.7) {
+  if (periostealRisk > 0.65) {
     periostealRiskLevel = "high";
-    riskFactors.push(`Risco periosteal muito alto (${(periostealRisk * 100).toFixed(0)}%) - hotspot muito próximo ao osso`);
-  } else if (periostealRisk > 0.5) {
+    const distHint =
+      hotspotBoneDistanceCm != null
+        ? ` — hotspot a ${hotspotBoneDistanceCm.toFixed(1)} cm do osso`
+        : "";
+    riskFactors.push(
+      `Risco periosteal muito alto (${(periostealRisk * 100).toFixed(0)}%)${distHint}`,
+    );
+  } else if (periostealRisk > 0.4) {
     periostealRiskLevel = "high";
-    riskFactors.push(`Risco periosteal alto (${(periostealRisk * 100).toFixed(0)}%) - hotspot próximo ao osso`);
-  } else if (periostealRisk > 0.3) {
+    const distHint =
+      hotspotBoneDistanceCm != null
+        ? ` — hotspot a ${hotspotBoneDistanceCm.toFixed(1)} cm do osso`
+        : "";
+    riskFactors.push(`Risco periosteal alto (${(periostealRisk * 100).toFixed(0)}%)${distHint}`);
+  } else if (periostealRisk > 0.22) {
     periostealRiskLevel = "medium";
     riskFactors.push(`Risco periosteal moderado (${(periostealRisk * 100).toFixed(0)}%)`);
   }
@@ -577,7 +636,10 @@ export function simulateUltrasoundTherapy(
   
   // Additional contextual factors (only if risk is still low)
   if (risk === "low") {
-    if (doseJcm2 > 20 && duration > 10) {
+    if (params.tissuePerfusionProfile === "baixa_circulacao" && thermal.maxTemp > 41) {
+      risk = "medium";
+      riskFactors.push("Baixa circulação local reduz dissipação de calor");
+    } else if (doseJcm2 > 20 && duration > 10) {
       risk = "medium";
       riskFactors.push("Dose alta (>20 J/cm²) por tempo prolongado");
     } else if (intensity > 2.0 && movement === "stationary") {
@@ -589,7 +651,42 @@ export function simulateUltrasoundTherapy(
     }
   }
   
-  return {
+  const acousticProfile = buildAcousticProfile({
+    ...acousticInput,
+    maxDepthCm: Math.max(6, penetrationDepth + 0.5, focusDepthCm + 1),
+    stepCm: 0.2,
+    getTissueAttenuationLinear: (depthCm) =>
+      getTissueAttenuationLinear(depthCm, frequency, layers),
+    getTissueKindAtDepth: (depthCm) => getLayerAtDepth(depthCm, layers).type,
+    getAbsorptionCoeff: (depthCm) =>
+      getLayerAtDepth(depthCm, layers).attenuationCoeff * 0.15,
+  });
+
+  const interactionMap = buildUltrasoundInteractionMap({
+    scenario,
+    customThicknesses: params.customThicknesses,
+    mixedLayer: resolvedMixedLayer,
+    frequencyMHz: frequency,
+    intensity,
+    eraCm2: era,
+    transducerType,
+    beamProfile,
+    focusDepthCm,
+    mode,
+    dutyCycle,
+    coupling,
+    movement,
+    surfaceTemp: Math.min(50, Math.max(37, surfaceThermal.temp)),
+    maxTemp: Math.min(50, Math.max(37, thermal.maxTemp)),
+    maxTempDepth: thermal.maxTempDepth,
+    thermalDose: thermal.thermalDose,
+    cumulativeDose,
+    boneReflection,
+    acoustic: acousticInput,
+    resolution: params.interactionMapResolution ?? getDefaultInteractionMapResolution(),
+  });
+
+  const simulationResultBase = {
     powerW,
     energyJ,
     doseJcm2,
@@ -607,5 +704,50 @@ export function simulateUltrasoundTherapy(
     treatedArea,
     boneReflection,
     periostealRisk,
+    boneStartDepthCm,
+    hotspotBoneDistanceCm,
+    transducerOverBone,
+    acousticProfile: {
+      ...acousticProfile,
+      focusGain: getFocusedGain(
+        focusDepthCm,
+        focusDepthCm,
+        beamProfile,
+        transducerType,
+      ),
+    },
+    interactionMap,
+  };
+
+  const physiologyConfig: UltrasoundTherapyConfig = {
+    scenario,
+    customThicknesses: params.customThicknesses,
+    transducerType,
+    beamProfile,
+    focusDepth: focusDepthCm,
+    mode,
+    dutyCycle,
+    intensity,
+    duration,
+    coupling,
+    movement,
+    era,
+    frequency,
+    tissuePerfusionProfile: params.tissuePerfusionProfile ?? "normal",
+    enabledControls: { scenario: true, frequency: true, era: true, mode: true, dutyCycle: true, intensity: true, duration: true, coupling: true, movement: true, tissuePerfusionProfile: true },
+    ranges: { frequency: { min: 1, max: 3 }, era: { min: 2.5, max: 6.5 }, intensity: { min: 0.1, max: 5 }, duration: { min: 1, max: 30 }, dutyCycle: { min: 10, max: 100 } },
+  };
+
+  const physiologyResponse = buildUltrasoundPhysiologyResponse({
+    result: simulationResultBase,
+    interactionMap,
+    config: physiologyConfig,
+  });
+
+  return {
+    ...simulationResultBase,
+    physiologyResponse,
+    tissuePerfusionProfile: perfusionProfile,
+    perfusionDissipationFactor: perfusionMultiplier,
   };
 }

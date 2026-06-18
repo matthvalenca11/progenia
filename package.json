@@ -7,6 +7,7 @@
     "dev": "vite",
     "build:wasm": "asc assembly/ultrasound.ts --outFile src/wasm/ultrasound.wasm -O3 --runtime stub --exportRuntime && node scripts/wasm-to-ts.mjs src/wasm/ultrasound.wasm src/wasm/ultrasoundWasmBytes.ts",
     "build": "npm run build:wasm && vite build",
+    "typecheck": "tsc --noEmit",
     "build:native": "npm run build:wasm && NATIVE_BUILD=true vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",

@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { AlertTriangle, Info } from "lucide-react";
+import { EmbeddedVideo } from "@/components/EmbeddedVideo";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -14,7 +15,7 @@ interface LabWrapperProps {
 
 /**
  * LabWrapper - Wraps all virtual labs with:
- * 1. Optional video display (uploaded via platform)
+ * 1. Optional support video (YouTube link)
  * 2. Mandatory educational disclaimer
  */
 export function LabWrapper({ 
@@ -33,18 +34,7 @@ export function LabWrapper({
       {/* Optional Video Section */}
       {videoUrl && !immersive && (
         <div className="w-full rounded-lg overflow-hidden border border-border bg-card">
-          <div className="aspect-video w-full">
-            <video
-              src={videoUrl}
-              controls
-              className="w-full h-full object-contain bg-black"
-              preload="metadata"
-            >
-              <source src={videoUrl} type="video/mp4" />
-              <source src={videoUrl} type="video/webm" />
-              Seu navegador não suporta a reprodução de vídeos.
-            </video>
-          </div>
+          <EmbeddedVideo url={videoUrl} title={title ? `Vídeo de apoio: ${title}` : "Vídeo de apoio"} />
           {title && (
             <div className="p-3 border-t border-border bg-muted/30">
               <p className="text-sm text-muted-foreground flex items-center gap-2">

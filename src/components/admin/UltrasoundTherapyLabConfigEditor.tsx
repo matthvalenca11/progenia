@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -7,27 +7,108 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UltrasoundTherapyConfig, AnatomicalScenario } from "@/types/ultrasoundTherapyConfig";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  UltrasoundTherapyConfig,
+  AnatomicalScenario,
+  TissuePerfusionProfile,
+  TISSUE_PERFUSION_PROFILE_LABELS,
+  TRANSDUCER_BEAM_PROFILE_LABELS,
+  TransducerBeamProfile,
+  TherapeuticTransducerType,
+  ERA_CLINICAL_REFERENCE,
+  FOCUS_DEPTH_ABSOLUTE_MIN,
+  getScenarioMaxFocusDepth,
+  validateFocusDepthForScenario,
+} from "@/types/ultrasoundTherapyConfig";
+import {
+  patchStackThicknesses,
+  resolveStackLayout,
+  DEFAULT_STACK_THICKNESSES,
+  toStackCustomThicknesses,
+} from "@/lib/ultrasoundTherapyStackConfig";
+import {
+  configDefaultsForTransducerType,
+  getTransducerDefinition,
+  isFocusDepthApplicable,
+} from "@/config/therapeuticTransducerDefinitions";
+import { TransducerTypeField } from "@/components/labs/ultrasound-therapy/TransducerTypeField";
+import { TOTAL_BLOCK_DEPTH } from "@/lib/ultrasoundTherapyStack";
 import { UltrasoundTherapyLabPreview } from "./UltrasoundTherapyLabPreview";
-import { Dna, Settings2 } from "lucide-react";
+import { TherapyStudentControlsPreview } from "./TherapyStudentControlsPreview";
+import { Settings2, Sliders, AlertTriangle } from "lucide-react";
 
 interface UltrasoundTherapyLabConfigEditorProps {
   config: UltrasoundTherapyConfig;
   onChange: (config: UltrasoundTherapyConfig) => void;
 }
 
+interface NumericRange {
+  min: number;
+  max: number;
+  step?: number;
+}
+
+function RangeMinMaxStepEditor({
+  label,
+  range,
+  onChange,
+  unit,
+  absoluteMin,
+  absoluteMax,
+}: {
+  label: string;
+  range: NumericRange;
+  onChange: (next: NumericRange) => void;
+  unit?: string;
+  absoluteMin?: number;
+  absoluteMax?: number;
+}) {
+  return (
+    <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3">
+      <Label className="text-sm font-medium">{label}</Label>
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Mín</Label>
+          <Input
+            type="number"
+            value={range.min}
+            step={range.step ?? 0.1}
+            onChange={(e) => {
+              const min = Number(e.target.value);
+              onChange({ ...range, min: absoluteMin != null ? Math.max(absoluteMin, min) : min });
+            }}
+          />
+        </div>
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Máx</Label>
+          <Input
+            type="number"
+            value={range.max}
+            step={range.step ?? 0.1}
+            onChange={(e) => {
+              const max = Number(e.target.value);
+              onChange({ ...range, max: absoluteMax != null ? Math.min(absoluteMax, max) : max });
+            }}
+          />
+        </div>
+        <div>
+          <Label className="text-[10px] text-muted-foreground">Step</Label>
+          <Input
+            type="number"
+            value={range.step ?? 0.1}
+            step={0.01}
+            min={0.01}
+            onChange={(e) => onChange({ ...range, step: Number(e.target.value) || 0.1 })}
+          />
+        </div>
+      </div>
+      {unit && <p className="text-[10px] text-muted-foreground">Unidade: {unit}</p>}
+    </div>
+  );
+}
+
 export function UltrasoundTherapyLabConfigEditor({ config, onChange }: UltrasoundTherapyLabConfigEditorProps) {
-  // Estado para parâmetros de preview
-  const [frequency, setFrequency] = useState(config.frequency);
-  const [intensity, setIntensity] = useState(config.intensity);
-  const [era, setEra] = useState(config.era);
-  const [mode, setMode] = useState<"continuous" | "pulsed">(config.mode);
-  const [dutyCycle, setDutyCycle] = useState(config.dutyCycle);
-  const [duration, setDuration] = useState(config.duration);
-  const [coupling, setCoupling] = useState<"good" | "poor">(config.coupling);
-  const [movement, setMovement] = useState<"stationary" | "scanning">(config.movement);
-  const [scenario, setScenario] = useState<AnatomicalScenario>(config.scenario);
-  
   const updateConfig = (updates: Partial<UltrasoundTherapyConfig>) => {
     onChange({ ...config, ...updates });
   };
@@ -41,734 +122,643 @@ export function UltrasoundTherapyLabConfigEditor({ config, onChange }: Ultrasoun
     });
   };
 
+  const transducerDef = getTransducerDefinition(config.transducerType ?? "planar_circular");
+  const beamProfileLocked = transducerDef.lockBeamProfile;
+  const focusDepthEnabled = isFocusDepthApplicable(config.transducerType, config.beamProfile);
+  const scenarioMaxFocus = useMemo(
+    () => getScenarioMaxFocusDepth(config.scenario, config.customThicknesses),
+    [config.scenario, config.customThicknesses],
+  );
+  const focusValidation = useMemo(
+    () => validateFocusDepthForScenario(config.focusDepth ?? 2.5, config.scenario, config.customThicknesses),
+    [config.focusDepth, config.scenario, config.customThicknesses],
+  );
+
+  const handleTransducerTypeChange = (type: TherapeuticTransducerType) => {
+    const def = getTransducerDefinition(type);
+    updateConfig({
+      transducerType: type,
+      ...configDefaultsForTransducerType(type),
+      beamProfile: def.defaultBeamProfile,
+    });
+  };
+
+  const handleFocusDepthChange = (value: number) => {
+    const { value: clamped } = validateFocusDepthForScenario(value, config.scenario, config.customThicknesses);
+    updateConfig({ focusDepth: clamped });
+  };
+
+  const customThicknesses = toStackCustomThicknesses(config.customThicknesses);
+  const stackLayout = resolveStackLayout(customThicknesses);
+  const thicknessRanges = config.ranges.customThicknesses ?? {
+    skin: { min: 0.1, max: 0.5, step: 0.05 },
+    fat: { min: 0.1, max: 2.0, step: 0.1 },
+    muscle: { min: 0.5, max: 5.0, step: 0.1 },
+  };
+  const focusDepthRange = config.ranges.focusDepth ?? { min: 1.0, max: 5.0, step: 0.1 };
+
+  const enabledSwitch = (
+    key: keyof UltrasoundTherapyConfig["enabledControls"],
+    id: string,
+    title: string,
+    description: string,
+    defaultOn = true,
+  ) => {
+    const checked =
+      config.enabledControls[key] === undefined ? defaultOn : Boolean(config.enabledControls[key]);
+    return (
+      <div className="flex items-center justify-between pt-4 border-t first:pt-0 first:border-t-0">
+        <Label htmlFor={id} className="flex flex-col gap-1">
+          <span className="font-medium">{title}</span>
+          <span className="text-sm text-muted-foreground">{description}</span>
+        </Label>
+        <Switch id={id} checked={checked} onCheckedChange={(v) => updateEnabledControls(key, v)} />
+      </div>
+    );
+  };
+
   return (
-    <Tabs defaultValue="anatomy" className="w-full">
-      <TabsList className="grid w-full grid-cols-2 mb-6">
-        <TabsTrigger value="anatomy" className="flex items-center gap-2">
-          <Dna className="h-4 w-4" />
-          Anatomia e Preview
+    <Tabs defaultValue="defaults" className="w-full">
+      <TabsList className="mb-6 grid w-full grid-cols-2">
+        <TabsTrigger value="defaults" className="flex items-center gap-2">
+          <Sliders className="h-4 w-4" />
+          Defaults
         </TabsTrigger>
         <TabsTrigger value="controls" className="flex items-center gap-2">
           <Settings2 className="h-4 w-4" />
-          Controles Disponíveis
+          Controles do Aluno
         </TabsTrigger>
       </TabsList>
 
-      {/* Tab 1: Anatomia com Preview Integrado */}
-      <TabsContent value="anatomy" className="mt-6">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr,600px] gap-6 items-start">
-          {/* COLUNA 1: Controles */}
+      {/* ── Tab: Defaults (config à esquerda, preview anatômico à direita) ── */}
+      <TabsContent value="defaults" className="mt-6">
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
           <div className="space-y-6">
-            {/* Cenário Anatômico */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Cenário Anatômico</CardTitle>
-                <CardDescription>
-                  Selecione o cenário anatômico para o laboratório
-                </CardDescription>
+                <CardTitle className="text-base">Cenário anatômico padrão</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label>Cenário</Label>
-                  <Select 
-                    value={scenario} 
-                    onValueChange={(v) => {
-                      const newScenario = v as AnatomicalScenario;
-                      setScenario(newScenario);
-                      // Initialize customThicknesses when switching to custom
-                      if (newScenario === "custom" && !config.customThicknesses) {
-                        updateConfig({ 
-                          scenario: newScenario,
-                          customThicknesses: {
-                            skin: 0.2,
-                            fat: 0.5,
-                            muscle: 2.0,
-                          }
-                        });
-                      } else {
-                        updateConfig({ scenario: newScenario });
-                      }
-                    }}
-                    disabled={!config.enabledControls.scenario}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="shoulder">Ombro (tendão/bursa)</SelectItem>
-                      <SelectItem value="knee">Joelho (tendão/ligamento)</SelectItem>
-                      <SelectItem value="lumbar">Lombar (musculatura)</SelectItem>
-                      <SelectItem value="forearm">Antebraço (superficial)</SelectItem>
-                      <SelectItem value="custom">Personalizado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <CardContent>
+                <Select
+                  value={config.scenario}
+                  onValueChange={(v) => {
+                    const newScenario = v as AnatomicalScenario;
+                    if (newScenario === "custom" && !config.customThicknesses) {
+                      updateConfig({
+                        scenario: newScenario,
+                        customThicknesses: { ...DEFAULT_STACK_THICKNESSES },
+                      });
+                    } else {
+                      updateConfig({ scenario: newScenario });
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="shoulder">Ombro</SelectItem>
+                    <SelectItem value="knee">Joelho</SelectItem>
+                    <SelectItem value="lumbar">Lombar</SelectItem>
+                    <SelectItem value="forearm">Antebraço</SelectItem>
+                    <SelectItem value="custom">Personalizado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
 
-                {/* Controles de Camadas Personalizadas (STACK MODEL) */}
-                {scenario === "custom" && config.enabledControls.customThicknesses !== false && (
-                  <div className="space-y-4 pt-4 border-t">
-                    <Label className="text-sm font-medium">Configuração de Camadas (STACK)</Label>
-                    <p className="text-xs text-muted-foreground">
-                      As camadas são empilhadas: cada camada empurra as camadas abaixo
-                    </p>
-                    
-                    {(() => {
-                      const skin = config.customThicknesses?.skin || 0.2;
-                      const fat = config.customThicknesses?.fat || 0.5;
-                      const muscle = config.customThicknesses?.muscle || 2.0;
-                      const TOTAL_BLOCK_DEPTH = 6.0;
-                      
-                      // Calcular posições cumulativas (STACK)
-                      const skinEnd = skin;
-                      const fatEnd = skinEnd + fat;
-                      const muscleEnd = fatEnd + muscle;
-                      const boneStart = muscleEnd; // Osso sempre começa onde músculo termina
-                      const boneThickness = Math.max(0, TOTAL_BLOCK_DEPTH - boneStart);
-                      
-                      return (
-                        <div className="space-y-4">
-                          {/* Pele */}
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <Label className="text-sm">Pele</Label>
-                              <span className="text-sm font-mono text-muted-foreground">
-                                {skin.toFixed(2)} cm
-                              </span>
-                            </div>
-                            <Slider
-                              value={[skin]}
-                              onValueChange={(v) => updateConfig({ 
-                                customThicknesses: { 
-                                  ...config.customThicknesses,
-                                  skin: v[0],
-                                  fat: config.customThicknesses?.fat || 0.5,
-                                  muscle: config.customThicknesses?.muscle || 2.0,
-                                } 
-                              })}
-                              min={config.ranges.customThicknesses?.skin.min || 0.1}
-                              max={config.ranges.customThicknesses?.skin.max || 0.5}
-                              step={0.05}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Início: 0.00 cm | Fim: {skinEnd.toFixed(2)} cm
-                            </p>
-                          </div>
-
-                          {/* Gordura */}
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <Label className="text-sm">Gordura</Label>
-                              <span className="text-sm font-mono text-muted-foreground">
-                                {fat.toFixed(2)} cm
-                              </span>
-                            </div>
-                            <Slider
-                              value={[fat]}
-                              onValueChange={(v) => updateConfig({ 
-                                customThicknesses: { 
-                                  ...config.customThicknesses,
-                                  skin: config.customThicknesses?.skin || 0.2,
-                                  fat: v[0],
-                                  muscle: config.customThicknesses?.muscle || 2.0,
-                                } 
-                              })}
-                              min={config.ranges.customThicknesses?.fat.min || 0.1}
-                              max={config.ranges.customThicknesses?.fat.max || 2.0}
-                              step={0.1}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Início: {skinEnd.toFixed(2)} cm | Fim: {fatEnd.toFixed(2)} cm
-                            </p>
-                          </div>
-
-                          {/* Músculo */}
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <Label className="text-sm">Músculo</Label>
-                              <span className="text-sm font-mono text-muted-foreground">
-                                {muscle.toFixed(2)} cm
-                              </span>
-                            </div>
-                            <Slider
-                              value={[muscle]}
-                              onValueChange={(v) => updateConfig({ 
-                                customThicknesses: { 
-                                  ...config.customThicknesses,
-                                  skin: config.customThicknesses?.skin || 0.2,
-                                  fat: config.customThicknesses?.fat || 0.5,
-                                  muscle: v[0],
-                                } 
-                              })}
-                              min={config.ranges.customThicknesses?.muscle.min || 0.5}
-                              max={config.ranges.customThicknesses?.muscle.max || 5.0}
-                              step={0.1}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Início: {fatEnd.toFixed(2)} cm | Fim: {muscleEnd.toFixed(2)} cm
-                            </p>
-                            {muscleEnd > TOTAL_BLOCK_DEPTH && (
-                              <p className="text-xs text-amber-400">
-                                ⚠️ Soma excede o volume. Músculo será ajustado automaticamente.
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Métrica: Início do Osso (read-only) */}
-                          <div className="space-y-2 pt-2 border-t">
-                            <div className="flex justify-between items-center">
-                              <Label className="text-sm">Início do Osso (calculado)</Label>
-                              <span className="text-sm font-mono font-bold text-primary">
-                                {boneStart.toFixed(2)} cm
-                              </span>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              O osso sempre começa onde o músculo termina (STACK model)
-                            </p>
-                            {boneThickness > 0.01 && (
-                              <p className="text-xs text-muted-foreground">
-                                Espessura do osso: {boneThickness.toFixed(2)} cm (preenche até {TOTAL_BLOCK_DEPTH.toFixed(1)} cm)
-                              </p>
-                            )}
-                            {boneThickness <= 0.01 && (
-                              <p className="text-xs text-amber-400">
-                                ⚠️ Não há espaço para osso. Aumente o volume ou reduza as camadas acima.
-                              </p>
-                            )}
-                          </div>
+            {config.scenario === "custom" && (
+              <>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Espessuras STACK (defaults)</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <div>
+                          <Label>Pele</Label>
+                          <p className="text-xs text-muted-foreground">Espessura · 0 – {stackLayout.skin.toFixed(2)} cm</p>
                         </div>
-                      );
-                    })()}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Parâmetros de Transdutor */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Parâmetros de Transdutor</CardTitle>
-                <CardDescription>
-                  Ajuste para testar o laboratório
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {config.enabledControls.frequency && (
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <Label>Frequência</Label>
-                      <span className="text-sm font-bold text-primary">{frequency.toFixed(1)} MHz</span>
+                        <span className="font-mono text-sm">{stackLayout.skin.toFixed(2)} cm</span>
+                      </div>
+                      <Slider
+                        value={[stackLayout.skin]}
+                        onValueChange={(v) =>
+                          updateConfig({
+                            customThicknesses: patchStackThicknesses(customThicknesses, { skin: v[0] }),
+                          })
+                        }
+                        min={thicknessRanges.skin.min}
+                        max={thicknessRanges.skin.max}
+                        step={thicknessRanges.skin.step ?? 0.05}
+                      />
                     </div>
-                    <Slider
-                      value={[frequency]}
-                      onValueChange={(v) => setFrequency(v[0])}
-                      min={config.ranges.frequency.min}
-                      max={config.ranges.frequency.max}
-                      step={0.1}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {frequency <= 1.5 ? "Penetração profunda" : "Penetração superficial"}
-                    </p>
-                  </div>
-                )}
-
-                {config.enabledControls.era && (
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <Label>ERA (Área Efetiva)</Label>
-                      <span className="text-sm font-bold text-primary">{era.toFixed(1)} cm²</span>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <div>
+                          <Label>Gordura</Label>
+                          <p className="text-xs text-muted-foreground">Espessura · início {stackLayout.fatStart.toFixed(2)} cm</p>
+                        </div>
+                        <span className="font-mono text-sm">{stackLayout.fat.toFixed(2)} cm</span>
+                      </div>
+                      <Slider
+                        value={[stackLayout.fat]}
+                        onValueChange={(v) =>
+                          updateConfig({
+                            customThicknesses: patchStackThicknesses(customThicknesses, { fat: v[0] }),
+                          })
+                        }
+                        min={thicknessRanges.fat.min}
+                        max={thicknessRanges.fat.max}
+                        step={thicknessRanges.fat.step ?? 0.1}
+                      />
                     </div>
-                    <Slider
-                      value={[era]}
-                      onValueChange={(v) => setEra(v[0])}
-                      min={config.ranges.era.min}
-                      max={config.ranges.era.max}
-                      step={0.5}
-                    />
-                  </div>
-                )}
-
-                {config.enabledControls.mode && (
-                  <div>
-                    <Label className="mb-3 block">Modo</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        variant={mode === "continuous" ? "default" : "outline"}
-                        onClick={() => setMode("continuous")}
-                        size="sm"
-                      >
-                        Contínuo
-                      </Button>
-                      <Button
-                        variant={mode === "pulsed" ? "default" : "outline"}
-                        onClick={() => setMode("pulsed")}
-                        size="sm"
-                      >
-                        Pulsado
-                      </Button>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <div>
+                          <Label>Músculo</Label>
+                          <p className="text-xs text-muted-foreground">
+                            Espessura · início {stackLayout.muscleStart.toFixed(2)} cm · osso em{" "}
+                            {stackLayout.boneDepth.toFixed(2)} cm
+                          </p>
+                        </div>
+                        <span className="font-mono text-sm">{stackLayout.muscle.toFixed(2)} cm</span>
+                      </div>
+                      <Slider
+                        value={[stackLayout.muscle]}
+                        onValueChange={(v) =>
+                          updateConfig({
+                            customThicknesses: patchStackThicknesses(customThicknesses, { muscle: v[0] }),
+                          })
+                        }
+                        min={thicknessRanges.muscle.min}
+                        max={thicknessRanges.muscle.max}
+                        step={thicknessRanges.muscle.step ?? 0.1}
+                      />
                     </div>
-                  </div>
-                )}
+                  </CardContent>
+                </Card>
 
-                {config.enabledControls.dutyCycle && mode === "pulsed" && (
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <Label>Duty Cycle</Label>
-                      <span className="text-sm font-bold text-primary">{dutyCycle}%</span>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Camada mista</CardTitle>
+                    <CardDescription>
+                      Plano horizontal onde músculo e osso coexistem lateralmente (cenário personalizado)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label>Ativar camada mista</Label>
+                      <Switch
+                        checked={config.mixedLayer?.enabled ?? false}
+                        onCheckedChange={(checked) => {
+                          const boneDepth = resolveStackLayout(customThicknesses).boneDepth;
+                          updateConfig({
+                            mixedLayer: {
+                              enabled: checked,
+                              depth: boneDepth,
+                              division: config.mixedLayer?.division ?? 50,
+                            },
+                          });
+                        }}
+                      />
                     </div>
-                    <Slider
-                      value={[dutyCycle]}
-                      onValueChange={(v) => setDutyCycle(v[0])}
-                      min={config.ranges.dutyCycle.min}
-                      max={config.ranges.dutyCycle.max}
-                      step={5}
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                    {config.mixedLayer?.enabled && (
+                      <>
+                        <p className="text-sm text-muted-foreground">
+                          Profundidade automática:{" "}
+                          <span className="font-mono">
+                            {resolveStackLayout(customThicknesses).boneDepth.toFixed(2)} cm
+                          </span>{" "}
+                          (fim do músculo — ajuste pelas espessuras STACK acima)
+                        </p>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <div>
+                              <Label>Divisão osso / músculo</Label>
+                              <p className="text-xs text-muted-foreground">
+                                Esquerda = músculo · direita = osso
+                              </p>
+                            </div>
+                            <span className="font-mono text-sm">
+                              {config.mixedLayer.division}%
+                            </span>
+                          </div>
+                          <Slider
+                            value={[config.mixedLayer.division]}
+                            onValueChange={(v) =>
+                              updateConfig({
+                                mixedLayer: { ...config.mixedLayer!, division: v[0] },
+                              })
+                            }
+                            min={config.ranges.mixedLayer?.division.min ?? 0}
+                            max={config.ranges.mixedLayer?.division.max ?? 100}
+                            step={1}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            {config.mixedLayer.division < 50
+                              ? `Predomínio muscular (${100 - config.mixedLayer.division}%)`
+                              : `Predomínio ósseo (${config.mixedLayer.division}%)`}
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            )}
 
-            {/* Parâmetros de Energia */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Parâmetros de Energia</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {config.enabledControls.intensity && (
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <Label>Intensidade</Label>
-                      <span className="text-sm font-bold text-primary">{intensity.toFixed(1)} W/cm²</span>
-                    </div>
-                    <Slider
-                      value={[intensity]}
-                      onValueChange={(v) => setIntensity(v[0])}
-                      min={config.ranges.intensity.min}
-                      max={config.ranges.intensity.max}
-                      step={0.1}
-                    />
-                  </div>
-                )}
-
-                {config.enabledControls.duration && (
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <Label>Duração</Label>
-                      <span className="text-sm font-bold text-primary">{duration} min</span>
-                    </div>
-                    <Slider
-                      value={[duration]}
-                      onValueChange={(v) => setDuration(v[0])}
-                      min={config.ranges.duration.min}
-                      max={config.ranges.duration.max}
-                      step={1}
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Técnica */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Técnica</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {config.enabledControls.coupling && (
-                  <div>
-                    <Label className="mb-3 block">Acoplamento</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        variant={coupling === "good" ? "default" : "outline"}
-                        onClick={() => setCoupling("good")}
-                        size="sm"
-                      >
-                        Bom
-                      </Button>
-                      <Button
-                        variant={coupling === "poor" ? "default" : "outline"}
-                        onClick={() => setCoupling("poor")}
-                        size="sm"
-                      >
-                        Ruim
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {config.enabledControls.movement && (
-                  <div>
-                    <Label className="mb-3 block">Movimento</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        variant={movement === "stationary" ? "default" : "outline"}
-                        onClick={() => setMovement("stationary")}
-                        size="sm"
-                      >
-                        Parado
-                      </Button>
-                      <Button
-                        variant={movement === "scanning" ? "default" : "outline"}
-                        onClick={() => setMovement("scanning")}
-                        size="sm"
-                      >
-                        Varredura
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-          
-          {/* COLUNA 2: Preview */}
-          <div className="w-full flex flex-col gap-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
-            <UltrasoundTherapyLabPreview
-              config={config}
-              scenario={scenario}
-              frequency={frequency}
-              intensity={intensity}
-              era={era}
-              mode={mode}
-              dutyCycle={dutyCycle}
-              duration={duration}
-              coupling={coupling}
-              movement={movement}
-            />
-          </div>
-        </div>
-      </TabsContent>
-
-      {/* Tab 2: Controles Disponíveis */}
-      <TabsContent value="controls" className="space-y-6 mt-6">
         <Card>
           <CardHeader>
-            <CardTitle>Controles Disponíveis</CardTitle>
+            <CardTitle className="text-base">Configuração inicial do transdutor</CardTitle>
             <CardDescription>
-              Selecione quais parâmetros o aluno poderá ajustar durante o laboratório
+              Valores padrão ao abrir o lab — persistidos em config_data
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="enable-scenario" className="flex flex-col gap-1">
-                <span className="font-medium">Cenário Anatômico</span>
-                <span className="text-sm text-muted-foreground">
-                  Permite selecionar o cenário anatômico
-                </span>
-              </Label>
-              <Switch
-                id="enable-scenario"
-                checked={config.enabledControls.scenario}
-                onCheckedChange={(checked) => updateEnabledControls("scenario", checked)}
+          <CardContent className="space-y-5">
+            <TransducerTypeField
+              value={config.transducerType ?? "planar_circular"}
+              onChange={handleTransducerTypeChange}
+            />
+
+            <div>
+              <Label>Perfil do feixe</Label>
+              <Select
+                value={config.beamProfile}
+                disabled={beamProfileLocked}
+                onValueChange={(v) => updateConfig({ beamProfile: v as TransducerBeamProfile })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(TRANSDUCER_BEAM_PROFILE_LABELS) as TransducerBeamProfile[]).map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {TRANSDUCER_BEAM_PROFILE_LABELS[p]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {beamProfileLocked && (
+                <p className="mt-1 text-xs text-amber-600">
+                  Aplicador convergente trava o perfil de feixe focalizado automaticamente.
+                </p>
+              )}
+            </div>
+
+            {focusDepthEnabled ? (
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label>Profundidade focal</Label>
+                  <span className="font-mono text-sm text-primary">
+                    {(config.focusDepth ?? 2.5).toFixed(1)} cm
+                  </span>
+                </div>
+                <Slider
+                  value={[config.focusDepth ?? 2.5]}
+                  onValueChange={(v) => handleFocusDepthChange(v[0])}
+                  min={focusDepthRange.min}
+                  max={focusDepthRange.max}
+                  step={focusDepthRange.step ?? 0.1}
+                />
+                {focusValidation.warning && (
+                  <Alert variant="destructive" className="py-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription className="text-xs">{focusValidation.warning}</AlertDescription>
+                  </Alert>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Mín. {FOCUS_DEPTH_ABSOLUTE_MIN} cm · útil até ~{scenarioMaxFocus.toFixed(1)} cm neste cenário
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-border/80 bg-muted/30 px-3 py-3">
+                <Label className="text-muted-foreground">Profundidade focal</Label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Indisponível no modo plano não focalizado. Ative o perfil de feixe focalizado ou use um
+                  aplicador convergente.
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <Label>ERA (cm²)</Label>
+                <span className="font-mono text-sm text-primary">{config.era.toFixed(1)}</span>
+              </div>
+              <Slider
+                value={[config.era]}
+                onValueChange={(v) => updateConfig({ era: v[0] })}
+                min={config.ranges.era.min}
+                max={config.ranges.era.max}
+                step={0.25}
               />
             </div>
 
-            <div className="flex items-center justify-between pt-4 border-t">
-              <Label htmlFor="enable-frequency" className="flex flex-col gap-1">
-                <span className="font-medium">Frequência</span>
-                <span className="text-sm text-muted-foreground">
-                  Permite ajustar a frequência (MHz)
-                </span>
-              </Label>
-              <Switch
-                id="enable-frequency"
-                checked={config.enabledControls.frequency}
-                onCheckedChange={(checked) => updateEnabledControls("frequency", checked)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-4 border-t">
-              <Label htmlFor="enable-era" className="flex flex-col gap-1">
-                <span className="font-medium">ERA (Área Efetiva)</span>
-                <span className="text-sm text-muted-foreground">
-                  Permite ajustar a área efetiva (cm²)
-                </span>
-              </Label>
-              <Switch
-                id="enable-era"
-                checked={config.enabledControls.era}
-                onCheckedChange={(checked) => updateEnabledControls("era", checked)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-4 border-t">
-              <Label htmlFor="enable-mode" className="flex flex-col gap-1">
-                <span className="font-medium">Modo</span>
-                <span className="text-sm text-muted-foreground">
-                  Permite alternar entre contínuo e pulsado
-                </span>
-              </Label>
-              <Switch
-                id="enable-mode"
-                checked={config.enabledControls.mode}
-                onCheckedChange={(checked) => updateEnabledControls("mode", checked)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-4 border-t">
-              <Label htmlFor="enable-duty-cycle" className="flex flex-col gap-1">
-                <span className="font-medium">Duty Cycle</span>
-                <span className="text-sm text-muted-foreground">
-                  Permite ajustar o duty cycle quando pulsado (%)
-                </span>
-              </Label>
-              <Switch
-                id="enable-duty-cycle"
-                checked={config.enabledControls.dutyCycle}
-                onCheckedChange={(checked) => updateEnabledControls("dutyCycle", checked)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-4 border-t">
-              <Label htmlFor="enable-intensity" className="flex flex-col gap-1">
-                <span className="font-medium">Intensidade</span>
-                <span className="text-sm text-muted-foreground">
-                  Permite ajustar a intensidade (W/cm²)
-                </span>
-              </Label>
-              <Switch
-                id="enable-intensity"
-                checked={config.enabledControls.intensity}
-                onCheckedChange={(checked) => updateEnabledControls("intensity", checked)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-4 border-t">
-              <Label htmlFor="enable-duration" className="flex flex-col gap-1">
-                <span className="font-medium">Duração</span>
-                <span className="text-sm text-muted-foreground">
-                  Permite ajustar a duração da sessão (min)
-                </span>
-              </Label>
-              <Switch
-                id="enable-duration"
-                checked={config.enabledControls.duration}
-                onCheckedChange={(checked) => updateEnabledControls("duration", checked)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-4 border-t">
-              <Label htmlFor="enable-coupling" className="flex flex-col gap-1">
-                <span className="font-medium">Acoplamento</span>
-                <span className="text-sm text-muted-foreground">
-                  Permite ajustar a qualidade do acoplamento
-                </span>
-              </Label>
-              <Switch
-                id="enable-coupling"
-                checked={config.enabledControls.coupling}
-                onCheckedChange={(checked) => updateEnabledControls("coupling", checked)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-4 border-t">
-              <Label htmlFor="enable-movement" className="flex flex-col gap-1">
-                <span className="font-medium">Movimento</span>
-                <span className="text-sm text-muted-foreground">
-                  Permite ajustar o movimento do transdutor
-                </span>
-              </Label>
-              <Switch
-                id="enable-movement"
-                checked={config.enabledControls.movement}
-                onCheckedChange={(checked) => updateEnabledControls("movement", checked)}
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <Label>Frequência (MHz)</Label>
+                <span className="font-mono text-sm text-primary">{config.frequency.toFixed(1)}</span>
+              </div>
+              <Slider
+                value={[config.frequency]}
+                onValueChange={(v) => updateConfig({ frequency: v[0] })}
+                min={config.ranges.frequency.min}
+                max={config.ranges.frequency.max}
+                step={0.1}
               />
             </div>
           </CardContent>
         </Card>
 
-        {/* Limites dos Parâmetros */}
         <Card>
           <CardHeader>
-            <CardTitle>Limites dos Parâmetros</CardTitle>
-            <CardDescription>
-              Defina os valores mínimos e máximos permitidos
-            </CardDescription>
+            <CardTitle className="text-base">Defaults terapêuticos</CardTitle>
+            <CardDescription>Parâmetros clínicos iniciais da sessão simulada</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-5">
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <Label>Intensidade (W/cm²)</Label>
+                <span className="font-mono text-sm">{config.intensity.toFixed(1)}</span>
+              </div>
+              <Slider
+                value={[config.intensity]}
+                onValueChange={(v) => updateConfig({ intensity: v[0] })}
+                min={config.ranges.intensity.min}
+                max={config.ranges.intensity.max}
+                step={0.1}
+              />
+            </div>
+
+            <div>
+              <Label className="mb-2 block">Modo</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={config.mode === "continuous" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => updateConfig({ mode: "continuous" })}
+                >
+                  Contínuo
+                </Button>
+                <Button
+                  type="button"
+                  variant={config.mode === "pulsed" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => updateConfig({ mode: "pulsed" })}
+                >
+                  Pulsado
+                </Button>
+              </div>
+            </div>
+
+            {config.mode === "pulsed" && (
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <Label>Duty cycle (%)</Label>
+                  <span className="font-mono text-sm">{config.dutyCycle}%</span>
+                </div>
+                <Slider
+                  value={[config.dutyCycle]}
+                  onValueChange={(v) => updateConfig({ dutyCycle: v[0] })}
+                  min={config.ranges.dutyCycle.min}
+                  max={config.ranges.dutyCycle.max}
+                  step={5}
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <Label>Duração (min)</Label>
+                <span className="font-mono text-sm">{config.duration}</span>
+              </div>
+              <Slider
+                value={[config.duration]}
+                onValueChange={(v) => updateConfig({ duration: v[0] })}
+                min={config.ranges.duration.min}
+                max={config.ranges.duration.max}
+                step={1}
+              />
+            </div>
+
+            <div>
+              <Label className="mb-2 block">Acoplamento</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={config.coupling === "good" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => updateConfig({ coupling: "good" })}
+                >
+                  Bom
+                </Button>
+                <Button
+                  type="button"
+                  variant={config.coupling === "poor" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => updateConfig({ coupling: "poor" })}
+                >
+                  Ruim
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <Label className="mb-2 block">Movimento</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={config.movement === "stationary" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => updateConfig({ movement: "stationary" })}
+                >
+                  Parado
+                </Button>
+                <Button
+                  type="button"
+                  variant={config.movement === "scanning" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => updateConfig({ movement: "scanning" })}
+                >
+                  Varredura
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <Label>Perfil de perfusão tecidual</Label>
+              <Select
+                value={config.tissuePerfusionProfile}
+                onValueChange={(v) => updateConfig({ tissuePerfusionProfile: v as TissuePerfusionProfile })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(TISSUE_PERFUSION_PROFILE_LABELS) as TissuePerfusionProfile[]).map((key) => (
+                    <SelectItem key={key} value={key}>
+                      {TISSUE_PERFUSION_PROFILE_LABELS[key]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Afeta temperatura simulada, rubor vascular no 3D (anatomia/térmico) e métricas de dissipação.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+          </div>
+
+          <div className="lg:sticky lg:top-6">
+            <UltrasoundTherapyLabPreview config={config} />
+          </div>
+        </div>
+      </TabsContent>
+
+      {/* ── Tab: Student controls + ranges ── */}
+      <TabsContent value="controls" className="mt-6 space-y-6">
+        <TherapyStudentControlsPreview config={config} />
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Controles disponíveis ao aluno</CardTitle>
+            <CardDescription>enabledControls — o que o aluno pode alterar durante o lab</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-0">
+            {enabledSwitch("scenario", "enable-scenario", "Cenário anatômico", "Selecionar ombro, joelho, etc.")}
+            {enabledSwitch("customThicknesses", "enable-custom-thicknesses", "Espessuras personalizadas", "Camadas no cenário custom", true)}
+            {enabledSwitch("mixedLayer", "enable-mixed-layer", "Camada mista", "Ajuste osso/músculo no custom", false)}
+            {enabledSwitch("transducerType", "enable-transducer-type", "Aplicador terapêutico", "Planar IEC 61689 ou focalizado IEC 61828", true)}
+            {enabledSwitch("beamProfile", "enable-beam-profile", "Perfil do feixe", "Plano vs focalizado", true)}
+            {enabledSwitch("focusDepth", "enable-focus-depth", "Profundidade focal", "Slider de foco quando aplicável", true)}
+            {enabledSwitch("frequency", "enable-frequency", "Frequência", "MHz")}
+            {enabledSwitch("era", "enable-era", "ERA", "Área efetiva cm²")}
+            {enabledSwitch("mode", "enable-mode", "Modo", "Contínuo / pulsado")}
+            {enabledSwitch("dutyCycle", "enable-duty-cycle", "Duty cycle", "Visível só se modo pulsado estiver habilitado")}
+            {enabledSwitch("intensity", "enable-intensity", "Intensidade", "W/cm²")}
+            {enabledSwitch("duration", "enable-duration", "Duração", "Minutos")}
+            {enabledSwitch("tissuePerfusionProfile", "enable-perfusion", "Perfil de perfusão", "Circulação tecidual", true)}
+            {enabledSwitch("coupling", "enable-coupling", "Acoplamento", "Qualidade do gel")}
+            {enabledSwitch("movement", "enable-movement", "Movimento", "Parado / varredura")}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Limites globais dos parâmetros</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Frequência Mínima (MHz)</Label>
+                <Label>Frequência mín (MHz)</Label>
                 <Input
                   type="number"
                   value={config.ranges.frequency.min}
-                  onChange={(e) => updateConfig({
-                    ranges: {
-                      ...config.ranges,
-                      frequency: {
-                        ...config.ranges.frequency,
-                        min: Number(e.target.value) || 1,
-                      },
-                    },
-                  })}
+                  onChange={(e) =>
+                    updateConfig({
+                      ranges: { ...config.ranges, frequency: { ...config.ranges.frequency, min: Number(e.target.value) } },
+                    })
+                  }
                   step={0.1}
                 />
               </div>
               <div>
-                <Label>Frequência Máxima (MHz)</Label>
+                <Label>Frequência máx (MHz)</Label>
                 <Input
                   type="number"
                   value={config.ranges.frequency.max}
-                  onChange={(e) => updateConfig({
-                    ranges: {
-                      ...config.ranges,
-                      frequency: {
-                        ...config.ranges.frequency,
-                        max: Number(e.target.value) || 3,
-                      },
-                    },
-                  })}
+                  onChange={(e) =>
+                    updateConfig({
+                      ranges: { ...config.ranges, frequency: { ...config.ranges.frequency, max: Number(e.target.value) } },
+                    })
+                  }
                   step={0.1}
                 />
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>ERA Mínima (cm²)</Label>
+                <Label>ERA mín (cm²)</Label>
                 <Input
                   type="number"
                   value={config.ranges.era.min}
-                  onChange={(e) => updateConfig({
-                    ranges: {
-                      ...config.ranges,
-                      era: {
-                        ...config.ranges.era,
-                        min: Number(e.target.value) || 3,
-                      },
-                    },
-                  })}
-                  step={0.5}
+                  onChange={(e) =>
+                    updateConfig({
+                      ranges: { ...config.ranges, era: { ...config.ranges.era, min: Number(e.target.value) } },
+                    })
+                  }
+                  step={0.25}
                 />
               </div>
               <div>
-                <Label>ERA Máxima (cm²)</Label>
+                <Label>ERA máx (cm²)</Label>
                 <Input
                   type="number"
                   value={config.ranges.era.max}
-                  onChange={(e) => updateConfig({
-                    ranges: {
-                      ...config.ranges,
-                      era: {
-                        ...config.ranges.era,
-                        max: Number(e.target.value) || 10,
-                      },
-                    },
-                  })}
-                  step={0.5}
+                  onChange={(e) =>
+                    updateConfig({
+                      ranges: { ...config.ranges, era: { ...config.ranges.era, max: Number(e.target.value) } },
+                    })
+                  }
+                  step={0.25}
                 />
               </div>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Referência clínica ERA: {ERA_CLINICAL_REFERENCE.typicalMin}–{ERA_CLINICAL_REFERENCE.typicalMax} cm²
+            </p>
+          </CardContent>
+        </Card>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Intensidade Mínima (W/cm²)</Label>
-                <Input
-                  type="number"
-                  value={config.ranges.intensity.min}
-                  onChange={(e) => updateConfig({
-                    ranges: {
-                      ...config.ranges,
-                      intensity: {
-                        ...config.ranges.intensity,
-                        min: Number(e.target.value) || 0.1,
-                      },
-                    },
-                  })}
-                  step={0.1}
-                />
-              </div>
-              <div>
-                <Label>Intensidade Máxima (W/cm²)</Label>
-                <Input
-                  type="number"
-                  value={config.ranges.intensity.max}
-                  onChange={(e) => updateConfig({
-                    ranges: {
-                      ...config.ranges,
-                      intensity: {
-                        ...config.ranges.intensity,
-                        max: Number(e.target.value) || 2.5,
-                      },
-                    },
-                  })}
-                  step={0.1}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Duração Mínima (min)</Label>
-                <Input
-                  type="number"
-                  value={config.ranges.duration.min}
-                  onChange={(e) => updateConfig({
-                    ranges: {
-                      ...config.ranges,
-                      duration: {
-                        ...config.ranges.duration,
-                        min: Number(e.target.value) || 1,
-                      },
-                    },
-                  })}
-                  step={1}
-                />
-              </div>
-              <div>
-                <Label>Duração Máxima (min)</Label>
-                <Input
-                  type="number"
-                  value={config.ranges.duration.max}
-                  onChange={(e) => updateConfig({
-                    ranges: {
-                      ...config.ranges,
-                      duration: {
-                        ...config.ranges.duration,
-                        max: Number(e.target.value) || 20,
-                      },
-                    },
-                  })}
-                  step={1}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Duty Cycle Mínimo (%)</Label>
-                <Input
-                  type="number"
-                  value={config.ranges.dutyCycle.min}
-                  onChange={(e) => updateConfig({
-                    ranges: {
-                      ...config.ranges,
-                      dutyCycle: {
-                        ...config.ranges.dutyCycle,
-                        min: Number(e.target.value) || 10,
-                      },
-                    },
-                  })}
-                  step={5}
-                />
-              </div>
-              <div>
-                <Label>Duty Cycle Máximo (%)</Label>
-                <Input
-                  type="number"
-                  value={config.ranges.dutyCycle.max}
-                  onChange={(e) => updateConfig({
-                    ranges: {
-                      ...config.ranges,
-                      dutyCycle: {
-                        ...config.ranges.dutyCycle,
-                        max: Number(e.target.value) || 100,
-                      },
-                    },
-                  })}
-                  step={5}
-                />
-              </div>
-            </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Ranges — profundidade focal e camadas custom</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <RangeMinMaxStepEditor
+              label="Profundidade focal"
+              range={focusDepthRange}
+              unit="cm"
+              absoluteMin={FOCUS_DEPTH_ABSOLUTE_MIN}
+              absoluteMax={TOTAL_BLOCK_DEPTH}
+              onChange={(focusDepth) =>
+                updateConfig({ ranges: { ...config.ranges, focusDepth } })
+              }
+            />
+            <RangeMinMaxStepEditor
+              label="Pele (custom)"
+              range={thicknessRanges.skin}
+              unit="cm"
+              onChange={(skin) =>
+                updateConfig({
+                  ranges: { ...config.ranges, customThicknesses: { ...thicknessRanges, skin } },
+                })
+              }
+            />
+            <RangeMinMaxStepEditor
+              label="Gordura (custom)"
+              range={thicknessRanges.fat}
+              unit="cm"
+              onChange={(fat) =>
+                updateConfig({
+                  ranges: { ...config.ranges, customThicknesses: { ...thicknessRanges, fat } },
+                })
+              }
+            />
+            <RangeMinMaxStepEditor
+              label="Músculo (custom)"
+              range={thicknessRanges.muscle}
+              unit="cm"
+              onChange={(muscle) =>
+                updateConfig({
+                  ranges: { ...config.ranges, customThicknesses: { ...thicknessRanges, muscle } },
+                })
+              }
+            />
           </CardContent>
         </Card>
       </TabsContent>

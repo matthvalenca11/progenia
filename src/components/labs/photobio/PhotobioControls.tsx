@@ -63,6 +63,8 @@ export function PhotobioControls() {
   const spotSize = usePhotobioStore((s) => s.spotSize);
   const exposureTime = usePhotobioStore((s) => s.exposureTime);
   const dutyCycle = usePhotobioStore((s) => s.dutyCycle);
+  const transducerAngle = usePhotobioStore((s) => s.transducerAngle);
+  const contactPressure = usePhotobioStore((s) => s.contactPressure);
   const irradiance = usePhotobioStore((s) => s.irradiance());
   const energy = usePhotobioStore((s) => s.energy());
   const fluence = usePhotobioStore((s) => s.fluence());
@@ -73,6 +75,8 @@ export function PhotobioControls() {
   const setSpotSize = usePhotobioStore((s) => s.setSpotSize);
   const setExposureTime = usePhotobioStore((s) => s.setExposureTime);
   const setDutyCycle = usePhotobioStore((s) => s.setDutyCycle);
+  const setTransducerAngle = usePhotobioStore((s) => s.setTransducerAngle);
+  const setContactPressure = usePhotobioStore((s) => s.setContactPressure);
   const resetDefaults = usePhotobioStore((s) => s.resetDefaults);
   const controlModes = usePhotobioStore((s) => s.controlModes);
   const modeOf = (key: keyof typeof controlModes) => controlModes[key] ?? "show";
@@ -116,8 +120,33 @@ export function PhotobioControls() {
       )}
 
       {mode === "Pulsed" && !shouldHide("showMode") && (
-        <ControlRow label="Duty cycle" value={dutyCycle} unit=" %" min={1} max={100} step={1} onChange={setDutyCycle} disabled={shouldDisable("showMode")} />
+        <ControlRow label="Duty cycle" value={dutyCycle} unit=" %" min={10} max={90} step={1} onChange={setDutyCycle} disabled={shouldDisable("showMode")} />
       )}
+
+      <div className="space-y-1 border-t pt-4">
+        <p className="text-xs font-medium text-muted-foreground">Técnica de aplicação</p>
+        <ControlRow
+          label="Ângulo do transdutor"
+          value={transducerAngle}
+          unit="°"
+          min={0}
+          max={180}
+          step={1}
+          onChange={setTransducerAngle}
+        />
+        <ControlRow
+          label="Pressão de contato"
+          value={contactPressure}
+          unit=" %"
+          min={0}
+          max={100}
+          step={1}
+          onChange={setContactPressure}
+        />
+        <p className="text-[10px] text-muted-foreground leading-snug">
+          Perpendicular (~90°) e pressão moderada (40–60%) maximizam a dose efetiva.
+        </p>
+      </div>
 
       {(!shouldHide("showAnatomyPresets") || !shouldHide("showCustomAnatomy")) && (
       <AnatomyControls
@@ -145,7 +174,8 @@ export function PhotobioControls() {
       <button
         type="button"
         onClick={resetDefaults}
-        className="w-full rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent"
+        className="w-full rounded-md border px-3 py-2.5 text-sm font-medium hover:bg-accent min-h-[44px]"
+        aria-label="Resetar parâmetros para valores padrão"
       >
         Resetar parâmetros
       </button>

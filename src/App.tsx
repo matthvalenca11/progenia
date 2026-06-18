@@ -12,6 +12,7 @@ import { ConsentProvider, useConsent } from "./contexts/ConsentContext";
 import { isNativeApp, isNativeMobile } from "@/lib/capacitor";
 import { hasCompletedNativeLanguageOnboarding } from "@/lib/nativeLanguageOnboarding";
 import { NativeLanguageOnboarding } from "@/components/onboarding/NativeLanguageOnboarding";
+import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import AITutor from "@/components/AITutor";
 import Sobre from "@/pages/Sobre";
 import Contact from "@/pages/Contact";
@@ -40,6 +41,9 @@ import { CookiePreferencesButton } from "@/components/privacy/CookiePreferencesB
 import { applyTelemetryFromConsent, initConsentAwareTelemetry } from "@/lib/telemetry";
 
 const Landing = lazy(() => import("@/pages/Landing"));
+const TherapeuticLabSmoke = import.meta.env.DEV
+  ? lazy(() => import("@/pages/dev/TherapeuticLabSmoke"))
+  : null;
 
 const queryClient = new QueryClient();
 
@@ -165,6 +169,16 @@ const AppContent = () => {
           <Route path="/admin/labs/editar/:labId" element={<VirtualLabEditorUnified />} />
           <Route path="/labs/:slug" element={<LabViewer />} />
           <Route path="/delete-user-test" element={<DeleteUserTest />} />
+          {import.meta.env.DEV && TherapeuticLabSmoke ? (
+            <Route
+              path="/dev/lab-smoke/:type?"
+              element={
+                <Suspense fallback={null}>
+                  <TherapeuticLabSmoke />
+                </Suspense>
+              }
+            />
+          ) : null}
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
@@ -200,7 +214,9 @@ const App = () => (
               <Sonner />
               <AppRouter>
                 <PrivacyBootstrap />
-                <AppContent />
+                <AppErrorBoundary>
+                  <AppContent />
+                </AppErrorBoundary>
               </AppRouter>
             </TooltipProvider>
           </AuthProvider>

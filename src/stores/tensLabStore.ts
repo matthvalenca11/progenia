@@ -13,8 +13,8 @@ import {
 } from "@/simulation/TensFieldEngine";
 import { TensLabConfig, defaultTensLabConfig } from "@/types/tensLabConfig";
 
-export type BottomDockTab = "analysis" | "waveform" | "safety" | "notes";
-export type ViewerTab = "anatomy" | "electric" | "activated";
+export type BottomDockTab = "waveform" | "safety" | "notes";
+export type ViewerTab = "anatomy" | "electric" | "activated" | "lesion";
 export type ExperienceLevel = "beginner" | "intermediate" | "advanced";
 
 interface TensLabState {
@@ -76,7 +76,7 @@ export const useTensLabStore = create<TensLabState>((set, get) => ({
   mode: "convencional",
   electrodes: { ...defaultElectrodeConfig },
   viewerTab: "electric",
-  bottomDockTab: "analysis",
+  bottomDockTab: "waveform",
   bottomDockExpanded: false,
   controlPanelCollapsed: false,
   experienceLevel: "intermediate",

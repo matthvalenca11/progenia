@@ -1,8 +1,13 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { TensMode } from '@/lib/tensSimulation';
 import { TissueConfig } from '@/types/tissueConfig';
+import {
+  getMaxTensFieldLines,
+  getMaxTensFieldParticles,
+  getTensFieldLineSegments,
+} from '@/lib/therapeuticLabsPerformance';
 
 type VisualizationMode = 'anatomical' | 'electric' | 'lesion';
 
@@ -60,7 +65,7 @@ export function ElectricFieldVisualization({
   // Generate curved field lines - agora distorce ao redor de implantes e inclusões
   const fieldLines = useMemo(() => {
     const lines: THREE.Vector3[][] = [];
-    const numLines = Math.floor(8 + intensityNorm * 12);
+    const numLines = getMaxTensFieldLines(intensityNorm);
     
     const [x1, y1, z1] = electrodePositions.proximal;
     const [x2, y2, z2] = electrodePositions.distal;
@@ -154,6 +159,31 @@ export function ElectricFieldVisualization({
     return lines;
   }, [electrodePositions, intensityNorm, penetrationDepth, tissueConfig]);
 
+  const lineSegments = getTensFieldLineSegments();
+
+  const lineObjects = useMemo(() => {
+    return fieldLines.map((points) => {
+      const curve = new THREE.CatmullRomCurve3(points);
+      const linePoints = curve.getPoints(lineSegments);
+      const geometry = new THREE.BufferGeometry().setFromPoints(linePoints);
+      const material = new THREE.LineBasicMaterial({
+        color: visualMode === 'lesion' ? '#ff6666' : '#4499ff',
+        transparent: true,
+        opacity: 0.5,
+      });
+      return new THREE.Line(geometry, material);
+    });
+  }, [fieldLines, lineSegments, visualMode]);
+
+  useEffect(() => {
+    return () => {
+      lineObjects.forEach((line) => {
+        line.geometry.dispose();
+        (line.material as THREE.Material).dispose();
+      });
+    };
+  }, [lineObjects]);
+
   // Animate field lines based on mode and frequency
   useFrame((state) => {
     if (!fieldLinesRef.current) return;
@@ -200,20 +230,9 @@ export function ElectricFieldVisualization({
     <group>
       {/* Field Lines */}
       <group ref={fieldLinesRef}>
-        {fieldLines.map((points, index) => {
-          const curve = new THREE.CatmullRomCurve3(points);
-          const linePoints = curve.getPoints(50);
-          const geometry = new THREE.BufferGeometry().setFromPoints(linePoints);
-          const material = new THREE.LineBasicMaterial({
-            color: visualMode === 'lesion' ? '#ff6666' : '#4499ff',
-            transparent: true,
-            opacity: 0.5,
-          });
-          
-          return (
-            <primitive key={index} object={new THREE.Line(geometry, material)} />
-          );
-        })}
+        {lineObjects.map((line, index) => (
+          <primitive key={index} object={line} />
+        ))}
       </group>
 
       {/* Volumetric field representation (fog-like) */}
@@ -267,10 +286,11 @@ function FieldParticles({
   frequency: number;
 }) {
   const particlesRef = useRef<THREE.Points>(null);
+  const basePositionsRef = useRef<Float32Array | null>(null);
 
   const particleGeometry = useMemo(() => {
     const geometry = new THREE.BufferGeometry();
-    const numParticles = Math.floor(50 + intensity * 100);
+    const numParticles = getMaxTensFieldParticles(intensity);
     const positions = new Float32Array(numParticles * 3);
     
     const [x1, y1] = electrodePositions.proximal;
@@ -288,6 +308,7 @@ function FieldParticles({
       positions[i * 3 + 2] = z;
     }
     
+    basePositionsRef.current = positions.slice();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     return geometry;
   }, [electrodePositions, penetrationDepth, intensity]);
@@ -295,12 +316,16 @@ function FieldParticles({
   useFrame((state) => {
     if (!particlesRef.current) return;
     
+    const base = basePositionsRef.current;
+    if (!base) return;
+
     const time = state.clock.elapsedTime;
     const positions = particlesRef.current.geometry.attributes.position.array as Float32Array;
+    const count = Math.min(base.length, positions.length) / 3;
     
-    for (let i = 0; i < positions.length / 3; i++) {
-      const offset = Math.sin(time * frequency / 10 + i * 0.1) * 0.02;
-      positions[i * 3 + 1] += offset;
+    for (let i = 0; i < count; i++) {
+      const wobble = Math.sin(time * frequency / 10 + i * 0.1) * 0.02;
+      positions[i * 3 + 1] = base[i * 3 + 1] + wobble;
     }
     
     particlesRef.current.geometry.attributes.position.needsUpdate = true;

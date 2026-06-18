@@ -11,6 +11,7 @@ import { ThermalHotspot } from './ThermalHotspot';
 import { Tens3DSceneSetup } from './Tens3DSceneSetup';
 import { Button } from '@/components/ui/button';
 import { Eye, Zap, AlertTriangle } from 'lucide-react';
+import { pickRandomClinicalSkinTone } from '@/lib/clinicalSkinTones';
 
 type VisualizationMode = 'anatomical' | 'electric' | 'lesion';
 
@@ -60,6 +61,7 @@ export function Tens3DSimulator({
   // Normalize parameters
   const intensityNorm = Math.min(1, intensitymA / 80);
   const pulseNorm = (pulseWidthUs - 50) / (400 - 50);
+  const skinTone = useMemo(() => pickRandomClinicalSkinTone(), []);
   const freqNorm = (frequencyHz - 1) / (200 - 1);
   
   // Calculate lesion index
@@ -149,11 +151,12 @@ export function Tens3DSimulator({
 
         {/* Tissue Layers - key forces re-render when config changes */}
         <TissueLayersModel
-          key={`${tissueConfig.skinThickness}-${tissueConfig.fatThickness}-${tissueConfig.muscleThickness}-${tissueConfig.hasMetalImplant}`}
+          key={`${tissueConfig.skinThickness}-${tissueConfig.fatThickness}-${tissueConfig.muscleThickness}-${tissueConfig.hasMetalImplant}-${skinTone.id}`}
           tissueConfig={tissueConfig}
           visualMode={visualMode}
           intensityNorm={intensityNorm}
           lesionIndex={lesionIndex}
+          skinTone={skinTone}
         />
 
         {/* Electrodes - sempre visíveis */}

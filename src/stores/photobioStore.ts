@@ -27,7 +27,7 @@ interface PhotobioState {
   spotSize: number; // cm² (0.1-1.0)
   exposureTime: number; // s (1-300)
   mode: PhotobioMode;
-  dutyCycle: 50; // % fixo para modo pulsado
+  dutyCycle: number; // % em modo pulsado (10–90)
   transducerAngle: number; // 0..180, default 90
   contactPressure: number; // 0..100
   isDragging: boolean;
@@ -72,7 +72,7 @@ interface PhotobioState {
     spotSize: number;
     exposureTime: number;
     mode: PhotobioMode;
-    dutyCycle: 50;
+    dutyCycle: number;
     transducerAngle: number;
     contactPressure: number;
     isDragging: boolean;
@@ -94,7 +94,7 @@ const DEFAULTS = {
   spotSize: 0.5,
   exposureTime: 30,
   mode: "CW" as PhotobioMode,
-  dutyCycle: 50 as const,
+  dutyCycle: 50,
   transducerAngle: 90,
   contactPressure: 50,
   isDragging: false,
@@ -141,7 +141,7 @@ const computeEnergy = (
   power: number,
   exposureTime: number,
   mode: PhotobioMode,
-  dutyCycle: 50
+  dutyCycle: number
 ) => {
   const modeFactor = mode === "Pulsed" ? dutyCycle / 100 : 1;
   return (power / 1000) * exposureTime * modeFactor;
@@ -238,9 +238,7 @@ export const usePhotobioStore = create<PhotobioState>((set, get) => ({
   },
 
   setDutyCycle: (value) => {
-    // Duty cycle fixo por especificacao: manter 50% para modo pulsado.
-    void value;
-    set({ dutyCycle: 50 });
+    set({ dutyCycle: clamp(value, 10, 90) });
     get().runSimulation();
   },
 
@@ -334,7 +332,7 @@ export const usePhotobioStore = create<PhotobioState>((set, get) => ({
       spotSize: clamp(config.spotSize ?? get().spotSize, 0.1, 1.0),
       exposureTime: clamp(config.exposureTime ?? get().exposureTime, 1, 300),
       mode: config.mode ?? get().mode,
-      dutyCycle: 50 as const,
+      dutyCycle: clamp(config.dutyCycle ?? get().dutyCycle, 10, 90),
       transducerAngle: clamp(config.transducerAngle ?? get().transducerAngle, 0, 180),
       contactPressure: clamp(config.contactPressure ?? get().contactPressure, 0, 100),
       isDragging: config.isDragging ?? get().isDragging,

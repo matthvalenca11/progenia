@@ -15,8 +15,13 @@ import { UltrasoundTherapyLabConfigEditor } from "@/components/admin/UltrasoundT
 import { MRILabConfigEditor } from "@/components/admin/MRILabConfigEditor";
 import { MRILabPreview } from "@/components/admin/MRILabPreview";
 import { LabVideoUploader } from "@/components/admin/LabVideoUploader";
+import { assertValidYouTubeUrl } from "@/lib/youtube";
 import { defaultTensLabConfig } from "@/types/tensLabConfig";
-import { defaultUltrasoundTherapyConfig } from "@/types/ultrasoundTherapyConfig";
+import {
+  defaultUltrasoundTherapyConfig,
+  mergeUltrasoundTherapyConfig,
+  type UltrasoundTherapyConfig,
+} from "@/types/ultrasoundTherapyConfig";
 import { defaultMRILabConfig } from "@/types/mriLabConfig";
 import TensLabPage from "@/pages/TensLabPage";
 import MRILabPage from "@/pages/MRILabPage";
@@ -176,8 +181,9 @@ export default function VirtualLabEditorUnified() {
       }
 
       // Add video URL to config_data (applies to ALL lab types)
-      if (videoUrl) {
-        configData = { ...configData, videoUrl };
+      if (videoUrl?.trim()) {
+        assertValidYouTubeUrl(videoUrl.trim(), "vídeo de apoio do laboratório");
+        configData = { ...configData, videoUrl: videoUrl.trim() };
       }
 
       // Silent migration (Photobiomodulation):
@@ -570,7 +576,7 @@ export default function VirtualLabEditorUnified() {
         {/* Ultrasound Therapy Configuration */}
         {lab.lab_type === "ultrasound_therapy" && lab.config_data && (
           <UltrasoundTherapyLabConfigEditor
-            config={lab.config_data}
+            config={mergeUltrasoundTherapyConfig(lab.config_data as Partial<UltrasoundTherapyConfig>)}
             onChange={(config) => setLab({ ...lab, config_data: config })}
           />
         )}

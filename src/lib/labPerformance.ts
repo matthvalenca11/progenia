@@ -1,5 +1,11 @@
+/**
+ * Performance defaults for lab 3D canvases.
+ * Visual quality tiers (textures, instances, contact AO): @/lib/ultrasoundVisualQuality
+ */
+
 import { Capacitor } from "@capacitor/core";
 import type { CanvasProps } from "@react-three/fiber";
+import { shouldEnableRealTimeShadows } from "@/lib/ultrasoundVisualQuality";
 
 export const isAndroidNative =
   Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
@@ -18,7 +24,7 @@ export const labGlProps = {
   preserveDrawingBuffer: false,
 };
 
-export const labCanvasShadows = !isAndroidNative;
+export const labCanvasShadows = shouldEnableRealTimeShadows();
 
 /**
  * Props padrão para Canvas nos labs.
@@ -35,6 +41,15 @@ export const labCanvasProps: Partial<CanvasProps> = {
     : {
         performance: { min: 0.5, max: 1.5, debounce: 200 },
       }),
+};
+
+/** Canvas sem adaptive DPR — evita “piscada” ao regredir pixel ratio (labs pesados). */
+export const labCanvasStableProps: Partial<CanvasProps> = {
+  dpr: labCanvasDpr,
+  gl: labGlProps,
+  frameloop: "always",
+  shadows: labCanvasShadows,
+  resize: { scroll: false, debounce: { scroll: 50, resize: 0 } },
 };
 
 export function tuneLabGlCanvas(canvas: HTMLCanvasElement) {
