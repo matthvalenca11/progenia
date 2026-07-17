@@ -15,6 +15,10 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 import { isNativeApp } from "@/lib/capacitor";
 import { EmbeddedVideo } from "@/components/EmbeddedVideo";
+import { CompletionSuggestionsMosaic } from "@/components/CompletionSuggestionsMosaic";
+import { getActiveCompletionSuggestions } from "@/lib/completionSuggestions";
+import { ParametricChartRenderer } from "@/components/ParametricChartRenderer";
+import type { DynamicChartBlockData } from "@/types/dynamicChart";
 
 const CapsuleViewer = () => {
   const { capsulaId } = useParams();
@@ -22,6 +26,7 @@ const CapsuleViewer = () => {
   const [capsula, setCapsula] = useState<Capsula | null>(null);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [progress, setProgress] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<{ [key: number]: number }>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
@@ -109,7 +114,14 @@ const CapsuleViewer = () => {
         });
       }
 
-      setTimeout(() => navigate("/dashboard"), 1500);
+      setProgress(100);
+
+      const suggestions = getActiveCompletionSuggestions(capsula?.content_data?.completion_suggestions);
+      if (suggestions.length > 0) {
+        setShowSuggestions(true);
+      } else {
+        setTimeout(() => navigate("/dashboard"), 1500);
+      }
     } catch (error: any) {
       console.error("Error completing capsula:", error);
       toast.error("Erro ao marcar cápsula como concluída");
@@ -162,13 +174,16 @@ const CapsuleViewer = () => {
   if (!capsula) return null;
 
   const contentData = capsula.content_data as any;
-  const hasContent = contentData && (contentData.text || contentData.media?.length > 0 || contentData.quiz?.length > 0 || contentData.virtualLabId);
+  const completionSuggestions = getActiveCompletionSuggestions(contentData?.completion_suggestions);
+  const hasChart = !!(contentData?.chartId || contentData?.dynamic_chart);
+  const hasContent = contentData && (contentData.text || contentData.media?.length > 0 || contentData.quiz?.length > 0 || contentData.virtualLabId || hasChart);
   const mediaItems = Array.isArray(contentData?.media) ? contentData.media : [];
   const orderedTokensRaw = Array.isArray(contentData?.content_order) ? contentData.content_order : [];
   const defaultOrder = [
     ...(contentData?.text ? ["text"] : []),
     ...mediaItems.map((_: any, idx: number) => `media:${idx}`),
     ...(contentData?.virtualLabId ? ["virtualLab"] : []),
+    ...(hasChart ? ["dynamicChart"] : []),
     ...(Array.isArray(contentData?.quiz) && contentData.quiz.length > 0 ? ["quiz"] : []),
   ];
   const validTokens = new Set(defaultOrder);
@@ -284,6 +299,21 @@ const CapsuleViewer = () => {
                   );
                 }
 
+                if (token === "dynamicChart" && hasChart) {
+                  return (
+                    <div key="dynamicChart" className="min-w-0 w-full">
+                      <ParametricChartRenderer
+                        chartId={contentData.chartId}
+                        inlineConfig={
+                          !contentData.chartId
+                            ? (contentData.dynamic_chart as DynamicChartBlockData)
+                            : undefined
+                        }
+                      />
+                    </div>
+                  );
+                }
+
                 if (token === "quiz" && contentData.quiz && contentData.quiz.length > 0) {
                   return (
                     <Card key="quiz" className="p-6">
@@ -382,6 +412,16 @@ const CapsuleViewer = () => {
               <CheckCircle2 className="h-5 w-5 ml-2" />
             </Button>
           </Card>
+        )}
+
+        {(showSuggestions || (progress === 100 && completionSuggestions.length > 0)) && (
+          <CompletionSuggestionsMosaic
+            title="Continue explorando"
+            subtitle="Conteúdos relacionados selecionados para aprofundar este tema."
+            items={completionSuggestions}
+            onDismiss={() => navigate("/dashboard")}
+            dismissLabel="Voltar ao dashboard"
+          />
         )}
       </div>
     </div>

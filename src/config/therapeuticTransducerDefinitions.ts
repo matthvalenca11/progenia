@@ -158,7 +158,6 @@ export const THERAPEUTIC_TRANSDUCERS: Record<
       headBodyStyle: "pistol_circular",
       faceHScale: 1,
       collarHScale: 1,
-      headTint: "#e0f2fe",
     },
     beam: {},
   },
@@ -185,7 +184,6 @@ export const THERAPEUTIC_TRANSDUCERS: Record<
       headBodyStyle: "ifu_lens",
       faceHScale: 2.05,
       collarHScale: 0.68,
-      headTint: "#ffedd5",
     },
     beam: {
       waistRatio: 0.24,

@@ -23,30 +23,16 @@ import {
   type UltrasoundTherapyConfig,
 } from "@/types/ultrasoundTherapyConfig";
 import { defaultMRILabConfig } from "@/types/mriLabConfig";
+import {
+  defaultPhotobioLabConfig,
+  mergePhotobioLabConfig,
+  type PhotobioLabConfig,
+} from "@/types/photobioLabConfig";
+import { PhotobioLabConfigEditor } from "@/components/admin/PhotobioLabConfigEditor";
 import TensLabPage from "@/pages/TensLabPage";
 import MRILabPage from "@/pages/MRILabPage";
 import { useUltrasoundLabStore } from "@/stores/ultrasoundLabStore";
 import { useMRILabStore } from "@/stores/mriLabStore";
-import PhotobioLabPage from "@/pages/PhotobioLabPage";
-import { Switch } from "@/components/ui/switch";
-
-const defaultPhotobioConfig = {
-  wavelength: 660 as const,
-  power: 100,
-  spotSize: 0.5,
-  exposureTime: 30,
-  mode: "CW" as const,
-  dutyCycle: 50,
-  controlModes: {
-    showWavelength: "show" as const,
-    showPower: "show" as const,
-    showSpotSize: "show" as const,
-    showExposureTime: "show" as const,
-    showMode: "show" as const,
-    showAnatomyPresets: "show" as const,
-    showCustomAnatomy: "show" as const,
-  },
-};
 
 export default function VirtualLabEditorUnified() {
   const navigate = useNavigate();
@@ -57,7 +43,6 @@ export default function VirtualLabEditorUnified() {
   const [loading, setLoading] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | undefined>();
   const [mriPreviewMode, setMriPreviewMode] = useState<"student" | "admin">("student");
-  const [photobioAdminTab, setPhotobioAdminTab] = useState<"preview" | "controls">("preview");
   const [lab, setLab] = useState<Partial<VirtualLab>>({
     name: "",
     slug: "",
@@ -95,7 +80,11 @@ export default function VirtualLabEditorUnified() {
       setLoading(true);
       const data = await virtualLabService.getById(labId!);
       if (data) {
-        setLab(data);
+        const mergedData =
+          data.lab_type === "photobiomodulation"
+            ? { ...data, config_data: mergePhotobioLabConfig(data.config_data as Partial<PhotobioLabConfig>) }
+            : data;
+        setLab(mergedData);
         
         // Load video URL from config_data
         if (data.config_data?.videoUrl) {
@@ -186,41 +175,19 @@ export default function VirtualLabEditorUnified() {
         configData = { ...configData, videoUrl: videoUrl.trim() };
       }
 
-      // Silent migration (Photobiomodulation):
-      // Persist only controlModes and remove legacy visibility fields.
+      // Silent migration (Photobiomodulation): merge with full schema, strip legacy keys
       if (lab.lab_type === "photobiomodulation") {
-        const cfg = (configData || {}) as Record<string, any>;
-        const mergedControlModes = {
-          ...defaultPhotobioConfig.controlModes,
-          ...(cfg.controlModes || {}),
-        };
-
-        // Backward compatibility read -> new shape (only while saving old labs)
-        if (cfg.visibleControls && typeof cfg.visibleControls === "object") {
-          const fallbackMode =
-            cfg.controlDisplayMode === "disabled" || cfg.controlDisplayMode === "hidden"
-              ? cfg.controlDisplayMode
-              : "hidden";
-          (Object.keys(cfg.visibleControls) as Array<keyof typeof mergedControlModes>).forEach((key) => {
-            const visible = cfg.visibleControls[key];
-            if (typeof visible === "boolean") {
-              mergedControlModes[key] = visible ? "show" : fallbackMode;
-            }
-          });
-        }
-
+        const merged = mergePhotobioLabConfig(configData as Partial<PhotobioLabConfig>);
         const {
           visibleControls: _legacyVisibleControls,
           controlDisplayMode: _legacyControlDisplayMode,
-          ...restConfig
-        } = cfg;
+          initialPreset: _legacyInitialPreset,
+          ...rest
+        } = (configData || {}) as Record<string, unknown>;
         void _legacyVisibleControls;
         void _legacyControlDisplayMode;
-
-        configData = {
-          ...restConfig,
-          controlModes: mergedControlModes,
-        };
+        void _legacyInitialPreset;
+        configData = { ...rest, ...merged };
       }
 
       const labData = {
@@ -269,7 +236,7 @@ export default function VirtualLabEditorUnified() {
       // Deep clone to avoid reference issues
       updates.config_data = JSON.parse(JSON.stringify(defaultMRILabConfig));
     } else if (newType === "photobiomodulation") {
-      updates.config_data = JSON.parse(JSON.stringify(defaultPhotobioConfig));
+      updates.config_data = structuredClone(defaultPhotobioLabConfig);
     }
 
     setLab({ ...lab, ...updates });
@@ -737,131 +704,14 @@ export default function VirtualLabEditorUnified() {
               onVideoChange={setVideoUrl}
               disabled={loading}
             />
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Pré-visualização Fotobiomodulação</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-3 grid grid-cols-2 gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={photobioAdminTab === "preview" ? "default" : "outline"}
-                    onClick={() => setPhotobioAdminTab("preview")}
-                  >
-                    Pré-visualização
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={photobioAdminTab === "controls" ? "default" : "outline"}
-                    onClick={() => setPhotobioAdminTab("controls")}
-                  >
-                    Controles do Estudante
-                  </Button>
-                </div>
-
-                {photobioAdminTab === "preview" ? (
-                  <div className="rounded-xl border bg-slate-50 p-2">
-                    <PhotobioLabPage config={(lab.config_data || defaultPhotobioConfig) as Record<string, unknown>} />
-                  </div>
-                ) : (
-                  <div className="space-y-5 rounded-xl border bg-muted/20 p-4">
-                    <div className="space-y-2 rounded-lg border bg-card p-3">
-                      <p className="text-sm font-medium">Controles disponíveis para estudantes</p>
-                      {[
-                        { key: "showWavelength", label: "Comprimento de onda" },
-                        { key: "showPower", label: "Potência" },
-                        { key: "showSpotSize", label: "Área do spot" },
-                        { key: "showExposureTime", label: "Tempo de exposição" },
-                        { key: "showMode", label: "Modo CW/Pulsed" },
-                        { key: "showAnatomyPresets", label: "Presets anatômicos" },
-                        { key: "showCustomAnatomy", label: "Anatomia customizada" },
-                      ].map((item) => {
-                        const controlModes = {
-                          ...defaultPhotobioConfig.controlModes,
-                          ...((lab.config_data as any)?.controlModes || {}),
-                        };
-                        const mode = controlModes[item.key as keyof typeof controlModes] || "show";
-                        const checked = mode === "show";
-                        return (
-                          <div
-                            key={item.key}
-                            className="space-y-2 rounded-md border px-3 py-2"
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <Label className="text-sm">{item.label}</Label>
-                              <Switch
-                                checked={checked}
-                                onCheckedChange={(enabled) => {
-                                  setLab((prev) => ({
-                                    ...prev,
-                                    config_data: {
-                                      ...(prev.config_data || {}),
-                                      controlModes: {
-                                        ...defaultPhotobioConfig.controlModes,
-                                        ...((prev.config_data as any)?.controlModes || {}),
-                                        [item.key]: enabled ? "show" : "hidden",
-                                      },
-                                    },
-                                  }));
-                                }}
-                              />
-                            </div>
-                            {!checked && (
-                              <div className="grid grid-cols-2 gap-2">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant={mode === "hidden" ? "default" : "outline"}
-                                  onClick={() =>
-                                    setLab((prev) => ({
-                                      ...prev,
-                                      config_data: {
-                                        ...(prev.config_data || {}),
-                                        controlModes: {
-                                          ...defaultPhotobioConfig.controlModes,
-                                          ...((prev.config_data as any)?.controlModes || {}),
-                                          [item.key]: "hidden",
-                                        },
-                                      },
-                                    }))
-                                  }
-                                >
-                                  Ocultar
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant={mode === "disabled" ? "default" : "outline"}
-                                  onClick={() =>
-                                    setLab((prev) => ({
-                                      ...prev,
-                                      config_data: {
-                                        ...(prev.config_data || {}),
-                                        controlModes: {
-                                          ...defaultPhotobioConfig.controlModes,
-                                          ...((prev.config_data as any)?.controlModes || {}),
-                                          [item.key]: "disabled",
-                                        },
-                                      },
-                                    }))
-                                  }
-                                >
-                                  Desabilitar
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           </>
+        )}
+
+        {lab.lab_type === "photobiomodulation" && (
+          <PhotobioLabConfigEditor
+            config={mergePhotobioLabConfig(lab.config_data as Partial<PhotobioLabConfig>)}
+            onChange={(config) => setLab({ ...lab, config_data: config })}
+          />
         )}
 
         {!["ultrasound", "tens", "ultrasound_therapy", "mri", "photobiomodulation"].includes(lab.lab_type || "") && (

@@ -1414,6 +1414,45 @@ export type Database = {
         }
         Relationships: []
       }
+      parametric_charts: {
+        Row: {
+          config_data: Json
+          created_at: string | null
+          description: string | null
+          id: string
+          is_published: boolean | null
+          name: string
+          slug: string
+          thumbnail_url: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          config_data?: Json
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_published?: boolean | null
+          name: string
+          slug: string
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          config_data?: Json
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_published?: boolean | null
+          name?: string
+          slug?: string
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       admin_dashboard_overview: {

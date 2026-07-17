@@ -16,6 +16,9 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ProGeniaLogo } from "@/components/ProGeniaLogo";
 import { EmbeddedVideo } from "@/components/EmbeddedVideo";
+import { CompletionSuggestionsMosaic } from "@/components/CompletionSuggestionsMosaic";
+import { getActiveCompletionSuggestions } from "@/lib/completionSuggestions";
+import { ParametricChartRenderer, resolveParametricChartBlockData } from "@/components/ParametricChartRenderer";
 export default function LessonViewer() {
   const {
     lessonId
@@ -32,6 +35,7 @@ export default function LessonViewer() {
   const [loading, setLoading] = useState(true);
   const [nextLesson, setNextLesson] = useState<any>(null);
   const [showNextLessonDialog, setShowNextLessonDialog] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   useEffect(() => {
     if (!authLoading && !user) {
       navigate("/auth");
@@ -112,7 +116,10 @@ export default function LessonViewer() {
 
       await loadProgress();
 
-      if (nextLesson) {
+      const suggestions = getActiveCompletionSuggestions(lesson?.content_data?.completion_suggestions);
+      if (suggestions.length > 0) {
+        setShowSuggestions(true);
+      } else if (nextLesson) {
         setShowNextLessonDialog(true);
       }
     } catch (error: any) {
@@ -137,6 +144,7 @@ export default function LessonViewer() {
   const contentData = lesson.content_data || {};
   const blocks = contentData.blocks || [];
   const references = contentData.references || [];
+  const completionSuggestions = getActiveCompletionSuggestions(contentData.completion_suggestions);
   const thumbnail = (isEnglish ? contentData.thumbnail_en : null) || contentData.thumbnail;
   return <div className="container mx-auto space-y-6 px-3 py-4 sm:px-4 sm:py-8">
       {/* Header */}
@@ -293,6 +301,16 @@ export default function LessonViewer() {
                         </CardContent>
                       </Card>
                     )}
+
+                    {block.type === "dynamic_chart" && block.data && (() => {
+                      const resolved = resolveParametricChartBlockData(block.data);
+                      return (
+                        <ParametricChartRenderer
+                          chartId={resolved.chartId}
+                          inlineConfig={resolved.inlineConfig}
+                        />
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               ))
@@ -381,6 +399,16 @@ export default function LessonViewer() {
             Marcar como concluída
           </Button>
         </div>
+      )}
+
+      {(showSuggestions || (isCompleted && completionSuggestions.length > 0)) && (
+        <CompletionSuggestionsMosaic
+          title="Continue explorando"
+          subtitle="Conteúdos relacionados selecionados para aprofundar este tema."
+          items={completionSuggestions}
+          onDismiss={() => navigate(`/module/${lesson.module_id}`)}
+          dismissLabel="Voltar ao módulo"
+        />
       )}
 
       {/* Diálogo de Próxima Aula */}

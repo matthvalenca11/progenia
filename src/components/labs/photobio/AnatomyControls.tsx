@@ -43,6 +43,7 @@ export function AnatomyControls({
 }: AnatomyControlsProps) {
   const anatomyPreset = usePhotobioStore((s) => s.anatomyPreset);
   const layerConfig = usePhotobioStore((s) => s.layerConfig);
+  const parameterRanges = usePhotobioStore((s) => s.parameterRanges);
   const setAnatomyPreset = usePhotobioStore((s) => s.setAnatomyPreset);
   const setCustomLayerThickness = usePhotobioStore((s) => s.setCustomLayerThickness);
   const [openCustom, setOpenCustom] = useState(anatomyPreset === "custom");
@@ -94,33 +95,33 @@ export function AnatomyControls({
           <LayerSlider
             label="Epiderme"
             value={layerConfig.epidermisMm}
-            min={0.2}
-            max={3}
-            step={0.1}
+            min={parameterRanges.layerThickness.epidermisMm.min}
+            max={parameterRanges.layerThickness.epidermisMm.max}
+            step={parameterRanges.layerThickness.epidermisMm.step ?? 0.1}
             onChange={(v) => setCustomLayerThickness("epidermisMm", v)}
           />
           <LayerSlider
             label="Derme"
             value={layerConfig.dermisMm}
-            min={0.5}
-            max={10}
-            step={0.1}
+            min={parameterRanges.layerThickness.dermisMm.min}
+            max={parameterRanges.layerThickness.dermisMm.max}
+            step={parameterRanges.layerThickness.dermisMm.step ?? 0.1}
             onChange={(v) => setCustomLayerThickness("dermisMm", v)}
           />
           <LayerSlider
             label="Adiposo"
             value={layerConfig.adiposeMm}
-            min={1}
-            max={60}
-            step={0.5}
+            min={parameterRanges.layerThickness.adiposeMm.min}
+            max={parameterRanges.layerThickness.adiposeMm.max}
+            step={parameterRanges.layerThickness.adiposeMm.step ?? 0.5}
             onChange={(v) => setCustomLayerThickness("adiposeMm", v)}
           />
           <LayerSlider
             label="Músculo"
             value={layerConfig.muscleMm}
-            min={5}
-            max={60}
-            step={0.5}
+            min={parameterRanges.layerThickness.muscleMm.min}
+            max={parameterRanges.layerThickness.muscleMm.max}
+            step={parameterRanges.layerThickness.muscleMm.step ?? 0.5}
             onChange={(v) => setCustomLayerThickness("muscleMm", v)}
           />
         </div>

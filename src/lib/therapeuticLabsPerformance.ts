@@ -47,6 +47,24 @@ export function getPhotobioRingCount(): number {
   return isAndroidNative ? 6 : 10;
 }
 
+export type PhotobioVisualQualityTier = "low" | "medium" | "high";
+
+export function getPhotobioVisualQualityTier(): PhotobioVisualQualityTier {
+  if (isAndroidNative) return "low";
+  if (typeof window !== "undefined" && window.innerWidth < 768) return "medium";
+  return "high";
+}
+
+/** Resolução do mapa 2D óptico (grid de interação) */
+export const PHOTOBIO_MAP_RESOLUTION_DESKTOP = { width: 72, height: 56 } as const;
+export const PHOTOBIO_MAP_RESOLUTION_MOBILE = { width: 48, height: 36 } as const;
+
+export function getPhotobioInteractionMapResolution(): { width: number; height: number } {
+  return isAndroidNative
+    ? { ...PHOTOBIO_MAP_RESOLUTION_MOBILE }
+    : { ...PHOTOBIO_MAP_RESOLUTION_DESKTOP };
+}
+
 /** Raios ao redor de implante metálico TENS */
 export function getMetalHotspotRayCount(): number {
   return isAndroidNative ? 4 : 8;

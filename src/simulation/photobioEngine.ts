@@ -1,9 +1,22 @@
 /**
  * photobioEngine.ts
  * Motor físico simplificado para Fotobiomodulação (FBM) em contexto educacional.
+ * Óptica multicamada: src/lib/photobioOptics.ts (single source of truth).
  */
 
-export type PhotobioWavelength = 660 | 808;
+import {
+  buildPhotobioLayers,
+  classifyPhotobioDose,
+  computePhotobioOptics,
+  type PhotobioDepthSample,
+  type PhotobioDoseZoneColor,
+  type PhotobioLayerConfig,
+  type PhotobioPenetrationLayer,
+  type PhotobioWavelength,
+  getMuscleEntryDepthMm,
+} from "@/lib/photobioOptics";
+
+export type { PhotobioLayerConfig, PhotobioWavelength } from "@/lib/photobioOptics";
 
 export type ArndtSchulzZone =
   | "Subdose / Efeito Nulo"
@@ -12,18 +25,11 @@ export type ArndtSchulzZone =
   | "Bioinibição / Saturação"
   | "Transição";
 
-export type ArndtSchulzZoneColor = "yellow" | "green" | "blue" | "red" | "gray";
+export type ArndtSchulzZoneColor = PhotobioDoseZoneColor;
 export type PhotobioAnatomyPreset = "default" | "elderly" | "athlete" | "obese" | "custom";
 
-export interface PhotobioLayerConfig {
-  epidermisMm: number;
-  dermisMm: number;
-  adiposeMm: number;
-  muscleMm: number;
-}
-
 export interface PenetrationLayer {
-  layer: "epidermis_dermis" | "hypodermis" | "muscle";
+  layer: PhotobioPenetrationLayer["layer"];
   absorbedFraction: number;
 }
 
@@ -39,12 +45,21 @@ export interface TissueInteractionResult {
   angleEfficiency: number;
   pressureFactor: number;
   speedFactor: number;
+  contactOpticalCoupling: number;
   anatomyWarning?: string;
   techniqueWarnings: string[];
   thermalWarning: boolean;
   irradiance: number;
   energy: number;
   fluence: number;
+  /** Óptica derivada — evita recomputar no painel */
+  depthSamples: PhotobioDepthSample[];
+  superficialAbsorptionIndex: number;
+  deepDeliveryIndex: number;
+  thermalRiskIndex: number;
+  dominantOpticalPhenomenon: string;
+  muscleEntryDepthMm: number;
+  opticsWavelength: PhotobioWavelength;
 }
 
 export interface TissueInteractionInput {
@@ -52,11 +67,31 @@ export interface TissueInteractionInput {
   irradiance: number; // mW/cm^2
   fluence: number; // J/cm^2
   energy: number; // J
+  spotSize: number; // cm^2
   layerConfig: PhotobioLayerConfig;
   transducerAngle: number; // degrees
   contactPressure: number; // 0..100
   isDragging: boolean;
   draggingSpeed: number;
+  skinMelaninIndex?: number;
+}
+
+export function calculatePhotobioIrradiance(powerMw: number, spotSizeCm2: number): number {
+  return powerMw / Math.max(spotSizeCm2, 0.001);
+}
+
+export function calculatePhotobioEnergy(
+  powerMw: number,
+  exposureTimeSec: number,
+  mode: "CW" | "Pulsed",
+  dutyCyclePct: number,
+): number {
+  const modeFactor = mode === "Pulsed" ? Math.max(0, Math.min(100, dutyCyclePct)) / 100 : 1;
+  return (powerMw / 1000) * exposureTimeSec * modeFactor;
+}
+
+export function calculatePhotobioFluence(energyJ: number, spotSizeCm2: number): number {
+  return energyJ / Math.max(spotSizeCm2, 0.001);
 }
 
 export function calculateRealDoseFactor(input: {
@@ -65,7 +100,7 @@ export function calculateRealDoseFactor(input: {
   isDragging: boolean;
   draggingSpeed: number;
 }) {
-  const angle = Math.max(0, Math.min(180, input.transducerAngle));
+  const angle = Math.max(30, Math.min(150, input.transducerAngle));
   const radians = (Math.abs(90 - angle) * Math.PI) / 180;
   const angleEfficiency = Math.cos(radians);
 
@@ -85,12 +120,9 @@ export function calculateRealDoseFactor(input: {
   return { realDoseFactor, angleEfficiency, pressureFactor, speedFactor };
 }
 
+/** @deprecated Prefer classifyPhotobioDose de photobioOptics */
 export function calculateArndtSchulzZone(fluence: number): ArndtSchulzZone {
-  if (fluence < 2) return "Subdose / Efeito Nulo";
-  if (fluence >= 2 && fluence <= 8) return "Janela Terapêutica Ativa";
-  if (fluence >= 10 && fluence <= 30) return "Efeito Inibitório / Sedação";
-  if (fluence > 50) return "Bioinibição / Saturação";
-  return "Transição";
+  return classifyPhotobioDose(fluence).label as ArndtSchulzZone;
 }
 
 export function getZoneInsight(zone: ArndtSchulzZone): string {
@@ -110,39 +142,36 @@ export function getZoneInsight(zone: ArndtSchulzZone): string {
 }
 
 export function getZoneColor(zone: ArndtSchulzZone): ArndtSchulzZoneColor {
-  if (zone === "Subdose / Efeito Nulo") return "yellow";
-  if (zone === "Janela Terapêutica Ativa") return "green";
-  if (zone === "Efeito Inibitório / Sedação") return "blue";
-  if (zone === "Bioinibição / Saturação") return "red";
-  return "gray";
+  return classifyPhotobioDose(
+    zone === "Subdose / Efeito Nulo"
+      ? 0
+      : zone === "Janela Terapêutica Ativa"
+        ? 5
+        : zone === "Efeito Inibitório / Sedação"
+          ? 20
+          : zone === "Bioinibição / Saturação"
+            ? 60
+            : 9,
+  ).color;
 }
 
-export function getPenetrationProfile(wavelength: PhotobioWavelength): PenetrationLayer[] {
-  if (wavelength === 660) {
-    // 660 nm (red): higher superficial attenuation
-    return [
-      { layer: "epidermis_dermis", absorbedFraction: 0.7 },
-      { layer: "hypodermis", absorbedFraction: 0.3 },
-      { layer: "muscle", absorbedFraction: 0.0 },
-    ];
-  }
-
-  // 808 nm (IR): deeper penetration
-  return [
-    { layer: "epidermis_dermis", absorbedFraction: 0.2 },
-    { layer: "hypodermis", absorbedFraction: 0.5 },
-    { layer: "muscle", absorbedFraction: 0.3 },
-  ];
+export function getPenetrationProfile(
+  wavelength: PhotobioWavelength,
+  layerConfig: PhotobioLayerConfig,
+): PenetrationLayer[] {
+  return computePhotobioOptics({
+    wavelength,
+    fluenceJcm2: 1,
+    effectiveFluenceJcm2: 1,
+    irradianceMwCm2: 100,
+    spotSizeCm2: 0.5,
+    layers: buildPhotobioLayers(layerConfig),
+  }).penetrationProfile;
 }
 
 export function calculateTissueInteraction(
   input: TissueInteractionInput
 ): TissueInteractionResult {
-  const penetrationProfile = getPenetrationProfile(input.wavelength);
-  const arndtSchulzZone = calculateArndtSchulzZone(input.fluence);
-  const statusColor = getZoneColor(arndtSchulzZone);
-  const attenuationK = input.wavelength === 660 ? 0.038 : 0.02;
-  const muscleFluenceRatio = Math.exp(-attenuationK * Math.max(0, input.layerConfig.adiposeMm));
   const doseFactor = calculateRealDoseFactor({
     transducerAngle: input.transducerAngle,
     contactPressure: input.contactPressure,
@@ -150,14 +179,30 @@ export function calculateTissueInteraction(
     draggingSpeed: input.draggingSpeed,
   });
   const effectiveFluence = input.fluence * doseFactor.realDoseFactor;
-  const muscleFluence = effectiveFluence * muscleFluenceRatio;
+
+  const optics = computePhotobioOptics({
+    wavelength: input.wavelength,
+    fluenceJcm2: input.fluence,
+    effectiveFluenceJcm2: effectiveFluence,
+    irradianceMwCm2: input.irradiance,
+    spotSizeCm2: input.spotSize,
+    layers: buildPhotobioLayers(input.layerConfig),
+    transducerAngleDeg: input.transducerAngle,
+    contactPressure: input.contactPressure,
+    incidenceEfficiency: doseFactor.angleEfficiency,
+    skinMelaninIndex: input.skinMelaninIndex,
+  });
+
+  const doseClass = optics.doseClassification;
+  const arndtSchulzZone = doseClass.label as ArndtSchulzZone;
+  const statusColor = doseClass.color;
   const adiposeThick = input.layerConfig.adiposeMm >= 20;
   const anatomyWarning = adiposeThick
     ? "Atenção: A espessura do tecido adiposo requer um ajuste maior de energia (Joules) para atingir a janela terapêutica no músculo."
     : undefined;
   const baseInsight = getZoneInsight(arndtSchulzZone);
   const insight = anatomyWarning ? `${baseInsight} ${anatomyWarning}` : baseInsight;
-  const thermalWarning = input.irradiance > 500;
+  const thermalWarning = optics.thermalRiskIndex >= 1;
   const techniqueWarnings: string[] = [];
   if (input.isDragging && input.draggingSpeed > 1.6) {
     techniqueWarnings.push("Movimento muito rápido detectado. Subdose em Scanning.");
@@ -178,23 +223,30 @@ export function calculateTissueInteraction(
   }
 
   return {
-    penetrationProfile,
+    penetrationProfile: optics.penetrationProfile,
     arndtSchulzZone,
     statusColor,
     insight,
-    muscleFluence,
-    muscleFluenceRatio,
+    muscleFluence: optics.targetMuscleFluenceJcm2,
+    muscleFluenceRatio: optics.targetMuscleTransmission,
     effectiveFluence,
     realDoseFactor: doseFactor.realDoseFactor,
     angleEfficiency: doseFactor.angleEfficiency,
     pressureFactor: doseFactor.pressureFactor,
     speedFactor: doseFactor.speedFactor,
+    contactOpticalCoupling: optics.contactTransmission,
     anatomyWarning,
     techniqueWarnings,
     thermalWarning,
     irradiance: input.irradiance,
     energy: input.energy,
     fluence: input.fluence,
+    depthSamples: optics.depthSamples,
+    superficialAbsorptionIndex: optics.superficialAbsorptionIndex,
+    deepDeliveryIndex: optics.deepDeliveryIndex,
+    thermalRiskIndex: optics.thermalRiskIndex,
+    dominantOpticalPhenomenon: optics.dominantOpticalPhenomenon,
+    muscleEntryDepthMm: getMuscleEntryDepthMm(input.layerConfig),
+    opticsWavelength: input.wavelength,
   };
 }
-

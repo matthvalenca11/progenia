@@ -3,22 +3,25 @@ import { usePhotobioStore } from "@/stores/photobioStore";
 import { TissueViewer } from "./TissueViewer";
 import { PhotobioControls } from "./PhotobioControls";
 import { PhotobioInsightsPanel } from "./PhotobioInsightsPanel";
+import { PhotobioSimulationStatusBar } from "./PhotobioSimulationStatusBar";
+import { GuidedPhotobioCoach } from "./GuidedPhotobioCoach";
 import { ArrowLeft, RotateCcw, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
 import { LabConfigMenu } from "./LabConfigMenu";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { LabMobilePanelTab, LabMobileTabBar } from "@/components/labs/LabMobileTabBar";
 import { labMobileFlexClass, labMobilePanelClass, labCanvasHostClass } from "@/components/labs/labMobileLayout";
 import { cn } from "@/lib/utils";
 import { EducationalSimulationDisclaimer } from "@/components/labs/EducationalSimulationDisclaimer";
+import { mergePhotobioLabConfig, type PhotobioLabConfig } from "@/types/photobioLabConfig";
 
 interface PhotobioLabV2Props {
-  config?: Record<string, unknown>;
+  config?: Partial<PhotobioLabConfig> | Record<string, unknown>;
   labName?: string;
   showBackButton?: boolean;
   isEditMode?: boolean;
+  previewMode?: boolean;
 }
 
 export function PhotobioLabV2({
@@ -26,15 +29,14 @@ export function PhotobioLabV2({
   labName = "Laboratório de Fotobiomodulação",
   showBackButton = true,
   isEditMode = false,
+  previewMode = false,
 }: PhotobioLabV2Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
-  const setFromConfig = usePhotobioStore((s) => s.setFromConfig);
+  const initializeLab = usePhotobioStore((s) => s.initializeLab);
   const resetDefaults = usePhotobioStore((s) => s.resetDefaults);
-  const interaction = usePhotobioStore((s) => s.interaction);
-  const fluence = usePhotobioStore((s) => s.fluence());
-  const irradiance = usePhotobioStore((s) => s.irradiance());
+  const featureFlags = usePhotobioStore((s) => s.featureFlags);
   const [mobilePanel, setMobilePanel] = useState<LabMobilePanelTab>("controls");
 
   const isAdminConfigMode =
@@ -42,45 +44,10 @@ export function PhotobioLabV2({
 
   useEffect(() => {
     if (!config) return;
-    const initialPresetRaw = String(
-      (config.initialPreset as string | undefined) || ""
-    ).toLowerCase();
-    const initialPreset =
-      initialPresetRaw === "idoso"
-        ? "elderly"
-        : initialPresetRaw === "atleta"
-          ? "athlete"
-          : initialPresetRaw === "obeso"
-            ? "obese"
-            : initialPresetRaw === "padrao" || initialPresetRaw === "padrão"
-              ? "default"
-              : undefined;
-    const aliasControlModes: Record<string, "show" | "hidden"> = {
-      showWavelength: typeof config.showWavelength === "boolean" ? (config.showWavelength as boolean ? "show" : "hidden") : "show",
-      showPower: typeof config.showPower === "boolean" ? (config.showPower as boolean ? "show" : "hidden") : "show",
-      showSpotSize: typeof config.showSpotSize === "boolean" ? (config.showSpotSize as boolean ? "show" : "hidden") : "show",
-      showExposureTime: typeof config.showExposureTime === "boolean" ? (config.showExposureTime as boolean ? "show" : "hidden") : "show",
-      showMode: typeof config.showMode === "boolean" ? (config.showMode as boolean ? "show" : "hidden") : "show",
-      showAnatomyPresets: typeof config.showAnatomyPresets === "boolean" ? (config.showAnatomyPresets as boolean ? "show" : "hidden") : "show",
-      showCustomAnatomy: typeof config.showCustomAnatomy === "boolean" ? (config.showCustomAnatomy as boolean ? "show" : "hidden") : "show",
-    };
-    setFromConfig({
-      wavelength: (config.wavelength as 660 | 808 | undefined) ?? undefined,
-      power: typeof config.power === "number" ? config.power : undefined,
-      spotSize: typeof config.spotSize === "number" ? config.spotSize : undefined,
-      exposureTime: typeof config.exposureTime === "number" ? config.exposureTime : undefined,
-      mode: (config.mode as "CW" | "Pulsed" | undefined) ?? undefined,
-      dutyCycle: typeof config.dutyCycle === "number" ? config.dutyCycle : undefined,
-      anatomyPreset: (config.anatomyPreset as any) ?? (initialPreset as any) ?? undefined,
-      controlModes:
-        typeof config.controlModes === "object" && config.controlModes
-          ? {
-              ...aliasControlModes,
-              ...(config.controlModes as Record<string, "show" | "hidden" | "disabled">),
-            }
-          : aliasControlModes,
+    initializeLab(mergePhotobioLabConfig(config), {
+      preserveSessionAppearance: previewMode,
     });
-  }, [config, setFromConfig]);
+  }, [config, initializeLab, previewMode]);
 
   if (isMobile) {
     return (
@@ -99,24 +66,18 @@ export function PhotobioLabV2({
               <RotateCcw className="h-4 w-4" />
             </Button>
           </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="text-[10px]">
-              {fluence.toFixed(2)} J/cm²
-            </Badge>
-            {interaction.thermalWarning && (
-              <Badge className="text-[10px] bg-red-500/20 text-red-500 border-red-500/40 animate-pulse">
-                Térmico {irradiance.toFixed(0)} mW/cm²
-              </Badge>
-            )}
-            <Badge className={`text-[10px] ${interaction.arndtSchulzZone === "Janela Terapêutica Ativa" ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:text-emerald-400" : "bg-muted text-foreground border-border"}`}>
-              {interaction.arndtSchulzZone}
-            </Badge>
-          </div>
         </header>
 
-        <section className="relative h-[min(48dvh,55vh)] min-h-[40dvh] shrink-0 overflow-hidden border-b border-border bg-background">
+        <PhotobioSimulationStatusBar compact onReset={resetDefaults} />
+
+        <section className="relative h-[min(52dvh,58vh)] min-h-[42dvh] shrink-0 overflow-hidden border-b border-border bg-background">
           <div className={labCanvasHostClass}>
             <TissueViewer />
+          </div>
+          <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-10 max-w-md">
+            {featureFlags.showGuidedMode && (
+              <GuidedPhotobioCoach compact className="pointer-events-auto shadow-lg" />
+            )}
           </div>
         </section>
 
@@ -163,43 +124,19 @@ export function PhotobioLabV2({
               <h1 className="font-medium text-sm text-foreground">{labName}</h1>
             </div>
           </div>
-
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="text-xs">
-              Fluência: {fluence.toFixed(2)} J/cm²
-            </Badge>
-            {interaction.thermalWarning && (
-              <Badge className="text-xs bg-red-500/20 text-red-400 border-red-500/40 animate-pulse">
-                ⚠ Térmico {irradiance.toFixed(0)} mW/cm²
-              </Badge>
-            )}
-            <Badge
-              className={
-                interaction.arndtSchulzZone === "Janela Terapêutica Ativa"
-                  ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                  : interaction.arndtSchulzZone === "Bioinibição / Saturação"
-                    ? "bg-red-500/15 text-red-400 border-red-500/30"
-                    : "bg-muted text-foreground border-border"
-              }
-            >
-              {interaction.arndtSchulzZone}
-            </Badge>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={resetDefaults}
-              className="text-muted-foreground hover:text-foreground gap-1.5 text-xs"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              Reset
-            </Button>
-          </div>
         </div>
       </header>
 
-      <main className="h-[54dvh] md:h-auto flex-1 flex items-center justify-center min-w-0 overflow-hidden bg-background">
+      <PhotobioSimulationStatusBar onReset={resetDefaults} />
+
+      <main className="relative h-[54dvh] md:h-auto flex-1 flex items-center justify-center min-w-0 overflow-hidden bg-background">
         <div className="w-full h-full p-4">
           <TissueViewer />
+        </div>
+        <div className="pointer-events-none absolute bottom-6 left-6 z-10 max-w-sm">
+          {featureFlags.showGuidedMode && (
+            <GuidedPhotobioCoach compact className="pointer-events-auto shadow-lg" />
+          )}
         </div>
       </main>
 
@@ -208,12 +145,12 @@ export function PhotobioLabV2({
           <EducationalSimulationDisclaimer compact />
         </div>
         <div className="flex min-h-0 flex-1">
-        <aside className="w-1/2 border-r border-border overflow-y-auto bg-card">
-          <PhotobioControls />
-        </aside>
-        <aside className="w-1/2 overflow-y-auto bg-card">
-          <PhotobioInsightsPanel />
-        </aside>
+          <aside className="w-1/2 border-r border-border overflow-y-auto bg-card">
+            <PhotobioControls />
+          </aside>
+          <aside className="w-1/2 overflow-y-auto bg-card">
+            <PhotobioInsightsPanel />
+          </aside>
         </div>
       </div>
     </div>

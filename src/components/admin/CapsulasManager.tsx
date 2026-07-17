@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileUploadField } from "@/components/ui/FileUploadField";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Eye, EyeOff, Zap, Link as LinkIcon, Upload, Loader2, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, EyeOff, Zap, Link as LinkIcon, Upload, Loader2, ChevronUp, ChevronDown, LineChart } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { storageService } from "@/services/storageService";
 import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
@@ -26,6 +26,13 @@ import {
   validateYouTubeUrl,
 } from "@/lib/youtube";
 import { IMAGE_UPLOAD_MAX_MB } from "@/lib/uploadLimits";
+import { CompletionSuggestionsEditor } from "@/components/admin/CompletionSuggestionsEditor";
+import {
+  DEFAULT_COMPLETION_SUGGESTIONS,
+  type CompletionSuggestionsConfig,
+} from "@/types/completionSuggestions";
+import { normalizeCompletionSuggestions } from "@/lib/completionSuggestions";
+import { parametricChartService, ParametricChart } from "@/services/parametricChartService";
 
 type Capsula = {
   id: string;
@@ -72,8 +79,10 @@ type CapsulaFormData = {
   contentText: string;
   media: MediaItem[];
   virtualLabId: string;
+  chartId: string;
   quiz: QuizQuestion[];
   contentOrder: string[];
+  completionSuggestions: CompletionSuggestionsConfig;
 };
 
 export function CapsulasManager() {
@@ -86,7 +95,9 @@ export function CapsulasManager() {
   const [filterModuleId, setFilterModuleId] = useState<string>("all");
   const [saving, setSaving] = useState(false);
   const [virtualLabs, setVirtualLabs] = useState<VirtualLab[]>([]);
+  const [parametricCharts, setParametricCharts] = useState<ParametricChart[]>([]);
   const [showVirtualLab, setShowVirtualLab] = useState(false);
+  const [showDynamicChart, setShowDynamicChart] = useState(false);
   const [formData, setFormData] = useState<CapsulaFormData>({
     title: "",
     description: "",
@@ -102,8 +113,10 @@ export function CapsulasManager() {
     contentText: "",
     media: [],
     virtualLabId: "none",
+    chartId: "none",
     quiz: [],
     contentOrder: [],
+    completionSuggestions: { ...DEFAULT_COMPLETION_SUGGESTIONS },
   });
 
   const generateLocalId = () =>
@@ -148,6 +161,7 @@ export function CapsulasManager() {
 
   useEffect(() => {
     loadVirtualLabs();
+    loadParametricCharts();
   }, []);
 
   const loadVirtualLabs = async () => {
@@ -159,8 +173,18 @@ export function CapsulasManager() {
     }
   };
 
+  const loadParametricCharts = async () => {
+    try {
+      const charts = await parametricChartService.getPublishedCharts();
+      setParametricCharts(charts);
+    } catch (error: any) {
+      console.error("Erro ao carregar gráficos:", error);
+    }
+  };
+
   const resetForm = () => {
     setShowVirtualLab(false);
+    setShowDynamicChart(false);
     setFormData({
       title: "",
       description: "",
@@ -176,8 +200,10 @@ export function CapsulasManager() {
       contentText: "",
       media: [],
       virtualLabId: "none",
+      chartId: "none",
       quiz: [],
       contentOrder: [],
+      completionSuggestions: { ...DEFAULT_COMPLETION_SUGGESTIONS },
     });
   };
 
@@ -302,7 +328,9 @@ export function CapsulasManager() {
         media: mediaWithUrls,
         virtualLabId: formData.virtualLabId !== "none" ? formData.virtualLabId : undefined,
         quiz: formData.quiz.length > 0 ? formData.quiz : undefined,
+        chartId: showDynamicChart && formData.chartId !== "none" ? formData.chartId : undefined,
         content_order: formData.contentOrder,
+        completion_suggestions: formData.completionSuggestions,
       };
 
       const { error: updateError } = await supabase
@@ -394,7 +422,9 @@ export function CapsulasManager() {
         media: mediaWithUrls,
         virtualLabId: formData.virtualLabId !== "none" ? formData.virtualLabId : undefined,
         quiz: formData.quiz.length > 0 ? formData.quiz : undefined,
+        chartId: showDynamicChart && formData.chartId !== "none" ? formData.chartId : undefined,
         content_order: formData.contentOrder,
+        completion_suggestions: formData.completionSuggestions,
       };
 
       const { error } = await supabase
@@ -505,10 +535,12 @@ export function CapsulasManager() {
         }))
       : [];
     const hasVirtualLab = contentData.virtualLabId && contentData.virtualLabId !== "none";
+    const hasDynamicChart = !!(contentData.chartId || contentData.dynamic_chart);
     const defaultOrder = [
       ...(contentData.text ? ["text"] : []),
       ...normalizedMedia.map((m) => `media:${m.id}`),
       ...(hasVirtualLab ? ["virtualLab"] : []),
+      ...(hasDynamicChart ? ["dynamicChart"] : []),
       ...(normalizedQuiz.length > 0 ? ["quiz"] : []),
     ];
     const savedOrder = Array.isArray(contentData.content_order) ? contentData.content_order : defaultOrder;
@@ -517,6 +549,7 @@ export function CapsulasManager() {
     const missingTokens = defaultOrder.filter((token) => !normalizedOrder.includes(token));
     const contentOrder = [...normalizedOrder, ...missingTokens];
     setShowVirtualLab(hasVirtualLab);
+    setShowDynamicChart(hasDynamicChart);
     setFormData({
       title: capsula.title,
       description: capsula.description || "",
@@ -532,8 +565,10 @@ export function CapsulasManager() {
       contentText: contentData.text || "",
       media: normalizedMedia,
       virtualLabId: contentData.virtualLabId || "none",
+      chartId: contentData.chartId || "none",
       quiz: normalizedQuiz,
       contentOrder,
+      completionSuggestions: normalizeCompletionSuggestions(contentData.completion_suggestions),
     });
     setIsDialogOpen(true);
   };
@@ -843,6 +878,23 @@ export function CapsulasManager() {
                           type="button"
                           variant="outline"
                           size="sm"
+                          onClick={() => {
+                            setShowDynamicChart(true);
+                            setFormData((prev) => ({
+                              ...prev,
+                              contentOrder: prev.contentOrder.includes("dynamicChart")
+                                ? prev.contentOrder
+                                : [...prev.contentOrder, "dynamicChart"],
+                            }));
+                          }}
+                        >
+                          <LineChart className="h-4 w-4 mr-2" />
+                          Gráfico Paramétrico
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
                           onClick={handleAddQuizQuestion}
                         >
                           <Plus className="h-4 w-4 mr-2" />
@@ -858,6 +910,7 @@ export function CapsulasManager() {
                         .filter((token) => {
                           if (token === "text") return !!formData.contentText;
                           if (token === "virtualLab") return showVirtualLab;
+                          if (token === "dynamicChart") return showDynamicChart;
                           if (token === "quiz") return formData.quiz.length > 0;
                           if (token.startsWith("media:")) {
                             const id = token.replace("media:", "");
@@ -870,6 +923,7 @@ export function CapsulasManager() {
                           const isLast = orderIndex === formData.contentOrder.filter((t) => {
                             if (t === "text") return !!formData.contentText;
                             if (t === "virtualLab") return showVirtualLab;
+                            if (t === "dynamicChart") return showDynamicChart;
                             if (t === "quiz") return formData.quiz.length > 0;
                             if (t.startsWith("media:")) {
                               const id = t.replace("media:", "");
@@ -1114,6 +1168,80 @@ export function CapsulasManager() {
                             );
                           }
 
+                          if (token === "dynamicChart" && showDynamicChart) {
+                            return (
+                              <Card key="dynamicChart">
+                                <CardHeader className="pb-3">
+                                  <div className="flex items-center justify-between">
+                                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                      <LineChart className="h-4 w-4" />
+                                      Gráfico Interativo Paramétrico
+                                    </CardTitle>
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={isFirst}
+                                        onClick={() => moveContentItem("dynamicChart", "up")}
+                                      >
+                                        <ChevronUp className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={isLast}
+                                        onClick={() => moveContentItem("dynamicChart", "down")}
+                                      >
+                                        <ChevronDown className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                          setShowDynamicChart(false);
+                                          setFormData({
+                                            ...formData,
+                                            chartId: "none",
+                                            contentOrder: formData.contentOrder.filter((t) => t !== "dynamicChart"),
+                                          });
+                                        }}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </CardHeader>
+                                <CardContent>
+                                  {parametricCharts.length === 0 ? (
+                                    <div className="text-sm text-muted-foreground p-4 bg-muted/50 rounded-md">
+                                      <p>Nenhum gráfico publicado disponível.</p>
+                                      <p className="mt-1">Vá para &quot;Gráficos Paramétricos&quot; para criar e publicar gráficos.</p>
+                                    </div>
+                                  ) : (
+                                    <Select
+                                      value={formData.chartId}
+                                      onValueChange={(value) => setFormData({ ...formData, chartId: value })}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Selecione um gráfico paramétrico" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {parametricCharts.map((chart) => (
+                                          <SelectItem key={chart.id} value={chart.id!}>
+                                            {chart.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            );
+                          }
+
                           if (token === "quiz") {
                             return (
                               <Card key="quiz">
@@ -1202,6 +1330,7 @@ export function CapsulasManager() {
                       {!formData.contentText &&
                        formData.media.length === 0 &&
                        !showVirtualLab &&
+                       !showDynamicChart &&
                        formData.quiz.length === 0 && (
                         <div className="text-center py-12 border-2 border-dashed rounded-lg">
                           <p className="text-muted-foreground">
@@ -1210,6 +1339,22 @@ export function CapsulasManager() {
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  <div className="mt-8 space-y-3">
+                    <div>
+                      <h3 className="text-lg font-semibold">Sugestões ao concluir</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Mosaico exibido ao aluno ao marcar a cápsula como concluída.
+                      </p>
+                    </div>
+                    <CompletionSuggestionsEditor
+                      value={formData.completionSuggestions}
+                      onChange={(completionSuggestions) =>
+                        setFormData((prev) => ({ ...prev, completionSuggestions }))
+                      }
+                      excludeCapsuleId={editingCapsula?.id}
+                    />
                   </div>
                 </div>
 

@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import { 
   Plus, Pencil, Trash2, Eye, EyeOff, BookOpen, Link as LinkIcon, 
   Upload, Loader2, Video, Image as ImageIcon, Beaker, FileText,
-  ExternalLink, X, GripVertical, ChevronDown, ChevronUp
+  ExternalLink, X, GripVertical, ChevronDown, ChevronUp, LineChart
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { storageService, StorageBucket } from "@/services/storageService";
@@ -31,6 +31,13 @@ import {
   validateYouTubeUrl,
 } from "@/lib/youtube";
 import { IMAGE_UPLOAD_MAX_MB } from "@/lib/uploadLimits";
+import { CompletionSuggestionsEditor } from "@/components/admin/CompletionSuggestionsEditor";
+import {
+  DEFAULT_COMPLETION_SUGGESTIONS,
+  type CompletionSuggestionsConfig,
+} from "@/types/completionSuggestions";
+import { normalizeCompletionSuggestions } from "@/lib/completionSuggestions";
+import { parametricChartService, ParametricChart } from "@/services/parametricChartService";
 
 type Lesson = {
   id: string;
@@ -45,7 +52,7 @@ type Lesson = {
 
 interface ContentBlock {
   id: string;
-  type: "text" | "video" | "image" | "virtualLab";
+  type: "text" | "video" | "image" | "virtualLab" | "dynamic_chart";
   order: number;
   data: any;
 }
@@ -79,6 +86,7 @@ type LessonFormData = {
   thumbnailEnFile: File | null;
   contentBlocks: ContentBlock[];
   references: Reference[];
+  completionSuggestions: CompletionSuggestionsConfig;
 };
 
 export function LessonsManager() {
@@ -91,6 +99,7 @@ export function LessonsManager() {
   const [filterModuleId, setFilterModuleId] = useState<string>("all");
   const [saving, setSaving] = useState(false);
   const [virtualLabs, setVirtualLabs] = useState<VirtualLab[]>([]);
+  const [parametricCharts, setParametricCharts] = useState<ParametricChart[]>([]);
   const [availableLessons, setAvailableLessons] = useState<Lesson[]>([]);
   const [activeTab, setActiveTab] = useState("basic");
   const [expandedBlock, setExpandedBlock] = useState<string | null>(null);
@@ -110,6 +119,7 @@ export function LessonsManager() {
     thumbnailEnFile: null,
     contentBlocks: [],
     references: [],
+    completionSuggestions: { ...DEFAULT_COMPLETION_SUGGESTIONS },
   });
 
   const loadLessons = async () => {
@@ -140,6 +150,7 @@ export function LessonsManager() {
 
   useEffect(() => {
     loadVirtualLabs();
+    loadParametricCharts();
   }, []);
 
   const loadVirtualLabs = async () => {
@@ -148,6 +159,15 @@ export function LessonsManager() {
       setVirtualLabs(labs.filter(lab => lab.is_published));
     } catch (error: any) {
       console.error("Erro ao carregar labs:", error);
+    }
+  };
+
+  const loadParametricCharts = async () => {
+    try {
+      const charts = await parametricChartService.getPublishedCharts();
+      setParametricCharts(charts);
+    } catch (error: any) {
+      console.error("Erro ao carregar gráficos:", error);
     }
   };
 
@@ -167,6 +187,7 @@ export function LessonsManager() {
       thumbnailEnFile: null,
       contentBlocks: [],
       references: [],
+      completionSuggestions: { ...DEFAULT_COMPLETION_SUGGESTIONS },
     });
     setActiveTab("basic");
   };
@@ -331,6 +352,7 @@ export function LessonsManager() {
         prerequisites: formData.prerequisiteLessons,
         thumbnail: finalThumbnailUrl || null,
         thumbnail_en: finalThumbnailUrlEn || null,
+        completion_suggestions: formData.completionSuggestions,
       };
 
       const { error: updateError } = await supabase
@@ -394,6 +416,7 @@ export function LessonsManager() {
         prerequisites: formData.prerequisiteLessons,
         thumbnail: finalThumbnailUrl || null,
         thumbnail_en: finalThumbnailUrlEn || null,
+        completion_suggestions: formData.completionSuggestions,
       };
 
       const { error } = await supabase
@@ -502,6 +525,7 @@ export function LessonsManager() {
       thumbnailEnFile: null,
       contentBlocks: contentData.blocks || [],
       references: contentData.references || [],
+      completionSuggestions: normalizeCompletionSuggestions(contentData.completion_suggestions),
     });
     setIsDialogOpen(true);
   };
@@ -520,6 +544,7 @@ export function LessonsManager() {
       order: formData.contentBlocks.length,
       data: type === "text" ? { content: "" } : 
             type === "virtualLab" ? { labId: "" } :
+            type === "dynamic_chart" ? { chartId: "" } :
             { source: "link", url: "" }
     };
     setFormData({
@@ -625,6 +650,7 @@ export function LessonsManager() {
       case "video": return <Video className="h-4 w-4" />;
       case "image": return <ImageIcon className="h-4 w-4" />;
       case "virtualLab": return <Beaker className="h-4 w-4" />;
+      case "dynamic_chart": return <LineChart className="h-4 w-4" />;
     }
   };
 
@@ -634,6 +660,7 @@ export function LessonsManager() {
       case "video": return "Vídeo";
       case "image": return "Imagem";
       case "virtualLab": return "Lab Virtual";
+      case "dynamic_chart": return "Gráfico Interativo";
     }
   };
 
@@ -963,6 +990,15 @@ export function LessonsManager() {
                         <Beaker className="h-4 w-4 mr-2" />
                         Adicionar Lab Virtual
                       </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addContentBlock("dynamic_chart")}
+                      >
+                        <LineChart className="h-4 w-4 mr-2" />
+                        Gráfico Paramétrico
+                      </Button>
                     </div>
 
                     <Separator />
@@ -1235,6 +1271,36 @@ export function LessonsManager() {
                                     )}
                                   </div>
                                 )}
+
+                                {block.type === "dynamic_chart" && (
+                                  <div>
+                                    <Label>Selecionar Gráfico Paramétrico</Label>
+                                    {parametricCharts.length === 0 ? (
+                                      <div className="text-sm text-muted-foreground p-4 bg-muted/50 rounded-md mt-2">
+                                        <p>Nenhum gráfico publicado disponível.</p>
+                                        <p className="mt-1">Vá para &quot;Gráficos Paramétricos&quot; para criar e publicar gráficos.</p>
+                                      </div>
+                                    ) : (
+                                      <Select
+                                        value={block.data.chartId || ""}
+                                        onValueChange={(value) =>
+                                          updateContentBlock(block.id, { chartId: value })
+                                        }
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Escolha um gráfico" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {parametricCharts.map((chart) => (
+                                            <SelectItem key={chart.id} value={chart.id!}>
+                                              {chart.name}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </Card>
@@ -1394,6 +1460,16 @@ export function LessonsManager() {
                         </div>
                       )}
                     </div>
+
+                    <Separator />
+
+                    <CompletionSuggestionsEditor
+                      value={formData.completionSuggestions}
+                      onChange={(completionSuggestions) =>
+                        setFormData((prev) => ({ ...prev, completionSuggestions }))
+                      }
+                      excludeLessonId={editingLesson?.id}
+                    />
 
                     <Separator />
 

@@ -30,6 +30,8 @@ import CapsuleViewer from "@/pages/CapsuleViewer";
 import AllCapsules from "@/pages/AllCapsules";
 import VirtualLabEditorUnified from "@/pages/VirtualLabEditorUnified";
 import VirtualLabsAdmin from "@/pages/VirtualLabsAdmin";
+import ParametricChartsAdmin from "@/pages/ParametricChartsAdmin";
+import ParametricChartEditor from "@/pages/ParametricChartEditor";
 import LabViewer from "@/pages/LabViewer";
 import DeleteUserTest from "@/pages/DeleteUserTest";
 import BlogNoticias from "@/pages/BlogNoticias";
@@ -167,6 +169,9 @@ const AppContent = () => {
           <Route path="/admin/labs" element={<VirtualLabsAdmin />} />
           <Route path="/admin/labs/novo" element={<VirtualLabEditorUnified />} />
           <Route path="/admin/labs/editar/:labId" element={<VirtualLabEditorUnified />} />
+          <Route path="/admin/charts" element={<ParametricChartsAdmin />} />
+          <Route path="/admin/charts/novo" element={<ParametricChartEditor />} />
+          <Route path="/admin/charts/editar/:chartId" element={<ParametricChartEditor />} />
           <Route path="/labs/:slug" element={<LabViewer />} />
           <Route path="/delete-user-test" element={<DeleteUserTest />} />
           {import.meta.env.DEV && TherapeuticLabSmoke ? (

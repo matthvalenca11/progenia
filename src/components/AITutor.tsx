@@ -134,24 +134,33 @@ const AITutor = ({ mobileLeadingActions }: AITutorProps) => {
   }, [messages]);
 
   const fetchCatalog = async () => {
-    const [caps, labs, lessons, modules] = await Promise.all([
-      supabase.from("capsulas").select("id, title").eq("is_published", true),
-      supabase.from("virtual_labs").select("slug, title").eq("is_published", true),
-      supabase.from("lessons").select("id, title").eq("is_published", true),
-      supabase.from("modules").select("id, title").eq("is_published", true),
-    ]);
-    const c: Catalog = {
-      capsulas: caps.data || [],
-      labs: labs.data || [],
-      lessons: lessons.data || [],
-      modules: modules.data || [],
-    };
-    setCatalog(c);
-    return c;
+    try {
+      const [caps, labs, lessons, modules] = await Promise.all([
+        supabase.from("capsulas").select("id, title").eq("is_published", true),
+        supabase.from("virtual_labs").select("slug, title").eq("is_published", true),
+        supabase.from("lessons").select("id, title").eq("is_published", true),
+        supabase.from("modules").select("id, title").eq("is_published", true),
+      ]);
+      const c: Catalog = {
+        capsulas: caps.data || [],
+        labs: labs.data || [],
+        lessons: lessons.data || [],
+        modules: modules.data || [],
+      };
+      setCatalog(c);
+      return c;
+    } catch (error) {
+      console.warn("AI Tutor catalog warning:", error);
+      const emptyCatalog: Catalog = { capsulas: [], labs: [], lessons: [], modules: [] };
+      setCatalog(emptyCatalog);
+      return emptyCatalog;
+    }
   };
 
   useEffect(() => {
-    if (isOpen && !catalog) fetchCatalog();
+    if (isOpen && !catalog) {
+      void fetchCatalog();
+    }
   }, [isOpen]);
 
   const handleSend = async () => {
@@ -163,7 +172,7 @@ const AITutor = ({ mobileLeadingActions }: AITutorProps) => {
     setLoading(true);
 
     try {
-      await fetchCatalog();
+      const currentCatalog = catalog ?? await fetchCatalog();
       const { data, error } = await invokeEdgeFunction<{ response?: string; error?: string }>(
         "ai-tutor",
         {
@@ -181,7 +190,7 @@ const AITutor = ({ mobileLeadingActions }: AITutorProps) => {
       if (data?.response) {
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: makeNoInfoResponseMoreConcise(data.response) },
+          { role: "assistant", content: makeNoInfoResponseMoreConcise(fixProGeniaLinks(data.response, currentCatalog)) },
         ]);
       } else if (data?.error) {
         setMessages((prev) => [

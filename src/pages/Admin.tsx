@@ -14,6 +14,7 @@ import {
   Beaker,
   Award,
   FlaskConical,
+  LineChart,
   Mail,
   Bug,
   Instagram,
@@ -29,6 +30,7 @@ import { UsersManager } from "@/components/admin/UsersManager";
 import { ModulesManager } from "@/components/admin/ModulesManager";
 import { MediaLibrary } from "@/components/admin/MediaLibrary";
 import VirtualLabsAdmin from "./VirtualLabsAdmin";
+import ParametricChartsAdmin from "./ParametricChartsAdmin";
 import { EmailSettingsManager } from "@/components/admin/EmailSettingsManager";
 import { AboutManager } from "@/components/admin/AboutManager";
 import { ComplainsManager } from "@/components/admin/ComplainsManager";
@@ -227,6 +229,20 @@ const Admin = () => {
                 <AccordionContent>
                   <div className="pt-2">
                     <VirtualLabsAdmin />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="content-charts">
+                <AccordionTrigger>
+                  <span className="inline-flex items-center gap-2">
+                    <LineChart className="h-4 w-4" />
+                    {isEnglish ? "Parametric Charts" : "Gráficos Paramétricos"}
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="pt-2">
+                    <ParametricChartsAdmin />
                   </div>
                 </AccordionContent>
               </AccordionItem>

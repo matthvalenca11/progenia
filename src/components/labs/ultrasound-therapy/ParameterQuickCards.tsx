@@ -37,12 +37,13 @@ interface QuickCardProps {
   children?: React.ReactNode;
 }
 
-function QuickCard({ title, value, hint, status, disabled, children }: QuickCardProps) {
+function QuickCard({ title, value, hint, status, disabled, children, demo = false }: QuickCardProps & { demo?: boolean }) {
   const styles = STATUS_STYLES[status];
   const body = (
     <div
       className={cn(
-        "rounded-xl border p-3 text-left transition-colors",
+        "rounded-xl border text-left transition-colors",
+        demo ? "p-2.5" : "p-3",
         styles.border,
         styles.bg,
         disabled ? "pointer-events-none opacity-40" : "cursor-pointer hover:brightness-[1.02]",
@@ -52,8 +53,12 @@ function QuickCard({ title, value, hint, status, disabled, children }: QuickCard
         <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</p>
         <span className={cn("mt-0.5 h-2 w-2 shrink-0 rounded-full", styles.dot)} title={styles.label} />
       </div>
-      <p className="mt-1 font-mono text-sm font-bold tabular-nums text-foreground">{value}</p>
-      <p className={cn("mt-1 line-clamp-2 leading-snug", utHint)}>{hint}</p>
+      <p className={cn("font-mono font-bold tabular-nums text-foreground", demo ? "mt-0.5 text-xs" : "mt-1 text-sm")}>
+        {value}
+      </p>
+      {!demo && hint ? (
+        <p className={cn("mt-1 line-clamp-2 leading-snug", utHint)}>{hint}</p>
+      ) : null}
     </div>
   );
 
@@ -101,7 +106,13 @@ function SegmentEdit({
   );
 }
 
-export function ParameterQuickCards({ compact = false }: { compact?: boolean }) {
+export function ParameterQuickCards({
+  compact = false,
+  demo = false,
+}: {
+  compact?: boolean;
+  demo?: boolean;
+}) {
   const { config, updateConfig, flushSimulation, simulationResult, effectiveCoupling } =
     useUltrasoundTherapyStore();
   const commitSim = () => flushSimulation();
@@ -132,12 +143,14 @@ export function ParameterQuickCards({ compact = false }: { compact?: boolean }) 
   const cards = (
     <div
       className={cn(
-        "grid gap-2",
-        compact ? "grid-cols-2" : "grid-cols-2 xl:grid-cols-3",
+        demo
+          ? "flex gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]"
+          : cn("grid gap-2", compact ? "grid-cols-2" : "grid-cols-2 xl:grid-cols-3"),
       )}
     >
       {ec.frequency !== false && (
         <QuickCard
+          demo={demo}
           title="Frequência"
           value={`${config.frequency.toFixed(1)} MHz`}
           hint={freqHint}
@@ -156,6 +169,7 @@ export function ParameterQuickCards({ compact = false }: { compact?: boolean }) 
 
       {ec.intensity && (
         <QuickCard
+          demo={demo}
           title="Intensidade"
           value={`${config.intensity.toFixed(1)} W/cm²`}
           hint="Potência por área — valores altos com transdutor parado aumentam risco de hotspot."
@@ -174,6 +188,7 @@ export function ParameterQuickCards({ compact = false }: { compact?: boolean }) 
 
       {ec.mode && (
         <QuickCard
+          demo={demo}
           title="Modo"
           value={config.mode === "continuous" ? "Contínuo" : "Pulsado"}
           hint={
@@ -194,7 +209,7 @@ export function ParameterQuickCards({ compact = false }: { compact?: boolean }) 
         </QuickCard>
       )}
 
-      {ec.dutyCycle && config.mode === "pulsed" && (
+      {!demo && ec.dutyCycle && config.mode === "pulsed" && (
         <QuickCard
           title="Duty cycle"
           value={`${config.dutyCycle}%`}
@@ -212,7 +227,7 @@ export function ParameterQuickCards({ compact = false }: { compact?: boolean }) 
         </QuickCard>
       )}
 
-      {ec.duration && (
+      {!demo && ec.duration && (
         <QuickCard
           title="Duração"
           value={`${config.duration} min`}
@@ -230,7 +245,7 @@ export function ParameterQuickCards({ compact = false }: { compact?: boolean }) 
         </QuickCard>
       )}
 
-      {ec.coupling && (
+      {!demo && ec.coupling && (
         <QuickCard
           title="Acoplamento"
           value={couplingLabel}
@@ -248,7 +263,7 @@ export function ParameterQuickCards({ compact = false }: { compact?: boolean }) 
         </QuickCard>
       )}
 
-      {ec.movement && (
+      {!demo && ec.movement && (
         <QuickCard
           title="Movimento"
           value={config.movement === "scanning" ? "Varredura" : "Parado"}
@@ -272,8 +287,9 @@ export function ParameterQuickCards({ compact = false }: { compact?: boolean }) 
 
       {ec.transducerType !== false && (
         <QuickCard
+          demo={demo}
           title="Transdutor"
-          value={getTransducerDefinition(config.transducerType ?? "planar_circular").label}
+          value={getTransducerDefinition(config.transducerType ?? "planar_circular").shortLabel}
           hint={getTransducerDefinition(config.transducerType ?? "planar_circular").subtitle}
           status="ok"
         >
@@ -300,7 +316,8 @@ export function ParameterQuickCards({ compact = false }: { compact?: boolean }) 
         </QuickCard>
       )}
 
-      {ec.beamProfile !== false &&
+      {!demo &&
+        ec.beamProfile !== false &&
         ec.focusDepth !== false &&
         focusDepthEnabled && (
           <QuickCard
@@ -323,6 +340,7 @@ export function ParameterQuickCards({ compact = false }: { compact?: boolean }) 
       {ec.beamProfile !== false &&
         !getTransducerDefinition(config.transducerType ?? "planar_circular").lockBeamProfile && (
           <QuickCard
+            demo={demo}
             title="Perfil do feixe"
             value={TRANSDUCER_BEAM_PROFILE_LABELS[config.beamProfile ?? "planar"]}
             hint="Plano espalha de forma previsível; focalizado concentra no alvo."
@@ -340,6 +358,10 @@ export function ParameterQuickCards({ compact = false }: { compact?: boolean }) 
         )}
     </div>
   );
+
+  if (demo) {
+    return <div className="min-w-0">{cards}</div>;
+  }
 
   return (
     <div className="space-y-2">

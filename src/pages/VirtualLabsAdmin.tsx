@@ -36,6 +36,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { LabPreviewContent } from "@/components/labs/LabPreviewContent";
 import { cn, toErrorMessage } from "@/lib/utils";
+import { useMRILabStore } from "@/stores/mriLabStore";
 
 export default function VirtualLabsAdmin() {
   const navigate = useNavigate();
@@ -93,10 +94,7 @@ export default function VirtualLabsAdmin() {
     if (!labToDelete?.id) return;
 
     try {
-      // Se for lab MRI, limpar dados do volume (se houver em memória)
       if (labToDelete.lab_type === "mri") {
-        // Importar dinamicamente para evitar dependência circular
-        const { useMRILabStore } = await import("@/stores/mriLabStore");
         useMRILabStore.getState().clearVolume();
       }
       

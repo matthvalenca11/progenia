@@ -4,6 +4,10 @@ import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePhotobioStore } from "@/stores/photobioStore";
 import { AnatomyControls } from "./AnatomyControls";
+import { PhotobioPresetCards } from "./PhotobioPresetCards";
+import { PHOTOBIO_APPLICATOR_LABELS } from "@/types/photobioLabConfig";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { PhotobioApplicatorType } from "./photobioApplicatorTypes";
 
 function ControlRow({
   label,
@@ -79,12 +83,24 @@ export function PhotobioControls() {
   const setContactPressure = usePhotobioStore((s) => s.setContactPressure);
   const resetDefaults = usePhotobioStore((s) => s.resetDefaults);
   const controlModes = usePhotobioStore((s) => s.controlModes);
+  const parameterRanges = usePhotobioStore((s) => s.parameterRanges);
+  const skinMelaninIndex = usePhotobioStore((s) => s.skinMelaninIndex);
+  const setSkinMelaninIndex = usePhotobioStore((s) => s.setSkinMelaninIndex);
+  const applicatorType = usePhotobioStore((s) => s.applicatorType);
+  const setApplicatorType = usePhotobioStore((s) => s.setApplicatorType);
+  const featureFlags = usePhotobioStore((s) => s.featureFlags);
+  const isDragging = usePhotobioStore((s) => s.isDragging);
+  const setIsDragging = usePhotobioStore((s) => s.setIsDragging);
+  const draggingSpeed = usePhotobioStore((s) => s.draggingSpeed);
+  const setDraggingSpeed = usePhotobioStore((s) => s.setDraggingSpeed);
   const modeOf = (key: keyof typeof controlModes) => controlModes[key] ?? "show";
   const shouldHide = (key: keyof typeof controlModes) => modeOf(key) === "hidden";
   const shouldDisable = (key: keyof typeof controlModes) => modeOf(key) === "disabled";
 
   return (
     <div className="space-y-5 p-4">
+      {featureFlags.showClinicalPresets && <PhotobioPresetCards compact />}
+
       {!shouldHide("showWavelength") && (
       <div className={`space-y-2 ${shouldDisable("showWavelength") ? "opacity-50" : ""}`}>
         <Label className="text-sm">Comprimento de onda</Label>
@@ -110,43 +126,104 @@ export function PhotobioControls() {
       )}
 
       {!shouldHide("showPower") && (
-        <ControlRow label="Potência" value={power} unit=" mW" min={10} max={500} step={1} onChange={setPower} disabled={shouldDisable("showPower")} />
+        <ControlRow label="Potência" value={power} unit=" mW" min={parameterRanges.power.min} max={parameterRanges.power.max} step={parameterRanges.power.step ?? 1} onChange={setPower} disabled={shouldDisable("showPower")} />
       )}
       {!shouldHide("showSpotSize") && (
-        <ControlRow label="Área do spot" value={spotSize} unit=" cm²" min={0.1} max={1.0} step={0.01} onChange={setSpotSize} disabled={shouldDisable("showSpotSize")} />
+        <ControlRow label="Área do spot" value={spotSize} unit=" cm²" min={parameterRanges.spotSize.min} max={parameterRanges.spotSize.max} step={parameterRanges.spotSize.step ?? 0.01} onChange={setSpotSize} disabled={shouldDisable("showSpotSize")} />
       )}
       {!shouldHide("showExposureTime") && (
-        <ControlRow label="Tempo de exposição" value={exposureTime} unit=" s" min={1} max={300} step={1} onChange={setExposureTime} disabled={shouldDisable("showExposureTime")} />
+        <ControlRow label="Tempo de exposição" value={exposureTime} unit=" s" min={parameterRanges.exposureTime.min} max={parameterRanges.exposureTime.max} step={parameterRanges.exposureTime.step ?? 1} onChange={setExposureTime} disabled={shouldDisable("showExposureTime")} />
       )}
 
-      {mode === "Pulsed" && !shouldHide("showMode") && (
-        <ControlRow label="Duty cycle" value={dutyCycle} unit=" %" min={10} max={90} step={1} onChange={setDutyCycle} disabled={shouldDisable("showMode")} />
+      {mode === "Pulsed" && !shouldHide("showMode") && !shouldHide("showDutyCycle") && (
+        <ControlRow label="Duty cycle" value={dutyCycle} unit=" %" min={parameterRanges.dutyCycle.min} max={parameterRanges.dutyCycle.max} step={parameterRanges.dutyCycle.step ?? 1} onChange={setDutyCycle} disabled={shouldDisable("showDutyCycle") || shouldDisable("showMode")} />
       )}
 
-      <div className="space-y-1 border-t pt-4">
+      {!shouldHide("showApplicatorType") && (
+        <div className={`space-y-2 ${shouldDisable("showApplicatorType") ? "opacity-50" : ""}`}>
+          <Label className="text-sm">Tipo de aplicador</Label>
+          <Select
+            value={applicatorType}
+            onValueChange={(v) => setApplicatorType(v as PhotobioApplicatorType)}
+            disabled={shouldDisable("showApplicatorType")}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(PHOTOBIO_APPLICATOR_LABELS) as PhotobioApplicatorType[]).map((t) => (
+                <SelectItem key={t} value={t}>
+                  {PHOTOBIO_APPLICATOR_LABELS[t]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {!shouldHide("showMelanin") && (
+        <ControlRow
+          label="Índice de melanina"
+          value={skinMelaninIndex}
+          unit=""
+          min={parameterRanges.skinMelaninIndex.min}
+          max={parameterRanges.skinMelaninIndex.max}
+          step={parameterRanges.skinMelaninIndex.step ?? 0.05}
+          onChange={setSkinMelaninIndex}
+          disabled={shouldDisable("showMelanin")}
+        />
+      )}
+
+      {!shouldHide("showTechnique") && (
+      <div className={`space-y-1 border-t pt-4 ${shouldDisable("showTechnique") ? "opacity-50" : ""}`}>
         <p className="text-xs font-medium text-muted-foreground">Técnica de aplicação</p>
         <ControlRow
           label="Ângulo do transdutor"
           value={transducerAngle}
           unit="°"
-          min={0}
-          max={180}
-          step={1}
+          min={parameterRanges.transducerAngle.min}
+          max={parameterRanges.transducerAngle.max}
+          step={parameterRanges.transducerAngle.step ?? 1}
           onChange={setTransducerAngle}
+          disabled={shouldDisable("showTechnique")}
         />
         <ControlRow
           label="Pressão de contato"
           value={contactPressure}
           unit=" %"
-          min={0}
-          max={100}
-          step={1}
+          min={parameterRanges.contactPressure.min}
+          max={parameterRanges.contactPressure.max}
+          step={parameterRanges.contactPressure.step ?? 1}
           onChange={setContactPressure}
+          disabled={shouldDisable("showTechnique")}
         />
+        <div className="flex items-center justify-between rounded-md border px-3 py-2">
+          <Label className="text-sm">Varredura automática</Label>
+          <input
+            type="checkbox"
+            checked={isDragging}
+            disabled={shouldDisable("showTechnique")}
+            onChange={(e) => setIsDragging(e.target.checked)}
+            className="h-4 w-4"
+          />
+        </div>
+        {isDragging && (
+          <ControlRow
+            label="Velocidade de varredura"
+            value={draggingSpeed}
+            unit="×"
+            min={0.2}
+            max={5}
+            step={0.1}
+            onChange={setDraggingSpeed}
+            disabled={shouldDisable("showTechnique")}
+          />
+        )}
         <p className="text-[10px] text-muted-foreground leading-snug">
           Perpendicular (~90°) e pressão moderada (40–60%) maximizam a dose efetiva.
         </p>
       </div>
+      )}
 
       {(!shouldHide("showAnatomyPresets") || !shouldHide("showCustomAnatomy")) && (
       <AnatomyControls

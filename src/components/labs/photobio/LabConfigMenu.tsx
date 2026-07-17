@@ -13,8 +13,12 @@ export function LabConfigMenu() {
     { key: "showSpotSize", label: "Área do spot" },
     { key: "showExposureTime", label: "Tempo de exposição" },
     { key: "showMode", label: "Modo (CW/Pulsed)" },
+    { key: "showDutyCycle", label: "Duty cycle" },
+    { key: "showTechnique", label: "Técnica de aplicação" },
     { key: "showAnatomyPresets", label: "Presets anatômicos" },
     { key: "showCustomAnatomy", label: "Anatomia customizada" },
+    { key: "showMelanin", label: "Índice de melanina" },
+    { key: "showApplicatorType", label: "Tipo de aplicador" },
   ];
 
   return (

@@ -1,22 +1,24 @@
-/** Tokens visuais — transdutor e gel (lab ultrassom terapêutico 3D) */
+/** Tokens visuais — transdutor clínico PROGENIA (lab ultrassom terapêutico 3D) */
 
-/** Plástico clínico ABS — branco maciço opaco (sem IBL / sem transmission) */
+/** Plástico ABS médico — branco acinzentado clínico */
 export const THERAPY_TRANSDUCER = {
-  body: "#ffffff",
-  /** Emissive leve — mantém branco clínico mesmo com cena escura */
+  body: "#E8ECEF",
   bodyEmissive: "#ffffff",
-  bodyEmissiveIntensity: 0.38,
-  faceChamfer: "#fafbfc",
-  labelPlate: "#c8d0d8",
-  screwHead: "#e8ecf0",
-  rubber: "#475569",
-  chrome: "#8fa0b5",
-  chromeMetalness: 0.92,
-  chromeRoughness: 0.12,
-  chromeClearcoat: 0.95,
-  chromeClearcoatRoughness: 0.05,
-  chromeEnvIntensity: 0.55,
-  logo: "#788598",
+  bodyEmissiveIntensity: 0.06,
+  grip: "#BFC7CC",
+  faceChamfer: "#DDE3E6",
+  labelPlate: "#C5CDD2",
+  screwHead: "#E8ECEF",
+  rubber: "#202326",
+  stainless: "#C8CDD0",
+  chrome: "#C8CDD0",
+  chromeMetalness: 0.82,
+  chromeRoughness: 0.38,
+  chromeClearcoat: 0.35,
+  chromeClearcoatRoughness: 0.18,
+  chromeEnvIntensity: 1.05,
+  cable: "#050505",
+  logo: "#64748b",
 } as const;
 
 export type { ClinicalSkinTone as TherapySkinTone } from "@/lib/clinicalSkinTones";
@@ -25,42 +27,46 @@ export {
   pickRandomClinicalSkinTone as pickRandomTherapySkinTone,
 } from "@/lib/clinicalSkinTones";
 
-/** Gel acústico — azul saturado, levemente translúcido */
+/** Gel acústico — azul claro sutil, baixa opacidade */
 export const THERAPY_GEL_GOOD = {
-  color: "#1eb0f0",
-  emissive: "#0a7ab8",
-  emissiveIntensity: 0.16,
-  opacity: 0.52,
-  roughness: 0.1,
+  color: "#b8dff5",
+  emissive: "#6eb8e8",
+  emissiveIntensity: 0.06,
+  opacity: 0.28,
+  roughness: 0.72,
 } as const;
 
 export const THERAPY_GEL_POOR = {
-  color: "#1ba3e8",
-  emissive: "#0b6fa8",
-  emissiveIntensity: 0.08,
-  opacity: 0.34,
-  roughness: 0.32,
+  color: "#a8d4f0",
+  emissive: "#5aa8d8",
+  emissiveIntensity: 0.04,
+  opacity: 0.22,
+  roughness: 0.78,
 } as const;
 
-/** Face de contato — plano (disco cerâmico) vs focalizado (lente âmbar) */
+/** Face de contato — aço inox (plano) vs lente acústica + array côncavo (focalizado) */
 export const THERAPY_TRANSDUCER_FACE = {
   planar: {
-    ceramic: { color: "#1d4ed8", emissive: "#60a5fa", emissiveIntensity: 0.72 },
-    halo: { color: "#3b82f6", emissive: "#2563eb", emissiveIntensity: 0.55 },
-    chromeRing: { color: "#2563eb", emissive: "#93c5fd", emissiveIntensity: 0.35 },
-    dorsalBand: "#2563eb",
+    ceramic: { color: "#C8CDD0", emissive: "#aeb8bf", emissiveIntensity: 0.05 },
+    halo: { color: "#7dd3fc", emissive: "#38bdf8", emissiveIntensity: 0.08 },
+    chromeRing: { color: "#C8CDD0", emissive: "#aeb8bf", emissiveIntensity: 0.06 },
+    dorsalBand: "#BFC7CC",
   },
   focused: {
     lens: {
-      color: "#ea580c",
-      emissive: "#fb923c",
-      emissiveIntensity: 0.9,
-      roughness: 0.06,
-      transmission: 0.08,
+      color: "#C8CDD0",
+      emissive: "#aeb8bf",
+      emissiveIntensity: 0.05,
+      roughness: 0.38,
+      transmission: 0,
     },
-    halo: { color: "#f97316", emissive: "#ea580c", emissiveIntensity: 0.65 },
-    recess: { color: "#1e293b", emissive: "#0f172a", emissiveIntensity: 0.15 },
-    dorsalBand: "#ea580c",
+    piezo: {
+      color: "#C8CDD0",
+      emissive: "#aeb8bf",
+    },
+    halo: { color: "#fcd34d", emissive: "#f59e0b", emissiveIntensity: 0.07 },
+    recess: { color: "#303336", emissive: "#202326", emissiveIntensity: 0.04 },
+    dorsalBand: "#BFC7CC",
   },
 } as const;
 

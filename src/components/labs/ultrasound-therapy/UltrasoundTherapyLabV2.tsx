@@ -33,6 +33,7 @@ import { getTransducerDefinition } from "@/config/therapeuticTransducerDefinitio
 import { useIsMobile } from "@/hooks/use-mobile";
 import { labMobileInsetX, labCanvasHostClass } from "@/components/labs/labMobileLayout";
 import { EducationalSimulationDisclaimer } from "@/components/labs/EducationalSimulationDisclaimer";
+import { TherapyDemoShell } from "./TherapyDemoShell";
 import { utLabel, utPanel, utSelectTrigger } from "./ultrasoundTherapyUi";
 
 interface UltrasoundTherapyLabV2Props {
@@ -40,6 +41,8 @@ interface UltrasoundTherapyLabV2Props {
   labName?: string;
   showBackButton?: boolean;
   embedded?: boolean;
+  /** Aulas/cápsulas — layout de demonstração enxuto */
+  previewMode?: boolean;
 }
 
 export function UltrasoundTherapyLabV2({
@@ -47,6 +50,7 @@ export function UltrasoundTherapyLabV2({
   labName = "Laboratório Virtual de Ultrassom Terapêutico",
   showBackButton = true,
   embedded = false,
+  previewMode = false,
 }: UltrasoundTherapyLabV2Props) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -75,6 +79,10 @@ export function UltrasoundTherapyLabV2({
       initializeLab(config || defaultUltrasoundTherapyConfig);
     }
   }, [config, initializeLab]);
+
+  if (previewMode) {
+    return <TherapyDemoShell embedded={embedded} />;
+  }
 
   const resetToDefaults = () => reset();
 

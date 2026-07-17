@@ -60,9 +60,11 @@ function deferGpuDispose(dispose: () => void) {
 
 interface UltrasoundTherapy3DViewerProps {
   hideTabs?: boolean;
+  /** Modo demonstração — legendas compactas, menos dicas */
+  demoMode?: boolean;
 }
 
-export function UltrasoundTherapy3DViewer({ hideTabs = false }: UltrasoundTherapy3DViewerProps) {
+export function UltrasoundTherapy3DViewer({ hideTabs = false, demoMode = false }: UltrasoundTherapy3DViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const config = useUltrasoundTherapyStore((s) => s.config);
   const simulationResult = useUltrasoundTherapyStore((s) => s.simulationResult);
@@ -356,9 +358,9 @@ export function UltrasoundTherapy3DViewer({ hideTabs = false }: UltrasoundTherap
 
       {viewerTab === "physiology" && <PhysiologyLegend />}
       {viewerTab === "thermal" && <ThermalColormapLegend />}
-      {viewerTab === "beam" && <AcousticColormapLegend fieldStats={acousticFieldStats} />}
+      {viewerTab === "beam" && <AcousticColormapLegend fieldStats={acousticFieldStats} demo={demoMode} />}
 
-      {canDragTransducer && !draggingTransducer && (
+      {canDragTransducer && !draggingTransducer && !demoMode && (
         <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-slate-900/75 px-3 py-1 text-[11px] text-slate-300 backdrop-blur-sm">
           Arraste na pele para mover o transdutor
         </div>

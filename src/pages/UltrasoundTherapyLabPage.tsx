@@ -113,6 +113,7 @@ export default function UltrasoundTherapyLabPage({
       labName={labName || "Laboratório Virtual de Ultrassom Terapêutico"}
       showBackButton={!previewMode}
       embedded={embedded}
+      previewMode={previewMode}
     />
   );
 }
