@@ -6,9 +6,12 @@
 
 export type DynamicChartSourceType = "custom_formula" | "preset";
 
-/** Agrupamento clínico do catálogo de presets (20 modelos). */
+/** Agrupamento clínico do catálogo de presets (27 modelos). */
 export type ClinicalPresetCategoryId =
   | "electrotherapy"
+  | "ultrasound"
+  | "photobiomodulation"
+  | "diathermy"
   | "neurophysiology"
   | "biomechanics"
   | "cardiorespiratory"
@@ -21,6 +24,13 @@ export type DynamicChartPresetId =
   | "pbm_arndt_schulz"
   | "diathermy_penetration"
   | "fes_force_frequency"
+  | "nmes_force_pulse_width"
+  | "fes_fatigue_session"
+  | "us_sata_duty"
+  | "us_frequency_penetration"
+  | "pbm_dose_time"
+  | "pbm_wavelength_penetration"
+  | "diathermy_heating_time"
   /** Neurofisiologia */
   | "action_potential"
   | "tms_io_curve"
@@ -50,6 +60,13 @@ export const DYNAMIC_CHART_PRESET_IDS: DynamicChartPresetId[] = [
   "pbm_arndt_schulz",
   "diathermy_penetration",
   "fes_force_frequency",
+  "nmes_force_pulse_width",
+  "fes_fatigue_session",
+  "us_sata_duty",
+  "us_frequency_penetration",
+  "pbm_dose_time",
+  "pbm_wavelength_penetration",
+  "diathermy_heating_time",
   "action_potential",
   "tms_io_curve",
   "nernst_equilibrium",

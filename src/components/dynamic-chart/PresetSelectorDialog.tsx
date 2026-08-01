@@ -181,7 +181,13 @@ export function PresetSelectorDialog({
                         )}
                       >
                         {category.presetIds.length}{" "}
-                        {isEnglish ? "models" : "modelos"}
+                        {isEnglish
+                          ? category.presetIds.length === 1
+                            ? "model"
+                            : "models"
+                          : category.presetIds.length === 1
+                            ? "modelo"
+                            : "modelos"}
                       </span>
                     </button>
                   );

@@ -56,6 +56,64 @@ const PRESET_FORMULA_TEMPLATES: Record<DynamicChartPresetId, PresetFormulaTempla
       color: COLORS.primary,
     },
   ],
+  nmes_force_pulse_width: [
+    {
+      id: "nmes_force_pw",
+      name: t("Força evocada (% MVC)", "Evoked force (% MVC)"),
+      equation: "force_max * (1 - exp(-x / max(time_constant, 0.01)))",
+      color: COLORS.primary,
+    },
+  ],
+  fes_fatigue_session: [
+    {
+      id: "fes_fatigue",
+      name: t("Força relativa (% inicial)", "Relative force (% baseline)"),
+      equation: "100 * exp(-fatigue_rate * x * (frequency / 25) * (duty_cycle / 50))",
+      color: COLORS.danger,
+    },
+  ],
+  us_sata_duty: [
+    {
+      id: "sata",
+      name: t("SATA (W/cm²)", "SATA (W/cm²)"),
+      equation: "peak_intensity * (x / 100)",
+      color: COLORS.info,
+    },
+  ],
+  us_frequency_penetration: [
+    {
+      id: "penetration_depth",
+      name: t("Profundidade efetiva (cm)", "Effective depth (cm)"),
+      equation: "tissue_factor / max(x, 0.1)",
+      color: COLORS.secondary,
+    },
+  ],
+  pbm_dose_time: [
+    {
+      id: "dose",
+      name: t("Dose (J/cm²)", "Dose (J/cm²)"),
+      equation: "(irradiance / 1000) * x",
+      color: COLORS.accent,
+    },
+  ],
+  pbm_wavelength_penetration: [
+    {
+      id: "optical_penetration",
+      name: t("Penetração efetiva (mm)", "Effective penetration (mm)"),
+      equation:
+        "surface_penetration * exp(-((x - 660)^2) / (2 * 75^2)) + 0.85 * peak_penetration * exp(-((x - 808)^2) / (2 * 115^2))",
+      color: COLORS.pharmacy,
+    },
+  ],
+  diathermy_heating_time: [
+    {
+      id: "heating",
+      name: t("Elevação térmica (°C)", "Temperature rise (°C)"),
+      equation:
+        "((power_level / 100) * 9 * (1 - exp(-x / max(tau_minutes, 0.1)))) / max(perfusion, 0.1)",
+      color: COLORS.warning,
+    },
+  ],
   action_potential: [
     {
       id: "vm",

@@ -123,7 +123,7 @@ describe("dynamicChart presets", () => {
     expect(series[0].points.length).toBeGreaterThan(10);
   });
 
-  it("builds all 20 clinical presets with non-empty series", () => {
+  it("builds all clinical presets with non-empty series", () => {
     for (const presetId of DYNAMIC_CHART_PRESET_IDS) {
       const config = buildPresetBlockData(presetId);
       const params = Object.fromEntries(

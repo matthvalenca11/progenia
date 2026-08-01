@@ -437,12 +437,154 @@ function doseAccumulation(config: DynamicChartBlockData, params: Record<string, 
   ];
 }
 
+function nmesForcePulseWidth(config: DynamicChartBlockData, params: Record<string, number>) {
+  const forceMax = params.force_max ?? 70;
+  const tau = params.time_constant ?? 0.2;
+  const xMin = config.axes.x.min ?? 0.05;
+  const xMax = config.axes.x.max ?? 1;
+  const xs = linspace(xMin, xMax, config.axes.x.sampleCount ?? 120);
+  return [
+    {
+      id: "nmes_force_pw",
+      label: "Força evocada (% MVC)",
+      color: COLORS.primary,
+      strokeWidth: 2.5,
+      points: xs.map((pw) => ({
+        x: pw,
+        y: forceMax * (1 - Math.exp(-pw / Math.max(tau, 0.01))),
+      })),
+    },
+  ];
+}
+
+function fesFatigueSession(config: DynamicChartBlockData, params: Record<string, number>) {
+  const frequency = params.frequency ?? 30;
+  const duty = params.duty_cycle ?? 50;
+  const fatigueRate = params.fatigue_rate ?? 0.15;
+  const loadFactor = (frequency / 25) * (duty / 50);
+  const xMin = config.axes.x.min ?? 0;
+  const xMax = config.axes.x.max ?? 15;
+  const xs = linspace(xMin, xMax, config.axes.x.sampleCount ?? 120);
+  return [
+    {
+      id: "fes_fatigue",
+      label: "Força relativa (% inicial)",
+      color: COLORS.danger,
+      strokeWidth: 2.5,
+      points: xs.map((t) => ({
+        x: t,
+        y: 100 * Math.exp(-fatigueRate * t * loadFactor),
+      })),
+    },
+  ];
+}
+
+function usSataDuty(config: DynamicChartBlockData, params: Record<string, number>) {
+  const peak = params.peak_intensity ?? 1.5;
+  const xMin = config.axes.x.min ?? 10;
+  const xMax = config.axes.x.max ?? 100;
+  const xs = linspace(xMin, xMax, config.axes.x.sampleCount ?? 100);
+  return [
+    {
+      id: "sata",
+      label: "SATA (W/cm²)",
+      color: COLORS.info,
+      strokeWidth: 2.5,
+      points: xs.map((duty) => ({ x: duty, y: peak * (duty / 100) })),
+    },
+  ];
+}
+
+function usFrequencyPenetration(config: DynamicChartBlockData, params: Record<string, number>) {
+  const k = params.tissue_factor ?? 3.5;
+  const xMin = config.axes.x.min ?? 0.5;
+  const xMax = config.axes.x.max ?? 5;
+  const xs = linspace(xMin, xMax, config.axes.x.sampleCount ?? 120);
+  return [
+    {
+      id: "penetration_depth",
+      label: "Profundidade efetiva (cm)",
+      color: COLORS.secondary,
+      strokeWidth: 2.5,
+      points: xs.map((freq) => ({ x: freq, y: k / Math.max(freq, 0.1) })),
+    },
+  ];
+}
+
+function pbmDoseTime(config: DynamicChartBlockData, params: Record<string, number>) {
+  const irradiance = params.irradiance ?? 100;
+  const xMin = config.axes.x.min ?? 0;
+  const xMax = config.axes.x.max ?? 300;
+  const xs = linspace(xMin, xMax, config.axes.x.sampleCount ?? 120);
+  return [
+    {
+      id: "dose",
+      label: "Dose (J/cm²)",
+      color: COLORS.accent,
+      strokeWidth: 2.5,
+      points: xs.map((t) => ({ x: t, y: (irradiance / 1000) * t })),
+    },
+  ];
+}
+
+function pbmWavelengthPenetration(config: DynamicChartBlockData, params: Record<string, number>) {
+  const peak = params.peak_penetration ?? 18;
+  const surface = params.surface_penetration ?? 3;
+  const xMin = config.axes.x.min ?? 600;
+  const xMax = config.axes.x.max ?? 1000;
+  const xs = linspace(xMin, xMax, config.axes.x.sampleCount ?? 120);
+  return [
+    {
+      id: "optical_penetration",
+      label: "Penetração efetiva (mm)",
+      color: COLORS.pharmacy,
+      strokeWidth: 2.5,
+      points: xs.map((nm) => {
+        const red =
+          surface * Math.exp(-Math.pow(nm - 660, 2) / (2 * Math.pow(75, 2)));
+        const nir =
+          peak * Math.exp(-Math.pow(nm - 808, 2) / (2 * Math.pow(115, 2)));
+        return { x: nm, y: red + nir * 0.85 };
+      }),
+    },
+  ];
+}
+
+function diathermyHeatingTime(config: DynamicChartBlockData, params: Record<string, number>) {
+  const power = params.power_level ?? 70;
+  const perfusion = params.perfusion ?? 1;
+  const tau = params.tau_minutes ?? 5;
+  const deltaMax = (power / 100) * 9;
+  const xMin = config.axes.x.min ?? 0;
+  const xMax = config.axes.x.max ?? 20;
+  const xs = linspace(xMin, xMax, config.axes.x.sampleCount ?? 120);
+  return [
+    {
+      id: "heating",
+      label: "Elevação térmica (°C)",
+      color: COLORS.warning,
+      strokeWidth: 2.5,
+      points: xs.map((t) => ({
+        x: t,
+        y: (deltaMax * (1 - Math.exp(-t / Math.max(tau, 0.1)))) / Math.max(perfusion, 0.1),
+      })),
+    },
+  ];
+}
+
 const PRESET_COMPUTE: Record<DynamicChartPresetId, PresetComputeFn> = {
   tens_strength_duration: tensStrengthDuration,
   us_attenuation: usAttenuation,
   pbm_arndt_schulz: pbmArndtSchulz,
   diathermy_penetration: diathermyPenetration,
   fes_force_frequency: fesForceFrequency,
+  nmes_force_pulse_width: nmesForcePulseWidth,
+  fes_fatigue_session: fesFatigueSession,
+  us_sata_duty: usSataDuty,
+  us_frequency_penetration: usFrequencyPenetration,
+  pbm_dose_time: pbmDoseTime,
+  pbm_wavelength_penetration: pbmWavelengthPenetration,
+  diathermy_heating_time: diathermyHeatingTime,
   action_potential: actionPotential,
   tms_io_curve: tmsIOCurve,
   nernst_equilibrium: nernstEquilibrium,
