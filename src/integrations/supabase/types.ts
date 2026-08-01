@@ -1416,10 +1416,12 @@ export type Database = {
       }
       parametric_charts: {
         Row: {
+          category: string | null
           config_data: Json
           created_at: string | null
           description: string | null
           id: string
+          is_landing_demo: boolean
           is_published: boolean | null
           name: string
           slug: string
@@ -1428,10 +1430,12 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          category?: string | null
           config_data?: Json
           created_at?: string | null
           description?: string | null
           id?: string
+          is_landing_demo?: boolean
           is_published?: boolean | null
           name: string
           slug: string
@@ -1440,10 +1444,12 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          category?: string | null
           config_data?: Json
           created_at?: string | null
           description?: string | null
           id?: string
+          is_landing_demo?: boolean
           is_published?: boolean | null
           name?: string
           slug?: string
@@ -1580,6 +1586,12 @@ export type Database = {
           starts: number
           title: string
         }[]
+      }
+      get_parametric_chart_usage: {
+        Args: {
+          p_chart_id: string
+        }
+        Returns: Json
       }
       has_role: {
         Args: {

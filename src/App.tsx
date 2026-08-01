@@ -33,6 +33,8 @@ import VirtualLabsAdmin from "@/pages/VirtualLabsAdmin";
 import ParametricChartsAdmin from "@/pages/ParametricChartsAdmin";
 import ParametricChartEditor from "@/pages/ParametricChartEditor";
 import LabViewer from "@/pages/LabViewer";
+import ChartViewer from "@/pages/ChartViewer";
+import { RequireAdminRoute } from "@/components/RequireAdminRoute";
 import DeleteUserTest from "@/pages/DeleteUserTest";
 import BlogNoticias from "@/pages/BlogNoticias";
 import ContentSearch from "@/pages/ContentSearch";
@@ -114,7 +116,8 @@ const AppContent = () => {
     location.pathname !== "/sobre" &&
     location.pathname !== "/blog" &&
     location.pathname !== "/auth" &&
-    !location.pathname.startsWith("/labs/");
+    !location.pathname.startsWith("/labs/") &&
+    !location.pathname.startsWith("/charts/");
 
   return (
     <div
@@ -166,13 +169,14 @@ const AppContent = () => {
           <Route path="/capsula/:capsulaId" element={<CapsuleViewer />} />
           <Route path="/capsulas" element={<AllCapsules />} />
           <Route path="/search" element={<ContentSearch />} />
-          <Route path="/admin/labs" element={<VirtualLabsAdmin />} />
-          <Route path="/admin/labs/novo" element={<VirtualLabEditorUnified />} />
-          <Route path="/admin/labs/editar/:labId" element={<VirtualLabEditorUnified />} />
-          <Route path="/admin/charts" element={<ParametricChartsAdmin />} />
-          <Route path="/admin/charts/novo" element={<ParametricChartEditor />} />
-          <Route path="/admin/charts/editar/:chartId" element={<ParametricChartEditor />} />
+          <Route path="/admin/labs" element={<RequireAdminRoute><VirtualLabsAdmin /></RequireAdminRoute>} />
+          <Route path="/admin/labs/novo" element={<RequireAdminRoute><VirtualLabEditorUnified /></RequireAdminRoute>} />
+          <Route path="/admin/labs/editar/:labId" element={<RequireAdminRoute><VirtualLabEditorUnified /></RequireAdminRoute>} />
+          <Route path="/admin/charts" element={<RequireAdminRoute><ParametricChartsAdmin /></RequireAdminRoute>} />
+          <Route path="/admin/charts/novo" element={<RequireAdminRoute><ParametricChartEditor /></RequireAdminRoute>} />
+          <Route path="/admin/charts/editar/:chartId" element={<RequireAdminRoute><ParametricChartEditor /></RequireAdminRoute>} />
           <Route path="/labs/:slug" element={<LabViewer />} />
+          <Route path="/charts/:slug" element={<ChartViewer />} />
           <Route path="/delete-user-test" element={<DeleteUserTest />} />
           {import.meta.env.DEV && TherapeuticLabSmoke ? (
             <Route

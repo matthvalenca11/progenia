@@ -6,6 +6,7 @@ import type {
   DynamicChartBlockData,
   DynamicChartFormulaSeries,
 } from "@/types/dynamicChart";
+import { normalizeFormulaSeries } from "@/types/dynamicChart";
 import { computePresetSeries } from "./presets";
 
 const math = create(all, {});
@@ -16,6 +17,8 @@ const DEFAULT_COLORS = [
   "#8b5cf6",
   "#f59e0b",
   "#10b981",
+  "#ef4444",
+  "#14b8a6",
 ];
 
 function linspace(min: number, max: number, count: number): number[] {
@@ -41,17 +44,19 @@ function evaluateFormulaSeries(
   xSamples: number[],
   parameterValues: Record<string, number>,
   colorIndex: number,
+  language: "pt" | "en" = "pt",
 ): ComputedChartSeries {
+  const normalized = normalizeFormulaSeries(series, language);
   let compiled: ReturnType<ReturnType<typeof math.parse>["compile"]>;
 
   try {
-    compiled = math.parse(series.expression).compile();
+    compiled = math.parse(normalized.expression).compile();
   } catch {
     return {
-      id: series.id,
-      label: series.label,
-      color: series.color ?? DEFAULT_COLORS[colorIndex % DEFAULT_COLORS.length],
-      strokeWidth: series.strokeWidth ?? 2.5,
+      id: normalized.id,
+      label: normalized.label || `Série ${colorIndex + 1}`,
+      color: normalized.color ?? DEFAULT_COLORS[colorIndex % DEFAULT_COLORS.length],
+      strokeWidth: normalized.strokeWidth ?? 2.5,
       points: [],
     };
   }
@@ -71,12 +76,16 @@ function evaluateFormulaSeries(
   }
 
   return {
-    id: series.id,
-    label: series.label,
-    color: series.color ?? DEFAULT_COLORS[colorIndex % DEFAULT_COLORS.length],
-    strokeWidth: series.strokeWidth ?? 2.5,
+    id: normalized.id,
+    label: normalized.label || `Série ${colorIndex + 1}`,
+    color: normalized.color ?? DEFAULT_COLORS[colorIndex % DEFAULT_COLORS.length],
+    strokeWidth: normalized.strokeWidth ?? 2.5,
     points,
   };
+}
+
+export function resolveFormulaExpression(series: DynamicChartFormulaSeries): string {
+  return normalizeFormulaSeries(series).expression;
 }
 
 export function hasValidFormulaSyntax(expression: string): boolean {
@@ -90,10 +99,16 @@ export function hasValidFormulaSyntax(expression: string): boolean {
   }
 }
 
+export function isFormulaSeriesValid(series: DynamicChartFormulaSeries): boolean {
+  const expression = resolveFormulaExpression(series);
+  return !expression.trim() || hasValidFormulaSyntax(expression);
+}
+
 /** Calcula séries e pontos para Recharts a partir do bloco + estado dos sliders */
 export function computeChartSeries(
   config: DynamicChartBlockData,
   parameterValues: Record<string, number>,
+  language: "pt" | "en" = "pt",
 ): ComputedChartSeries[] {
   if (config.source_type === "preset" && config.preset_id) {
     return computePresetSeries(config.preset_id, config, parameterValues);
@@ -103,9 +118,9 @@ export function computeChartSeries(
   const { min, max } = resolveXRange(config.axes.x, []);
   const xSamples = linspace(min, max, sampleCount);
 
-  return (config.formulas ?? []).map((series, i) =>
-    evaluateFormulaSeries(series, xSamples, parameterValues, i),
-  );
+  return (config.formulas ?? [])
+    .filter((series) => resolveFormulaExpression(series).trim().length > 0)
+    .map((series, i) => evaluateFormulaSeries(series, xSamples, parameterValues, i, language));
 }
 
 /** Formato unificado para Recharts LineChart (wide format) */

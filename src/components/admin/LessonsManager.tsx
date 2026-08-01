@@ -38,6 +38,8 @@ import {
 } from "@/types/completionSuggestions";
 import { normalizeCompletionSuggestions } from "@/lib/completionSuggestions";
 import { parametricChartService, ParametricChart } from "@/services/parametricChartService";
+import { validateLessonDynamicChartBlocks } from "@/lib/dynamicChart/parametricChartValidation";
+import { ParametricChartAdminPreview } from "@/components/ParametricChartAdminPreview";
 
 type Lesson = {
   id: string;
@@ -298,6 +300,7 @@ export function LessonsManager() {
     try {
       setSaving(true);
       validateLessonVideoBlocks(formData.contentBlocks);
+      validateLessonDynamicChartBlocks(formData.contentBlocks);
 
       // Criar aula primeiro para obter o ID
       const { data: newLesson, error: createError } = await supabase
@@ -380,6 +383,7 @@ export function LessonsManager() {
     try {
       setSaving(true);
       validateLessonVideoBlocks(formData.contentBlocks);
+      validateLessonDynamicChartBlocks(formData.contentBlocks);
 
       // Processar blocos de conteúdo
       const processedBlocks = await processContentBlocks(formData.contentBlocks, editingLesson.id);
@@ -1299,6 +1303,10 @@ export function LessonsManager() {
                                         </SelectContent>
                                       </Select>
                                     )}
+                                    <ParametricChartAdminPreview
+                                      chartId={block.data.chartId}
+                                      charts={parametricCharts}
+                                    />
                                   </div>
                                 )}
                               </div>

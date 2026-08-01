@@ -1,3 +1,3 @@
-export { buildPresetBlockData, createEmptyCustomBlock, PRESET_CATALOG } from "./presets";
-export { computeChartSeries, seriesToRechartsData, resolveYDomain } from "./formulaEngine";
+export { validateLessonDynamicChartBlocks, validateCapsulaDynamicChartSelection } from "./parametricChartValidation";
+export { computeChartSeries, seriesToRechartsData, resolveYDomain, hasValidFormulaSyntax, isFormulaSeriesValid, resolveFormulaExpression } from "./formulaEngine";
 export { evaluateCondition, parameterValuesFromList } from "./conditionEvaluator";

@@ -33,6 +33,8 @@ import {
 } from "@/types/completionSuggestions";
 import { normalizeCompletionSuggestions } from "@/lib/completionSuggestions";
 import { parametricChartService, ParametricChart } from "@/services/parametricChartService";
+import { validateCapsulaDynamicChartSelection } from "@/lib/dynamicChart/parametricChartValidation";
+import { ParametricChartAdminPreview } from "@/components/ParametricChartAdminPreview";
 
 type Capsula = {
   id: string;
@@ -250,6 +252,7 @@ export function CapsulasManager() {
     try {
       setSaving(true);
       validateVideoMedia();
+      validateCapsulaDynamicChartSelection(showDynamicChart, formData.chartId);
 
       // Criar cápsula primeiro para obter o ID
       const { data: newCapsula, error: createError } = await supabase
@@ -362,6 +365,7 @@ export function CapsulasManager() {
     try {
       setSaving(true);
       validateVideoMedia();
+      validateCapsulaDynamicChartSelection(showDynamicChart, formData.chartId);
 
       // Upload de mídia
       const mediaWithUrls = await Promise.all(
@@ -1237,6 +1241,10 @@ export function CapsulasManager() {
                                       </SelectContent>
                                     </Select>
                                   )}
+                                  <ParametricChartAdminPreview
+                                    chartId={formData.chartId}
+                                    charts={parametricCharts}
+                                  />
                                 </CardContent>
                               </Card>
                             );

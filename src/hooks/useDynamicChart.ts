@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import type {
   ActiveConditionalFeedback,
   ComputedChartSeries,
@@ -27,6 +28,9 @@ export interface UseDynamicChartResult {
   chartData: ReturnType<typeof seriesToRechartsData>;
   yDomain: [number, number];
   activeFeedbacks: ActiveConditionalFeedback[];
+  /** Feedbacks a renderizar conforme feedbackDisplayMode */
+  displayedFeedbacks: ActiveConditionalFeedback[];
+  /** @deprecated Preferir displayedFeedbacks */
   primaryFeedback: ActiveConditionalFeedback | null;
 }
 
@@ -35,11 +39,11 @@ export interface UseDynamicChartResult {
  * Recalcula curvas e feedbacks a cada mudança de slider — otimizado com useMemo.
  */
 export function useDynamicChart(config: DynamicChartBlockData): UseDynamicChartResult {
+  const { language } = useLanguage();
   const [parameterValues, setParameterValues] = useState<Record<string, number>>(() =>
     initialParameterState(config.parameters),
   );
 
-  // Sincroniza quando admin troca preset/parâmetros
   const paramKey = config.parameters.map((p) => `${p.id}:${p.defaultValue}`).join("|");
   const syncedValues = useMemo(
     () => initialParameterState(config.parameters),
@@ -61,8 +65,8 @@ export function useDynamicChart(config: DynamicChartBlockData): UseDynamicChartR
   }, [config.parameters]);
 
   const series = useMemo(
-    () => computeChartSeries(config, effectiveValues),
-    [config, effectiveValues],
+    () => computeChartSeries(config, effectiveValues, language),
+    [config, effectiveValues, language],
   );
 
   const chartData = useMemo(() => seriesToRechartsData(series), [series]);
@@ -82,10 +86,17 @@ export function useDynamicChart(config: DynamicChartBlockData): UseDynamicChartR
     }));
   }, [config.conditionalFeedbacks, effectiveValues]);
 
-  const primaryFeedback = useMemo(() => {
+  const displayedFeedbacks = useMemo(() => {
     const active = activeFeedbacks.filter((f) => f.isActive);
-    return active.length > 0 ? active[0] : null;
-  }, [activeFeedbacks]);
+    if (active.length === 0) return [];
+
+    const mode = config.feedbackDisplayMode ?? "highest_priority";
+    if (mode === "all_active") return active;
+
+    return [active[0]];
+  }, [activeFeedbacks, config.feedbackDisplayMode]);
+
+  const primaryFeedback = displayedFeedbacks[0] ?? null;
 
   return {
     parameterValues: effectiveValues,
@@ -95,6 +106,7 @@ export function useDynamicChart(config: DynamicChartBlockData): UseDynamicChartR
     chartData,
     yDomain,
     activeFeedbacks,
+    displayedFeedbacks,
     primaryFeedback,
   };
 }

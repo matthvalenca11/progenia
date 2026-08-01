@@ -1,6 +1,8 @@
 import { Slider } from "@/components/ui/slider";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 import type { DynamicChartParameter } from "@/types/dynamicChart";
+import { resolveI18nText } from "@/types/dynamicChart";
 
 interface DynamicChartSliderProps {
   parameter: DynamicChartParameter;
@@ -16,6 +18,9 @@ export function DynamicChartSlider({
   onChange,
   className,
 }: DynamicChartSliderProps) {
+  const { language } = useLanguage();
+  const paramName = resolveI18nText(parameter.name, language);
+
   const pct =
     parameter.max > parameter.min
       ? ((value - parameter.min) / (parameter.max - parameter.min)) * 100
@@ -25,7 +30,7 @@ export function DynamicChartSlider({
     <div className={cn("space-y-2", className)}>
       <div className="flex items-center justify-between gap-3 min-h-[44px]">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-foreground truncate">{parameter.name}</p>
+          <p className="text-sm font-medium text-foreground truncate">{paramName}</p>
           {parameter.unit && (
             <p className="text-xs text-muted-foreground">{parameter.unit}</p>
           )}
@@ -51,7 +56,7 @@ export function DynamicChartSlider({
           step={parameter.step}
           onValueChange={([v]) => onChange(v)}
           className="relative z-10 min-h-[44px] touch-manipulation [&_[role=slider]]:h-6 [&_[role=slider]]:w-6 [&_[role=slider]]:border-2 [&_[role=slider]]:border-primary/30 [&_[role=slider]]:shadow-md"
-          aria-label={parameter.name}
+          aria-label={paramName}
         />
       </div>
 
