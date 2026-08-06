@@ -9,6 +9,11 @@ const config: CapacitorConfig = {
     preferredContentMode: "mobile",
     scrollEnabled: true,
   },
+  plugins: {
+    StatusBar: {
+      overlaysWebView: true,
+    },
+  },
   server: {
     androidScheme: "https",
     iosScheme: "https",

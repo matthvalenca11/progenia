@@ -3,6 +3,9 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { DemographicPoint, SignupsPoint } from "@/services/adminAnalyticsService";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, Pie, PieChart, XAxis, YAxis } from "recharts";
 
+const CHART_BOX = "aspect-auto h-[240px] w-full min-w-0 min-h-[200px]";
+const CHART_BOX_TALL = "aspect-auto h-[260px] w-full min-w-0 min-h-[220px]";
+
 interface SignupsAndDemographicsChartsProps {
   signupsSeries: SignupsPoint[];
   demographics: DemographicPoint[];
@@ -19,14 +22,14 @@ export function SignupsAndDemographicsCharts({
     .slice(0, 10);
 
   return (
-    <div className="grid gap-3 xl:grid-cols-3">
+    <div className="grid min-w-0 gap-3 xl:grid-cols-3">
       <Card className="p-3 xl:col-span-2 bg-card/80">
         <h3 className="font-semibold mb-2">Novos cadastros por dia</h3>
         <ChartContainer
           config={{
             signups: { label: "Cadastros", color: "#2563eb" },
           }}
-          className="h-[240px] w-full"
+          className={CHART_BOX}
         >
           <LineChart data={signupsSeries}>
             <CartesianGrid vertical={false} />
@@ -44,11 +47,11 @@ export function SignupsAndDemographicsCharts({
           config={{
             total: { label: "Usuários", color: "#10b981" },
           }}
-          className="h-[240px] w-full"
+          className={CHART_BOX}
         >
           <PieChart>
             <ChartTooltip content={<ChartTooltipContent />} />
-            <Pie data={genderData} dataKey="total" nameKey="label" outerRadius={90} fill="var(--color-total)" />
+            <Pie data={genderData} dataKey="total" nameKey="label" outerRadius={72} fill="var(--color-total)" />
           </PieChart>
         </ChartContainer>
       </Card>
@@ -59,7 +62,7 @@ export function SignupsAndDemographicsCharts({
           config={{
             total: { label: "Cadastros", color: "#8b5cf6" },
           }}
-          className="h-[250px] w-full"
+          className={CHART_BOX_TALL}
         >
           <BarChart data={stateData}>
             <CartesianGrid vertical={false} />

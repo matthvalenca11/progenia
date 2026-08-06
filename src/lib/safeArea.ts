@@ -31,8 +31,11 @@ export function applySafeAreaInsets() {
   let left = readInset("left");
   let right = readInset("right");
 
-  // WKWebView/Capacitor às vezes retorna 0 mesmo com notch — fallback iPhone moderno.
-  if (top === 0 && /iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+  // WKWebView/Capacitor às vezes retorna 0 mesmo com notch — fallback só em iPhone (não iPad).
+  const isIPad =
+    /iPad/i.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (top === 0 && /iPhone|iPod/i.test(navigator.userAgent) && !isIPad) {
     top = FALLBACK_INSETS.top;
     bottom = bottom || FALLBACK_INSETS.bottom;
   }

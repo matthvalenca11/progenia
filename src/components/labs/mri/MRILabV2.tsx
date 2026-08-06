@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, RotateCcw, Magnet, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 import { LabMobilePanelTab, LabMobileTabBar } from "@/components/labs/LabMobileTabBar";
 import { labMobileFlexClass, labMobilePanelClass, labCanvasHostClass } from "@/components/labs/labMobileLayout";
 import { isNativeLabRuntime } from "@/lib/labRuntime";
@@ -32,6 +33,7 @@ interface MRILabV2Props {
   labName?: string;
   showBackButton?: boolean;
   showDebug?: boolean;
+  embedded?: boolean;
   onConfigChange?: (nextConfig: MRILabConfig) => void;
 }
 
@@ -40,6 +42,7 @@ export function MRILabV2({
   labName = "Laboratório Virtual de Ressonância Magnética",
   showBackButton = true,
   showDebug = false,
+  embedded = false,
   onConfigChange,
 }: MRILabV2Props) {
   const navigate = useNavigate();
@@ -335,6 +338,42 @@ export function MRILabV2({
       </p>
     </div>
   );
+
+  if (embedded) {
+    return (
+      <div className="flex min-w-0 flex-col touch-pan-y lg:h-full lg:min-h-0">
+        <section className="relative h-[min(48dvh,440px)] min-h-[280px] shrink-0 overflow-hidden border-b border-border bg-background">
+          <div className={labCanvasHostClass}>{renderViewer()}</div>
+        </section>
+
+        <div className="min-w-0 touch-pan-y lg:flex-1 lg:overflow-y-auto lg:overscroll-contain [-webkit-overflow-scrolling:touch]">
+          <div className="space-y-3 p-3">
+            <Tabs
+              value={storeConfig.activeViewer}
+              onValueChange={(v) => applyViewerTabChange(v as MRIViewerType)}
+              className="w-full"
+            >
+              <TabsList className="grid h-auto w-full grid-cols-3 bg-muted/50">
+                <TabsTrigger value="slice_2d" className="px-1 text-[10px] leading-tight">
+                  Fatia 2D
+                </TabsTrigger>
+                <TabsTrigger value="mpr_2d" className="px-1 text-[10px] leading-tight">
+                  MPR
+                </TabsTrigger>
+                {!isNativeLabRuntime && (
+                  <TabsTrigger value="volume_3d" className="px-1 text-[10px] leading-tight">
+                    Volume 3D
+                  </TabsTrigger>
+                )}
+              </TabsList>
+            </Tabs>
+            <MRILabControlPanel isAdmin={showDebug} onConfigChange={onConfigChange} hideHeader />
+            <MRILabInsightsPanel hideHeader />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isMobile) {
     return (

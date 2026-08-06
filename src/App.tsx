@@ -119,11 +119,19 @@ const AppContent = () => {
     !location.pathname.startsWith("/labs/") &&
     !location.pathname.startsWith("/charts/");
 
+  const isAdminLabEditorRoute =
+    location.pathname === "/admin/labs/novo" || location.pathname.startsWith("/admin/labs/editar/");
+  const nativeLabEditorShell = isNativeApp && isAdminLabEditorRoute && !isImmersiveLabRoute;
+
   return (
     <div
       className={`layout-contained flex min-h-[100dvh] flex-col bg-background text-foreground${
-        isImmersiveLabRoute ? " touch-none overflow-hidden" : isNativeApp ? " touch-pan-y" : " overflow-x-hidden touch-pan-y"
-      }${isNativeApp && !isImmersiveLabRoute ? " native-safe-shell" : ""}`}
+        isImmersiveLabRoute
+          ? " touch-none overflow-hidden"
+          : isNativeApp
+            ? " native-safe-shell touch-pan-y overflow-hidden"
+            : " overflow-x-hidden touch-pan-y"
+      }${isNativeApp && !isImmersiveLabRoute ? " h-[100dvh] max-h-[100dvh]" : ""}`}
       style={
         !isNativeApp && !isImmersiveLabRoute
           ? {
@@ -137,12 +145,20 @@ const AppContent = () => {
         className={
           isImmersiveLabRoute
             ? "layout-contained flex min-h-[100dvh] w-full flex-1 flex-col overflow-hidden touch-none p-0"
-            : isNativeApp
-              ? "layout-contained native-shell-padding flex min-h-0 w-full flex-1 flex-col overflow-y-auto touch-pan-y pb-6 pt-2"
-              : "layout-contained flex min-h-0 w-full flex-1 flex-col overflow-y-auto overflow-x-hidden touch-pan-y px-3 pb-6 pt-2 sm:px-4 md:px-8 md:pb-10 md:pt-4"
+            : nativeLabEditorShell
+              ? "layout-contained native-shell-padding flex min-h-0 w-full flex-1 flex-col overflow-hidden touch-pan-y pb-0 pt-2"
+              : isNativeApp
+                ? "layout-contained native-shell-padding flex min-h-0 w-full flex-1 flex-col overflow-y-auto touch-pan-y pb-6 pt-2"
+                : "layout-contained flex min-h-0 w-full flex-1 flex-col overflow-y-auto overflow-x-hidden touch-pan-y px-3 pb-6 pt-2 sm:px-4 md:px-8 md:pb-10 md:pt-4"
         }
       >
-        <div className="layout-contained flex min-h-0 w-full flex-1 flex-col">
+        <div
+          className={
+            isImmersiveLabRoute || nativeLabEditorShell
+              ? "layout-contained flex min-h-0 w-full flex-1 flex-col"
+              : "layout-contained flex w-full min-w-0 flex-col"
+          }
+        >
         <Routes>
           <Route path="/" element={isNativeApp
             ? <Navigate to={user ? "/dashboard" : "/auth"} replace />
@@ -195,15 +211,8 @@ const AppContent = () => {
       </main>
 
       {/* Tutor de IA disponível também no mobile */}
-      {shouldShowAITutor && (
-        <AITutor
-          mobileLeadingActions={<CookiePreferencesButton variant="icon" inlineFab />}
-        />
-      )}
-      <CookiePreferencesButton
-        shiftUpForAiTutorFab={shouldShowAITutor}
-        className={shouldShowAITutor ? "hidden md:inline-flex" : undefined}
-      />
+      {shouldShowAITutor && <AITutor />}
+      <CookiePreferencesButton shiftUpForAiTutorFab={shouldShowAITutor} />
       <CookieBanner />
       <CookiePreferencesDialog />
     </div>

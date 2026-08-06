@@ -15,6 +15,7 @@ import { useMRILabStore } from "@/stores/mriLabStore";
 
 interface MRILabPreviewProps {
   config?: MRILabConfig;
+  embedded?: boolean;
   previewMode?: "student" | "admin";
   onPreviewModeChange?: (mode: "student" | "admin") => void;
   onConfigChange?: (nextConfig: MRILabConfig) => void;
@@ -22,6 +23,7 @@ interface MRILabPreviewProps {
 
 export function MRILabPreview({ 
   config, 
+  embedded = false,
   previewMode = "student",
   onPreviewModeChange,
   onConfigChange,
@@ -83,7 +85,7 @@ export function MRILabPreview({
   // But we ensure initialization happens here too
 
   return (
-    <Card className="h-full flex flex-col">
+    <Card className={embedded ? "flex min-h-0 flex-col touch-pan-y lg:h-full" : "flex h-full flex-col"}>
       <CardHeader className="pb-3 border-b border-border">
         <div className="flex items-center justify-between">
           <div>
@@ -118,11 +120,12 @@ export function MRILabPreview({
           )}
         </div>
       </CardHeader>
-      <CardContent className="flex-1 p-0 overflow-hidden relative">
-        <div className="h-full w-full relative">
+      <CardContent className="relative min-h-0 flex-1 p-0 touch-pan-y lg:overflow-hidden">
+        <div className="relative min-h-[420px] w-full touch-pan-y lg:h-full lg:min-h-0">
           <MRIErrorBoundary>
             {validConfig ? (
               <MRILabV2 
+                embedded={embedded}
                 config={validConfig} 
                 showBackButton={false}
                 labName="Preview"

@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { DashboardFilters as DashboardFiltersType } from "@/services/adminAnalyticsService";
+import { isNativeApp } from "@/lib/capacitor";
+import { cn } from "@/lib/utils";
 
 interface DashboardFiltersProps {
   draftFilters: DashboardFiltersType;
@@ -17,6 +19,14 @@ interface DashboardFiltersProps {
   };
   onReset: () => void;
 }
+
+const fieldShell = "min-w-0 overflow-hidden space-y-1.5";
+const controlClass = "h-9 w-full min-w-0 max-w-full";
+const dateControlClass = "block h-9 w-full min-w-0 max-w-full appearance-none";
+const dateRowClass = cn(
+  "grid min-w-0 grid-cols-1 gap-3",
+  isNativeApp ? "xl:grid-cols-2" : "md:grid-cols-2",
+);
 
 export function DashboardFilters({
   draftFilters,
@@ -45,103 +55,109 @@ export function DashboardFilters({
   };
 
   return (
-    <div className="rounded-lg border bg-card p-3 grid gap-3 md:grid-cols-5">
-      <div className="space-y-1.5">
-        <Label htmlFor="dash-start">Data inicial</Label>
-        <Input
-          id="dash-start"
-          type="date"
-          className="h-9"
-          value={draftFilters.startDate}
-          onChange={(e) => {
-            setDateError(null);
-            onDraftChange({ ...draftFilters, startDate: e.target.value });
-          }}
-        />
+    <div className="min-w-0 space-y-4 overflow-hidden rounded-lg border bg-card p-3">
+      {/* Datas em linha própria — inputs type=date precisam de largura no iPad */}
+      <div className={dateRowClass}>
+        <div className={fieldShell}>
+          <Label htmlFor="dash-start">Data inicial</Label>
+          <Input
+            id="dash-start"
+            type="date"
+            className={dateControlClass}
+            value={draftFilters.startDate}
+            onChange={(e) => {
+              setDateError(null);
+              onDraftChange({ ...draftFilters, startDate: e.target.value });
+            }}
+          />
+        </div>
+
+        <div className={fieldShell}>
+          <Label htmlFor="dash-end">Data final</Label>
+          <Input
+            id="dash-end"
+            type="date"
+            className={dateControlClass}
+            value={draftFilters.endDate}
+            onChange={(e) => {
+              setDateError(null);
+              onDraftChange({ ...draftFilters, endDate: e.target.value });
+            }}
+          />
+        </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="dash-end">Data final</Label>
-        <Input
-          id="dash-end"
-          type="date"
-          className="h-9"
-          value={draftFilters.endDate}
-          onChange={(e) => {
-            setDateError(null);
-            onDraftChange({ ...draftFilters, endDate: e.target.value });
-          }}
-        />
+      {/* Demografia: 1 col mobile, 2 tablet, 3 desktop largo */}
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className={fieldShell}>
+          <Label>Gênero</Label>
+          <Select
+            value={draftFilters.gender ?? "all"}
+            onValueChange={(value) =>
+              onDraftChange({ ...draftFilters, gender: value === "all" ? null : value })
+            }
+          >
+            <SelectTrigger className={controlClass}>
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {options.genders.map((gender) => (
+                <SelectItem key={gender} value={gender}>
+                  {gender}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className={fieldShell}>
+          <Label>Estado</Label>
+          <Select
+            value={draftFilters.stateUf ?? "all"}
+            onValueChange={(value) =>
+              onDraftChange({ ...draftFilters, stateUf: value === "all" ? null : value })
+            }
+          >
+            <SelectTrigger className={controlClass}>
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {options.states.map((state) => (
+                <SelectItem key={state} value={state}>
+                  {state}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className={fieldShell}>
+          <Label>Profissão</Label>
+          <Select
+            value={draftFilters.profession ?? "all"}
+            onValueChange={(value) =>
+              onDraftChange({ ...draftFilters, profession: value === "all" ? null : value })
+            }
+          >
+            <SelectTrigger className={controlClass}>
+              <SelectValue placeholder="Todas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              {options.professions.map((profession) => (
+                <SelectItem key={profession} value={profession}>
+                  {profession}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label>Gênero</Label>
-        <Select
-          value={draftFilters.gender ?? "all"}
-          onValueChange={(value) =>
-            onDraftChange({ ...draftFilters, gender: value === "all" ? null : value })
-          }
-        >
-          <SelectTrigger className="h-9">
-            <SelectValue placeholder="Todos" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            {options.genders.map((gender) => (
-              <SelectItem key={gender} value={gender}>
-                {gender}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>Estado</Label>
-        <Select
-          value={draftFilters.stateUf ?? "all"}
-          onValueChange={(value) =>
-            onDraftChange({ ...draftFilters, stateUf: value === "all" ? null : value })
-          }
-        >
-          <SelectTrigger className="h-9">
-            <SelectValue placeholder="Todos" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            {options.states.map((state) => (
-              <SelectItem key={state} value={state}>
-                {state}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>Profissão</Label>
-        <Select
-          value={draftFilters.profession ?? "all"}
-          onValueChange={(value) =>
-            onDraftChange({ ...draftFilters, profession: value === "all" ? null : value })
-          }
-        >
-          <SelectTrigger className="h-9">
-            <SelectValue placeholder="Todas" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas</SelectItem>
-            {options.professions.map((profession) => (
-              <SelectItem key={profession} value={profession}>
-                {profession}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="md:col-span-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-h-5">
+      <div className="flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-h-5 min-w-0">
           {dateError && <p className="text-sm text-destructive">{dateError}</p>}
           {!dateError && hasPendingChanges && (
             <p className="text-sm text-muted-foreground">
@@ -149,7 +165,7 @@ export function DashboardFilters({
             </p>
           )}
         </div>
-        <div className="flex gap-2 justify-end">
+        <div className="flex shrink-0 gap-2 justify-end">
           <Button variant="outline" className="h-9" onClick={onReset}>
             Limpar filtros
           </Button>
@@ -160,4 +176,4 @@ export function DashboardFilters({
       </div>
     </div>
   );
-}
+};

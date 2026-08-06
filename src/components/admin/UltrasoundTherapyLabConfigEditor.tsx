@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -37,10 +37,19 @@ import { TOTAL_BLOCK_DEPTH } from "@/lib/ultrasoundTherapyStack";
 import { UltrasoundTherapyLabPreview } from "./UltrasoundTherapyLabPreview";
 import { TherapyStudentControlsPreview } from "./TherapyStudentControlsPreview";
 import { Settings2, Sliders, AlertTriangle } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  adminLabConfigColumnClass,
+  adminLabEditorGridClass,
+  adminLabEditorGridTabClass,
+  adminLabEditorTabsShellClass,
+  adminLabPreviewColumnClass,
+} from "@/components/admin/adminLabEditorLayout";
 
 interface UltrasoundTherapyLabConfigEditorProps {
   config: UltrasoundTherapyConfig;
   onChange: (config: UltrasoundTherapyConfig) => void;
+  leadingContent?: ReactNode;
 }
 
 interface NumericRange {
@@ -108,7 +117,11 @@ function RangeMinMaxStepEditor({
   );
 }
 
-export function UltrasoundTherapyLabConfigEditor({ config, onChange }: UltrasoundTherapyLabConfigEditorProps) {
+export function UltrasoundTherapyLabConfigEditor({
+  config,
+  onChange,
+  leadingContent,
+}: UltrasoundTherapyLabConfigEditorProps) {
   const updateConfig = (updates: Partial<UltrasoundTherapyConfig>) => {
     onChange({ ...config, ...updates });
   };
@@ -178,8 +191,8 @@ export function UltrasoundTherapyLabConfigEditor({ config, onChange }: Ultrasoun
   };
 
   return (
-    <Tabs defaultValue="defaults" className="w-full">
-      <TabsList className="mb-6 grid w-full grid-cols-2">
+    <Tabs defaultValue="defaults" className={cn("w-full", adminLabEditorTabsShellClass)}>
+      <TabsList className="mb-6 grid w-full shrink-0 grid-cols-2">
         <TabsTrigger value="defaults" className="flex items-center gap-2">
           <Sliders className="h-4 w-4" />
           Defaults
@@ -191,9 +204,11 @@ export function UltrasoundTherapyLabConfigEditor({ config, onChange }: Ultrasoun
       </TabsList>
 
       {/* ── Tab: Defaults (config à esquerda, preview anatômico à direita) ── */}
-      <TabsContent value="defaults" className="mt-6">
-        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
-          <div className="space-y-6">
+      <TabsContent value="defaults" className={adminLabEditorGridTabClass}>
+        <div className={adminLabEditorGridClass}>
+          <div className={adminLabConfigColumnClass}>
+            {leadingContent}
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Cenário anatômico padrão</CardTitle>
@@ -613,7 +628,7 @@ export function UltrasoundTherapyLabConfigEditor({ config, onChange }: Ultrasoun
         </Card>
           </div>
 
-          <div className="lg:sticky lg:top-6">
+          <div className={adminLabPreviewColumnClass}>
             <UltrasoundTherapyLabPreview config={config} />
           </div>
         </div>

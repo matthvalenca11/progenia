@@ -4,6 +4,8 @@ import { UltrasoundTherapyConfig } from "@/types/ultrasoundTherapyConfig";
 import { UltrasoundTherapy3DViewer } from "@/components/labs/ultrasound-therapy/UltrasoundTherapy3DViewer";
 import { UltrasoundTherapyInsightsPanel } from "@/components/labs/ultrasound-therapy/UltrasoundTherapyInsightsPanel";
 import { useUltrasoundTherapyStore } from "@/stores/ultrasoundTherapyStore";
+import { adminLabCanvasFrameClass } from "@/components/admin/adminLabEditorLayout";
+import { cn } from "@/lib/utils";
 
 interface UltrasoundTherapyLabPreviewProps {
   config: UltrasoundTherapyConfig;
@@ -36,7 +38,7 @@ export function UltrasoundTherapyLabPreview({ config }: UltrasoundTherapyLabPrev
             Reflete os defaults salvos. Alterações persistem ao salvar o lab.
           </CardDescription>
         </CardHeader>
-        <CardContent className="relative h-[500px] min-h-[500px] p-0">
+        <CardContent className={cn("relative p-0", adminLabCanvasFrameClass, "h-[min(500px,55dvh)] min-h-[320px] lg:h-[500px] lg:min-h-[500px]")}>
           <UltrasoundTherapy3DViewer />
         </CardContent>
       </Card>

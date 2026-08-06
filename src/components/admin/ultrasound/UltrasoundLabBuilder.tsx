@@ -15,6 +15,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Layers, TestTube2, Sparkles, Sliders } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import {
+  adminLabConfigColumnClass,
+  adminLabEditorGridClass,
+  adminLabPreviewColumnClass,
+} from "@/components/admin/adminLabEditorLayout";
 
 interface UltrasoundLabBuilderProps {
   videoUrl?: string;
@@ -79,8 +85,8 @@ export const UltrasoundLabBuilder = ({ videoUrl, onVideoChange }: UltrasoundLabB
   };
   
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr,600px] gap-6 items-start relative">
-      <div className="space-y-6">
+    <div className={adminLabEditorGridClass}>
+      <div className={adminLabConfigColumnClass}>
         <BasicInfoSection />
         
         {/* Video Uploader - integrated in left column */}
@@ -141,7 +147,7 @@ export const UltrasoundLabBuilder = ({ videoUrl, onVideoChange }: UltrasoundLabB
         
       </div>
       
-      <div className="lg:fixed lg:top-20 lg:right-8 lg:w-[600px] space-y-4 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:z-0">
+      <div className={adminLabPreviewColumnClass}>
         <UltrasoundPreview />
         
         {/* Schematic visualization */}
@@ -151,12 +157,11 @@ export const UltrasoundLabBuilder = ({ videoUrl, onVideoChange }: UltrasoundLabB
               <Label className="mb-3 block text-base font-semibold">
                 Visualização esquemática (profundidade total: {getTotalDepth().toFixed(1)} cm)
               </Label>
-              <div className="relative space-y-1">
-                {convertToLayerConfigs().map((layer, index) => {
-                  const medium = getAcousticMedium(layer.mediumId);
-                  const heightPercent = (layer.thicknessCm / getTotalDepth()) * 100;
-                  
-                  // Color mapping based on medium
+              <div
+                className="relative flex min-h-[10rem] flex-col gap-1 rounded-md border border-border/60 bg-muted/20 p-1"
+                style={{ minHeight: `${Math.max(getTotalDepth() * 28, 160)}px` }}
+              >
+                {convertToLayerConfigs().map((layer) => {
                   const colorMap: Record<string, string> = {
                     skin: "bg-amber-200",
                     fat: "bg-yellow-300",
@@ -170,50 +175,50 @@ export const UltrasoundLabBuilder = ({ videoUrl, onVideoChange }: UltrasoundLabB
                     cartilage: "bg-gray-200",
                     generic_soft: "bg-pink-200",
                   };
-                  
+
                   return (
                     <div
                       key={layer.id}
-                      className={`${colorMap[layer.mediumId] || "bg-gray-300"} rounded px-2 py-1 flex items-center justify-between text-xs`}
-                      style={{ height: `${Math.max(heightPercent, 10)}px` }}
+                      className={cn(
+                        colorMap[layer.mediumId] || "bg-gray-300",
+                        "flex min-h-[1.75rem] shrink-0 items-center justify-between rounded px-2 py-1 text-xs",
+                      )}
+                      style={{ flex: `${layer.thicknessCm} 0 auto` }}
                     >
                       <span className="font-medium">{layer.name}</span>
                       <span>{layer.thicknessCm.toFixed(1)} cm</span>
                     </div>
                   );
                 })}
-                
+
                 {/* Overlay inclusions */}
                 {inclusions.map((inclusion) => {
                   const totalDepth = getTotalDepth();
                   const topPercent = (inclusion.centerDepthCm / totalDepth) * 100;
-                  const size = typeof inclusion.sizeCm === 'number' ? inclusion.sizeCm : inclusion.sizeCm.height;
+                  const size =
+                    typeof inclusion.sizeCm === "number" ? inclusion.sizeCm : inclusion.sizeCm.height;
                   const heightPercent = (size / totalDepth) * 100;
-                  
-                  // Calculate lateral position (centerLateralPos is from -1 to 1)
-                  // Convert to percentage offset from center (50%)
-                  const lateralOffsetPercent = inclusion.centerLateralPos * 30; // 30% max offset from center
-                  const leftPosition = 50 + lateralOffsetPercent; // 50% is center
-                  
+                  const lateralOffsetPercent = inclusion.centerLateralPos * 30;
+                  const leftPosition = 50 + lateralOffsetPercent;
+
                   return (
                     <div
                       key={`${inclusion.id}-${inclusion.centerLateralPos}-${inclusion.centerDepthCm}`}
-                      className="absolute border-2 border-orange-500 border-dashed rounded-full bg-orange-500/20 flex items-center justify-center"
+                      className="pointer-events-none absolute flex items-center justify-center rounded-full border-2 border-dashed border-orange-500 bg-orange-500/20"
                       style={{
                         top: `${topPercent - heightPercent / 2}%`,
                         left: `${leftPosition}%`,
-                        transform: 'translate(-50%, 0)',
-                        width: `${heightPercent}%`,
-                        height: `${heightPercent}%`,
-                        minWidth: '40px',
-                        minHeight: '40px',
+                        transform: "translate(-50%, 0)",
+                        width: `${Math.max(heightPercent, 8)}%`,
+                        height: `${Math.max(heightPercent, 8)}%`,
+                        minWidth: "2.5rem",
+                        minHeight: "2.5rem",
                       }}
                     >
                       <span className="text-xs font-bold text-orange-700">{inclusion.label}</span>
                     </div>
                   );
                 })}
-              
               </div>
             </CardContent>
           </Card>

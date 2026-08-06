@@ -18,7 +18,7 @@ export function EngagementCharts({ engagementSeries }: EngagementChartsProps) {
           capsula_completions: { label: "Conclusões de cápsulas", color: "#f59e0b" },
           quiz_attempts: { label: "Tentativas de quiz", color: "#8b5cf6" },
         }}
-        className="h-[260px] w-full"
+        className="aspect-auto h-[260px] w-full min-w-0 min-h-[220px]"
       >
         <LineChart data={engagementSeries}>
           <CartesianGrid vertical={false} />

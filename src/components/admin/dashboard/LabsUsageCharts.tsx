@@ -27,7 +27,7 @@ export function LabsUsageCharts({ labsUsage }: LabsUsageChartsProps) {
   );
 
   return (
-    <div className="grid gap-3 xl:grid-cols-3">
+    <div className="grid min-w-0 gap-3 xl:grid-cols-3">
       <Card className="p-3 xl:col-span-2 bg-card/80">
         <h3 className="font-semibold mb-2">Uso de Labs (sessões e usuários)</h3>
         <ChartContainer
@@ -35,7 +35,7 @@ export function LabsUsageCharts({ labsUsage }: LabsUsageChartsProps) {
             sessions: { label: "Sessões", color: "#06b6d4" },
             users: { label: "Usuários", color: "#3b82f6" },
           }}
-          className="h-[250px] w-full"
+          className="aspect-auto h-[250px] w-full min-w-0 min-h-[200px]"
         >
           <BarChart data={sessionsChart}>
             <CartesianGrid vertical={false} />

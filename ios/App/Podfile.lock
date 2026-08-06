@@ -8,6 +8,8 @@ PODS:
   - CapacitorCordova (7.4.5)
   - CapacitorPreferences (7.0.4):
     - Capacitor
+  - CapacitorStatusBar (7.0.6):
+    - Capacitor
 
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
@@ -15,6 +17,7 @@ DEPENDENCIES:
   - "CapacitorCommunityHttp (from `../../node_modules/@capacitor-community/http`)"
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorPreferences (from `../../node_modules/@capacitor/preferences`)"
+  - "CapacitorStatusBar (from `../../node_modules/@capacitor/status-bar`)"
 
 EXTERNAL SOURCES:
   Capacitor:
@@ -27,6 +30,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/ios"
   CapacitorPreferences:
     :path: "../../node_modules/@capacitor/preferences"
+  CapacitorStatusBar:
+    :path: "../../node_modules/@capacitor/status-bar"
 
 SPEC CHECKSUMS:
   Capacitor: 12914e6f1b7835e161a74ebd19cb361efa37a7dd
@@ -34,7 +39,8 @@ SPEC CHECKSUMS:
   CapacitorCommunityHttp: 7eba71da94e070e37a26a60483350285a33e3903
   CapacitorCordova: 31bbe4466000c6b86d9b7f1181ee286cff0205aa
   CapacitorPreferences: 69d9991307507aeab8ef8019c10b9babfda0e9ca
+  CapacitorStatusBar: 416e9e53fd6397e668d4a181cd2131617d949bd6
 
-PODFILE CHECKSUM: 407b3194703be01f7cc78852a66daf03ef846b16
+PODFILE CHECKSUM: 8ce324f17fd7bd937e3e1394d09a77afad2120d5
 
 COCOAPODS: 1.16.2

@@ -85,7 +85,7 @@ export function AdminDashboard() {
   const data = dataQuery.data!;
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4 overflow-x-hidden">
       <div className="rounded-lg border bg-card/60 p-3">
         <h2 className="text-lg font-semibold">Visão geral da plataforma</h2>
         <p className="text-sm text-muted-foreground">

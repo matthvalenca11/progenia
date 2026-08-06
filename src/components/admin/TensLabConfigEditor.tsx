@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -13,13 +13,22 @@ import { TissuePresetSelector } from "./TissuePresetSelector";
 import { TensLabPreview } from "./TensLabPreview";
 import { simulateTens, type TensMode } from "@/lib/tensSimulation";
 import { Dna, Settings2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  adminLabConfigColumnClass,
+  adminLabEditorGridClass,
+  adminLabEditorGridTabClass,
+  adminLabEditorTabsShellClass,
+  adminLabPreviewColumnClass,
+} from "@/components/admin/adminLabEditorLayout";
 
 interface TensLabConfigEditorProps {
   config: TensLabConfig;
   onChange: (config: TensLabConfig) => void;
+  leadingContent?: ReactNode;
 }
 
-export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorProps) {
+export function TensLabConfigEditor({ config, onChange, leadingContent }: TensLabConfigEditorProps) {
   // Estado local para gerenciar presets
   const [selectedPresetId, setSelectedPresetId] = useState<TissuePresetId>(
     (config.tissueConfigId && tissuePresets.some(p => p.id === config.tissueConfigId)) 
@@ -120,8 +129,8 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
   }, [selectedPresetId, tissueConfig]);
 
   return (
-    <Tabs defaultValue="anatomy" className="w-full">
-      <TabsList className="grid w-full grid-cols-2 mb-6">
+    <Tabs defaultValue="anatomy" className={cn("w-full", adminLabEditorTabsShellClass)}>
+      <TabsList className="mb-6 grid w-full shrink-0 grid-cols-2">
         <TabsTrigger value="anatomy" className="flex items-center gap-2">
           <Dna className="h-4 w-4" />
           Anatomia e Preview
@@ -133,11 +142,13 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
       </TabsList>
 
       {/* Tab 1: Anatomia com Preview Integrado */}
-      <TabsContent value="anatomy" className="mt-6">
+      <TabsContent value="anatomy" className={adminLabEditorGridTabClass}>
         {/* Layout: Controles à esquerda, Previews sticky à direita */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr,600px] gap-6 items-start">
+        <div className={adminLabEditorGridClass}>
           {/* COLUNA 1: Controles de Anatomia + Estimulação (scroll normal) */}
-          <div className="space-y-6">
+          <div className={adminLabConfigColumnClass}>
+            {leadingContent}
+
             {/* Cenário selecionado */}
             <Card className="p-4 bg-muted/30">
               <h4 className="text-sm font-semibold">Cenário anatômico</h4>
@@ -251,7 +262,7 @@ export function TensLabConfigEditor({ config, onChange }: TensLabConfigEditorPro
           </div>
           
           {/* COLUNA 2: Previews sticky (2D + 3D) + Painel de Análises */}
-          <div className="w-full flex flex-col gap-4 lg:sticky lg:top-6 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+          <div className={adminLabPreviewColumnClass}>
             <TensLabPreview
               config={config} 
               tissueConfig={previewTissueConfig}

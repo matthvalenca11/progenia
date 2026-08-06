@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { adminLabCanvasFrameClass } from "@/components/admin/adminLabEditorLayout";
+import { cn } from "@/lib/utils";
 
 export const UltrasoundPreview = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -182,19 +184,19 @@ export const UltrasoundPreview = () => {
   };
   
   return (
-    <Card className="lg:sticky lg:top-6 lg:self-start">
+    <Card className="w-full bg-card">
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <CardTitle className="flex items-center gap-2">
-              <Eye className="h-5 w-5" />
+              <Eye className="h-5 w-5 shrink-0" />
               Pré-visualização Live
             </CardTitle>
             <CardDescription>
               Atualização em tempo real conforme você ajusta os parâmetros
             </CardDescription>
           </div>
-          <div className="flex gap-2 items-center">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Select value={transducerType} onValueChange={(value: any) => setTransducerType(value)}>
               <SelectTrigger className="w-[140px] h-8">
                 <SelectValue />
@@ -210,7 +212,7 @@ export const UltrasoundPreview = () => {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="bg-black rounded-lg overflow-hidden border border-border">
+        <div className={cn("rounded-lg border border-border bg-black", adminLabCanvasFrameClass)}>
           <canvas
             ref={canvasRef}
             width={600}
@@ -219,9 +221,9 @@ export const UltrasoundPreview = () => {
           />
         </div>
         
-        <div className="mt-4 space-y-4">
-          <div>
-            <Label className="mb-3 flex justify-between">
+        <div className="mt-4 space-y-5">
+          <div className="space-y-2">
+            <Label className="flex justify-between">
               <span>Ganho</span>
               <span className="font-mono text-sm">{localGain.toFixed(0)} dB</span>
             </Label>
@@ -238,8 +240,8 @@ export const UltrasoundPreview = () => {
             />
           </div>
           
-          <div>
-            <Label className="mb-3 flex justify-between">
+          <div className="space-y-2">
+            <Label className="flex justify-between">
               <span>Profundidade</span>
               <span className="font-mono text-sm">{localDepth.toFixed(1)} cm</span>
             </Label>
@@ -256,8 +258,8 @@ export const UltrasoundPreview = () => {
             />
           </div>
           
-          <div>
-            <Label className="mb-3 flex justify-between">
+          <div className="space-y-2">
+            <Label className="flex justify-between">
               <span>Frequência</span>
               <span className="font-mono text-sm">{localFrequency.toFixed(1)} MHz</span>
             </Label>
@@ -274,8 +276,8 @@ export const UltrasoundPreview = () => {
             />
           </div>
           
-          <div>
-            <Label className="mb-3 flex justify-between">
+          <div className="space-y-2">
+            <Label className="flex justify-between">
               <span>Foco</span>
               <span className="font-mono text-sm">{localFocus.toFixed(1)} cm</span>
             </Label>

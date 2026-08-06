@@ -14,6 +14,7 @@ import {
   type PhotobioLabConfig,
 } from "@/types/photobioLabConfig";
 import { cn } from "@/lib/utils";
+import { adminLabCanvasFrameClass } from "@/components/admin/adminLabEditorLayout";
 import { PhotobioPreviewMetricsAlerts } from "./PhotobioPreviewMetricsAlerts";
 
 interface PhotobioLabPreviewProps {
@@ -71,7 +72,7 @@ export function PhotobioLabPreview({ config, variant = "metrics" }: PhotobioLabP
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="relative h-[500px] min-h-[500px] p-0">
+      <CardContent className={cn("relative p-0", adminLabCanvasFrameClass, "h-[min(500px,55dvh)] min-h-[320px] lg:h-[500px] lg:min-h-[500px]")}>
         <PhotobioTissueViewer embedded />
       </CardContent>
     </Card>

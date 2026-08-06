@@ -33,6 +33,17 @@ import TensLabPage from "@/pages/TensLabPage";
 import MRILabPage from "@/pages/MRILabPage";
 import { useUltrasoundLabStore } from "@/stores/ultrasoundLabStore";
 import { useMRILabStore } from "@/stores/mriLabStore";
+import { isNativeApp } from "@/lib/capacitor";
+import { cn } from "@/lib/utils";
+import {
+  adminLabConfigColumnClass,
+  adminLabEditorBodyClass,
+  adminLabEditorDualPanelEditorClass,
+  adminLabEditorDualShellClass,
+  adminLabEditorGridClass,
+  adminLabEditorPageClass,
+  adminLabPreviewColumnClass,
+} from "@/components/admin/adminLabEditorLayout";
 
 export default function VirtualLabEditorUnified() {
   const navigate = useNavigate();
@@ -55,6 +66,27 @@ export default function VirtualLabEditorUnified() {
 
   // Access Zustand store for ultrasound lab configuration
   const ultrasoundStore = useUltrasoundLabStore();
+
+  useEffect(() => {
+    if (!isNativeApp || !lab.lab_type) return;
+    const dualTypes: VirtualLabType[] = [
+      "ultrasound",
+      "tens",
+      "ultrasound_therapy",
+      "mri",
+      "photobiomodulation",
+    ];
+    if (!dualTypes.includes(lab.lab_type as VirtualLabType)) return;
+
+    document.documentElement.classList.add("admin-lab-editor-scroll-lock");
+    const prevBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.documentElement.classList.remove("admin-lab-editor-scroll-lock");
+      document.body.style.overflow = prevBodyOverflow;
+    };
+  }, [lab.lab_type]);
 
   useEffect(() => {
     if (isEdit && labId) {
@@ -242,6 +274,17 @@ export default function VirtualLabEditorUnified() {
     setLab({ ...lab, ...updates });
   };
 
+  const dualPanelLabTypes: VirtualLabType[] = [
+    "ultrasound",
+    "tens",
+    "ultrasound_therapy",
+    "mri",
+    "photobiomodulation",
+  ];
+  const usesDualPanelLayout =
+    !!lab.lab_type && dualPanelLabTypes.includes(lab.lab_type as VirtualLabType);
+  const nativeDualPanel = isNativeApp && usesDualPanelLayout;
+
   if (loading && isEdit) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -254,35 +297,35 @@ export default function VirtualLabEditorUnified() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto py-8 space-y-6">
+    <div className={adminLabEditorPageClass}>
+      <div className="container mx-auto min-w-0 shrink-0 py-4 md:py-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
+            <Button
+              variant="ghost"
+              className="shrink-0"
               onClick={() => {
-                // Limpar volume antes de navegar (se não salvou)
                 if (lab.lab_type === "mri") {
                   mriStore.clearVolume();
                 }
                 navigate("/admin/labs");
-              }} 
+              }}
               disabled={loading}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Voltar
             </Button>
-            <div>
-              <h1 className="text-3xl font-bold">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold sm:text-3xl">
                 {isEdit ? "Editar Laboratório Virtual" : "Novo Laboratório Virtual"}
               </h1>
-              <p className="text-muted-foreground">
+              <p className="text-sm text-muted-foreground sm:text-base">
                 Configure um laboratório virtual reutilizável
               </p>
             </div>
           </div>
-          <Button onClick={handleSave} disabled={loading} size="lg">
+          <Button onClick={handleSave} disabled={loading} size="lg" className="w-full shrink-0 sm:w-auto">
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -296,6 +339,20 @@ export default function VirtualLabEditorUnified() {
             )}
           </Button>
         </div>
+      </div>
+
+      <div className={adminLabEditorBodyClass}>
+        <div
+          className={cn(
+            nativeDualPanel && adminLabEditorDualShellClass,
+            !nativeDualPanel &&
+              isNativeApp &&
+              "container mx-auto min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain pb-8 touch-pan-y admin-touch-scroll [-webkit-overflow-scrolling:touch]",
+            !nativeDualPanel &&
+              !isNativeApp &&
+              "container mx-auto min-w-0 space-y-6 pb-8 md:pb-10",
+          )}
+        >
 
         {/* Step 1: Type Selection (only for new labs without type) */}
         {!lab.lab_type && !isEdit && (
@@ -335,10 +392,9 @@ export default function VirtualLabEditorUnified() {
 
         {/* Type-Specific Configuration */}
         {lab.lab_type === "ultrasound" && (
-          <UltrasoundLabBuilder 
-            videoUrl={videoUrl}
-            onVideoChange={setVideoUrl}
-          />
+          <div className={adminLabEditorDualPanelEditorClass}>
+            <UltrasoundLabBuilder videoUrl={videoUrl} onVideoChange={setVideoUrl} />
+          </div>
         )}
 
         {/* Basic Info for generic labs only (types without dedicated editors) */}
@@ -418,214 +474,196 @@ export default function VirtualLabEditorUnified() {
         )}
 
         {/* TENS Configuration */}
-        {lab.lab_type === "tens" && (
-          <>
-            {/* Basic Info for TENS */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Informações Básicas</CardTitle>
-                <CardDescription>Defina o nome e descrição do laboratório</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="tens-name">Nome do Laboratório *</Label>
-                  <Input
-                    id="tens-name"
-                    value={lab.name}
-                    onChange={(e) => setLab({ ...lab, name: e.target.value })}
-                    placeholder="Ex: TENS para Dor Lombar"
+        {lab.lab_type === "tens" && lab.config_data && (
+          <div className={adminLabEditorDualPanelEditorClass}>
+            <TensLabConfigEditor
+              config={lab.config_data}
+              onChange={(config) => setLab({ ...lab, config_data: config })}
+              leadingContent={
+                <>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Informações Básicas</CardTitle>
+                      <CardDescription>Defina o nome e descrição do laboratório</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <Label htmlFor="tens-name">Nome do Laboratório *</Label>
+                        <Input
+                          id="tens-name"
+                          value={lab.name}
+                          onChange={(e) => setLab({ ...lab, name: e.target.value })}
+                          placeholder="Ex: TENS para Dor Lombar"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="tens-description">Descrição</Label>
+                        <Textarea
+                          id="tens-description"
+                          value={lab.description}
+                          onChange={(e) => setLab({ ...lab, description: e.target.value })}
+                          placeholder="Descreva os objetivos de aprendizado e o que os alunos poderão explorar neste laboratório..."
+                          rows={3}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <LabVideoUploader
+                    videoUrl={videoUrl}
+                    onVideoChange={setVideoUrl}
+                    disabled={loading}
                   />
-                </div>
-
-                <div>
-                  <Label htmlFor="tens-description">Descrição</Label>
-                  <Textarea
-                    id="tens-description"
-                    value={lab.description}
-                    onChange={(e) => setLab({ ...lab, description: e.target.value })}
-                    placeholder="Descreva os objetivos de aprendizado e o que os alunos poderão explorar neste laboratório..."
-                    rows={3}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Video Uploader for TENS */}
-            <LabVideoUploader
-              videoUrl={videoUrl}
-              onVideoChange={setVideoUrl}
-              disabled={loading}
+                </>
+              }
             />
-
-            {/* TENS Config Editor */}
-            {lab.config_data && (
-              <TensLabConfigEditor
-                config={lab.config_data}
-                onChange={(config) => setLab({ ...lab, config_data: config })}
-              />
-            )}
-          </>
-        )}
-
-        {/* Basic Info for Ultrasound Therapy */}
-        {lab.lab_type === "ultrasound_therapy" && (
-          <>
-            <Card>
-              <CardHeader>
-                <CardTitle>Informações Básicas</CardTitle>
-                <CardDescription>Dados gerais do laboratório</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="name">Nome do Laboratório *</Label>
-                    <Input
-                      id="name"
-                      value={lab.name}
-                      onChange={(e) => setLab({ ...lab, name: e.target.value })}
-                      placeholder="Ex: Ultrassom de Ombro - Tendão Supraespinal"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="slug">Slug (URL) *</Label>
-                    <Input
-                      id="slug"
-                      value={lab.slug}
-                      onChange={(e) => setLab({ ...lab, slug: e.target.value })}
-                      placeholder="Ex: ultrassom-terapeutico-ombro"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Será gerado automaticamente se deixar vazio
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="description">Descrição</Label>
-                  <Textarea
-                    id="description"
-                    value={lab.description}
-                    onChange={(e) => setLab({ ...lab, description: e.target.value })}
-                    placeholder="Descreva os objetivos de aprendizado e o que os alunos poderão explorar neste laboratório..."
-                    rows={3}
-                  />
-                </div>
-
-                <div>
-                  <Label>Tipo de Laboratório</Label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-sm font-medium capitalize">Ultrassom Terapêutico</span>
-                    {!isEdit && (
-                      <Button 
-                        variant="link" 
-                        size="sm" 
-                        className="text-xs p-0 h-auto"
-                        onClick={() => setLab({ ...lab, lab_type: undefined })}
-                      >
-                        (alterar)
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Video Uploader for Ultrasound Therapy */}
-            <LabVideoUploader
-              videoUrl={videoUrl}
-              onVideoChange={setVideoUrl}
-              disabled={loading}
-            />
-          </>
+          </div>
         )}
 
         {/* Ultrasound Therapy Configuration */}
         {lab.lab_type === "ultrasound_therapy" && lab.config_data && (
-          <UltrasoundTherapyLabConfigEditor
-            config={mergeUltrasoundTherapyConfig(lab.config_data as Partial<UltrasoundTherapyConfig>)}
-            onChange={(config) => setLab({ ...lab, config_data: config })}
-          />
-        )}
-
-        {/* Basic Info for MRI */}
-        {lab.lab_type === "mri" && (
-          <>
-            <Card>
-              <CardHeader>
-                <CardTitle>Informações Básicas</CardTitle>
-                <CardDescription>Dados gerais do laboratório</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="name">Nome do Laboratório *</Label>
-                    <Input
-                      id="name"
-                      value={lab.name}
-                      onChange={(e) => setLab({ ...lab, name: e.target.value })}
-                      placeholder="Ex: Ressonância Magnética - Princípios Físicos"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="slug">Slug (URL) *</Label>
-                    <Input
-                      id="slug"
-                      value={lab.slug}
-                      onChange={(e) => setLab({ ...lab, slug: e.target.value })}
-                      placeholder="Ex: ressonancia-magnetica"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Será gerado automaticamente se deixar vazio
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="description">Descrição</Label>
-                  <Textarea
-                    id="description"
-                    value={lab.description}
-                    onChange={(e) => setLab({ ...lab, description: e.target.value })}
-                    placeholder="Descreva os objetivos de aprendizado e o que os alunos poderão explorar neste laboratório..."
-                    rows={3}
+          <div className={adminLabEditorDualPanelEditorClass}>
+            <UltrasoundTherapyLabConfigEditor
+              config={mergeUltrasoundTherapyConfig(lab.config_data as Partial<UltrasoundTherapyConfig>)}
+              onChange={(config) => setLab({ ...lab, config_data: config })}
+              leadingContent={
+                <>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Informações Básicas</CardTitle>
+                      <CardDescription>Dados gerais do laboratório</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="name">Nome do Laboratório *</Label>
+                          <Input
+                            id="name"
+                            value={lab.name}
+                            onChange={(e) => setLab({ ...lab, name: e.target.value })}
+                            placeholder="Ex: Ultrassom de Ombro - Tendão Supraespinal"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="slug">Slug (URL) *</Label>
+                          <Input
+                            id="slug"
+                            value={lab.slug}
+                            onChange={(e) => setLab({ ...lab, slug: e.target.value })}
+                            placeholder="Ex: ultrassom-terapeutico-ombro"
+                          />
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Será gerado automaticamente se deixar vazio
+                          </p>
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="description">Descrição</Label>
+                        <Textarea
+                          id="description"
+                          value={lab.description}
+                          onChange={(e) => setLab({ ...lab, description: e.target.value })}
+                          placeholder="Descreva os objetivos de aprendizado e o que os alunos poderão explorar neste laboratório..."
+                          rows={3}
+                        />
+                      </div>
+                      <div>
+                        <Label>Tipo de Laboratório</Label>
+                        <div className="mt-1 flex items-center gap-2">
+                          <span className="text-sm font-medium capitalize">Ultrassom Terapêutico</span>
+                          {!isEdit && (
+                            <Button
+                              variant="link"
+                              size="sm"
+                              className="h-auto p-0 text-xs"
+                              onClick={() => setLab({ ...lab, lab_type: undefined })}
+                            >
+                              (alterar)
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <LabVideoUploader
+                    videoUrl={videoUrl}
+                    onVideoChange={setVideoUrl}
+                    disabled={loading}
                   />
-                </div>
-
-                <div>
-                  <Label>Tipo de Laboratório</Label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-sm font-medium capitalize">Ressonância Magnética</span>
-                    {!isEdit && (
-                      <Button 
-                        variant="link" 
-                        size="sm" 
-                        className="text-xs p-0 h-auto"
-                        onClick={() => setLab({ ...lab, lab_type: undefined })}
-                      >
-                        (alterar)
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Video Uploader for MRI */}
-            <LabVideoUploader
-              videoUrl={videoUrl}
-              onVideoChange={setVideoUrl}
-              disabled={loading}
+                </>
+              }
             />
-          </>
+          </div>
         )}
 
         {/* MRI Configuration with Live Preview */}
         {lab.lab_type === "mri" && (
-          <div className="grid grid-cols-1 lg:grid-cols-[35%_65%] gap-4">
+          <div className={adminLabEditorDualPanelEditorClass}>
+          <div className={adminLabEditorGridClass}>
             {/* Left: Configuration Editor */}
-            <div className="space-y-4">
+            <div className={adminLabConfigColumnClass}>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Informações Básicas</CardTitle>
+                  <CardDescription>Dados gerais do laboratório</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="name">Nome do Laboratório *</Label>
+                      <Input
+                        id="name"
+                        value={lab.name}
+                        onChange={(e) => setLab({ ...lab, name: e.target.value })}
+                        placeholder="Ex: Ressonância Magnética - Princípios Físicos"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="slug">Slug (URL) *</Label>
+                      <Input
+                        id="slug"
+                        value={lab.slug}
+                        onChange={(e) => setLab({ ...lab, slug: e.target.value })}
+                        placeholder="Ex: ressonancia-magnetica"
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Será gerado automaticamente se deixar vazio
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="description">Descrição</Label>
+                    <Textarea
+                      id="description"
+                      value={lab.description}
+                      onChange={(e) => setLab({ ...lab, description: e.target.value })}
+                      placeholder="Descreva os objetivos de aprendizado e o que os alunos poderão explorar neste laboratório..."
+                      rows={3}
+                    />
+                  </div>
+                  <div>
+                    <Label>Tipo de Laboratório</Label>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className="text-sm font-medium capitalize">Ressonância Magnética</span>
+                      {!isEdit && (
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0 text-xs"
+                          onClick={() => setLab({ ...lab, lab_type: undefined })}
+                        >
+                          (alterar)
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <LabVideoUploader
+                videoUrl={videoUrl}
+                onVideoChange={setVideoUrl}
+                disabled={loading}
+              />
+
               {lab.config_data ? (
                 <MRILabConfigEditor
                   config={lab.config_data}
@@ -641,8 +679,9 @@ export default function VirtualLabEditorUnified() {
             </div>
             
             {/* Right: Live Preview */}
-            <div className="lg:sticky lg:top-4 h-[calc(100vh-120px)]">
-              <MRILabPreview 
+            <div className={adminLabPreviewColumnClass}>
+              <MRILabPreview
+                embedded
                 config={lab.config_data || defaultMRILabConfig}
                 previewMode={mriPreviewMode}
                 onPreviewModeChange={setMriPreviewMode}
@@ -650,68 +689,66 @@ export default function VirtualLabEditorUnified() {
               />
             </div>
           </div>
+          </div>
         )}
 
-        {/* Basic Info for Photobiomodulation */}
         {lab.lab_type === "photobiomodulation" && (
-          <>
-            <Card>
-              <CardHeader>
-                <CardTitle>Informações Básicas</CardTitle>
-                <CardDescription>Dados gerais do laboratório de fotobiomodulação</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="name">Nome do Laboratório *</Label>
-                    <Input
-                      id="name"
-                      value={lab.name}
-                      onChange={(e) => setLab({ ...lab, name: e.target.value })}
-                      placeholder="Ex: Fotobiomodulação - Janela Terapêutica"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="slug">Slug (URL) *</Label>
-                    <Input
-                      id="slug"
-                      value={lab.slug}
-                      onChange={(e) => setLab({ ...lab, slug: e.target.value })}
-                      placeholder="Ex: fotobiomodulacao-v2"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Será gerado automaticamente se deixar vazio
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="description">Descrição</Label>
-                  <Textarea
-                    id="description"
-                    value={lab.description}
-                    onChange={(e) => setLab({ ...lab, description: e.target.value })}
-                    placeholder="Descreva os objetivos de aprendizado do laboratório FBM..."
-                    rows={3}
+          <div className={adminLabEditorDualPanelEditorClass}>
+            <PhotobioLabConfigEditor
+              config={mergePhotobioLabConfig(lab.config_data as Partial<PhotobioLabConfig>)}
+              onChange={(config) => setLab({ ...lab, config_data: config })}
+              leadingContent={
+                <>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Informações Básicas</CardTitle>
+                      <CardDescription>Dados gerais do laboratório de fotobiomodulação</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="name">Nome do Laboratório *</Label>
+                          <Input
+                            id="name"
+                            value={lab.name}
+                            onChange={(e) => setLab({ ...lab, name: e.target.value })}
+                            placeholder="Ex: Fotobiomodulação - Janela Terapêutica"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="slug">Slug (URL) *</Label>
+                          <Input
+                            id="slug"
+                            value={lab.slug}
+                            onChange={(e) => setLab({ ...lab, slug: e.target.value })}
+                            placeholder="Ex: fotobiomodulacao-v2"
+                          />
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Será gerado automaticamente se deixar vazio
+                          </p>
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="description">Descrição</Label>
+                        <Textarea
+                          id="description"
+                          value={lab.description}
+                          onChange={(e) => setLab({ ...lab, description: e.target.value })}
+                          placeholder="Descreva os objetivos de aprendizado do laboratório FBM..."
+                          rows={3}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <LabVideoUploader
+                    videoUrl={videoUrl}
+                    onVideoChange={setVideoUrl}
+                    disabled={loading}
                   />
-                </div>
-              </CardContent>
-            </Card>
-
-            <LabVideoUploader
-              videoUrl={videoUrl}
-              onVideoChange={setVideoUrl}
-              disabled={loading}
+                </>
+              }
             />
-          </>
-        )}
-
-        {lab.lab_type === "photobiomodulation" && (
-          <PhotobioLabConfigEditor
-            config={mergePhotobioLabConfig(lab.config_data as Partial<PhotobioLabConfig>)}
-            onChange={(config) => setLab({ ...lab, config_data: config })}
-          />
+          </div>
         )}
 
         {!["ultrasound", "tens", "ultrasound_therapy", "mri", "photobiomodulation"].includes(lab.lab_type || "") && (
@@ -725,6 +762,7 @@ export default function VirtualLabEditorUnified() {
             </CardContent>
           </Card>
         )}
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { Capacitor } from "@capacitor/core";
+import { StatusBar } from "@capacitor/status-bar";
 import { applySafeAreaInsets } from "@/lib/safeArea";
 
 export const isNativeApp = Capacitor.isNativePlatform();
@@ -34,13 +35,19 @@ export async function initNativeApp() {
     "width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no",
   );
 
+  try {
+    await StatusBar.setOverlaysWebView({ overlay: true });
+    await StatusBar.hide();
+    document.documentElement.classList.add("status-bar-hidden");
+  } catch {
+    // Plugin indisponível (ex.: web) — ignora.
+  }
+
   applySafeAreaInsets();
   window.addEventListener("orientationchange", () => {
     window.setTimeout(applySafeAreaInsets, 100);
   });
 
   document.body.style.overscrollBehavior = "none";
-  if (Capacitor.getPlatform() !== "android") {
-    document.body.style.touchAction = "manipulation";
-  }
+  document.body.style.touchAction = "pan-y";
 }

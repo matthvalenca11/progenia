@@ -34,7 +34,7 @@ export function LessonsCapsulesUsageCharts({
   }));
 
   return (
-    <div className="grid gap-3 xl:grid-cols-2">
+    <div className="grid min-w-0 gap-3 xl:grid-cols-2">
       <Card className="p-3 bg-card/80">
         <h3 className="font-semibold mb-2">Início x Conclusão (Aulas e Cápsulas)</h3>
         <ChartContainer
@@ -42,7 +42,7 @@ export function LessonsCapsulesUsageCharts({
             starts: { label: "Inícios", color: "#f59e0b" },
             completed: { label: "Conclusões", color: "#10b981" },
           }}
-          className="h-[240px] w-full"
+          className="aspect-auto h-[240px] w-full min-w-0 min-h-[200px]"
         >
           <BarChart data={groupedUsage}>
             <CartesianGrid vertical={false} />
@@ -61,12 +61,19 @@ export function LessonsCapsulesUsageCharts({
           config={{
             completions: { label: "Conclusões", color: "#2563eb" },
           }}
-          className="h-[240px] w-full"
+          className="aspect-auto h-[240px] w-full min-w-0 min-h-[200px]"
         >
           <BarChart data={topContentChart} layout="vertical">
             <CartesianGrid horizontal={false} />
             <XAxis type="number" tickLine={false} axisLine={false} />
-            <YAxis type="category" dataKey="label" width={180} tickLine={false} axisLine={false} />
+            <YAxis
+              type="category"
+              dataKey="label"
+              width={72}
+              tick={{ fontSize: 11 }}
+              tickLine={false}
+              axisLine={false}
+            />
             <ChartTooltip content={<ChartTooltipContent />} />
             <Bar dataKey="completions" fill="var(--color-completions)" radius={6} />
           </BarChart>

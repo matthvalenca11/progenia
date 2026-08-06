@@ -147,21 +147,36 @@ All colors MUST be HSL.
   html.native-app {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    --native-gutter-x: 1.25rem;
+  }
+
+  html.native-app,
+  html.native-app body,
+  html.native-app #root {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  html.native-app #root {
+    display: flex;
+    flex-direction: column;
   }
 
   html.native-app .native-safe-shell {
     padding-bottom: var(--sab, env(safe-area-inset-bottom, 0px));
   }
 
-  /* Padding lateral só no conteúdo (.native-content-pad), não no main — barras do topo vão edge-to-edge */
-  html.native-app .native-shell-padding {
-    padding-left: 0;
-    padding-right: 0;
+  html.native-app main.native-shell-padding {
+    padding-left: max(var(--native-gutter-x), var(--sal, env(safe-area-inset-left, 0px)));
+    padding-right: max(var(--native-gutter-x), var(--sar, env(safe-area-inset-right, 0px)));
+    overflow-x: hidden;
   }
 
+  /* Conteúdo interno herda gutter do main — evita padding duplo */
   html.native-app .native-content-pad {
-    padding-left: max(1rem, var(--sal, env(safe-area-inset-left, 0px)));
-    padding-right: max(1rem, var(--sar, env(safe-area-inset-right, 0px)));
+    padding-left: 0;
+    padding-right: 0;
   }
 
   html.native-app .container {
@@ -177,10 +192,6 @@ All colors MUST be HSL.
   html.native-app .native-shell-padding .container.px-4 {
     padding-left: 0;
     padding-right: 0;
-  }
-
-  html.native-app main.native-shell-padding {
-    overflow-x: hidden;
   }
 
   html.native-app canvas {
@@ -232,6 +243,26 @@ All colors MUST be HSL.
     padding-top: var(--sat, env(safe-area-inset-top, 0px));
   }
 
+  /* App nativo com status bar oculta: só notch + respiro mínimo no topo */
+  html.native-app.status-bar-hidden .safe-area-top,
+  html.native-app.status-bar-hidden .safe-sticky-top,
+  html.native-app.status-bar-hidden .native-page-top {
+    padding-top: max(0.75rem, calc(var(--sat, env(safe-area-inset-top, 0px)) + 0.5rem));
+  }
+
+  /* iOS/WKWebView: input date tem largura intrínseca — evita sobreposição em grids estreitos */
+  html.native-app input[type="date"] {
+    display: block;
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  html.native-app input[type="date"]::-webkit-date-and-time-value {
+    min-width: 0;
+    text-align: left;
+  }
+
   /* Barra superior (logo): superfície mais clara que o fundo no dark mode */
   .dark .safe-sticky-top.border-b {
     background-color: hsl(220 22% 18%) !important;
@@ -252,13 +283,13 @@ All colors MUST be HSL.
     box-sizing: border-box;
     width: 100%;
     max-width: 100%;
-    padding-left: max(1rem, var(--sal, env(safe-area-inset-left, 0px))) !important;
-    padding-right: max(1rem, var(--sar, env(safe-area-inset-right, 0px))) !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
   }
 
   .lab-mobile-inset-x {
-    padding-left: max(0.75rem, var(--sal, env(safe-area-inset-left, 0px)));
-    padding-right: max(0.75rem, var(--sar, env(safe-area-inset-right, 0px)));
+    padding-left: max(var(--native-gutter-x, 1.25rem), var(--sal, env(safe-area-inset-left, 0px)));
+    padding-right: max(var(--native-gutter-x, 1.25rem), var(--sar, env(safe-area-inset-right, 0px)));
   }
 
   .lab-mobile-grid {
@@ -301,6 +332,102 @@ All colors MUST be HSL.
     width: 100%;
     min-width: 0;
     max-width: 100%;
+  }
+
+  .admin-touch-scroll {
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  .admin-lab-config-column {
+    touch-action: pan-y;
+  }
+
+  /* Editor de labs: bloqueia scroll da página; só as colunas rolam */
+  html.native-app.admin-lab-editor-scroll-lock,
+  html.native-app.admin-lab-editor-scroll-lock body {
+    overflow: hidden !important;
+    overscroll-behavior: none;
+  }
+
+  html.native-app .admin-lab-editor,
+  html.native-app .admin-lab-editor-body,
+  html.native-app .admin-lab-editor-dual-shell,
+  html.native-app .admin-lab-editor-dual-editor,
+  html.native-app .admin-lab-editor-tabs-shell,
+  html.native-app .admin-lab-editor-grid-tab[data-state="active"],
+  html.native-app .admin-lab-editor-grid {
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  html.native-app .admin-lab-editor-tabs-shell [role="tablist"] {
+    flex-shrink: 0;
+  }
+
+  html.native-app .admin-lab-editor-tabs-shell [role="tabpanel"][data-state="active"] {
+    display: flex;
+    flex: 1 1 0%;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  html.native-app .admin-lab-editor-tabs-shell .admin-lab-editor-grid-tab[data-state="active"] {
+    overflow: hidden;
+  }
+
+  /* Colunas roláveis — height:0 só no eixo principal (evita colapsar no flex-row) */
+  html.native-app .admin-lab-editor-grid > .admin-lab-config-column,
+  html.native-app .admin-lab-editor-grid > .admin-lab-preview-column {
+    min-height: 0;
+    min-width: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    overscroll-behavior-y: contain;
+  }
+
+  @media (max-width: 1023px) {
+    html.native-app .admin-lab-editor-grid > .admin-lab-config-column,
+    html.native-app .admin-lab-editor-grid > .admin-lab-preview-column {
+      flex: 1 1 0%;
+      height: 0;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    html.native-app .admin-lab-editor-grid > .admin-lab-config-column {
+      flex: 1 1 0%;
+      width: 0;
+      height: auto;
+      align-self: stretch;
+    }
+
+    html.native-app .admin-lab-editor-grid > .admin-lab-preview-column {
+      flex: 0 0 auto;
+      width: min(600px, 45vw);
+      max-width: 600px;
+      height: auto;
+      align-self: stretch;
+    }
+  }
+
+  /* Editor admin de labs: previews 3D/canvas não bloqueiam scroll vertical no mobile/tablet */
+  @media (max-width: 1023px) {
+    .admin-lab-editor canvas,
+    .admin-lab-editor .lab-canvas-host {
+      pointer-events: none !important;
+    }
+  }
+
+  /* Sliders/controles com touch-none bloqueavam scroll vertical na coluna de config */
+  .admin-lab-editor .touch-none {
+    touch-action: pan-y !important;
   }
 
   .mobile-page-title {

@@ -222,8 +222,8 @@ const CapsuleViewer = () => {
 
       <div
         className={cn(
-          "layout-contained mx-auto w-full max-w-4xl py-6 sm:py-8",
-          isNativeApp ? "native-content-pad min-w-0" : "container px-3 sm:px-4",
+          "layout-contained mx-auto w-full max-w-4xl py-6 sm:py-8 min-w-0",
+          !isNativeApp && "container px-3 sm:px-4",
         )}
       >
         {/* Header */}

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
@@ -108,12 +108,7 @@ interface Message {
   content: string;
 }
 
-interface AITutorProps {
-  /** Conteúdo à esquerda do FAB no mobile (ex.: cookies). */
-  mobileLeadingActions?: ReactNode;
-}
-
-const AITutor = ({ mobileLeadingActions }: AITutorProps) => {
+const AITutor = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { language } = useLanguage();
@@ -251,8 +246,7 @@ const AITutor = ({ mobileLeadingActions }: AITutorProps) => {
 
     if (isMobile) {
       return (
-        <div className="fixed z-50 flex items-center gap-2 bottom-[calc(var(--sab,env(safe-area-inset-bottom,0px))+0.75rem)] right-[calc(var(--sar,env(safe-area-inset-right,0px))+0.75rem)] md:hidden">
-          {mobileLeadingActions}
+        <div className="fixed z-50 bottom-[calc(var(--sab,env(safe-area-inset-bottom,0px))+0.75rem)] right-[calc(var(--sar,env(safe-area-inset-right,0px))+0.75rem)] md:hidden">
           {tutorFabButton}
         </div>
       );

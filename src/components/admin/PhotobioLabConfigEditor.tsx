@@ -2,6 +2,7 @@
  * Editor admin completo — Laboratório de Fotobiomodulação (PBM)
  */
 
+import type { ReactNode } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -26,10 +27,19 @@ import type { PhotobioViewerTab } from "@/config/photobioPresets";
 import { PhotobioLabPreview } from "./PhotobioLabPreview";
 import { PhotobioStudentControlsPreview } from "./PhotobioStudentControlsPreview";
 import { Settings2, Sliders } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  adminLabConfigColumnClass,
+  adminLabEditorGridClass,
+  adminLabEditorGridTabClass,
+  adminLabEditorTabsShellClass,
+  adminLabPreviewColumnClass,
+} from "@/components/admin/adminLabEditorLayout";
 
 interface PhotobioLabConfigEditorProps {
   config: PhotobioLabConfig;
   onChange: (config: PhotobioLabConfig) => void;
+  leadingContent?: ReactNode;
 }
 
 function RangeMinMaxStepEditor({
@@ -81,7 +91,11 @@ function RangeMinMaxStepEditor({
   );
 }
 
-export function PhotobioLabConfigEditor({ config, onChange }: PhotobioLabConfigEditorProps) {
+export function PhotobioLabConfigEditor({
+  config,
+  onChange,
+  leadingContent,
+}: PhotobioLabConfigEditorProps) {
   const updateConfig = (updates: Partial<PhotobioLabConfig>) => {
     onChange({ ...config, ...updates });
   };
@@ -152,8 +166,8 @@ export function PhotobioLabConfigEditor({ config, onChange }: PhotobioLabConfigE
   };
 
   return (
-    <Tabs defaultValue="defaults" className="w-full">
-      <TabsList className="mb-6 grid w-full grid-cols-2">
+    <Tabs defaultValue="defaults" className={cn("w-full", adminLabEditorTabsShellClass)}>
+      <TabsList className="mb-6 grid w-full shrink-0 grid-cols-2">
         <TabsTrigger value="defaults" className="flex items-center gap-2">
           <Sliders className="h-4 w-4" />
           Defaults
@@ -164,9 +178,11 @@ export function PhotobioLabConfigEditor({ config, onChange }: PhotobioLabConfigE
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="defaults" className="mt-6">
-        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
-          <div className="space-y-6">
+      <TabsContent value="defaults" className={adminLabEditorGridTabClass}>
+        <div className={adminLabEditorGridClass}>
+          <div className={adminLabConfigColumnClass}>
+            {leadingContent}
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Cenário pedagógico</CardTitle>
@@ -473,7 +489,7 @@ export function PhotobioLabConfigEditor({ config, onChange }: PhotobioLabConfigE
             </Card>
           </div>
 
-          <div className="lg:sticky lg:top-6">
+          <div className={adminLabPreviewColumnClass}>
             <PhotobioLabPreview config={config} />
           </div>
         </div>

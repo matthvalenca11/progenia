@@ -176,7 +176,7 @@ export default function ParametricChartEditor() {
   }
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-6 pb-12 native-page-top">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <Button variant="ghost" onClick={() => navigate("/admin/charts")} className="mb-2">

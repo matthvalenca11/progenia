@@ -9,7 +9,7 @@ interface DashboardDrilldownTableProps {
 
 export function DashboardDrilldownTable({ topContent, labsUsage }: DashboardDrilldownTableProps) {
   return (
-    <div className="grid gap-3 xl:grid-cols-2">
+    <div className="grid min-w-0 gap-3 xl:grid-cols-2">
       <Card className="p-3 bg-card/80">
         <h3 className="font-semibold mb-2">Drilldown: Top conteúdos</h3>
         <div className="overflow-x-auto rounded-md border">

@@ -102,7 +102,7 @@ export function TensLabPreview({
   );
 
   return (
-    <div className="w-full flex flex-col gap-4">
+    <div className="flex w-full min-w-0 touch-pan-y flex-col gap-4">
       {/* Simulador 3D Biomédico - primeiro */}
       <Card className="w-full bg-gradient-to-br from-slate-950 to-slate-900 border-blue-500/20">
         <CardHeader className="py-3">
@@ -111,7 +111,7 @@ export function TensLabPreview({
             Modelo fisiológico com campo elétrico
           </CardDescription>
         </CardHeader>
-        <CardContent className="h-[500px]">
+        <CardContent className="h-[min(500px,55dvh)] min-h-[320px] touch-pan-y lg:h-[500px] lg:min-h-[500px]">
           <Tens3DSimulator
             frequencyHz={frequency}
             pulseWidthUs={pulseWidth}
@@ -159,7 +159,7 @@ export function TensLabPreview({
             Visualização em tempo real das camadas anatômicas
           </CardDescription>
         </CardHeader>
-        <CardContent className="min-h-[640px]">
+        <CardContent className="min-h-[min(640px,70dvh)] touch-pan-y lg:min-h-[640px]">
           <TensSemi3DView
             frequencyHz={frequency}
             pulseWidthUs={pulseWidth}

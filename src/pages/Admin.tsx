@@ -41,6 +41,8 @@ import { AdminDashboard } from "@/components/admin/dashboard/AdminDashboard";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { isNativeApp } from "@/lib/capacitor";
+import { cn } from "@/lib/utils";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -111,10 +113,18 @@ const Admin = () => {
     <div className="min-h-[100dvh] bg-background">
       {/* Navbar */}
       <nav className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur">
-        <div className="container mx-auto flex flex-wrap items-center justify-between gap-3 px-3 py-3 sm:px-4 sm:py-4">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate("/dashboard")}>
-            <ProGeniaLogo className="h-10 progenia-logo" />
-            <span className="text-xl font-bold gradient-text">ProGenia Admin</span>
+        <div
+          className={cn(
+            "container mx-auto flex min-w-0 flex-wrap items-center justify-between gap-3 py-3 sm:py-4",
+            isNativeApp ? "px-0" : "px-3 sm:px-4",
+          )}
+        >
+          <div
+            className="flex min-w-0 cursor-pointer items-center gap-2 sm:gap-3"
+            onClick={() => navigate("/dashboard")}
+          >
+            <ProGeniaLogo className="h-10 shrink-0 progenia-logo" />
+            <span className="truncate text-lg font-bold gradient-text sm:text-xl">ProGenia Admin</span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
             <ThemeToggle />
@@ -130,8 +140,13 @@ const Admin = () => {
       </nav>
 
       {/* Conteúdo Principal */}
-      <div className="container mx-auto px-3 py-6 sm:px-4 sm:py-8">
-        <Tabs value={activeAdminTab} onValueChange={setActiveAdminTab} className="w-full">
+      <div
+        className={cn(
+          "container mx-auto min-w-0 py-6 sm:py-8",
+          isNativeApp ? "px-0" : "px-3 sm:px-4",
+        )}
+      >
+        <Tabs value={activeAdminTab} onValueChange={setActiveAdminTab} className="min-w-0 w-full">
           {isMobile && (
             <div className="mb-4">
               <Select value={activeAdminTab} onValueChange={setActiveAdminTab}>
@@ -147,21 +162,33 @@ const Admin = () => {
               </Select>
             </div>
           )}
-          <TabsList className="hidden sm:grid w-full grid-cols-4 gap-1">
-            <TabsTrigger value="dashboard">
-              <Home className="h-4 w-4 mr-2" />
+          <TabsList className="hidden h-auto w-full grid-cols-2 gap-1 p-1 sm:grid lg:grid-cols-4">
+            <TabsTrigger
+              value="dashboard"
+              className="h-auto min-h-10 whitespace-normal px-2 py-2 text-xs leading-tight sm:text-sm lg:whitespace-nowrap"
+            >
+              <Home className="mr-1.5 h-4 w-4 shrink-0" />
               Dashboard
             </TabsTrigger>
-            <TabsTrigger value="content">
-              <BookOpen className="h-4 w-4 mr-2" />
+            <TabsTrigger
+              value="content"
+              className="h-auto min-h-10 whitespace-normal px-2 py-2 text-xs leading-tight sm:text-sm lg:whitespace-nowrap"
+            >
+              <BookOpen className="mr-1.5 h-4 w-4 shrink-0" />
               Conteúdo
             </TabsTrigger>
-            <TabsTrigger value="users-complains">
-              <Users className="h-4 w-4 mr-2" />
+            <TabsTrigger
+              value="users-complains"
+              className="h-auto min-h-10 whitespace-normal px-2 py-2 text-xs leading-tight sm:text-sm lg:whitespace-nowrap"
+            >
+              <Users className="mr-1.5 h-4 w-4 shrink-0" />
               Usuários e Complains
             </TabsTrigger>
-            <TabsTrigger value="settings">
-              <Settings className="h-4 w-4 mr-2" />
+            <TabsTrigger
+              value="settings"
+              className="h-auto min-h-10 whitespace-normal px-2 py-2 text-xs leading-tight sm:text-sm lg:whitespace-nowrap"
+            >
+              <Settings className="mr-1.5 h-4 w-4 shrink-0" />
               Configurações
             </TabsTrigger>
           </TabsList>
