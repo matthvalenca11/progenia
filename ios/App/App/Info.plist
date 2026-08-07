@@ -45,9 +45,37 @@
 	</array>
 	<key>UIStatusBarHidden</key>
 	<true/>
+	<key>UIStatusBarHidden</key>
+	<true/>
+	<key>UIStatusBarHidden</key>
+	<true/>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>O ProGenia usa Bluetooth para conectar à moldura AR Slice e receber a orientação do plano de corte.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>O ProGenia usa Bluetooth para conectar à moldura AR Slice.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>O ProGenia usa a câmera como fundo da experiência AR Slice.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>O microfone não é usado na experiência AR Slice; esta permissão pode ser solicitada pelo plugin de câmera.</string>
+	<key>UIRequiresPersistentWiFi</key>
+	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>O ProGenia usa a rede local para encontrar a moldura AR Slice no Personal Hotspot e receber orientação via Wi‑Fi.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_http._tcp</string>
+		<string>_progenia._udp</string>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

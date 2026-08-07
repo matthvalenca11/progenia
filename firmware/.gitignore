@@ -1,0 +1,7 @@
+.venv/
+**/.pio/
+**/sdkconfig.*
+**/.vscode/
+*.bin
+*.elf
+*.map

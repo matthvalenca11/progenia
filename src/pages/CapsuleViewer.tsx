@@ -195,23 +195,23 @@ const CapsuleViewer = () => {
   return (
     <div className="layout-contained min-h-[100dvh] w-full bg-background">
       {/* Navigation */}
-      <nav className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur">
+      <nav className="safe-sticky-top border-b border-border bg-background">
         <div
           className={cn(
-            "layout-contained mx-auto flex w-full max-w-4xl items-center justify-between gap-3 py-3 sm:py-4",
+            "layout-contained mx-auto flex w-full max-w-4xl items-center justify-between gap-2 py-1.5 sm:gap-3 sm:py-2",
             isNativeApp ? "px-0" : "px-3 sm:px-4",
           )}
         >
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
+          <div className="flex min-w-0 items-center gap-1 sm:gap-2">
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => navigate("/dashboard")}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <ProGeniaLogo className="h-10 progenia-logo" />
+            <ProGeniaLogo className="h-7 sm:h-8 progenia-logo" />
           </div>
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
             {capsula.duration_minutes && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Clock className="h-4 w-4" />
+              <div className="flex items-center gap-1 text-xs text-muted-foreground sm:gap-2 sm:text-sm">
+                <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 <span>{capsula.duration_minutes} min</span>
               </div>
             )}
@@ -222,7 +222,7 @@ const CapsuleViewer = () => {
 
       <div
         className={cn(
-          "layout-contained mx-auto w-full max-w-4xl py-6 sm:py-8 min-w-0",
+          "layout-contained mx-auto w-full max-w-4xl py-4 sm:py-8 min-w-0",
           !isNativeApp && "container px-3 sm:px-4",
         )}
       >

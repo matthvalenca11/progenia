@@ -1,7 +1,13 @@
 PODS:
   - Capacitor (7.4.5):
     - CapacitorCordova
+  - CapacitorApp (7.1.0):
+    - Capacitor
   - CapacitorBrowser (7.0.5):
+    - Capacitor
+  - CapacitorCommunityBluetoothLe (7.3.2):
+    - Capacitor
+  - CapacitorCommunityCameraPreview (7.0.5):
     - Capacitor
   - CapacitorCommunityHttp (1.4.1):
     - Capacitor
@@ -13,7 +19,10 @@ PODS:
 
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
+  - "CapacitorApp (from `../../node_modules/@capacitor/app`)"
   - "CapacitorBrowser (from `../../node_modules/@capacitor/browser`)"
+  - "CapacitorCommunityBluetoothLe (from `../../node_modules/@capacitor-community/bluetooth-le`)"
+  - "CapacitorCommunityCameraPreview (from `../../node_modules/@capacitor-community/camera-preview`)"
   - "CapacitorCommunityHttp (from `../../node_modules/@capacitor-community/http`)"
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorPreferences (from `../../node_modules/@capacitor/preferences`)"
@@ -22,8 +31,14 @@ DEPENDENCIES:
 EXTERNAL SOURCES:
   Capacitor:
     :path: "../../node_modules/@capacitor/ios"
+  CapacitorApp:
+    :path: "../../node_modules/@capacitor/app"
   CapacitorBrowser:
     :path: "../../node_modules/@capacitor/browser"
+  CapacitorCommunityBluetoothLe:
+    :path: "../../node_modules/@capacitor-community/bluetooth-le"
+  CapacitorCommunityCameraPreview:
+    :path: "../../node_modules/@capacitor-community/camera-preview"
   CapacitorCommunityHttp:
     :path: "../../node_modules/@capacitor-community/http"
   CapacitorCordova:
@@ -35,12 +50,15 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Capacitor: 12914e6f1b7835e161a74ebd19cb361efa37a7dd
+  CapacitorApp: 26587c2ce485d88ddb39adb21cac64f8e481afe3
   CapacitorBrowser: 6d09f59655e89aede71654ef08b98de55cf032b6
+  CapacitorCommunityBluetoothLe: 9aa29c1555fbe797e6b595db824c2acd39a5bdf5
+  CapacitorCommunityCameraPreview: 9fc4839381eb4cb1da64343d601a8f08818fbdba
   CapacitorCommunityHttp: 7eba71da94e070e37a26a60483350285a33e3903
   CapacitorCordova: 31bbe4466000c6b86d9b7f1181ee286cff0205aa
   CapacitorPreferences: 69d9991307507aeab8ef8019c10b9babfda0e9ca
   CapacitorStatusBar: 416e9e53fd6397e668d4a181cd2131617d949bd6
 
-PODFILE CHECKSUM: 8ce324f17fd7bd937e3e1394d09a77afad2120d5
+PODFILE CHECKSUM: 6affb6f99b16ab876ad6591dbdf0da00b368c955
 
 COCOAPODS: 1.16.2

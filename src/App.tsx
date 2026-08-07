@@ -34,6 +34,7 @@ import ParametricChartsAdmin from "@/pages/ParametricChartsAdmin";
 import ParametricChartEditor from "@/pages/ParametricChartEditor";
 import LabViewer from "@/pages/LabViewer";
 import ChartViewer from "@/pages/ChartViewer";
+import ArSliceLab from "@/pages/ArSliceLab";
 import { RequireAdminRoute } from "@/components/RequireAdminRoute";
 import DeleteUserTest from "@/pages/DeleteUserTest";
 import BlogNoticias from "@/pages/BlogNoticias";
@@ -47,6 +48,9 @@ import { applyTelemetryFromConsent, initConsentAwareTelemetry } from "@/lib/tele
 const Landing = lazy(() => import("@/pages/Landing"));
 const TherapeuticLabSmoke = import.meta.env.DEV
   ? lazy(() => import("@/pages/dev/TherapeuticLabSmoke"))
+  : null;
+const ArSliceSmoke = import.meta.env.DEV
+  ? lazy(() => import("@/pages/dev/ArSliceSmoke"))
   : null;
 
 const queryClient = new QueryClient();
@@ -192,6 +196,7 @@ const AppContent = () => {
           <Route path="/admin/charts/novo" element={<RequireAdminRoute><ParametricChartEditor /></RequireAdminRoute>} />
           <Route path="/admin/charts/editar/:chartId" element={<RequireAdminRoute><ParametricChartEditor /></RequireAdminRoute>} />
           <Route path="/labs/:slug" element={<LabViewer />} />
+          <Route path="/labs/ar-slice" element={<ArSliceLab />} />
           <Route path="/charts/:slug" element={<ChartViewer />} />
           <Route path="/delete-user-test" element={<DeleteUserTest />} />
           {import.meta.env.DEV && TherapeuticLabSmoke ? (
@@ -200,6 +205,16 @@ const AppContent = () => {
               element={
                 <Suspense fallback={null}>
                   <TherapeuticLabSmoke />
+                </Suspense>
+              }
+            />
+          ) : null}
+          {import.meta.env.DEV && ArSliceSmoke ? (
+            <Route
+              path="/dev/ar-slice-smoke"
+              element={
+                <Suspense fallback={null}>
+                  <ArSliceSmoke />
                 </Suspense>
               }
             />

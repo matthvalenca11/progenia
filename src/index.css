@@ -240,14 +240,27 @@ All colors MUST be HSL.
     position: sticky;
     top: 0;
     z-index: 50;
-    padding-top: var(--sat, env(safe-area-inset-top, 0px));
+    /* Opaco: evita texto rolando “pelo” notch/status bar */
+    background-color: hsl(var(--background));
   }
 
-  /* App nativo com status bar oculta: só notch + respiro mínimo no topo */
+  /*
+   * Safe-area no topo só no app nativo (na web o shell do App.tsx já aplica).
+   * Sem +0.5rem extra — isso inflava demais o cabeçalho.
+   * !important vence bg-background/95 + backdrop-blur dos componentes.
+   */
+  html.native-app .safe-sticky-top {
+    padding-top: var(--sat, env(safe-area-inset-top, 0px));
+    background-color: hsl(var(--background)) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    isolation: isolate;
+  }
+
   html.native-app.status-bar-hidden .safe-area-top,
   html.native-app.status-bar-hidden .safe-sticky-top,
   html.native-app.status-bar-hidden .native-page-top {
-    padding-top: max(0.75rem, calc(var(--sat, env(safe-area-inset-top, 0px)) + 0.5rem));
+    padding-top: max(0.75rem, var(--sat, env(safe-area-inset-top, 0px)));
   }
 
   /* iOS/WKWebView: input date tem largura intrínseca — evita sobreposição em grids estreitos */
@@ -268,12 +281,14 @@ All colors MUST be HSL.
     background-color: hsl(220 22% 18%) !important;
   }
 
-  /* Barras do topo: fundo edge-to-edge; recuo só no conteúdo interno */
+  /* Barras do topo: fundo edge-to-edge opaco (sem vazamento do texto no notch) */
   html.native-app .safe-sticky-top.border-b,
   html.native-app header.safe-sticky-top.border-b {
     box-sizing: border-box;
     width: 100%;
     max-width: 100%;
+    background-color: hsl(var(--background)) !important;
+    backdrop-filter: none;
   }
 
   html.native-app .safe-sticky-top.border-b > :first-child,
@@ -638,5 +653,15 @@ All colors MUST be HSL.
 /* Radial gradient utilities for TENS field visualization */
 .bg-gradient-radial {
   background-image: radial-gradient(circle, var(--tw-gradient-stops));
+}
+
+/* AR Slice lab — transparent camera background */
+html.ar-slice-camera-bg,
+html.ar-slice-camera-bg body {
+  background: transparent !important;
+}
+
+.ar-slice-lab canvas {
+  touch-action: none;
 }
 

@@ -26,8 +26,11 @@
     "android:bundle": "npm run cap:sync:android && cd android && ./gradlew clean bundleRelease"
   },
   "dependencies": {
+    "@capacitor-community/bluetooth-le": "^7.3.2",
+    "@capacitor-community/camera-preview": "^7.0.5",
     "@capacitor-community/http": "^1.4.1",
     "@capacitor/android": "^7.4.4",
+    "@capacitor/app": "^7.1.0",
     "@capacitor/browser": "^7.0.5",
     "@capacitor/cli": "^7.4.4",
     "@capacitor/core": "^7.4.4",

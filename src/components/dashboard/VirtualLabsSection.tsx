@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { FlaskConical, Activity, Waves, Target, Magnet, Sun, ArrowRight, Loader2 } from "lucide-react";
+import { FlaskConical, Activity, Waves, Target, Magnet, Sun, ArrowRight, Loader2, Scan } from "lucide-react";
 import { virtualLabService, VirtualLab } from "@/services/virtualLabService";
 import { toast } from "sonner";
 
@@ -28,6 +28,37 @@ export default function VirtualLabsSection() {
       setLoading(false);
     }
   };
+
+  const arSliceCard = (
+    <Card
+      className="cursor-pointer hover:shadow-xl transition-all duration-300 border-cyan-500/30 bg-gradient-to-br from-card via-card to-cyan-500/5 overflow-hidden group"
+      onClick={() => navigate("/labs/ar-slice")}
+    >
+      <div className="flex flex-col md:flex-row">
+        <div className="aspect-video md:w-64 bg-gradient-to-br from-cyan-500/10 to-slate-900/40 flex items-center justify-center overflow-hidden flex-shrink-0 relative">
+          <Scan className="h-24 w-24 text-cyan-400/50 absolute" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background/20 to-transparent" />
+        </div>
+        <div className="p-6 flex-1">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 text-sm font-medium rounded-full mb-3">
+            <Scan className="h-4 w-4" />
+            AR Slice
+          </div>
+          <h3 className="font-bold text-2xl mb-2 group-hover:text-cyan-600 dark:group-hover:text-cyan-300 transition-colors">
+            Corte anatômico AR
+          </h3>
+          <p className="text-muted-foreground mb-4 leading-relaxed line-clamp-3">
+            Detecta a moldura pela câmera (Vision), conecta o ESP32 via Wi‑Fi e corta o modelo 3D
+            com a orientação do BNO085.
+          </p>
+          <Button className="group-hover:shadow-lg transition-all">
+            Abrir AR Slice{" "}
+            <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
 
   const getLabIcon = (type: string) => {
     switch (type) {
@@ -76,10 +107,6 @@ export default function VirtualLabsSection() {
     );
   }
 
-  if (labs.length === 0) {
-    return null;
-  }
-
   return (
     <div className="mb-8">
       <div className="flex items-center gap-2 mb-6">
@@ -87,6 +114,7 @@ export default function VirtualLabsSection() {
         <h2 className="text-3xl font-bold">Laboratórios Virtuais</h2>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {arSliceCard}
         {labs.map((lab) => (
           <Card 
             key={lab.id}
