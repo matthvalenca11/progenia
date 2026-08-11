@@ -794,8 +794,8 @@ const Dashboard = () => {
     return (
       <div className="min-h-[100dvh] bg-background">
         <nav className="safe-sticky-top border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-          <div className="mx-auto flex w-full max-w-full items-center justify-between gap-2 py-2.5">
-            <ProGeniaLogo className="h-10 progenia-logo" />
+          <div className="mx-auto flex w-full max-w-full items-center justify-between gap-2 py-1.5">
+            <ProGeniaLogo className="h-9 progenia-logo" />
             <div className="flex items-center gap-1.5">
               <Button
                 variant="outline"

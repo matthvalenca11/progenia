@@ -263,6 +263,13 @@ All colors MUST be HSL.
     padding-top: max(0.75rem, var(--sat, env(safe-area-inset-top, 0px)));
   }
 
+  @media (orientation: landscape) {
+    html.native-app.status-bar-hidden .safe-sticky-top {
+      /* Status bar oculta: os insets laterais protegem notch/cantos. */
+      padding-top: 0.5rem;
+    }
+  }
+
   /* iOS/WKWebView: input date tem largura intrínseca — evita sobreposição em grids estreitos */
   html.native-app input[type="date"] {
     display: block;
@@ -285,8 +292,17 @@ All colors MUST be HSL.
   html.native-app .safe-sticky-top.border-b,
   html.native-app header.safe-sticky-top.border-b {
     box-sizing: border-box;
-    width: 100%;
-    max-width: 100%;
+    /*
+     * A barra vive dentro de main.native-shell-padding. Sangrar pelos gutters
+     * mantém o fundo/borda realmente edge-to-edge, enquanto o conteúdo recebe
+     * o mesmo inset novamente abaixo.
+     */
+    width: auto;
+    max-width: none;
+    margin-left: calc(0px - max(var(--native-gutter-x), var(--sal, env(safe-area-inset-left, 0px))));
+    margin-right: calc(0px - max(var(--native-gutter-x), var(--sar, env(safe-area-inset-right, 0px))));
+    padding-left: max(var(--native-gutter-x), var(--sal, env(safe-area-inset-left, 0px)));
+    padding-right: max(var(--native-gutter-x), var(--sar, env(safe-area-inset-right, 0px)));
     background-color: hsl(var(--background)) !important;
     backdrop-filter: none;
   }
@@ -657,8 +673,20 @@ All colors MUST be HSL.
 
 /* AR Slice lab — transparent camera background */
 html.ar-slice-camera-bg,
-html.ar-slice-camera-bg body {
+html.ar-slice-camera-bg body,
+html.ar-slice-camera-bg #root,
+html.ar-slice-camera-bg .native-safe-shell,
+html.ar-slice-camera-bg .ar-slice-lab,
+html.ar-slice-camera-bg .lab-canvas-host,
+html.ar-slice-camera-bg .lab-canvas-host > div {
   background: transparent !important;
+  background-color: transparent !important;
+}
+
+html.ar-slice-camera-bg .ar-slice-lab canvas,
+html.ar-slice-camera-bg canvas {
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
 .ar-slice-lab canvas {

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CameraPreview } from "@capacitor-community/camera-preview";
 import { App as CapApp } from "@capacitor/app";
 import { isNativeApp } from "@/lib/capacitor";
+import { ProgeniaArFrame } from "@/features/ar-slice/vision/ProgeniaArFrame";
 
 type CameraMode = "off" | "native" | "web" | "error";
 
 /**
- * Native: camera-preview behind transparent WebView.
+ * Native: ARKit world-tracking camera behind a transparent WebView.
  * Web: getUserMedia video element as CSS background.
  */
 export function useArCamera(enabled: boolean) {
@@ -15,6 +15,7 @@ export function useArCamera(enabled: boolean) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const nativeRunning = useRef(false);
+  const startInFlight = useRef(false);
 
   const stopWeb = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -25,9 +26,10 @@ export function useArCamera(enabled: boolean) {
   }, []);
 
   const stopNative = useCallback(async () => {
-    if (!nativeRunning.current) return;
+    if (!nativeRunning.current && !startInFlight.current) return;
+    startInFlight.current = false;
     try {
-      await CameraPreview.stop();
+      await ProgeniaArFrame.stopMixedReality();
     } catch {
       // ignore
     }
@@ -36,21 +38,26 @@ export function useArCamera(enabled: boolean) {
   }, []);
 
   const startNative = useCallback(async () => {
-    await CameraPreview.start({
-      position: "rear",
-      toBack: true,
-      disableAudio: true,
-      enableOpacity: true,
-      enableZoom: false,
-    });
-    nativeRunning.current = true;
-    document.documentElement.classList.add("ar-slice-camera-bg");
-    setMode("native");
+    if (nativeRunning.current || startInFlight.current) return;
+    startInFlight.current = true;
+    try {
+      await ProgeniaArFrame.startMixedReality();
+      nativeRunning.current = true;
+      document.documentElement.classList.add("ar-slice-camera-bg");
+      setMode("native");
+      setError(null);
+    } finally {
+      startInFlight.current = false;
+    }
   }, []);
 
   const startWeb = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error("Câmera web não suportada neste navegador");
+    }
+    if (streamRef.current) {
+      setMode("web");
+      return;
     }
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: "environment" },
@@ -71,7 +78,7 @@ export function useArCamera(enabled: boolean) {
       if (!enabled) {
         await stopNative();
         stopWeb();
-        setMode("off");
+        if (!cancelled) setMode("off");
         return;
       }
 
@@ -91,17 +98,22 @@ export function useArCamera(enabled: boolean) {
 
     return () => {
       cancelled = true;
+    };
+  }, [enabled, startNative, startWeb, stopNative, stopWeb]);
+
+  useEffect(() => {
+    return () => {
       void stopNative();
       stopWeb();
     };
-  }, [enabled, startNative, startWeb, stopNative, stopWeb]);
+  }, [stopNative, stopWeb]);
 
   useEffect(() => {
     if (!isNativeApp || !enabled) return;
     const sub = CapApp.addListener("appStateChange", ({ isActive }) => {
       if (!isActive) {
-        void stopNative();
-      } else if (enabled) {
+        void stopNative().then(() => setMode("off"));
+      } else if (enabled && !nativeRunning.current) {
         void startNative().catch(() => undefined);
       }
     });

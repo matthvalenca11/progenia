@@ -11,13 +11,35 @@ import {
 type AnatomicalHeadProps = {
   clippingPlanes?: THREE.Plane[];
   showCap?: boolean;
+  /** Bright cyan mesh for mixed-reality projection over the live camera. */
+  hologram?: boolean;
 };
+
+function createHologramMaterial(
+  clippingPlanes: THREE.Plane[],
+  opts?: { opacity?: number; side?: THREE.Side; color?: string },
+): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({
+    color: opts?.color ?? "#3cefff",
+    transparent: true,
+    opacity: opts?.opacity ?? 0.82,
+    side: opts?.side ?? THREE.FrontSide,
+    depthWrite: false,
+    toneMapped: false,
+    clippingPlanes,
+    clipShadows: false,
+  });
+}
 
 /**
  * Layered head volume with MRI-style false-color (reference: cyan/green/yellow/purple).
  * Procedural geometry — swap for `head.glb` via HEAD_MODEL_CONTRACT when available.
  */
-export function AnatomicalHead({ clippingPlanes = [], showCap = true }: AnatomicalHeadProps) {
+export function AnatomicalHead({
+  clippingPlanes = [],
+  showCap = true,
+  hologram = false,
+}: AnatomicalHeadProps) {
   const segs = isNativeMobile ? ([32, 24] as const) : ([56, 44] as const);
 
   const outerGeo = useMemo(
@@ -59,30 +81,48 @@ export function AnatomicalHead({ clippingPlanes = [], showCap = true }: Anatomic
   );
 
   const outerMat = useMemo(
-    () => createClippedVolumeMaterial(clippingPlanes, { opacity: 0.97 }),
-    [clippingPlanes],
+    () =>
+      hologram
+        ? createHologramMaterial(clippingPlanes, { opacity: 0.55, color: "#2ad8ff" })
+        : createClippedVolumeMaterial(clippingPlanes, { opacity: 0.97 }),
+    [clippingPlanes, hologram],
   );
   const skullMat = useMemo(
-    () => createClippedVolumeMaterial(clippingPlanes, { opacity: 0.92 }),
-    [clippingPlanes],
+    () =>
+      hologram
+        ? createHologramMaterial(clippingPlanes, { opacity: 0.7, color: "#45e9ff" })
+        : createClippedVolumeMaterial(clippingPlanes, { opacity: 0.92 }),
+    [clippingPlanes, hologram],
   );
   const brainMat = useMemo(
-    () => createClippedVolumeMaterial(clippingPlanes),
-    [clippingPlanes],
+    () =>
+      hologram
+        ? createHologramMaterial(clippingPlanes, { opacity: 0.92, color: "#7af6ff" })
+        : createClippedVolumeMaterial(clippingPlanes),
+    [clippingPlanes, hologram],
   );
   const innerMat = useMemo(
-    () => createClippedVolumeMaterial(clippingPlanes, { side: THREE.BackSide }),
-    [clippingPlanes],
+    () =>
+      hologram
+        ? createHologramMaterial(clippingPlanes, {
+            opacity: 0.45,
+            side: THREE.BackSide,
+            color: "#1bb8e6",
+          })
+        : createClippedVolumeMaterial(clippingPlanes, { side: THREE.BackSide }),
+    [clippingPlanes, hologram],
   );
   const featureMat = useMemo(
     () =>
-      new THREE.MeshLambertMaterial({
-        color: "#0088aa",
-        clippingPlanes,
-        transparent: true,
-        opacity: 0.88,
-      }),
-    [clippingPlanes],
+      hologram
+        ? createHologramMaterial(clippingPlanes, { opacity: 0.9, color: "#9ffcff" })
+        : new THREE.MeshLambertMaterial({
+            color: "#0088aa",
+            clippingPlanes,
+            transparent: true,
+            opacity: 0.88,
+          }),
+    [clippingPlanes, hologram],
   );
 
   useEffect(() => {
@@ -111,7 +151,6 @@ export function AnatomicalHead({ clippingPlanes = [], showCap = true }: Anatomic
       <mesh geometry={neckGeo} material={outerMat} position={[0, -1.08, -0.06]} />
       <mesh geometry={earGeo} material={outerMat} position={[-0.92, 0.04, -0.08]} scale={[0.55, 1.1, 0.45]} />
       <mesh geometry={earGeo} material={outerMat} position={[0.92, 0.04, -0.08]} scale={[0.55, 1.1, 0.45]} />
-      {/* Nose for profile readability (mobile + desktop) */}
       <mesh position={[0, 0.0, 0.96]} scale={[0.14, 0.12, 0.18]} material={featureMat}>
         <sphereGeometry args={[1, isNativeMobile ? 8 : 12, isNativeMobile ? 6 : 10]} />
       </mesh>

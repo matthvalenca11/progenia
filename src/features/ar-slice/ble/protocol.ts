@@ -5,8 +5,21 @@ export const FRAME_ORIENTATION_UUID = "6fbe1d31-9a2c-4f1e-9c3a-7b2e1a0d4f01";
 export const FRAME_COMMAND_UUID = "6fbe1d32-9a2c-4f1e-9c3a-7b2e1a0d4f01";
 export const FRAME_PROVISION_UUID = "6fbe1d34-9a2c-4f1e-9c3a-7b2e1a0d4f01";
 export const FRAME_NAME_PREFIX = "ProGenia-Frame-";
-export const FRAME_CONNECT_TIMEOUT_MS = 10_000;
+/** GATT connect — iPad ATT / post-reboot advertising can be slow. */
+export const FRAME_CONNECT_TIMEOUT_MS = 30_000;
 export const FRAME_ZERO_COMMAND = "ZERO";
+/** Ask firmware to renegotiate a fast BLE connection interval (iPad cold ~1 Hz ATT). */
+export const FRAME_CONN_FAST_COMMAND = "CONN_FAST";
+export const FRAME_CAL_START_COMMAND = "CAL_START";
+export const FRAME_CAL_CANCEL_COMMAND = "CAL_CANCEL";
+export const FRAME_CAL_SAVE_COMMAND = "CAL_SAVE";
+
+export type ImuCalibrationMetadata = {
+  accelAccuracy: 0 | 1 | 2 | 3;
+  gyroAccuracy: 0 | 1 | 2 | 3;
+  stationary: boolean;
+  calibrationReady: boolean;
+};
 
 export type Quaternion = {
   w: number;
@@ -29,23 +42,74 @@ export type OrientationSample = Quaternion & {
   linearAccel?: GravityVector;
   /** BNO085 calibrated gyro (rad/s), when firmware sends wx/wy/wz. */
   gyro?: GravityVector;
+  calibration?: ImuCalibrationMetadata;
+  /** Legacy scalar cumulative position (m). */
+  translationPosition?: number;
+  /** World-frame cumulative translation (m) — BLE v3 / WS v4. */
+  translationWorld?: GravityVector;
 };
 
 export function parseOrientationPayload(
-  data: DataView | ArrayBuffer | number[],
-): (Quaternion & { gravity?: GravityVector }) | null {
+  data: DataView | ArrayBuffer | number[] | string | Uint8Array,
+): (Quaternion & {
+  gravity?: GravityVector;
+  calibration?: ImuCalibrationMetadata;
+  translationPosition?: number;
+  translationWorld?: GravityVector;
+}) | null {
+  // Capacitor native sometimes surfaces the wire value as hex before conversion.
+  if (typeof data === "string") return parseOrientationHex(data);
+
   const view =
     data instanceof DataView
       ? data
       : data instanceof ArrayBuffer
         ? new DataView(data)
-        : new DataView(Uint8Array.from(data).buffer);
+        : data instanceof Uint8Array
+          ? new DataView(data.buffer, data.byteOffset, data.byteLength)
+          : new DataView(Uint8Array.from(data).buffer);
+
+  if (view.byteLength >= 26 && view.getUint8(0) === 0xb2 && (view.getUint8(1) & 0x03) === 0x03) {
+    const metadata = view.getUint8(1);
+    const w = view.getInt16(10, true) / 32767;
+    const x = view.getInt16(12, true) / 32767;
+    const y = view.getInt16(14, true) / 32767;
+    const z = view.getInt16(16, true) / 32767;
+    const norm = Math.hypot(w, x, y, z);
+    if (!Number.isFinite(norm) || norm < 0.5 || norm > 1.5) return null;
+    const translationWorld = {
+      x: view.getInt16(4, true) / 10000,
+      y: view.getInt16(6, true) / 10000,
+      z: view.getInt16(8, true) / 10000,
+    };
+    return {
+      w: w / norm,
+      x: x / norm,
+      y: y / norm,
+      z: z / norm,
+      gravity: {
+        x: view.getInt16(18, true) / 2048,
+        y: view.getInt16(20, true) / 2048,
+        z: view.getInt16(22, true) / 2048,
+      },
+      calibration: {
+        accelAccuracy: ((metadata >> 2) & 0x03) as 0 | 1 | 2 | 3,
+        gyroAccuracy: ((metadata >> 4) & 0x03) as 0 | 1 | 2 | 3,
+        stationary: (metadata & 0x40) !== 0,
+        calibrationReady: (metadata & 0x80) !== 0,
+      },
+      translationWorld,
+      // Dominant-axis scalar for any legacy consumer.
+      translationPosition: translationWorld.z,
+    };
+  }
 
   if (
     view.byteLength >= 20 &&
     view.getUint8(0) === 0xb2 &&
-    view.getUint8(1) === 0x02
+    (view.getUint8(1) & 0x03) === 0x02
   ) {
+    const metadata = view.getUint8(1);
     const w = view.getInt16(6, true) / 32767;
     const x = view.getInt16(8, true) / 32767;
     const y = view.getInt16(10, true) / 32767;
@@ -62,6 +126,13 @@ export function parseOrientationPayload(
         y: view.getInt16(16, true) / 2048,
         z: view.getInt16(18, true) / 2048,
       },
+      calibration: {
+        accelAccuracy: ((metadata >> 2) & 0x03) as 0 | 1 | 2 | 3,
+        gyroAccuracy: ((metadata >> 4) & 0x03) as 0 | 1 | 2 | 3,
+        stationary: (metadata & 0x40) !== 0,
+        calibrationReady: (metadata & 0x80) !== 0,
+      },
+      translationPosition: view.getInt16(4, true) / 10000,
     };
   }
 
@@ -77,11 +148,16 @@ export function parseOrientationPayload(
 }
 
 /** Capacitor bluetooth-le returns hex strings for characteristic values. */
-export function parseOrientationHex(hex: string): Quaternion | null {
+export function parseOrientationHex(
+  hex: string,
+): ReturnType<typeof parseOrientationPayload> {
   const clean = hex.replace(/\s+/g, "").toLowerCase();
   if (clean.length < 32) return null;
-  const bytes = new Uint8Array(16);
-  for (let i = 0; i < 16; i++) {
+  // Preserve the complete 20/26-byte packet. The old fixed 16-byte buffer
+  // truncated BLE v2/v3 and then misread its prefix as legacy float32 data.
+  const byteLength = Math.floor(clean.length / 2);
+  const bytes = new Uint8Array(byteLength);
+  for (let i = 0; i < byteLength; i++) {
     bytes[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
   }
   return parseOrientationPayload(bytes);

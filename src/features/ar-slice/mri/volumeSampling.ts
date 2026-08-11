@@ -4,6 +4,7 @@ import { mcFieldUnitToVolumeFraction, worldUnitToVolumeFraction } from "@/featur
 export type VolumePlacement = {
   /** MarchingCubes world half-extent; local coordinates span [-1, +1]. */
   displayScale: number;
+  halfExtents?: { x: number; y: number; z: number };
 };
 
 export function clamp(v: number, lo: number, hi: number) {
@@ -58,10 +59,14 @@ export function worldToVoxelFraction(
   volume: NormalizedVolume,
   placement: VolumePlacement,
 ): { fx: number; fy: number; fz: number } {
-  const s = placement.displayScale;
-  const lx = wx / (2 * s) + 0.5;
-  const ly = wy / (2 * s) + 0.5;
-  const lz = wz / (2 * s) + 0.5;
+  const extents = placement.halfExtents ?? {
+    x: placement.displayScale,
+    y: placement.displayScale,
+    z: placement.displayScale,
+  };
+  const lx = wx / (2 * extents.x) + 0.5;
+  const ly = wy / (2 * extents.y) + 0.5;
+  const lz = wz / (2 * extents.z) + 0.5;
   return worldUnitToVolumeFraction(lx, ly, lz, volume);
 }
 
@@ -123,6 +128,22 @@ export function buildDownsampledField(opts: {
 
 export function computeDisplayScale(volume: NormalizedVolume, targetSize = 1.9): number {
   return targetSize;
+}
+
+/** Physical NIfTI proportions mapped into Three.js axes (X=LR, Y=SI, Z=AP). */
+export function computeDisplayHalfExtents(
+  volume: NormalizedVolume,
+  displayScale: number,
+) {
+  const sceneX = volume.width * volume.spacing[0];
+  const sceneY = volume.depth * volume.spacing[2];
+  const sceneZ = volume.height * volume.spacing[1];
+  const maxExtent = Math.max(sceneX, sceneY, sceneZ, 1e-6);
+  return {
+    x: displayScale * (sceneX / maxExtent),
+    y: displayScale * (sceneY / maxExtent),
+    z: displayScale * (sceneZ / maxExtent),
+  };
 }
 
 export function applyWindowLevel(

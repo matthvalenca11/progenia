@@ -58,8 +58,8 @@ export function suggestMountPreset(
 
   for (const id of Object.keys(MOUNT_PRESETS) as MountPresetId[]) {
     const mount = MOUNT_PRESETS[id];
-    const flat = applyMountAndZero(qImuFlat, mount, null);
-    const tilted = applyMountAndZero(qImuTilted, mount, flat);
+    const align = zeroReferenceFromImu(qImuFlat, mount, null);
+    const tilted = applyMountAndZero(qImuTilted, mount, align);
     const n = frameFrontNormal(tilted);
     // Prefer normals that left +Z and gained +X (pitch about physical X)
     const score = vecDot(vecNormalize(n), expected) * 2 + (1 - Math.abs(n.z)) + Math.max(0, -n.y) * 0.1;
@@ -88,6 +88,76 @@ export function quatMultiply(a: Quaternion, b: Quaternion): Quaternion {
     x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
     y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
     z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+  });
+}
+
+/** Shortest angular distance between unit quaternions (radians). */
+export function quatAngularDistance(a: Quaternion, b: Quaternion): number {
+  const d = Math.min(1, Math.abs(a.w * b.w + a.x * b.x + a.y * b.y + a.z * b.z));
+  return 2 * Math.acos(d);
+}
+
+const VIEW_AXIS_Z: Vec3 = { x: 0, y: 0, z: 1 };
+
+/**
+ * Display orientation filter for the cut plane:
+ * - hard deadband (no update) to kill float / BLE quantization
+ * - drop in-plane twist entirely (does not change the cut normal)
+ * - high slerp once intentional swing clears the gate
+ */
+export function filterDisplayOrientation(
+  current: Quaternion,
+  target: Quaternion,
+  opts: {
+    deadbandRad: number;
+    twistDeadbandRad: number;
+    twistGain: number;
+    slerpSlow: number;
+    slerpFast: number;
+    slowRad: number;
+  },
+): Quaternion {
+  const ang = quatAngularDistance(current, target);
+  if (ang < opts.deadbandRad) return current;
+
+  // delta such that current ⊗ delta ≈ target
+  const delta = quatMultiply(quatConjugate(current), target);
+  const { swing, twist } = quatSwingTwist(delta, VIEW_AXIS_Z);
+
+  // Drop micro-twist; pass only a small fraction of larger in-plane spin.
+  const twistAng = quatAngularDistance(IDENTITY_QUAT, twist);
+  let twistOut = IDENTITY_QUAT;
+  if (twistAng >= opts.twistDeadbandRad && opts.twistGain > 0) {
+    twistOut = quatSlerp(IDENTITY_QUAT, twist, opts.twistGain);
+  }
+
+  const swingAng = quatAngularDistance(IDENTITY_QUAT, swing);
+  if (swingAng < opts.deadbandRad * 0.85 && twistAng < opts.twistDeadbandRad) {
+    return current;
+  }
+
+  const filteredTarget = quatMultiply(current, quatMultiply(swing, twistOut));
+  const alpha = ang >= opts.slowRad ? opts.slerpFast : opts.slerpSlow;
+  return quatSlerp(current, filteredTarget, alpha);
+}
+
+/** Low-pass + angular deadband on the cut-plane normal (kills float). */
+export function filterFrontNormal(
+  current: Vec3,
+  target: Vec3,
+  deadbandRad: number,
+  alpha: number,
+): Vec3 {
+  const cn = vecNormalize(current);
+  const tn = vecNormalize(target);
+  const dot = Math.min(1, Math.max(-1, cn.x * tn.x + cn.y * tn.y + cn.z * tn.z));
+  const ang = Math.acos(dot);
+  if (ang < deadbandRad) return cn;
+  const t = Math.min(1, Math.max(0, alpha));
+  return vecNormalize({
+    x: cn.x + (tn.x - cn.x) * t,
+    y: cn.y + (tn.y - cn.y) * t,
+    z: cn.z + (tn.z - cn.z) * t,
   });
 }
 
@@ -133,18 +203,99 @@ export function quatSlerp(a: Quaternion, b: Quaternion, t: number): Quaternion {
 }
 
 /**
- * Calibration chain:
- *   R_frame = R_imu · R_mount
- *   R_relative = R_zero⁻¹ · R_frame
+ * BNO085 game-RV is Earth→device (body-from-world). Mount stays in that frame.
+ */
+export function mountImu(qImu: Quaternion, qMount: Quaternion): Quaternion {
+  return quatNormalize(quatMultiply(qImu, qMount));
+}
+
+/**
+ * Absolute moldura pose in Three.js (device→world).
+ * BNO Earth→device conjugated: sensor +Z up in the world ⇒ aro normal +Y
+ * (horizontal) even before ZERO — ZERO only aligns yaw / facing.
+ */
+export function absoluteDisplayFromImu(
+  qImu: Quaternion,
+  qMount: Quaternion,
+): Quaternion {
+  return quatConjugate(mountImu(qImu, qMount));
+}
+
+/**
+ * Target cut pose at ZERO from gravity on the sensor:
+ * - Z up / down → horizontal aro (±Y normal)
+ * - Z roughly horizontal → face camera (+Z normal)
+ */
+export function desiredDisplayForGravity(gImu: Vec3 | null | undefined): Quaternion {
+  if (!gImu) return { ...IDENTITY_QUAT };
+  const len = Math.hypot(gImu.x, gImu.y, gImu.z);
+  if (len < 1e-6) return { ...IDENTITY_QUAT };
+  const gz = gImu.z / len;
+  if (gz <= -0.72) {
+    return quatFromAxisAngle({ x: 1, y: 0, z: 0 }, -Math.PI / 2);
+  }
+  if (gz >= 0.72) {
+    return quatFromAxisAngle({ x: 1, y: 0, z: 0 }, Math.PI / 2);
+  }
+  return { ...IDENTITY_QUAT };
+}
+
+/** Shortest rotation taking unit vector `from` → `to`. */
+export function quatFromUnitVectors(from: Vec3, to: Vec3): Quaternion {
+  const f = vecNormalize(from);
+  const t = vecNormalize(to);
+  const dot = Math.min(1, Math.max(-1, f.x * t.x + f.y * t.y + f.z * t.z));
+  if (dot > 0.999999) return { ...IDENTITY_QUAT };
+  if (dot < -0.999999) {
+    const axis =
+      Math.abs(f.x) < 0.9 ? { x: 1, y: 0, z: 0 } : { x: 0, y: 1, z: 0 };
+    return quatFromAxisAngle(
+      {
+        x: f.y * axis.z - f.z * axis.y,
+        y: f.z * axis.x - f.x * axis.z,
+        z: f.x * axis.y - f.y * axis.x,
+      },
+      Math.PI,
+    );
+  }
+  const axis = {
+    x: f.y * t.z - f.z * t.y,
+    y: f.z * t.x - f.x * t.z,
+    z: f.x * t.y - f.y * t.x,
+  };
+  const w = Math.sqrt((1 + dot) * 2);
+  const s = 1 / w;
+  return quatNormalize({ w: w * 0.5, x: axis.x * s, y: axis.y * s, z: axis.z * s });
+}
+
+/**
+ * Alignment (Three.js) stored at ZERO: maps the live absolute normal onto the
+ * gravity-desired normal. Z-up → keep horizontal; facing → face camera.
+ */
+export function zeroReferenceFromImu(
+  qImu: Quaternion,
+  qMount: Quaternion,
+  gImu?: Vec3 | null,
+): Quaternion {
+  const qAbs = absoluteDisplayFromImu(qImu, qMount);
+  const n = frameFrontNormal(qAbs);
+  const nDes = frameFrontNormal(desiredDisplayForGravity(gImu));
+  return quatFromUnitVectors(n, nDes);
+}
+
+/**
+ * Live cut orientation:
+ *   q_abs     = conjugate(q_imu ⊗ q_mount)     — gravity-true sensor +Z
+ *   q_display = q_align ⊗ q_abs                — ZERO only yaws/aligns
  */
 export function applyMountAndZero(
   qImu: Quaternion,
   qMount: Quaternion,
-  qZero: Quaternion | null,
+  qAlign: Quaternion | null,
 ): Quaternion {
-  const qFrame = quatMultiply(qImu, qMount);
-  if (!qZero) return qFrame;
-  return quatMultiply(quatConjugate(qZero), qFrame);
+  const qAbs = absoluteDisplayFromImu(qImu, qMount);
+  if (!qAlign) return qAbs;
+  return quatNormalize(quatMultiply(qAlign, qAbs));
 }
 
 /**
@@ -157,11 +308,30 @@ export function quatRotateVector(q: Quaternion, v: Vec3): Vec3 {
   return { x: r.x, y: r.y, z: r.z };
 }
 
+/**
+ * Moldura body axes (IMU after mount), Three.js Y-up:
+ *
+ * - +Z = normal do aro (eixo do anel)
+ * - +X = direita da moldura (no plano do aro)
+ * - +Y = “cima” da face da moldura (no plano do aro)
+ *
+ * Convenção pedida:
+ * - Z para cima (mundo +Y)        → aro horizontal (deitado)
+ * - Z apontando para a câmera (+Z) → aro de frente (vertical)
+ * - Inclinar Z para mim / para longe → aro aproxima / afasta (tip no profundidade)
+ * - Girar em torno de Z             → spin no plano do aro
+ */
+const RIGHT_LOCAL: Vec3 = { x: 1, y: 0, z: 0 };
 const FRONT_LOCAL: Vec3 = { x: 0, y: 0, z: 1 };
+
+/** World up in the Three.js scene (gravity). */
+export const WORLD_UP: Vec3 = { x: 0, y: 1, z: 0 };
+/** Toward the default camera / user. */
+export const WORLD_TOWARD_USER: Vec3 = { x: 0, y: 0, z: 1 };
 
 /** Front axis of the physical frame after calibration, in Three.js Y-up space. */
 export function frameFrontNormal(qRelative: Quaternion, out?: Vec3): Vec3 {
-  // Sensor +Z → Three.js +Z (facing camera by default after zero)
+  // Sensor +Z → aro normal.
   const v = quatRotateVector(qRelative, FRONT_LOCAL);
   if (out) {
     out.x = v.x;
@@ -170,6 +340,52 @@ export function frameFrontNormal(qRelative: Quaternion, out?: Vec3): Vec3 {
     return out;
   }
   return v;
+}
+
+export type CutBasis = {
+  /** Local +X after IMU orientation — in-plane horizontal of the moldura. */
+  tangent: Vec3;
+  /** Local +Y after IMU orientation — in-plane vertical of the moldura. */
+  bitangent: Vec3;
+  /** Local +Z — cut-plane / aro normal (sensor Z). */
+  normal: Vec3;
+};
+
+/**
+ * Full moldura basis from the display quaternion.
+ * Sensor +Z is always the aro normal — never rebuild from world-up (that drops Z spin).
+ *
+ * When `invertSpin`, negate twist about the aro normal so CW/CCW matches the hand
+ * without changing tip (normal).
+ */
+export function frameCutBasis(
+  qRelative: Quaternion,
+  invertSpin = false,
+): CutBasis {
+  const q = invertSpin ? invertLocalZTwist(qRelative) : qRelative;
+  const tangent = vecNormalize(quatRotateVector(q, RIGHT_LOCAL));
+  const normal = vecNormalize(quatRotateVector(qRelative, FRONT_LOCAL));
+  const tDotN = tangent.x * normal.x + tangent.y * normal.y + tangent.z * normal.z;
+  const tOrtho = vecNormalize({
+    x: tangent.x - normal.x * tDotN,
+    y: tangent.y - normal.y * tDotN,
+    z: tangent.z - normal.z * tDotN,
+  });
+  // B = N × T → right-handed; bitangent follows sensor +Y under identity.
+  const bitangent = vecNormalize({
+    x: normal.y * tOrtho.z - normal.z * tOrtho.y,
+    y: normal.z * tOrtho.x - normal.x * tOrtho.z,
+    z: normal.x * tOrtho.y - normal.y * tOrtho.x,
+  });
+  return { tangent: tOrtho, bitangent, normal };
+}
+
+/** Rx(θ) unit quaternion. */
+export function quatFromAxisAngle(axis: Vec3, angleRad: number): Quaternion {
+  const n = vecNormalize(axis);
+  const half = angleRad * 0.5;
+  const s = Math.sin(half);
+  return quatNormalize({ w: Math.cos(half), x: n.x * s, y: n.y * s, z: n.z * s });
 }
 
 /**
@@ -202,6 +418,15 @@ export function quatSwingTwist(
   const twist = quatNormalize({ w: q.w, x: n.x * proj, y: n.y * proj, z: n.z * proj });
   const swing = quatMultiply(q, quatConjugate(twist));
   return { swing, twist };
+}
+
+/**
+ * Negate in-plane spin about local +Z (sensor Z / aro normal).
+ * Tips (swing) stay the same — only CW/CCW about the aro flips.
+ */
+export function invertLocalZTwist(q: Quaternion): Quaternion {
+  const { swing, twist } = quatSwingTwist(q, { x: 0, y: 0, z: 1 });
+  return quatNormalize(quatMultiply(swing, quatConjugate(twist)));
 }
 
 const FRAME_VIEW_AXIS: Vec3 = { x: 0, y: 0, z: 1 };

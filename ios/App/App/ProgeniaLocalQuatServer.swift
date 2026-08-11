@@ -3,11 +3,11 @@ import Network
 
 /**
  Local WebSocket server on 127.0.0.1 — high-rate IMU data plane for WKWebView.
- V2 binary frame (36 bytes LE): magic 0x5132 + seq + flags + quaternion + gravity.
+ V4 binary frame (52 bytes LE): V2 fields + world translation dpx,dpy,dpz.
  */
 final class ProgeniaLocalQuatServer {
     static let port: UInt16 = 19091
-    static let frameSize = 36
+    static let frameSize = 52
 
     private let queue = DispatchQueue(
         label: "com.progenia.frame.localws",
@@ -25,6 +25,13 @@ final class ProgeniaLocalQuatServer {
     private var pendingGY = 0.0
     private var pendingGZ = 0.0
     private var pendingHasGravity = false
+    private var pendingAccelAccuracy: UInt8 = 0
+    private var pendingGyroAccuracy: UInt8 = 0
+    private var pendingStationary = false
+    private var pendingCalibrationReady = false
+    private var pendingTranslationX = 0.0
+    private var pendingTranslationY = 0.0
+    private var pendingTranslationZ = 0.0
     private var pendingSeq: UInt32 = 0
     private var pendingDirty = false
 
@@ -92,7 +99,13 @@ final class ProgeniaLocalQuatServer {
     func broadcast(
         w: Double, x: Double, y: Double, z: Double,
         gravityX: Double, gravityY: Double, gravityZ: Double,
-        hasGravity: Bool, seq: UInt64
+        hasGravity: Bool, seq: UInt64,
+        accelAccuracy: UInt8 = 0, gyroAccuracy: UInt8 = 0,
+        stationary: Bool = false, calibrationReady: Bool = false,
+        translationPosition: Double = 0,
+        translationX: Double? = nil,
+        translationY: Double? = nil,
+        translationZ: Double? = nil
     ) {
         queue.async {
             self.pendingW = w
@@ -103,6 +116,19 @@ final class ProgeniaLocalQuatServer {
             self.pendingGY = gravityY
             self.pendingGZ = gravityZ
             self.pendingHasGravity = hasGravity
+            self.pendingAccelAccuracy = accelAccuracy
+            self.pendingGyroAccuracy = gyroAccuracy
+            self.pendingStationary = stationary
+            self.pendingCalibrationReady = calibrationReady
+            if let tx = translationX, let ty = translationY, let tz = translationZ {
+                self.pendingTranslationX = tx
+                self.pendingTranslationY = ty
+                self.pendingTranslationZ = tz
+            } else {
+                self.pendingTranslationX = 0
+                self.pendingTranslationY = 0
+                self.pendingTranslationZ = translationPosition
+            }
             self.pendingSeq = UInt32(truncatingIfNeeded: seq)
             self.pendingDirty = true
         }
@@ -125,7 +151,12 @@ final class ProgeniaLocalQuatServer {
         let frame = Self.buildFrame(
             w: pendingW, x: pendingX, y: pendingY, z: pendingZ,
             gravityX: pendingGX, gravityY: pendingGY, gravityZ: pendingGZ,
-            hasGravity: pendingHasGravity, seq: pendingSeq
+            hasGravity: pendingHasGravity, seq: pendingSeq,
+            accelAccuracy: pendingAccelAccuracy, gyroAccuracy: pendingGyroAccuracy,
+            stationary: pendingStationary, calibrationReady: pendingCalibrationReady,
+            translationX: pendingTranslationX,
+            translationY: pendingTranslationY,
+            translationZ: pendingTranslationZ
         )
         sendToAll(frame)
 
@@ -141,18 +172,29 @@ final class ProgeniaLocalQuatServer {
     private static func buildFrame(
         w: Double, x: Double, y: Double, z: Double,
         gravityX: Double, gravityY: Double, gravityZ: Double,
-        hasGravity: Bool, seq: UInt32
+        hasGravity: Bool, seq: UInt32,
+        accelAccuracy: UInt8, gyroAccuracy: UInt8,
+        stationary: Bool, calibrationReady: Bool,
+        translationX: Double,
+        translationY: Double,
+        translationZ: Double
     ) -> Data {
         var data = Data(count: frameSize)
         data.withUnsafeMutableBytes { raw in
             guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
-            base[0] = 0x32
+            // Magic 0x5134 (v4)
+            base[0] = 0x34
             base[1] = 0x51
             var seqLe = seq.littleEndian
             _ = withUnsafeBytes(of: &seqLe) { bytes in
                 memcpy(base + 2, bytes.baseAddress!, 4)
             }
-            base[6] = hasGravity ? 0x01 : 0x00
+            base[6] =
+                (hasGravity ? 0x01 : 0x00) |
+                ((accelAccuracy & 0x03) << 1) |
+                ((gyroAccuracy & 0x03) << 3) |
+                (stationary ? 0x20 : 0x00) |
+                (calibrationReady ? 0x40 : 0x00)
             base[7] = 0
             func putFloat(_ value: Double, at offset: Int) {
                 var f = Float(value).bitPattern.littleEndian
@@ -167,6 +209,10 @@ final class ProgeniaLocalQuatServer {
             putFloat(gravityX, at: 24)
             putFloat(gravityY, at: 28)
             putFloat(gravityZ, at: 32)
+            putFloat(translationX, at: 36)
+            putFloat(translationY, at: 40)
+            putFloat(translationZ, at: 44)
+            putFloat(0, at: 48) // reserved
         }
         return data
     }

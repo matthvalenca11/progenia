@@ -152,7 +152,7 @@ const AppContent = () => {
             : nativeLabEditorShell
               ? "layout-contained native-shell-padding flex min-h-0 w-full flex-1 flex-col overflow-hidden touch-pan-y pb-0 pt-2"
               : isNativeApp
-                ? "layout-contained native-shell-padding flex min-h-0 w-full flex-1 flex-col overflow-y-auto touch-pan-y pb-6 pt-2"
+                ? "layout-contained native-shell-padding flex min-h-0 w-full flex-1 flex-col overflow-y-auto touch-pan-y pb-6 pt-0"
                 : "layout-contained flex min-h-0 w-full flex-1 flex-col overflow-y-auto overflow-x-hidden touch-pan-y px-3 pb-6 pt-2 sm:px-4 md:px-8 md:pb-10 md:pt-4"
         }
       >
@@ -227,7 +227,10 @@ const AppContent = () => {
 
       {/* Tutor de IA disponível também no mobile */}
       {shouldShowAITutor && <AITutor />}
-      <CookiePreferencesButton shiftUpForAiTutorFab={shouldShowAITutor} />
+      {/* Hide the cookie FAB on fullscreen labs — it collides with lab thumb controls. */}
+      {!isImmersiveLabRoute && (
+        <CookiePreferencesButton shiftUpForAiTutorFab={shouldShowAITutor} />
+      )}
       <CookieBanner />
       <CookiePreferencesDialog />
     </div>

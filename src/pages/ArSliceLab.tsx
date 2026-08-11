@@ -2,10 +2,13 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LabCanvasHost, LabCanvasSurface } from "@/components/labs/LabCanvasSurface";
-import { isNativeMobile, labCanvasStableProps } from "@/lib/labPerformance";
+import {
+  isAndroidNative,
+  isNativeMobile,
+  labCanvasStableProps,
+} from "@/lib/labPerformance";
 import { ArSliceScene } from "@/features/ar-slice/components/ArSliceScene";
 import { ArSliceControls } from "@/features/ar-slice/components/ArSliceControls";
-import { FrameOverlay } from "@/features/ar-slice/components/FrameOverlay";
 import { useArSliceTransport } from "@/features/ar-slice/useArSliceTransport";
 import { useArCamera } from "@/features/ar-slice/useArCamera";
 import { useFrameTracker } from "@/features/ar-slice/vision/useFrameTracker";
@@ -16,9 +19,17 @@ export default function ArSliceLab() {
   const navigate = useNavigate();
   const {
     connectBleStream,
+    connectDeviceMotion,
     disconnect,
     writeZero,
+    writeCalibrationCommand,
     connectStatus,
+    wifiMode,
+    nativeRxHz,
+    wsTxHz,
+    bleHandTrackingEnabled,
+    bleHandTrackingActive,
+    setBleHandTrackingEnabled,
   } = useArSliceTransport();
   const cameraEnabled = useArSliceStore((s) => s.cameraEnabled);
   const frameTrackingEnabled = useArSliceStore((s) => s.frameTrackingEnabled);
@@ -50,8 +61,6 @@ export default function ArSliceLab() {
         />
       )}
 
-      <FrameOverlay />
-
       <div className="pointer-events-none absolute left-0 right-0 top-0 z-30 flex items-start px-3 safe-top">
         <Button
           variant="ghost"
@@ -68,19 +77,29 @@ export default function ArSliceLab() {
         <LabCanvasHost className={cn("touch-none", transparent ? "!bg-transparent" : undefined)}>
           <LabCanvasSurface
             {...labCanvasStableProps}
-            dpr={isNativeMobile ? 1 : labCanvasStableProps.dpr}
+            dpr={
+              isAndroidNative
+                ? 1
+                : isNativeMobile
+                  ? [1.5, 2]
+                  : labCanvasStableProps.dpr
+            }
             shadows={false}
             gl={{
               ...labCanvasStableProps.gl,
-              antialias: !isNativeMobile,
+              antialias: !isAndroidNative,
               alpha: true,
-              premultipliedAlpha: false,
+              // Premultiplied alpha is required for WKWebView to composite the
+              // hologram over the native ARKit camera feed on iOS.
+              premultipliedAlpha: true,
               powerPreference: "high-performance",
             }}
             hostClassName={transparent ? "!bg-transparent" : undefined}
             style={transparent ? { background: "transparent" } : undefined}
-            onCreated={({ gl }) => {
+            onCreated={({ gl, scene }) => {
               gl.setClearColor(0x000000, transparent ? 0 : 1);
+              gl.domElement.style.background = "transparent";
+              if (transparent) scene.background = null;
             }}
           >
             <ArSliceScene transparent={transparent} />
@@ -88,12 +107,20 @@ export default function ArSliceLab() {
         </LabCanvasHost>
       </div>
 
-      <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-30 flex justify-start md:bottom-4 md:left-4">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30">
         <ArSliceControls
           onConnectBle={() => void connectBleStream()}
+          onConnectDeviceMotion={() => void connectDeviceMotion()}
           onDisconnect={() => void disconnect()}
           onZero={() => void writeZero()}
+          handTrackingEnabled={bleHandTrackingEnabled}
+          handTrackingActive={bleHandTrackingActive}
+          onHandTrackingEnabledChange={setBleHandTrackingEnabled}
+          onCalibrationCommand={writeCalibrationCommand}
           connectStatus={connectStatus}
+          linkMode={wifiMode}
+          rawRxHz={nativeRxHz}
+          wsTxHz={wsTxHz}
         />
       </div>
 

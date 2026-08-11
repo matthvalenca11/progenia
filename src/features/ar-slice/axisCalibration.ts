@@ -1,4 +1,7 @@
-import type { Quaternion } from "@/features/ar-slice/ble/protocol";
+import type {
+  ImuCalibrationMetadata,
+  Quaternion,
+} from "@/features/ar-slice/ble/protocol";
 import type { Vec3 } from "@/features/ar-slice/poseMath";
 import { AR_SLICE_AXIS_CAL } from "@/features/ar-slice/arSliceSceneConfig";
 import {
@@ -10,9 +13,17 @@ import {
   quatNormalize,
   suggestMountPreset,
   suggestMountPresetFromFlatGravity,
+  zeroReferenceFromImu,
 } from "@/features/ar-slice/poseMath";
 
-export type AxisCalStep = 0 | 1 | 2 | 3;
+export type AxisCalStep = 0 | 1 | 2 | 3 | 4;
+
+export type CalibrationPose = {
+  quaternion: Quaternion;
+  gravity: Vec3;
+  angularSpeedRadS: number;
+  gravitySpreadDeg: number;
+};
 
 export type AxisCalStatus = "idle" | "moving" | "waiting" | "ready" | "error";
 
@@ -147,6 +158,129 @@ export class StationaryGate {
   }
 }
 
+export class CalibrationSampleWindow {
+  private samples: Array<{ q: Quaternion; g: Vec3; at: number }> = [];
+
+  reset() {
+    this.samples = [];
+  }
+
+  push(q: Quaternion, g: Vec3, at = performance.now()) {
+    this.samples.push({ q: quatNormalize(q), g: normalize(g), at });
+    const cutoff = at - 2800;
+    while (this.samples.length > 100 || (this.samples[0]?.at ?? at) < cutoff) {
+      this.samples.shift();
+    }
+  }
+
+  pose(holdMs = 850): CalibrationPose | null {
+    if (this.samples.length < 12) return null;
+    const first = this.samples[0];
+    const last = this.samples[this.samples.length - 1];
+    if (last.at - first.at < holdMs) return null;
+
+    const gravitySeed = normalize(
+      this.samples.reduce(
+        (sum, sample) => ({
+          x: sum.x + sample.g.x,
+          y: sum.y + sample.g.y,
+          z: sum.z + sample.g.z,
+        }),
+        { x: 0, y: 0, z: 0 },
+      ),
+    );
+    const inliers = this.samples.filter(
+      (sample) => gravityAngleDeg(sample.g, gravitySeed) <= 3,
+    );
+    if (inliers.length < this.samples.length * 0.8) return null;
+
+    const gravity = normalize(
+      inliers.reduce(
+        (sum, sample) => ({
+          x: sum.x + sample.g.x,
+          y: sum.y + sample.g.y,
+          z: sum.z + sample.g.z,
+        }),
+        { x: 0, y: 0, z: 0 },
+      ),
+    );
+    const qRef = inliers[0].q;
+    const quaternion = quatNormalize(
+      inliers.reduce(
+        (sum, sample) => {
+          const sign =
+            qRef.w * sample.q.w +
+              qRef.x * sample.q.x +
+              qRef.y * sample.q.y +
+              qRef.z * sample.q.z >=
+            0
+              ? 1
+              : -1;
+          return {
+            w: sum.w + sample.q.w * sign,
+            x: sum.x + sample.q.x * sign,
+            y: sum.y + sample.q.y * sign,
+            z: sum.z + sample.q.z * sign,
+          };
+        },
+        { w: 0, x: 0, y: 0, z: 0 },
+      ),
+    );
+    const gravitySpreadDeg = Math.max(
+      ...inliers.map((sample) => gravityAngleDeg(sample.g, gravity)),
+    );
+    const angularSpeedRadS =
+      rotationAngleRad(first.q, last.q) / Math.max(0.001, (last.at - first.at) / 1000);
+    if (gravitySpreadDeg > 1.5 || angularSpeedRadS > 0.06) return null;
+    return { quaternion, gravity, angularSpeedRadS, gravitySpreadDeg };
+  }
+}
+
+export function gravityFace(g: Vec3, dominance = 0.82): number | null {
+  const n = normalize(g);
+  const components = [n.x, n.y, n.z];
+  let axis = 0;
+  if (Math.abs(components[1]) > Math.abs(components[axis])) axis = 1;
+  if (Math.abs(components[2]) > Math.abs(components[axis])) axis = 2;
+  if (Math.abs(components[axis]) < dominance) return null;
+  return axis * 2 + (components[axis] >= 0 ? 1 : 0);
+}
+
+export class GravityFaceTracker {
+  private faces = new Set<number>();
+
+  add(g: Vec3) {
+    const face = gravityFace(g);
+    if (face != null) this.faces.add(face);
+    return this.faces.size;
+  }
+
+  get count() {
+    return this.faces.size;
+  }
+
+  reset() {
+    this.faces.clear();
+  }
+}
+
+export function isCalibrationCoverageComplete(
+  faces: number,
+  calibration?: ImuCalibrationMetadata | null,
+): boolean {
+  if (!calibration) return faces >= 4;
+  if (calibration.calibrationReady) return true;
+  // Firmware without accuracy metadata reports 0/0 — finish by face coverage.
+  if (calibration.accelAccuracy === 0 && calibration.gyroAccuracy === 0) {
+    return faces >= 4;
+  }
+  return (
+    faces >= 3 &&
+    calibration.accelAccuracy === 3 &&
+    calibration.gyroAccuracy === 3
+  );
+}
+
 export function resolveMountFromSamples(
   qFlat: Quaternion,
   qPitch: Quaternion,
@@ -162,8 +296,16 @@ export function resolveMountFromSamples(
   return { preset, label: MOUNT_PRESET_LABELS[preset] };
 }
 
-export function flatZeroFromImu(qImuFlat: Quaternion, qMount: Quaternion): Quaternion {
-  return quatNormalize(applyMountAndZero(qImuFlat, qMount, null));
+/**
+ * Zero reference for orientation. Pass gravity so Z-up at Zerar maps to a
+ * horizontal aro (not face-on identity).
+ */
+export function flatZeroFromImu(
+  qImuFlat: Quaternion,
+  qMount: Quaternion,
+  gImu?: Vec3 | null,
+): Quaternion {
+  return zeroReferenceFromImu(qImuFlat, qMount, gImu);
 }
 
 export function formatRotationHint(

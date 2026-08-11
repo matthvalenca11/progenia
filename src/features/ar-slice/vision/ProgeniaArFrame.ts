@@ -10,12 +10,27 @@ export type DetectRectangleResult = {
   found: boolean;
   corners?: [Point2, Point2, Point2, Point2];
   confidence?: number;
-  source?: "vision" | "arkit";
+  source?: "vision" | "arkit" | "hand";
 };
 
 export type FrameOrientationSample = { w: number; x: number; y: number; z: number };
 
 export interface ProgeniaArFramePlugin {
+  startMixedReality(): Promise<{ ok: boolean; mode: string }>;
+  stopMixedReality(): Promise<void>;
+  pollMixedReality(): Promise<{
+    tracking: boolean;
+    x?: number;
+    y?: number;
+    z?: number;
+    qw?: number;
+    qx?: number;
+    qy?: number;
+    qz?: number;
+    fovY?: number;
+  }>;
+  recenterMixedReality(): Promise<{ ok: boolean }>;
+  detectHand(options: DetectRectangleOptions): Promise<DetectRectangleResult>;
   detectRectangle(options: DetectRectangleOptions): Promise<DetectRectangleResult>;
   isAvailable(): Promise<{ available: boolean; engine: string; stream?: boolean }>;
   startUdpStream(options: { port: number }): Promise<{ ok: boolean; mode: string }>;
@@ -26,6 +41,22 @@ export interface ProgeniaArFramePlugin {
     deviceId: string;
     name: string;
   }>;
+  startDeviceMotionStream(): Promise<{ ok: boolean; mode: string }>;
+  resetDeviceMotionTranslation(): Promise<{ ok: boolean }>;
+  startHandTracking(): Promise<{ ok: boolean; mode: string }>;
+  stopHandTracking(): Promise<{ ok: boolean }>;
+  pollHandTracking(): Promise<{
+    visible: boolean;
+    centerX: number;
+    centerY: number;
+    palmSpan: number;
+    confidence: number;
+    timestamp: number;
+  }>;
+  /** iPad: Capacitor owns GATT; relay IMU via localhost WS (no bridge/sample). */
+  startCapacitorImuRelay(): Promise<{ ok: boolean; mode: string }>;
+  stopCapacitorImuRelay(): Promise<void>;
+  sendBleCommand(options: { command: string }): Promise<{ ok: boolean }>;
   stopStream(): Promise<void>;
   pollOrientation(): Promise<{
     ok: boolean;
@@ -58,6 +89,19 @@ export interface ProgeniaArFramePlugin {
 
 const ProgeniaArFrame = registerPlugin<ProgeniaArFramePlugin>("ProgeniaArFrame", {
   web: () => ({
+    async startMixedReality() {
+      throw new Error("Realidade mista ARKit disponível somente no iOS");
+    },
+    async stopMixedReality() {},
+    async pollMixedReality() {
+      return { tracking: false };
+    },
+    async recenterMixedReality() {
+      return { ok: false };
+    },
+    async detectHand() {
+      return { found: false };
+    },
     async detectRectangle() {
       return { found: false };
     },
@@ -72,6 +116,35 @@ const ProgeniaArFrame = registerPlugin<ProgeniaArFramePlugin>("ProgeniaArFrame",
     },
     async startBleStream() {
       throw new Error("BLE stream nativo disponível somente no app iOS");
+    },
+    async startDeviceMotionStream() {
+      throw new Error("Sensores nativos disponíveis somente no app iOS");
+    },
+    async resetDeviceMotionTranslation() {
+      return { ok: false };
+    },
+    async startHandTracking() {
+      throw new Error("Rastreamento da mão disponível somente no app iOS");
+    },
+    async stopHandTracking() {
+      return { ok: false };
+    },
+    async pollHandTracking() {
+      return {
+        visible: false,
+        centerX: 0.5,
+        centerY: 0.5,
+        palmSpan: 0,
+        confidence: 0,
+        timestamp: 0,
+      };
+    },
+    async startCapacitorImuRelay() {
+      throw new Error("Relay IMU nativo disponível somente no app iOS");
+    },
+    async stopCapacitorImuRelay() {},
+    async sendBleCommand() {
+      throw new Error("Comando BLE nativo disponível somente no app iOS");
     },
     async stopStream() {},
     async pollOrientation() {

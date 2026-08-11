@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { Mesh } from "three";
-import { poseBuffer } from "@/features/ar-slice/arSliceStore";
+import { getAppliedPose } from "@/features/ar-slice/arSliceStore";
 
 /** Cube that follows the calibrated frame orientation (hot path via poseBuffer). */
 export function DebugCube({ visible = true }: { visible?: boolean }) {
@@ -10,7 +10,7 @@ export function DebugCube({ visible = true }: { visible?: boolean }) {
   useFrame(() => {
     const mesh = meshRef.current;
     if (!mesh || !visible) return;
-    const q = poseBuffer.display;
+    const q = getAppliedPose().display;
     mesh.quaternion.set(q.x, q.y, q.z, q.w);
   });
 

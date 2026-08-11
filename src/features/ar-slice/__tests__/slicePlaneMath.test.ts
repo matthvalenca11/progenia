@@ -18,15 +18,21 @@ describe("slicePlaneMath", () => {
     expect(clip.constant).toBeCloseTo(-cut.constant);
   });
 
-  it("moves the cut anchor along world Y (SI) when slice level changes", () => {
-    const n = { x: 0.3, y: 0.4, z: 0.86 };
-    const len = Math.hypot(n.x, n.y, n.z);
-    n.x /= len;
-    n.y /= len;
-    n.z /= len;
+  it("slides the aro in Z without changing an axial plane equation", () => {
+    const n = { x: 0, y: 1, z: 0 };
+    const p0 = buildSlicePlanes(n, { x: 0, y: 0, z: 0 }, 0, { x: 0, y: 0, z: 0 });
+    const p1 = buildSlicePlanes(n, { x: 0, y: 0, z: 0 }, 0, { x: 0, y: 0, z: 0.3 });
+    // Same infinite plane (y = 0) — lateral slide only moves the disc.
+    expect(p1.cut.constant).toBeCloseTo(p0.cut.constant);
+    expect(p1.anchor.z).toBeCloseTo(0.3);
+    expect(p1.anchor.y).toBeCloseTo(0);
+  });
+
+  it("moves the cut along the normal when slice depth changes", () => {
+    const n = { x: 0, y: 0, z: 1 };
     const p0 = buildSlicePlanes(n, { x: 0, y: 0, z: 0 }, 0);
     const p1 = buildSlicePlanes(n, { x: 0, y: 0, z: 0 }, 0.25);
-    expect(p1.anchor.y).toBeCloseTo(0.25);
+    expect(p1.anchor.z).toBeCloseTo(0.25);
     expect(p1.cut.constant).not.toBeCloseTo(p0.cut.constant);
   });
 
@@ -35,14 +41,14 @@ describe("slicePlaneMath", () => {
     const len = Math.hypot(n.x, n.z);
     n.x /= len;
     n.z /= len;
-    const { cut } = buildSlicePlanes(n, { x: 0, y: 0, z: 0 }, 0);
+    const { cut, anchor } = buildSlicePlanes(n, { x: 0, y: 0, z: 0 }, 0.3);
     const out = projectPointOntoPlane({ x: 0, y: 0, z: 0 }, cut.normal, cut.constant, {
       x: 0,
       y: 0,
       z: 0,
     });
-    expect(out.x).toBeCloseTo(0, 4);
-    expect(out.y).toBeCloseTo(0, 4);
-    expect(out.z).toBeCloseTo(0, 4);
+    expect(out.x).toBeCloseTo(anchor.x, 4);
+    expect(out.y).toBeCloseTo(anchor.y, 4);
+    expect(out.z).toBeCloseTo(anchor.z, 4);
   });
 });

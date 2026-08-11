@@ -62,4 +62,21 @@ describe("estimateFramePose", () => {
     expect(pose.scale).toBeGreaterThan(0.2);
     expect(pose.quaternion.w).toBeGreaterThan(0);
   });
+
+  it("derives hand distance from apparent palm size", () => {
+    const hand = (halfWidth: number): NormalizedQuad => ({
+      corners: [
+        { x: 0.5 - halfWidth, y: 0.4 },
+        { x: 0.5 + halfWidth, y: 0.4 },
+        { x: 0.5 + halfWidth, y: 0.6 },
+        { x: 0.5 - halfWidth, y: 0.6 },
+      ],
+      confidence: 0.9,
+      source: "hand",
+    });
+    const near = estimateFramePose(hand(0.2), { aspect: 0.5 });
+    const far = estimateFramePose(hand(0.1), { aspect: 0.5 });
+    expect(Math.abs(near.position.z)).toBeLessThan(Math.abs(far.position.z));
+    expect(near.scale).toBeCloseTo(far.scale);
+  });
 });

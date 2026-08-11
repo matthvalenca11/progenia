@@ -57,11 +57,24 @@ export function LabCanvasSurface({
   const hostClasses = cn("absolute inset-0 min-h-0 min-w-0", hostClassName);
 
   if (!hostReady) {
+    const transparentHost =
+      hostClassName?.includes("bg-transparent") ||
+      (typeof style === "object" &&
+        style != null &&
+        "background" in style &&
+        style.background === "transparent");
     return (
       <div ref={hostRef} className={hostClasses} style={style}>
-        <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-slate-950/90 px-4 text-center">
+        <div
+          className={cn(
+            "flex h-full w-full flex-col items-center justify-center gap-2 px-4 text-center",
+            transparentHost ? "bg-transparent" : "bg-slate-950/90",
+          )}
+        >
           <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
-          <p className="text-xs text-slate-400">{loadingLabel}</p>
+          {!transparentHost && (
+            <p className="text-xs text-slate-400">{loadingLabel}</p>
+          )}
         </div>
       </div>
     );

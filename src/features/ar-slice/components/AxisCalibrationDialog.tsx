@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,15 +10,17 @@ import {
 } from "@/components/ui/dialog";
 import {
   AXIS_CAL_STEP_GOALS,
+  CalibrationSampleWindow,
+  GravityFaceTracker,
   formatFlatGravityHint,
   formatGravityTiltHint,
+  isCalibrationCoverageComplete,
   type AxisCalStep,
 } from "@/features/ar-slice/axisCalibration";
 import { getAxisCalRefs, poseBuffer, useArSliceStore } from "@/features/ar-slice/arSliceStore";
 
 const CAL_INTRO =
-  "Calibra o acelerômetro (vetor de gravidade) — não o giroscópio. " +
-  "O chip BNO085 já se auto-calibra; aqui você ensina ao app como a moldura física se relaciona com a gravidade.";
+  "Primeiro removemos o bias do giroscópio em repouso; depois calibramos a gravidade e o alinhamento físico da moldura.";
 
 type StepUi = {
   title: string;
@@ -32,7 +34,7 @@ const STEPS: Record<1 | 2, StepUi> = {
     bullets: [
       "Apoie a moldura em uma mesa plana.",
       "O anel/janela deve olhar para CIMA (como um quadro deitado).",
-      "Não segure na mão — a gravidade precisa ser só vertical.",
+      "Não segure na mão — também medimos o zero da aceleração linear.",
     ],
     confirmLabel: "Confirmar — moldura plana",
   },
@@ -48,12 +50,12 @@ const STEPS: Record<1 | 2, StepUi> = {
 };
 
 function StepDots({ step }: { step: AxisCalStep }) {
-  const labels = ["Plana", "Em L"] as const;
+  const labels = ["Repouso", "Em L", "Lados"] as const;
   return (
     <div className="flex items-center justify-center gap-3">
       {labels.map((label, i) => {
-        const n = (i + 1) as 1 | 2;
-        const done = step > n || step === 3;
+        const n = (i + 1) as 1 | 2 | 3;
+        const done = step > n || step === 4;
         const active = step === n;
         return (
           <div key={label} className="flex flex-col items-center gap-1">
@@ -152,19 +154,48 @@ function SensorBanner({ hasGravity }: { hasGravity: boolean }) {
   );
 }
 
-export function AxisCalibrationDialog() {
+type Props = {
+  onCalibrationCommand: (command: "CAL_START" | "CAL_CANCEL" | "CAL_SAVE") => void;
+};
+
+export function AxisCalibrationDialog({ onCalibrationCommand }: Props) {
   const axisCalStep = useArSliceStore((s) => s.axisCalStep);
   const axisCalError = useArSliceStore((s) => s.axisCalError);
   const axisCalResult = useArSliceStore((s) => s.axisCalResult);
+  const axisCalFaces = useArSliceStore((s) => s.axisCalFaces);
+  const imuHealth = useArSliceStore((s) => s.imuHealth);
   const captureAxisCalibrationPose = useArSliceStore((s) => s.captureAxisCalibrationPose);
+  const setAxisCalibrationFaces = useArSliceStore((s) => s.setAxisCalibrationFaces);
+  const finishAxisCalibration = useArSliceStore((s) => s.finishAxisCalibration);
   const cancelAxisCalibration = useArSliceStore((s) => s.cancelAxisCalibration);
   const dismissAxisCalibration = useArSliceStore((s) => s.dismissAxisCalibration);
 
   const [liveHint, setLiveHint] = useState<string | null>(null);
-  const open = axisCalStep >= 1 && axisCalStep <= 3;
+  const sampleWindow = useRef(new CalibrationSampleWindow());
+  const faceTracker = useRef(new GravityFaceTracker());
+  const captureLock = useRef(false);
+  const commandStarted = useRef(false);
+  const open = axisCalStep >= 1 && axisCalStep <= 4;
 
   useEffect(() => {
-    if (!open || axisCalStep === 3) return;
+    if (!open) {
+      commandStarted.current = false;
+      return;
+    }
+    if (!commandStarted.current) {
+      commandStarted.current = true;
+      onCalibrationCommand("CAL_START");
+    }
+  }, [onCalibrationCommand, open]);
+
+  useEffect(() => {
+    sampleWindow.current.reset();
+    captureLock.current = false;
+    if (axisCalStep === 1) faceTracker.current.reset();
+  }, [axisCalStep]);
+
+  useEffect(() => {
+    if (!open || axisCalStep === 4) return;
     const id = window.setInterval(() => {
       const { gravityFlat } = getAxisCalRefs();
       const g = poseBuffer.gravityImu;
@@ -172,22 +203,90 @@ export function AxisCalibrationDialog() {
         setLiveHint(null);
         return;
       }
+      sampleWindow.current.push(poseBuffer.imu, g);
+      const pose = sampleWindow.current.pose(axisCalStep === 1 ? 2200 : 850);
+
       if (axisCalStep === 1) {
-        setLiveHint(formatFlatGravityHint(g));
+        const hint = formatFlatGravityHint(g);
+        setLiveHint(
+          hint ??
+            (pose
+              ? "Estável. Giroscópio e referência plana capturados automaticamente."
+              : "Não mova a moldura — medindo o bias do giroscópio…"),
+        );
+        if (pose && !hint && !captureLock.current) {
+          captureLock.current = true;
+          captureAxisCalibrationPose(pose);
+        }
       } else if (axisCalStep === 2 && gravityFlat) {
         setLiveHint(formatGravityTiltHint(gravityFlat, g));
+        if (
+          pose &&
+          Math.abs(
+            90 -
+              Math.acos(
+                Math.max(
+                  -1,
+                  Math.min(
+                    1,
+                    (gravityFlat.x * pose.gravity.x +
+                      gravityFlat.y * pose.gravity.y +
+                      gravityFlat.z * pose.gravity.z) /
+                      (Math.hypot(gravityFlat.x, gravityFlat.y, gravityFlat.z) || 1),
+                  ),
+                ),
+              ) *
+                (180 / Math.PI),
+          ) <= 18 &&
+          !captureLock.current
+        ) {
+          captureLock.current = true;
+          faceTracker.current.add(gravityFlat);
+          setAxisCalibrationFaces(faceTracker.current.add(pose.gravity));
+          captureAxisCalibrationPose(pose);
+        }
+      } else if (axisCalStep === 3) {
+        setLiveHint(
+          pose
+            ? "Posição estável reconhecida. Gire para outro lado."
+            : "Gire suavemente e pare por um segundo em cada lado.",
+        );
+        if (pose) {
+          const count = faceTracker.current.add(pose.gravity);
+          if (count !== axisCalFaces) setAxisCalibrationFaces(count);
+          const calibration = poseBuffer.calibration;
+          if (
+            isCalibrationCoverageComplete(count, calibration) &&
+            !captureLock.current
+          ) {
+            captureLock.current = true;
+            onCalibrationCommand("CAL_SAVE");
+            window.setTimeout(finishAxisCalibration, 300);
+          }
+        }
       }
-    }, 250);
+    }, 50);
     return () => window.clearInterval(id);
-  }, [axisCalStep, open]);
+  }, [
+    axisCalFaces,
+    axisCalStep,
+    captureAxisCalibrationPose,
+    finishAxisCalibration,
+    onCalibrationCommand,
+    open,
+    setAxisCalibrationFaces,
+  ]);
 
   const handleOpenChange = (next: boolean) => {
-    if (!next) cancelAxisCalibration();
+    if (!next) {
+      onCalibrationCommand("CAL_CANCEL");
+      cancelAxisCalibration();
+    }
   };
 
   if (!open) return null;
 
-  if (axisCalStep === 3) {
+  if (axisCalStep === 4) {
     return (
       <Dialog open onOpenChange={handleOpenChange}>
         <DialogContent className="max-w-md border-emerald-500/40 bg-slate-950 text-slate-100 sm:rounded-xl">
@@ -195,13 +294,50 @@ export function AxisCalibrationDialog() {
             <DialogTitle className="text-emerald-300">Calibração concluída</DialogTitle>
             <DialogDescription className="text-slate-300">{axisCalResult}</DialogDescription>
           </DialogHeader>
-          <StepDots step={3} />
+          <StepDots step={4} />
           <p className="text-center text-sm text-slate-400">
             Incline a moldura para cima/baixo — a fatia da RM segue a gravidade (acelerômetro).
           </p>
           <DialogFooter>
             <Button className="w-full" onClick={dismissAxisCalibration}>
               Concluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (axisCalStep === 3) {
+    return (
+      <Dialog open onOpenChange={handleOpenChange}>
+        <DialogContent className="max-w-md border-cyan-500/30 bg-slate-950 text-slate-100 sm:rounded-xl">
+          <DialogHeader>
+            <DialogTitle>Calibrar escala do acelerômetro</DialogTitle>
+            <DialogDescription className="text-slate-300">
+              Mostre lados diferentes da moldura. Cada posição estável é reconhecida automaticamente.
+            </DialogDescription>
+          </DialogHeader>
+          <StepDots step={3} />
+          <div className="rounded-xl border border-white/10 bg-black/40 p-4 text-center">
+            <p className="text-4xl font-bold text-cyan-300">{Math.min(axisCalFaces, 4)}/4</p>
+            <p className="mt-2 text-sm text-slate-300">posições distintas capturadas</p>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-800">
+              <div
+                className="h-full bg-cyan-400 transition-all"
+                style={{ width: `${Math.min(100, axisCalFaces * 25)}%` }}
+              />
+            </div>
+          </div>
+          <p className="rounded-md bg-slate-900 px-3 py-2 text-center text-xs text-cyan-200">
+            {liveHint}
+          </p>
+          <p className="text-center text-xs text-slate-400">
+            Qualidade do chip: {imuHealth === "excellent" ? "excelente" : imuHealth === "good" ? "boa" : "calibrando"}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" className="w-full border-white/20" onClick={() => handleOpenChange(false)}>
+              Cancelar calibração
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -255,7 +391,11 @@ export function AxisCalibrationDialog() {
           <Button className="w-full" size="lg" onClick={captureAxisCalibrationPose}>
             {content.confirmLabel}
           </Button>
-          <Button variant="outline" className="w-full border-white/20" onClick={cancelAxisCalibration}>
+          <Button
+            variant="outline"
+            className="w-full border-white/20"
+            onClick={() => handleOpenChange(false)}
+          >
             Cancelar calibração
           </Button>
         </DialogFooter>

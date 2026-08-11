@@ -6,6 +6,15 @@ export const isNativeApp = Capacitor.isNativePlatform();
 export const isNativeMobile =
   isNativeApp && (Capacitor.getPlatform() === "ios" || Capacitor.getPlatform() === "android");
 
+/** iPad (incl. iPadOS desktop UA). Used to pick BLE stacks that actually connect. */
+export function isIPadDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return (
+    /iPad/i.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+
 /** Rota pública inicial / pós-logout: landing na web, login no app nativo. */
 export function getPublicEntryPath() {
   return isNativeApp ? "/auth" : "/";

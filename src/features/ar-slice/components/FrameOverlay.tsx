@@ -1,6 +1,6 @@
 import { useArSliceStore } from "@/features/ar-slice/arSliceStore";
 
-/** SVG overlay: guide reticle while searching + detected moldura corners when locked. */
+/** SVG overlay for the tracked hand/sensor region. */
 export function FrameOverlay() {
   const corners = useArSliceStore((s) => s.frameCorners);
   const state = useArSliceStore((s) => s.frameTrackState);
@@ -17,7 +17,7 @@ export function FrameOverlay() {
       viewBox="0 0 100 100"
       preserveAspectRatio="none"
     >
-      {/* Search guide — aim the black frame here */}
+      {/* Search guide — keep the sensor-holding hand here. */}
       {(state === "searching" || state === "lost") && (
         <rect
           x="18"
@@ -51,12 +51,12 @@ export function FrameOverlay() {
 
       {state === "locked" && (
         <text x="50" y="8" textAnchor="middle" fill="#22d3ee" fontSize="3.2" opacity={0.9}>
-          aro {Math.round(confidence * 100)}%
+          mão + sensor {Math.round(confidence * 100)}%
         </text>
       )}
       {state === "searching" && (
         <text x="50" y="8" textAnchor="middle" fill="#94a3b8" fontSize="3.2" opacity={0.9}>
-          aponte a moldura para o retângulo
+          mantenha a mão com o sensor nesta área
         </text>
       )}
     </svg>

@@ -8,23 +8,27 @@ export type SlicePlanePair = {
   cut: { normal: Vec3; constant: number };
   /** Clipping plane — remove o half-space voltado para a câmera / “acima” da moldura. */
   clip: { normal: Vec3; constant: number };
-  /** Ponto de ancoragem ao longo do eixo SI (world +Y). */
+  /** Center of the aro on the cut. */
   anchor: Vec3;
 };
 
 /**
- * Build cut + clip planes. Anchor moves along SI (Y) with sliceLevel so the cut
- * scrolls through the volume as the frame descends.
+ * Cut plane through an explicit world anchor (aro center).
+ *
+ * - `sliceDepth` steps along the moldura normal (tilt / manual depth).
+ * - `translation` is the accel-driven world offset (can slide laterally in Z
+ *   without changing an axial plane equation — the aro still moves).
  */
 export function buildSlicePlanes(
   normal: Vec3,
   brainCenter: Vec3,
-  sliceLevel: number,
+  sliceDepth: number,
+  translation: Vec3 = { x: 0, y: 0, z: 0 },
 ): SlicePlanePair {
   const anchor: Vec3 = {
-    x: brainCenter.x,
-    y: brainCenter.y + sliceLevel,
-    z: brainCenter.z,
+    x: brainCenter.x + translation.x + normal.x * sliceDepth,
+    y: brainCenter.y + translation.y + normal.y * sliceDepth,
+    z: brainCenter.z + translation.z + normal.z * sliceDepth,
   };
   const constant = -(normal.x * anchor.x + normal.y * anchor.y + normal.z * anchor.z);
   return {

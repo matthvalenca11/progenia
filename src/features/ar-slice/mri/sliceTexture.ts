@@ -6,6 +6,8 @@ import {
   type VolumePlacement,
   worldToVoxelFraction,
 } from "@/features/ar-slice/mri/volumeSampling";
+import { medicalColor } from "@/features/ar-slice/mri/medicalColorMap";
+import type { MedicalVolumeColorMap } from "@/features/ar-slice/mri/arSliceMriStore";
 
 export type SliceTextureOptions = {
   resolution: number;
@@ -17,8 +19,28 @@ export type SliceTextureOptions = {
   isoFloor: number;
   volMin: number;
   volMax: number;
+  colorMap: MedicalVolumeColorMap;
+  overlay?: {
+    volume: NormalizedVolume;
+    window: number;
+    level: number;
+    isoFloor: number;
+    colorMap: MedicalVolumeColorMap;
+    opacity: number;
+  };
   /** World-space disc center (brain projected onto plane). */
   center?: THREE.Vector3;
+  /**
+   * World → anatomy-local transform. When the brain is rotated by finger
+   * reference, sample points must be mapped into the volume's rest frame.
+   */
+  worldToVolume?: THREE.Matrix4 | null;
+  /**
+   * Optional IMU moldura basis. When set, in-plane spin (twist) rotates the
+   * resampled slice with the frame — not just the plane normal.
+   */
+  tangent?: THREE.Vector3;
+  bitangent?: THREE.Vector3;
 };
 
 const tmpPoint = new THREE.Vector3();
@@ -55,12 +77,17 @@ export function updateMriSliceTexture(
     planeCenter.copy(tmpNormal).multiplyScalar(-plane.constant);
   }
 
-  tmpUp.set(0, 1, 0);
-  if (Math.abs(tmpNormal.dot(tmpUp)) > 0.92) {
-    tmpUp.set(1, 0, 0);
+  if (opts.tangent && opts.bitangent) {
+    tmpTangent.copy(opts.tangent).normalize();
+    tmpBitangent.copy(opts.bitangent).normalize();
+  } else {
+    tmpUp.set(0, 1, 0);
+    if (Math.abs(tmpNormal.dot(tmpUp)) > 0.92) {
+      tmpUp.set(1, 0, 0);
+    }
+    tmpTangent.crossVectors(tmpUp, tmpNormal).normalize();
+    tmpBitangent.crossVectors(tmpNormal, tmpTangent).normalize();
   }
-  tmpTangent.crossVectors(tmpUp, tmpNormal).normalize();
-  tmpBitangent.crossVectors(tmpNormal, tmpTangent).normalize();
 
   const range = Math.max(1e-6, opts.volMax - opts.volMin);
   const isoValue = opts.volMin + opts.isoFloor * range;
@@ -79,6 +106,9 @@ export function updateMriSliceTexture(
         .copy(planeCenter)
         .addScaledVector(tmpTangent, u * opts.radius)
         .addScaledVector(tmpBitangent, v * opts.radius);
+      if (opts.worldToVolume) {
+        tmpPoint.applyMatrix4(opts.worldToVolume);
+      }
 
       const { fx, fy, fz } = worldToVoxelFraction(
         tmpPoint.x,
@@ -102,10 +132,56 @@ export function updateMriSliceTexture(
         continue;
       }
 
-      const gray = applyWindowLevel(intensity, opts.volMin, opts.volMax, opts.window, opts.level);
-      pixels[idx] = gray;
-      pixels[idx + 1] = gray;
-      pixels[idx + 2] = gray;
+      const normalized =
+        applyWindowLevel(
+          intensity,
+          opts.volMin,
+          opts.volMax,
+          opts.window,
+          opts.level,
+        ) / 255;
+      const [r, g, b] = medicalColor(normalized, opts.colorMap);
+      let outR = r;
+      let outG = g;
+      let outB = b;
+      if (opts.overlay) {
+        const overlay = opts.overlay;
+        const overlayIntensity = sampleVolumeTrilinear(
+          overlay.volume,
+          fx,
+          fy,
+          fz,
+        );
+        const overlayRange = Math.max(
+          1e-6,
+          overlay.volume.max - overlay.volume.min,
+        );
+        const overlayIso =
+          overlay.volume.min + overlay.isoFloor * overlayRange;
+        if (overlayIntensity >= overlayIso) {
+          const overlayNormalized =
+            applyWindowLevel(
+              overlayIntensity,
+              overlay.volume.min,
+              overlay.volume.max,
+              overlay.window,
+              overlay.level,
+            ) / 255;
+          const [heatR, heatG, heatB] = medicalColor(
+            overlayNormalized,
+            overlay.colorMap,
+          );
+          const alpha =
+            Math.min(1, Math.max(0, (overlayNormalized - 0.04) / 0.3)) *
+            overlay.opacity;
+          outR = Math.round(outR * (1 - alpha) + heatR * alpha);
+          outG = Math.round(outG * (1 - alpha) + heatG * alpha);
+          outB = Math.round(outB * (1 - alpha) + heatB * alpha);
+        }
+      }
+      pixels[idx] = outR;
+      pixels[idx + 1] = outG;
+      pixels[idx + 2] = outB;
       pixels[idx + 3] = 255;
     }
   }
@@ -119,6 +195,10 @@ export function createMriSliceTexture(resolution: number): THREE.CanvasTexture {
   canvas.width = resolution;
   canvas.height = resolution;
   const tex = new THREE.CanvasTexture(canvas);
+  // Pixels are generated directly in the slice's tangent/bitangent basis.
+  // Three.js' default CanvasTexture Y flip would mirror that anatomical axis
+  // relative to the 3D voxel volume.
+  tex.flipY = false;
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }

@@ -141,8 +141,9 @@ export function useArSliceBle() {
     try {
       if (central && (central.getConnectionState() === "streaming" || central.getConnectionState() === "connected")) {
         await central.writeZero();
+        await new Promise((r) => setTimeout(r, 60));
       }
-      store.captureSliceZeroReference();
+      store.captureLocalZero();
     } catch (err) {
       store.captureLocalZero();
       setError(err instanceof Error ? err.message : "ZERO local aplicado");

@@ -68,10 +68,15 @@ function quatFromAxes(right: { x: number; y: number; z: number }, up: { x: numbe
  */
 export function estimateFramePose(
   quad: NormalizedQuad,
-  opts?: { fovYDeg?: number; frameWidthMeters?: number },
+  opts?: { fovYDeg?: number; frameWidthMeters?: number; aspect?: number },
 ): FramePose {
   const fovY = ((opts?.fovYDeg ?? 42) * Math.PI) / 180;
-  const frameW = opts?.frameWidthMeters ?? 0.28;
+  const frameW = opts?.frameWidthMeters ?? (quad.source === "hand" ? 0.1 : 0.28);
+  const viewportAspect =
+    opts?.aspect ??
+    (typeof window === "undefined"
+      ? 1
+      : window.innerWidth / Math.max(1, window.innerHeight));
 
   const [tl, tr, br, bl] = quad.corners.map(toNdc);
   const center = {
@@ -88,12 +93,14 @@ export function estimateFramePose(
 
   // Distance from apparent size: width_ndc ≈ (frameW / z) / tan(fovY/2) * aspect terms — approx with vertical FOV
   const tanHalf = Math.tan(fovY / 2);
-  const z = Math.max(0.35, Math.min(4.5, frameW / Math.max(0.05, ndcWidth * tanHalf)));
+  const z = Math.max(
+    0.25,
+    Math.min(4.5, frameW / Math.max(0.03, ndcWidth * tanHalf * viewportAspect)),
+  );
 
   // Unproject center to view space (camera at origin looking -Z)
   const y = center.y * tanHalf * z;
-  const aspect = ndcWidth > 0 && ndcHeight > 0 ? ndcWidth / ndcHeight : 1.3;
-  const x = center.x * tanHalf * z * aspect;
+  const x = center.x * tanHalf * z * viewportAspect;
 
   // Plane axes from quad edges in NDC → approximate view-space directions
   const right2 = sub(tr, tl);
@@ -131,7 +138,12 @@ export function estimateFramePose(
   return {
     position: { x, y, z: -z },
     quaternion: quaternion.w ? quaternion : { ...IDENTITY_QUAT },
-    scale: Math.max(0.35, Math.min(1.8, z * ndcHeight * 0.55)),
+    // Hand tracking represents a physical sensor/head overlay. Keep its world
+    // size physical; perspective and z now produce the apparent screen size.
+    scale:
+      quad.source === "hand"
+        ? 0.12
+        : Math.max(0.35, Math.min(1.8, z * ndcHeight * 0.55)),
     ndcWidth,
     ndcHeight,
     confidence: quad.confidence,

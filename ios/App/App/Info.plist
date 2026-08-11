@@ -29,6 +29,7 @@
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>armv7</string>
+		<string>arkit</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
@@ -43,6 +44,8 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>UIRequiresFullScreen</key>
+	<true/>
 	<key>UIStatusBarHidden</key>
 	<true/>
 	<key>UIStatusBarHidden</key>
@@ -59,6 +62,8 @@
 	<string>O ProGenia usa Bluetooth para conectar à moldura AR Slice.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>O ProGenia usa a câmera como fundo da experiência AR Slice.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>O ProGenia usa o acelerômetro e o giroscópio deste aparelho para orientar o aro e o plano de corte.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>O microfone não é usado na experiência AR Slice; esta permissão pode ser solicitada pelo plugin de câmera.</string>
 	<key>UIRequiresPersistentWiFi</key>

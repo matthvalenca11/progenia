@@ -2,11 +2,17 @@ import { create } from "zustand";
 import { Preferences } from "@capacitor/preferences";
 import { AR_SLICE_CAMERA, AR_SLICE_IMU } from "@/features/ar-slice/arSliceSceneConfig";
 import type { OrientationSample, Quaternion } from "@/features/ar-slice/ble/protocol";
+import type { BleConnectionState, BleDeviceInfo } from "@/features/ar-slice/ble/types";
 import {
   IDENTITY_QUAT,
   MOUNT_PRESETS,
   type MountPresetId,
   applyMountAndZero,
+  frameCutBasis,
+  frameFrontNormal,
+  gravityInFrame,
+  quatConjugate,
+  quatMultiply,
   quatNormalize,
   quatSlerp,
   resetSlicePitchZero,
@@ -17,6 +23,11 @@ import {
   resolveGravityCalibrated,
   sliceScrollEngine,
 } from "@/features/ar-slice/sliceScrollEngine";
+import { linearSliceDrive } from "@/features/ar-slice/linearSliceDrive";
+import { touchReference } from "@/features/ar-slice/touchReference";
+import { cameraTranslationDrive } from "@/features/ar-slice/vision/cameraTranslationDrive";
+import { frameTrackBuffer } from "@/features/ar-slice/vision/frameTrackBuffer";
+import type { FrameTrackState, Point2 } from "@/features/ar-slice/vision/types";
 import type { Vec3 } from "@/features/ar-slice/poseMath";
 import {
   flatZeroFromImu,
@@ -27,12 +38,37 @@ import {
   isGravityTiltNearDegrees,
   isRotationNearDegrees,
   resolveMountFromSamples,
+  type CalibrationPose,
   type AxisCalStep,
 } from "@/features/ar-slice/axisCalibration";
 
 const PREFS_LAST_DEVICE = "ar-slice:lastDeviceId";
 const PREFS_MOUNT = "ar-slice:mountPreset";
 const PREFS_DEPTH = "ar-slice:depthOffset";
+const PREFS_LINEAR_GAIN = "ar-slice:linearGestureGain";
+const PREFS_INVERT_LINEAR = "ar-slice:invertLinearDepth";
+const SQRT_HALF = Math.SQRT1_2;
+/** Phone screen normal pitched 90° backward relative to the BLE frame default. */
+const DEVICE_MOTION_DISPLAY_CORRECTION: Quaternion = {
+  w: SQRT_HALF,
+  x: -SQRT_HALF,
+  y: 0,
+  z: 0,
+};
+let deviceMotionOrientationZero: Quaternion | null = null;
+
+function deviceMotionDisplay(qImu: Quaternion) {
+  if (!deviceMotionOrientationZero) {
+    return { ...DEVICE_MOTION_DISPLAY_CORRECTION };
+  }
+  const deltaImu = quatMultiply(
+    quatConjugate(deviceMotionOrientationZero),
+    quatNormalize(qImu),
+  );
+  // CoreMotion's relative attitude already follows the physical phone motion.
+  // Conjugating here inverted front/back and left/right.
+  return quatMultiply(deltaImu, DEVICE_MOTION_DISPLAY_CORRECTION);
+}
 
 /** Mutable hot path — read from useFrame without React re-renders. */
 export type PoseBuffer = {
@@ -49,11 +85,29 @@ export type PoseBuffer = {
   gravityImu: Vec3 | null;
   /** Latest gyro in IMU frame (rad/s). */
   gyroImu: Vec3 | null;
+  calibration: OrientationSample["calibration"] | null;
   /** Gravity-scroll slice offset (m), smoothed per frame. */
   sliceScrollDepth: number;
+  gravityScrollDepth: number;
+  /** Accel probe-depth along cut normal (scene units after tick scale). */
+  linearGestureDepth: number;
+  /** Kept for freeze snapshots / older callers; always aligned to depth axis. */
+  linearGestureOffset: Vec3;
+  /** Cut-plane normal after deadband + slerp (stable; ignores micro float). */
+  filteredNormal: Vec3;
   receivedAt: number;
   packetAgeMs: number;
   sampleHz: number;
+  /**
+   * When true, the cut plane uses frozen* fields. Live IMU still updates
+   * display/raw/calibration in the background so zero/mount stay intact.
+   */
+  poseFrozen: boolean;
+  frozenDisplay: Quaternion;
+  frozenGravityScrollDepth: number;
+  frozenLinearGestureDepth: number;
+  frozenLinearGestureOffset: Vec3;
+  frozenFilteredNormal: Vec3;
 };
 
 export const poseBuffer: PoseBuffer = {
@@ -64,11 +118,57 @@ export const poseBuffer: PoseBuffer = {
   hasSensorGravity: false,
   gravityImu: null,
   gyroImu: null,
+  calibration: null,
   sliceScrollDepth: 0,
+  gravityScrollDepth: 0,
+  linearGestureDepth: 0,
+  linearGestureOffset: { x: 0, y: 0, z: 0 },
+  filteredNormal: { x: 0, y: 0, z: 1 },
   receivedAt: 0,
   packetAgeMs: 0,
   sampleHz: 0,
+  poseFrozen: false,
+  frozenDisplay: { ...IDENTITY_QUAT },
+  frozenGravityScrollDepth: 0,
+  frozenLinearGestureDepth: 0,
+  frozenLinearGestureOffset: { x: 0, y: 0, z: 0 },
+  frozenFilteredNormal: { x: 0, y: 0, z: 1 },
 };
+
+/**
+ * Pose applied to the cut plane (honors freeze).
+ * Live: IMU owns the cut; finger only retunes the brain.
+ * Frozen: finger rotates brain + aro together (touch ⊗ frozen base).
+ */
+export function getAppliedPose() {
+  if (poseBuffer.poseFrozen) {
+    const display = quatMultiply(touchReference.getQuat(), poseBuffer.frozenDisplay);
+    return {
+      display,
+      gravityScrollDepth: poseBuffer.frozenGravityScrollDepth,
+      linearGestureDepth: poseBuffer.frozenLinearGestureDepth,
+      linearGestureOffset: poseBuffer.frozenLinearGestureOffset,
+      filteredNormal: frameFrontNormal(display),
+    };
+  }
+  return {
+    display: poseBuffer.display,
+    gravityScrollDepth: poseBuffer.gravityScrollDepth,
+    linearGestureDepth: poseBuffer.linearGestureDepth,
+    linearGestureOffset: poseBuffer.linearGestureOffset,
+    filteredNormal: poseBuffer.filteredNormal,
+  };
+}
+
+function snapshotFrozenPose() {
+  // Bake current finger offset out so touch ⊗ frozenDisplay == live cut at freeze.
+  const tq = touchReference.getQuat();
+  poseBuffer.frozenDisplay = quatMultiply(quatConjugate(tq), poseBuffer.display);
+  poseBuffer.frozenGravityScrollDepth = poseBuffer.gravityScrollDepth;
+  poseBuffer.frozenLinearGestureDepth = poseBuffer.linearGestureDepth;
+  poseBuffer.frozenLinearGestureOffset = { ...poseBuffer.linearGestureOffset };
+  poseBuffer.frozenFilteredNormal = { ...poseBuffer.filteredNormal };
+}
 
 let lastSampleTs = 0;
 let sessionFirstSampleMs = 0;
@@ -83,7 +183,7 @@ export function getAxisCalRefs() {
   return { flat: axisCalFlat, pitch: axisCalPitch, gravityFlat: axisCalGravityFlat };
 }
 
-export type ArSliceTransport = "ble" | "wifi";
+export type ArSliceTransport = "ble" | "wifi" | "device-motion";
 
 type ArSliceState = {
   connectionState: BleConnectionState;
@@ -100,6 +200,7 @@ type ArSliceState = {
   /** When true, frame pitch (gravity) scrolls slice height automatically. */
   autoSliceFromGravity: boolean;
   showDebugCube: boolean;
+  visualStyle: "mri" | "hologram";
   cameraEnabled: boolean;
   /** Auto-detect physical frame in camera and align 3D cut */
   frameTrackingEnabled: boolean;
@@ -111,6 +212,14 @@ type ArSliceState = {
   axisCalStep: AxisCalStep;
   axisCalError: string | null;
   axisCalResult: string | null;
+  axisCalFaces: number;
+  imuHealth: "excellent" | "good" | "needsCalibration";
+  linearGestureGain: number;
+  linearGestureAt: number;
+  /** Flip push/pull sense along the probe axis (runtime, persisted). */
+  invertLinearDepth: boolean;
+  /** Hold cut-plane pose; BLE/calibration keep running underneath. */
+  poseFrozen: boolean;
   fps: number;
   lastPacketAgeMs: number;
   sampleHz: number;
@@ -125,7 +234,10 @@ type ArSliceState = {
   setMountPreset: (id: MountPresetId) => void;
   setDepthOffset: (v: number) => void;
   setAutoSliceFromGravity: (v: boolean) => void;
+  setLinearGestureGain: (v: number) => void;
+  setInvertLinearDepth: (v: boolean) => void;
   setShowDebugCube: (v: boolean) => void;
+  setVisualStyle: (v: "mri" | "hologram") => void;
   setCameraEnabled: (v: boolean) => void;
   setFrameTrackingEnabled: (v: boolean) => void;
   setFrameTracking: (
@@ -136,10 +248,14 @@ type ArSliceState = {
   setGuideStep: (step: 0 | 1 | 2 | 3) => void;
   setTelemetry: (fps: number, age: number, hz: number) => void;
   setCameraDistance: (d: number) => void;
+  setPoseFrozen: (frozen: boolean) => void;
   startAxisCalibration: () => void;
-  captureAxisCalibrationPose: () => void;
+  captureAxisCalibrationPose: (pose?: CalibrationPose) => void;
+  setAxisCalibrationFaces: (faces: number) => void;
+  finishAxisCalibration: () => void;
   cancelAxisCalibration: () => void;
   dismissAxisCalibration: () => void;
+  /** After Zerar — app localZero for orientation + reset depth/scroll refs. */
   captureLocalZero: () => void;
   /** Reset slice-height reference (identity after firmware ZERO). */
   captureSliceZeroReference: () => void;
@@ -156,12 +272,13 @@ export const useArSliceStore = create<ArSliceState>((set, get) => ({
   deviceId: null,
   deviceName: null,
   error: null,
-  mountPreset: "identity",
-  qMount: { ...MOUNT_PRESETS.identity },
+  mountPreset: AR_SLICE_IMU.defaultMountPreset as MountPresetId,
+  qMount: { ...MOUNT_PRESETS[AR_SLICE_IMU.defaultMountPreset] },
   hasLocalZero: false,
   depthOffset: 0,
   autoSliceFromGravity: true,
   showDebugCube: false,
+  visualStyle: "mri",
   cameraEnabled: false,
   /** Off by default — Vision captureSample contends with BLE on the Capacitor bridge. */
   frameTrackingEnabled: false,
@@ -172,13 +289,22 @@ export const useArSliceStore = create<ArSliceState>((set, get) => ({
   axisCalStep: 0,
   axisCalError: null,
   axisCalResult: null,
+  axisCalFaces: 0,
+  imuHealth: "needsCalibration",
+  linearGestureGain: AR_SLICE_IMU.linearGestureGain,
+  linearGestureAt: 0,
+  invertLinearDepth: AR_SLICE_IMU.invertLinearDepth,
+  poseFrozen: false,
   fps: 0,
   lastPacketAgeMs: 0,
   sampleHz: 0,
   cameraDistance: AR_SLICE_CAMERA.default,
 
   setConnectionState: (connectionState) => set({ connectionState }),
-  setTransport: (transport) => set({ transport }),
+  setTransport: (transport) => {
+    deviceMotionOrientationZero = null;
+    set({ transport });
+  },
   setDevices: (devices) => set({ devices }),
   setConnectedDevice: (deviceId, deviceName) => set({ deviceId, deviceName }),
   setError: (error) => set({ error }),
@@ -195,27 +321,63 @@ export const useArSliceStore = create<ArSliceState>((set, get) => ({
   },
 
   setAutoSliceFromGravity: (autoSliceFromGravity) => set({ autoSliceFromGravity }),
+  setLinearGestureGain: (linearGestureGain) => {
+    set({ linearGestureGain });
+    void Preferences.set({ key: PREFS_LINEAR_GAIN, value: String(linearGestureGain) });
+  },
+  setInvertLinearDepth: (invertLinearDepth) => {
+    set({ invertLinearDepth });
+    void Preferences.set({
+      key: PREFS_INVERT_LINEAR,
+      value: invertLinearDepth ? "1" : "0",
+    });
+  },
 
   setShowDebugCube: (showDebugCube) => set({ showDebugCube }),
+  setVisualStyle: (visualStyle) => set({ visualStyle }),
   setCameraEnabled: (cameraEnabled) => set({ cameraEnabled }),
   setFrameTrackingEnabled: (frameTrackingEnabled) => set({ frameTrackingEnabled }),
   setFrameTracking: (frameTrackState, frameCorners, frameConfidence) =>
     set({ frameTrackState, frameCorners, frameConfidence }),
   setGuideStep: (guideStep) => set({ guideStep }),
-  setTelemetry: (fps, lastPacketAgeMs, sampleHz) => set({ fps, lastPacketAgeMs, sampleHz }),
+  setTelemetry: (fps, lastPacketAgeMs, sampleHz) => {
+    const prev = get();
+    if (
+      Math.abs(prev.fps - fps) < 0.5 &&
+      Math.abs(prev.lastPacketAgeMs - lastPacketAgeMs) < 40 &&
+      prev.sampleHz === sampleHz
+    ) {
+      return;
+    }
+    set({ fps, lastPacketAgeMs, sampleHz });
+  },
   setCameraDistance: (cameraDistance) => set({ cameraDistance }),
+
+  setPoseFrozen: (poseFrozen) => {
+    if (poseFrozen) {
+      snapshotFrozenPose();
+    } else {
+      // Back to live IMU cut — clear free-orbit finger offset.
+      touchReference.reset();
+    }
+    poseBuffer.poseFrozen = poseFrozen;
+    set({ poseFrozen });
+  },
 
   startAxisCalibration: () => {
     axisCalFlat = null;
     axisCalPitch = null;
     axisCalGravityFlat = null;
-    set({ axisCalStep: 1, axisCalError: null, axisCalResult: null });
+    cameraTranslationDrive.reset();
+    frameTrackBuffer.translationDepth = 0;
+    get().setMountPreset(AR_SLICE_IMU.defaultMountPreset as MountPresetId);
+    set({ axisCalStep: 1, axisCalError: null, axisCalResult: null, axisCalFaces: 0 });
   },
 
-  captureAxisCalibrationPose: () => {
+  captureAxisCalibrationPose: (pose) => {
     const step = get().axisCalStep;
-    const imu = quatNormalize(poseBuffer.imu);
-    const g = poseBuffer.gravityImu;
+    const imu = quatNormalize(pose?.quaternion ?? poseBuffer.imu);
+    const g = pose?.gravity ?? poseBuffer.gravityImu;
 
     if (step === 1) {
       if (g && !isGravityFlatEnough(g)) {
@@ -242,6 +404,21 @@ export const useArSliceStore = create<ArSliceState>((set, get) => ({
     }
   },
 
+  setAxisCalibrationFaces: (axisCalFaces) => set({ axisCalFaces }),
+
+  finishAxisCalibration: () => {
+    axisCalFlat = null;
+    axisCalPitch = null;
+    axisCalGravityFlat = null;
+    set({
+      axisCalStep: 4,
+      axisCalError: null,
+      hasLocalZero: true,
+      axisCalResult:
+        "Giroscópio, gravidade, aceleração linear e alinhamento calibrados e persistidos.",
+    });
+  },
+
   cancelAxisCalibration: () => {
     axisCalFlat = null;
     axisCalPitch = null;
@@ -254,65 +431,142 @@ export const useArSliceStore = create<ArSliceState>((set, get) => ({
   },
 
   captureLocalZero: () => {
-    localZero = quatNormalize(poseBuffer.raw);
+    const { qMount, transport } = get();
+    // Orientation zero lives here. Firmware ZERO only clears depth + fw qZero.
+    localZero = flatZeroFromImu(
+      poseBuffer.imu,
+      qMount,
+      poseBuffer.gravityImu,
+    );
+    // Gravity-aware zero: Z-up → horizontal aro; facing → face-on.
+    if (transport === "device-motion") {
+      deviceMotionOrientationZero = quatNormalize(poseBuffer.imu);
+    }
+    const calibrated =
+      transport === "device-motion"
+        ? deviceMotionDisplay(poseBuffer.imu)
+        : applyMountAndZero(poseBuffer.imu, qMount, localZero);
+    poseBuffer.raw = calibrated;
+    poseBuffer.display = { ...calibrated };
+    poseBuffer.gravityCal =
+      transport === "device-motion"
+        ? gravityInFrame(calibrated)
+        : resolveGravityCalibrated(
+            poseBuffer.imu,
+            qMount,
+            localZero,
+            poseBuffer.gravityImu ?? undefined,
+          );
     resetSlicePitchZero();
     sliceScrollEngine.reset();
-    sliceScrollEngine.captureZero(poseBuffer.gravityCal, poseBuffer.display, poseBuffer.hasSensorGravity);
+    sliceScrollEngine.captureZero(
+      poseBuffer.gravityCal,
+      poseBuffer.display,
+      poseBuffer.hasSensorGravity,
+    );
+    linearSliceDrive.reset();
+    cameraTranslationDrive.reset();
+    touchReference.reset();
+    frameTrackBuffer.translationDepth = 0;
+    poseBuffer.linearGestureDepth = 0;
+    poseBuffer.linearGestureOffset = { x: 0, y: 0, z: 0 };
+    poseBuffer.filteredNormal = frameFrontNormal(poseBuffer.display);
+    if (poseBuffer.poseFrozen) snapshotFrozenPose();
     set({ hasLocalZero: true });
   },
 
   captureSliceZeroReference: () => {
     resetSlicePitchZero();
     sliceScrollEngine.captureZero(poseBuffer.gravityCal, poseBuffer.display, poseBuffer.hasSensorGravity);
+    linearSliceDrive.reset();
+    cameraTranslationDrive.reset();
+    touchReference.reset();
+    frameTrackBuffer.translationDepth = 0;
+    poseBuffer.linearGestureDepth = 0;
+    poseBuffer.linearGestureOffset = { x: 0, y: 0, z: 0 };
+    if (poseBuffer.poseFrozen) snapshotFrozenPose();
   },
 
   clearLocalZero: () => {
     localZero = null;
+    deviceMotionOrientationZero = null;
     resetSlicePitchZero();
     sliceScrollEngine.reset();
+    linearSliceDrive.reset();
+    cameraTranslationDrive.reset();
+    touchReference.reset();
+    frameTrackBuffer.translationDepth = 0;
+    poseBuffer.linearGestureDepth = 0;
+    poseBuffer.linearGestureOffset = { x: 0, y: 0, z: 0 };
+    if (poseBuffer.poseFrozen) snapshotFrozenPose();
     set({ hasLocalZero: false });
   },
 
   ingestSample: (sample) => {
-    const { qMount } = get();
+    const { qMount, transport } = get();
     poseBuffer.imu = quatNormalize(sample);
-    const calibrated = applyMountAndZero(sample, qMount, localZero);
+    const calibrated =
+      transport === "device-motion"
+        ? deviceMotionDisplay(sample)
+        : applyMountAndZero(sample, qMount, localZero);
 
     poseBuffer.raw = calibrated;
-    poseBuffer.gravityCal = resolveGravityCalibrated(
-      sample,
-      qMount,
-      localZero,
-      sample.gravity,
-    );
+    poseBuffer.gravityCal =
+      transport === "device-motion"
+        ? gravityInFrame(calibrated)
+        : resolveGravityCalibrated(
+            sample,
+            qMount,
+            localZero,
+            sample.gravity,
+          );
     poseBuffer.hasSensorGravity = sample.gravity != null;
+    poseBuffer.calibration = sample.calibration ?? null;
     poseBuffer.gravityImu = sample.gravity ?? null;
     poseBuffer.gyroImu = sample.gyro ?? null;
+    // One-axis probe depth from moldura accel (gyro already owns orientation).
+    const depthMeters =
+      sample.translationPosition ??
+      (sample.translationWorld
+        ? sample.translationWorld.z ||
+          sample.translationWorld.y ||
+          sample.translationWorld.x
+        : undefined);
+    if (
+      depthMeters != null &&
+      linearSliceDrive.ingest(
+        depthMeters,
+        get().linearGestureGain,
+        AR_SLICE_IMU.linearGestureMaxMeters,
+        performance.now(),
+        AR_SLICE_IMU.linearGestureDeadbandMeters,
+      )
+    ) {
+      set({ linearGestureAt: performance.now() });
+    }
+    const accelAccuracy = sample.calibration?.accelAccuracy ?? 0;
+    const gyroAccuracy = sample.calibration?.gyroAccuracy ?? 0;
+    const imuHealth =
+      accelAccuracy >= 3 && gyroAccuracy >= 3
+        ? "excellent"
+        : accelAccuracy >= 2 && gyroAccuracy >= 2
+          ? "good"
+          : "needsCalibration";
+    if (imuHealth !== get().imuHealth) set({ imuHealth });
     poseBuffer.receivedAt = sample.receivedAt;
 
     const now = performance.now();
     if (sessionFirstSampleMs === 0) sessionFirstSampleMs = now;
-    const gyroMag = gyroMagnitudeRadS(sample.gyro);
-    const mountPreset = get().mountPreset;
-    if (mountPreset === "identity") {
-      const suggested = sliceScrollEngine.tryAutoMountPreset(
-        sample,
-        gyroMag,
-        now - sessionFirstSampleMs,
-      );
-      if (suggested) {
-        get().setMountPreset(suggested);
-        poseBuffer.gravityCal = resolveGravityCalibrated(
-          sample,
-          MOUNT_PRESETS[suggested],
-          localZero,
-          sample.gravity,
-        );
-      }
-    }
-    // High alpha keeps cut responsive at 30–50 Hz Wi‑Fi stream
+    // Mount presets only from the axis wizard — auto-mount remapped sensor +Z
+    // off the aro normal (~90°, ring upright).
+    // Direct gyro path — heavy deadband/twist filters made the cut feel dead.
     if (lastSampleTs > 0) {
-      poseBuffer.display = quatSlerp(poseBuffer.display, calibrated, 0.85);
+      const still = sample.calibration?.stationary === true;
+      poseBuffer.display = quatSlerp(
+        poseBuffer.display,
+        calibrated,
+        still ? 0.55 : 0.88,
+      );
     } else {
       poseBuffer.display = calibrated;
     }
@@ -328,18 +582,45 @@ export const useArSliceStore = create<ArSliceState>((set, get) => ({
   },
 
   loadPreferences: async () => {
-    const [device, mount, depth] = await Promise.all([
+    const [device, mount, depth, linearGain, invertLinear] = await Promise.all([
       Preferences.get({ key: PREFS_LAST_DEVICE }),
       Preferences.get({ key: PREFS_MOUNT }),
       Preferences.get({ key: PREFS_DEPTH }),
+      Preferences.get({ key: PREFS_LINEAR_GAIN }),
+      Preferences.get({ key: PREFS_INVERT_LINEAR }),
     ]);
-    const mountPreset = (mount.value as MountPresetId) || "identity";
-    const qMount = { ...(MOUNT_PRESETS[mountPreset] ?? MOUNT_PRESETS.identity) };
+    // Always identity: stored imu_x±90 remaps sensor +Z off the aro (~90° upright).
+    const mountPreset = AR_SLICE_IMU.defaultMountPreset as MountPresetId;
+    const qMount = { ...MOUNT_PRESETS[mountPreset] };
+    if (mount.value && mount.value !== mountPreset) {
+      void Preferences.set({ key: PREFS_MOUNT, value: mountPreset });
+    }
     set({
       deviceId: device.value,
-      mountPreset: MOUNT_PRESETS[mountPreset] ? mountPreset : "identity",
+      mountPreset,
       qMount,
       depthOffset: depth.value != null ? Number(depth.value) || 0 : 0,
+      invertLinearDepth:
+        invertLinear.value == null
+          ? AR_SLICE_IMU.invertLinearDepth
+          : invertLinear.value === "1" || invertLinear.value === "true",
+      linearGestureGain: (() => {
+        if (linearGain.value == null) return AR_SLICE_IMU.linearGestureGain;
+        const parsed = Number(linearGain.value);
+        if (!Number.isFinite(parsed)) return AR_SLICE_IMU.linearGestureGain;
+        // Migrate older overly-sensitive defaults.
+        if (
+          Math.abs(parsed - 1.2) < 1e-6 ||
+          Math.abs(parsed - 0.7) < 1e-6 ||
+          Math.abs(parsed - 1.15) < 1e-6 ||
+          Math.abs(parsed - 1.25) < 1e-6 ||
+          Math.abs(parsed - 1.5) < 1e-6 ||
+          Math.abs(parsed - 2.2) < 1e-6
+        ) {
+          return AR_SLICE_IMU.linearGestureGain;
+        }
+        return parsed;
+      })(),
     });
   },
 
@@ -365,7 +646,7 @@ function finishAxisCalFlatStep(
   const { preset } = suggestMountPresetFromFlatGravity(imu);
   get().setMountPreset(preset);
   const qMount = MOUNT_PRESETS[preset];
-  localZero = flatZeroFromImu(imu, qMount);
+  localZero = flatZeroFromImu(imu, qMount, gravityImu);
   resetSlicePitchZero();
   sliceScrollEngine.reset();
   sliceScrollEngine.captureZero(
@@ -398,22 +679,17 @@ function finishAxisCalDone(
 ) {
   const { preset, label } = resolveMountFromSamples(qFlat, qPitch);
   get().setMountPreset(preset);
-  localZero = flatZeroFromImu(qFlat, MOUNT_PRESETS[preset]);
+  localZero = flatZeroFromImu(qFlat, MOUNT_PRESETS[preset], axisCalGravityFlat);
   sliceScrollEngine.captureZero(
     poseBuffer.gravityCal,
     poseBuffer.display,
     poseBuffer.hasSensorGravity,
   );
-  axisCalFlat = null;
-  axisCalPitch = null;
-  axisCalGravityFlat = null;
   set({
     axisCalStep: 3,
     axisCalError: null,
     hasLocalZero: true,
-    axisCalResult: poseBuffer.hasSensorGravity
-      ? `Acelerômetro calibrado (${label}). Incline a moldura para mover a fatia.`
-      : `Orientação calibrada (${label}). Atualize o firmware para usar o acelerômetro (gx/gy/gz).`,
+    axisCalResult: `Alinhamento definido (${label}). Complete as posições do acelerômetro.`,
   });
 }
 
@@ -429,20 +705,59 @@ sliceScrollEngine.setTuning({
 export function resetPoseScrollSession() {
   sessionFirstSampleMs = 0;
   sliceScrollEngine.reset();
+  linearSliceDrive.reset();
+  cameraTranslationDrive.reset();
+  frameTrackBuffer.translationDepth = 0;
   poseBuffer.sliceScrollDepth = 0;
+  poseBuffer.gravityScrollDepth = 0;
+  poseBuffer.linearGestureDepth = 0;
+  poseBuffer.linearGestureOffset = { x: 0, y: 0, z: 0 };
+  poseBuffer.filteredNormal = { x: 0, y: 0, z: 1 };
+  // Keep freeze flag/user intent; refresh snapshot so UI doesn't show stale depths.
+  if (poseBuffer.poseFrozen) snapshotFrozenPose();
 }
 
 /** Call once per animation frame from R3F. */
 export function tickPoseBuffer(now = performance.now()) {
   poseBuffer.packetAgeMs = poseBuffer.receivedAt > 0 ? now - poseBuffer.receivedAt : 0;
 
-  poseBuffer.sliceScrollDepth = sliceScrollEngine.tick(
+  const gravityDepth = sliceScrollEngine.tick(
     poseBuffer.gravityCal,
     poseBuffer.display,
-    gyroMagnitudeRadS(poseBuffer.gyroImu),
+    poseBuffer.gyroImu
+      ? gyroMagnitudeRadS(poseBuffer.gyroImu)
+      : poseBuffer.calibration?.stationary
+        ? 0
+        : 999,
     poseBuffer.hasSensorGravity,
     now,
   );
+  const linearMeters = linearSliceDrive.tick(AR_SLICE_IMU.linearGestureSmoothing);
+  const s =
+    useArSliceStore.getState().transport === "device-motion"
+      ? AR_SLICE_IMU.linearGestureMetersToScene
+      : AR_SLICE_IMU.bleLinearGestureMetersToScene;
+  const depthSign = useArSliceStore.getState().invertLinearDepth ? -1 : 1;
+  poseBuffer.linearGestureDepth = linearMeters * s * depthSign;
+  // Offset lives purely along depth; ClipPlane steps the cut along its normal.
+  poseBuffer.linearGestureOffset = {
+    x: 0,
+    y: 0,
+    z: poseBuffer.linearGestureDepth,
+  };
+  poseBuffer.gravityScrollDepth = gravityDepth;
+  poseBuffer.sliceScrollDepth = gravityDepth + poseBuffer.linearGestureDepth;
+
+  // Cut normal = sensor +Z after display orientation (same as CutCap / clip).
+  const appliedDisplay = poseBuffer.poseFrozen
+    ? poseBuffer.frozenDisplay
+    : poseBuffer.display;
+  const basis = frameCutBasis(appliedDisplay);
+  poseBuffer.filteredNormal = {
+    x: AR_SLICE_IMU.mirrorHorizontalNormal ? -basis.normal.x : basis.normal.x,
+    y: AR_SLICE_IMU.invertVerticalNormal ? -basis.normal.y : basis.normal.y,
+    z: basis.normal.z,
+  };
 
   return poseBuffer;
 }

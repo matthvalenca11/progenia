@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { App as CapApp } from "@capacitor/app";
-import { isNativeApp } from "@/lib/capacitor";
+import { isIPadDevice, isNativeApp } from "@/lib/capacitor";
 import { createBleCentral } from "@/features/ar-slice/ble/createBleCentral";
+import { connectCapacitorFrameSession } from "@/features/ar-slice/ble/connectFrameSession";
 import type { BleCentral } from "@/features/ar-slice/ble/types";
+import type { OrientationSample } from "@/features/ar-slice/ble/protocol";
 import { NativeBleOrientationClient } from "@/features/ar-slice/ble/NativeBleOrientationClient";
+import { DeviceMotionOrientationClient } from "@/features/ar-slice/device/DeviceMotionOrientationClient";
 import { WifiOrientationClient } from "@/features/ar-slice/wifi/WifiOrientationClient";
 import { FRAME_WIFI_DEFAULT_HOST, FRAME_WIFI_PASSWORD } from "@/features/ar-slice/wifi/protocol";
 import { resetPoseScrollSession, useArSliceStore } from "@/features/ar-slice/arSliceStore";
+import { ProgeniaArFrame } from "@/features/ar-slice/vision/ProgeniaArFrame";
+import { BleHandTrackingClient } from "@/features/ar-slice/vision/BleHandTrackingClient";
+import { bleHandFusion } from "@/features/ar-slice/vision/bleHandFusion";
 
 /**
  * Native BLE is primary. Wi‑Fi STA remains an explicit fallback.
@@ -14,11 +20,16 @@ import { resetPoseScrollSession, useArSliceStore } from "@/features/ar-slice/arS
 export function useArSliceTransport() {
   const bleRef = useRef<BleCentral | null>(null);
   const nativeBleRef = useRef<NativeBleOrientationClient | null>(null);
+  const deviceMotionRef = useRef<DeviceMotionOrientationClient | null>(null);
+  const handTrackingRef = useRef<BleHandTrackingClient | null>(null);
   const wifiRef = useRef<WifiOrientationClient | null>(null);
   const unsubRef = useRef<(() => void) | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wantWifi = useRef(false);
   const wantBle = useRef(false);
+  const wantDeviceMotion = useRef(false);
+  const bleHandTrackingEnabledRef = useRef(true);
+  const handVisibleRef = useRef(false);
   const [isMock, setIsMock] = useState(true);
   const [wifiMode, setWifiMode] = useState<string | null>(null);
   const [nativeRxHz, setNativeRxHz] = useState(0);
@@ -26,30 +37,44 @@ export function useArSliceTransport() {
   const [espMode, setEspMode] = useState<string | null>(null);
   const [resolvedWifiHost, setResolvedWifiHost] = useState<string | null>(null);
   const [connectStatus, setConnectStatus] = useState<string | null>(null);
+  const [bleHandTrackingEnabled, setBleHandTrackingEnabledState] = useState(true);
+  const [bleHandTrackingActive, setBleHandTrackingActive] = useState(false);
 
-  const {
-    setConnectionState,
-    setDevices,
-    setConnectedDevice,
-    setError,
-    ingestSample,
-    loadPreferences,
-    setTransport,
-    transport,
-  } = useArSliceStore();
+  // Never subscribe to the whole store from the lab page — telemetry would
+  // re-render ArSliceLab (and the WebGL tree props) every second.
+  const setConnectionState = useArSliceStore((s) => s.setConnectionState);
+  const setDevices = useArSliceStore((s) => s.setDevices);
+  const setConnectedDevice = useArSliceStore((s) => s.setConnectedDevice);
+  const setError = useArSliceStore((s) => s.setError);
+  const ingestSample = useArSliceStore((s) => s.ingestSample);
+  const loadPreferences = useArSliceStore((s) => s.loadPreferences);
+  const setTransport = useArSliceStore((s) => s.setTransport);
+  const transport = useArSliceStore((s) => s.transport);
+  const connectionState = useArSliceStore((s) => s.connectionState);
 
   useEffect(() => {
     const ble = createBleCentral();
     const nativeBle = new NativeBleOrientationClient();
+    const deviceMotion = new DeviceMotionOrientationClient();
+    const handTracking = new BleHandTrackingClient();
     const wifi = new WifiOrientationClient();
     bleRef.current = ble;
     nativeBleRef.current = nativeBle;
+    deviceMotionRef.current = deviceMotion;
+    handTrackingRef.current = handTracking;
     wifiRef.current = wifi;
     setIsMock(ble.kind === "mock");
     void loadPreferences();
 
     void (async () => {
       try {
+        if (isNativeApp) {
+          // IMU stream uses ProgeniaArFrame CoreBluetooth. Eagerly initializing
+          // @capacitor-community/bluetooth-le creates a second CBCentralManager
+          // that can starve scans — seen as BLE timeout on iPad while iPhone works.
+          setConnectionState("idle");
+          return;
+        }
         await ble.initialize();
         setConnectionState(ble.getConnectionState());
       } catch (err) {
@@ -61,13 +86,18 @@ export function useArSliceTransport() {
     return () => {
       wantWifi.current = false;
       wantBle.current = false;
+      wantDeviceMotion.current = false;
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       unsubRef.current?.();
       void ble.disconnect();
       void nativeBle.disconnect();
+      void deviceMotion.disconnect();
+      void handTracking.stop();
       void wifi.disconnectAsync();
       bleRef.current = null;
       nativeBleRef.current = null;
+      deviceMotionRef.current = null;
+      handTrackingRef.current = null;
       wifiRef.current = null;
     };
   }, [loadPreferences, setConnectionState, setError]);
@@ -85,99 +115,256 @@ export function useArSliceTransport() {
     [ingestSample],
   );
 
+  const ingestBleSample = useCallback(
+    (sample: OrientationSample) => {
+      const position =
+        sample.translationPosition ??
+        sample.translationWorld?.z;
+      if (
+        !bleHandTrackingEnabledRef.current ||
+        position == null ||
+        !Number.isFinite(position)
+      ) {
+        ingestSample(sample);
+        return;
+      }
+      ingestSample({
+        ...sample,
+        translationPosition: bleHandFusion.ingestSensor(position),
+      });
+    },
+    [ingestSample],
+  );
+
+  const stopBleHandTracking = useCallback(async () => {
+    await handTrackingRef.current?.stop();
+    bleHandFusion.reset();
+    handVisibleRef.current = false;
+    setBleHandTrackingActive(false);
+  }, []);
+
+  const startBleHandTracking = useCallback(async () => {
+    if (!isNativeApp || !bleHandTrackingEnabledRef.current) return;
+    const client = handTrackingRef.current;
+    if (!client) return;
+    bleHandFusion.setEnabled(true);
+    try {
+      await client.start((observation) => {
+        bleHandFusion.ingestHand(observation);
+        const visible = observation.visible && observation.confidence >= 0.35;
+        if (visible !== handVisibleRef.current) {
+          handVisibleRef.current = visible;
+          setBleHandTrackingActive(visible);
+        }
+      });
+    } catch {
+      bleHandFusion.setEnabled(false);
+      setBleHandTrackingActive(false);
+    }
+  }, []);
+
+  const setBleHandTrackingEnabled = useCallback(
+    (enabled: boolean) => {
+      bleHandTrackingEnabledRef.current = enabled;
+      setBleHandTrackingEnabledState(enabled);
+      bleHandFusion.setEnabled(enabled);
+      if (!enabled) {
+        void stopBleHandTracking();
+        return;
+      }
+      const state = useArSliceStore.getState();
+      if (state.transport === "ble" && state.connectionState === "streaming") {
+        void startBleHandTracking();
+      }
+    },
+    [startBleHandTracking, stopBleHandTracking],
+  );
+
   const connectBleStream = useCallback(async () => {
-    if (!isNativeApp) {
+    const refreshNativeDiag = (client: NativeBleOrientationClient) => {
+      const refresh = () => {
+        setNativeRxHz(client.getRxHz());
+        setWsTxHz(client.getWsTxHz());
+      };
+      window.setTimeout(refresh, 500);
+      const interval = window.setInterval(refresh, 1000);
+      window.setTimeout(() => window.clearInterval(interval), 30_000);
+    };
+
+    const connectCapacitorPath = async (statusPrefix?: string) => {
       const central = bleRef.current;
       if (!central) return;
 
-      wantBle.current = true;
-      wantWifi.current = false;
-      clearOrientationSub();
       setTransport("ble");
       setError(null);
-      setConnectStatus("Escolha a moldura na janela do navegador…");
+      setConnectStatus(statusPrefix ?? "Preparando Bluetooth…");
       setConnectionState("connecting");
 
-      let received = 0;
+      let warmPackets = 0;
       unsubRef.current = central.subscribeOrientation((sample) => {
-        received += 1;
-        ingestSample(sample);
+        warmPackets += 1;
+        ingestBleSample(sample);
       });
 
+      const result = await connectCapacitorFrameSession(central, {
+        onProgress: setConnectStatus,
+        getWarmPackets: () => warmPackets,
+        resetWarmPackets: () => {
+          warmPackets = 0;
+        },
+      });
+      setConnectedDevice(result.device.deviceId, result.device.name);
+      setWifiMode(isNativeApp ? "capacitor-ble" : "web-bluetooth");
+      setEspMode("ble-v2");
+      setConnectStatus(null);
+      setConnectionState("streaming");
+    };
+
+    /** iPad: Capacitor connect (reliable) + native WS relay (full rate). */
+    const connectIPadHybridPath = async () => {
+      const central = bleRef.current;
+      const client = nativeBleRef.current;
+      if (!central || !client) return;
+
+      setTransport("ble");
+      setError(null);
+      setConnectStatus("Preparando Bluetooth…");
+      setConnectionState("connecting");
+
+      let warmPackets = 0;
+      unsubRef.current = central.subscribeOrientation(() => {
+        warmPackets += 1;
+      });
+
+      const result = await connectCapacitorFrameSession(central, {
+        onProgress: setConnectStatus,
+        getWarmPackets: () => warmPackets,
+        resetWarmPackets: () => {
+          warmPackets = 0;
+        },
+      });
+
+      clearOrientationSub();
+      setConnectStatus("Abrindo canal IMU nativo…");
+
+      let mode: "capacitor-ble-relay" | "capacitor-ble" = "capacitor-ble-relay";
       try {
-        await central.initialize();
-        const picked = await central.pickDevice?.();
-        if (!picked) throw new Error("Seleção Bluetooth cancelada");
-
-        setConnectStatus(`Conectando ${picked.name}…`);
-        await central.connect(picked.deviceId);
-
-        // The ESP32-C3 can expose the same slow cold session in Web Bluetooth.
-        // Reproduce the proven controller-reboot recovery without involving Wi-Fi.
-        await new Promise((resolve) => window.setTimeout(resolve, 2_000));
-        if (received < 15 && central.writeReboot) {
-          setConnectStatus("Otimizando conexão Bluetooth…");
-          await central.writeReboot();
-          await new Promise((resolve) => window.setTimeout(resolve, 1_200));
-          try {
-            await central.disconnect();
-          } catch {
-            // The frame normally disconnects itself while rebooting.
-          }
-          received = 0;
-          await central.connect(picked.deviceId);
-          await new Promise((resolve) => window.setTimeout(resolve, 2_000));
-        }
-
-        if (received < 15) {
-          throw new Error("Bluetooth conectado, mas a transmissão permaneceu lenta.");
-        }
-
-        setConnectedDevice(picked.deviceId, picked.name);
-        setWifiMode("web-bluetooth");
-        setEspMode("ble-v2");
-        setConnectStatus(null);
-        setConnectionState("streaming");
-      } catch (error) {
-        clearOrientationSub();
-        await central.disconnect().catch(() => {});
-        setConnectedDevice(null, null);
-        setConnectStatus(null);
-        setConnectionState("error");
-        setError(
-          error instanceof Error
-            ? error.message
-            : "Falha no Web Bluetooth",
-        );
+        unsubRef.current = client.subscribe((sample) => ingestBleSample(sample));
+        await client.attachCapacitorRelay(setConnectStatus);
+        central.setNativeRelayActive?.(true);
+      } catch {
+        await client.abortRelayOnly().catch(() => undefined);
+        central.setNativeRelayActive?.(false);
+        unsubRef.current = central.subscribeOrientation((sample) => ingestBleSample(sample));
+        mode = "capacitor-ble";
+        setConnectStatus("Conectado · modo compatível");
       }
-      return;
-    }
 
-    const client = nativeBleRef.current;
-    if (!client) return;
+      setConnectedDevice(result.device.deviceId, result.device.name);
+      setWifiMode(mode);
+      setEspMode("ble-v2");
+      setConnectStatus(null);
+      setConnectionState("streaming");
+      if (mode === "capacitor-ble-relay") {
+        refreshNativeDiag(client);
+      }
+    };
 
-    wantBle.current = true;
-    wantWifi.current = false;
-    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-    clearOrientationSub();
-    await wifiRef.current?.disconnectAsync();
-    try {
-      await bleRef.current?.disconnect();
-    } catch {
-      // Provisioning central may already be idle.
-    }
+    const connectNativePath = async () => {
+      const client = nativeBleRef.current;
+      if (!client) return;
 
-    setTransport("ble");
-    setError(null);
-    setConnectStatus("Iniciando Bluetooth nativo…");
-    setConnectionState("connecting");
+      setTransport("ble");
+      setError(null);
+      setConnectionState("connecting");
+      setConnectStatus("Procurando moldura por Bluetooth…");
 
-    unsubRef.current = client.subscribe((sample) => ingestSample(sample));
-    try {
+      unsubRef.current = client.subscribe((sample) => ingestBleSample(sample));
       const result = await client.connect(undefined, setConnectStatus);
       setConnectedDevice(result.deviceId, result.name);
       setWifiMode("native-ble");
       setEspMode("ble-v2");
+      setConnectStatus(null);
+      setConnectionState("streaming");
+      refreshNativeDiag(client);
+    };
+
+    wantBle.current = true;
+    wantWifi.current = false;
+    wantDeviceMotion.current = false;
+    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+    clearOrientationSub();
+    await stopBleHandTracking();
+    await wifiRef.current?.disconnectAsync();
+    await deviceMotionRef.current?.disconnect();
+    try {
+      await nativeBleRef.current?.disconnect();
+    } catch {
+      // Native stream may not be running.
+    }
+    try {
+      await bleRef.current?.disconnect();
+    } catch {
+      // Capacitor central may already be idle.
+    }
+
+    try {
+      if (!isNativeApp) {
+        await connectCapacitorPath();
+      } else if (isIPadDevice()) {
+        await connectIPadHybridPath();
+      } else {
+        await connectNativePath();
+      }
+      await startBleHandTracking();
+    } catch (error) {
+      clearOrientationSub();
+      await nativeBleRef.current?.disconnect().catch(() => {});
+      await bleRef.current?.disconnect().catch(() => {});
+      setConnectedDevice(null, null);
+      setConnectStatus(null);
+      setConnectionState("error");
+      setError(
+        error instanceof Error ? error.message : "Falha no Bluetooth",
+      );
+    }
+  }, [
+    ingestBleSample,
+    setConnectedDevice,
+    setConnectionState,
+    setError,
+    setTransport,
+    startBleHandTracking,
+    stopBleHandTracking,
+  ]);
+
+  const connectDeviceMotion = useCallback(async () => {
+    const client = deviceMotionRef.current;
+    if (!client) return;
+
+    wantDeviceMotion.current = true;
+    wantBle.current = false;
+    wantWifi.current = false;
+    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+    clearOrientationSub();
+
+    setTransport("device-motion");
+    setError(null);
+    setConnectStatus("Ativando sensores do aparelho…");
+    setConnectionState("connecting");
+
+    try {
+      await stopBleHandTracking();
+      await wifiRef.current?.disconnectAsync();
+      await nativeBleRef.current?.disconnect();
+      await bleRef.current?.disconnect();
+
+      unsubRef.current = client.subscribe((sample) => ingestSample(sample));
+      const result = await client.connect(setConnectStatus);
+      setConnectedDevice("device-motion", "Sensores do aparelho");
+      setWifiMode(result.mode);
+      setEspMode(null);
+      setResolvedWifiHost(null);
       setConnectStatus(null);
       setConnectionState("streaming");
 
@@ -186,18 +373,19 @@ export function useArSliceTransport() {
         setWsTxHz(client.getWsTxHz());
       };
       window.setTimeout(refresh, 500);
-      const interval = window.setInterval(refresh, 1000);
+      const interval = window.setInterval(refresh, 1_000);
       window.setTimeout(() => window.clearInterval(interval), 30_000);
     } catch (error) {
       clearOrientationSub();
-      await client.disconnect();
+      await client.disconnect().catch(() => undefined);
       setConnectedDevice(null, null);
+      setWifiMode(null);
       setConnectStatus(null);
       setConnectionState("error");
       setError(
         error instanceof Error
           ? error.message
-          : "Falha no stream BLE nativo",
+          : "Falha ao iniciar os sensores do aparelho",
       );
     }
   }, [
@@ -206,6 +394,7 @@ export function useArSliceTransport() {
     setConnectionState,
     setError,
     setTransport,
+    stopBleHandTracking,
   ]);
 
   const connectWifi = useCallback(
@@ -215,9 +404,12 @@ export function useArSliceTransport() {
 
       wantWifi.current = true;
       wantBle.current = false;
+      wantDeviceMotion.current = false;
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       clearOrientationSub();
       try {
+        await stopBleHandTracking();
+        await deviceMotionRef.current?.disconnect();
         await nativeBleRef.current?.disconnect();
         await bleRef.current?.disconnect();
       } catch {
@@ -278,13 +470,21 @@ export function useArSliceTransport() {
         setTransport("wifi");
       }
     },
-    [attachWifiOrientation, setConnectedDevice, setConnectionState, setError, setTransport],
+    [
+      attachWifiOrientation,
+      setConnectedDevice,
+      setConnectionState,
+      setError,
+      setTransport,
+      stopBleHandTracking,
+    ],
   );
 
   const scanForProvision = useCallback(async () => {
     const central = bleRef.current;
     if (!central) return;
     wantBle.current = false;
+    wantDeviceMotion.current = false;
     await nativeBleRef.current?.disconnect();
     await wifiRef.current?.disconnectAsync();
     setTransport("ble");
@@ -327,6 +527,7 @@ export function useArSliceTransport() {
 
       await wifiRef.current?.disconnectAsync();
       wantBle.current = false;
+      wantDeviceMotion.current = false;
       await nativeBleRef.current?.disconnect();
       setTransport("ble");
       setError(null);
@@ -447,10 +648,13 @@ export function useArSliceTransport() {
   const disconnect = useCallback(async () => {
     wantWifi.current = false;
     wantBle.current = false;
+    wantDeviceMotion.current = false;
     if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
     clearOrientationSub();
+    await stopBleHandTracking();
     await wifiRef.current?.disconnectAsync();
     await nativeBleRef.current?.disconnect();
+    await deviceMotionRef.current?.disconnect();
     await bleRef.current?.disconnect();
     setConnectedDevice(null, null);
     setWifiMode(null);
@@ -462,45 +666,115 @@ export function useArSliceTransport() {
     resetPoseScrollSession();
     setConnectionState("idle");
     setTransport("ble");
-  }, [setConnectedDevice, setConnectionState, setTransport]);
+  }, [setConnectedDevice, setConnectionState, setTransport, stopBleHandTracking]);
 
   const writeZero = useCallback(async () => {
     const store = useArSliceStore.getState();
+    const bleMode = wifiMode;
     try {
-      if (store.transport === "wifi" && wifiRef.current?.getState() === "streaming") {
+      if (store.transport === "device-motion") {
+        await deviceMotionRef.current?.resetTranslation();
+      } else if (store.transport === "wifi" && wifiRef.current?.getState() === "streaming") {
         await wifiRef.current.writeZero();
+      } else if (store.transport === "ble" && bleMode === "native-ble") {
+        await nativeBleRef.current?.writeZero();
       } else if (
         store.transport === "ble" &&
-        !isNativeApp &&
-        bleRef.current?.getConnectionState() === "streaming"
+        (bleMode === "capacitor-ble" ||
+          bleMode === "capacitor-ble-relay" ||
+          bleMode === "web-bluetooth" ||
+          bleRef.current?.getConnectionState() === "streaming")
       ) {
-        await bleRef.current.writeZero();
+        await bleRef.current?.writeZero();
       }
-      store.captureSliceZeroReference();
+      if (store.transport === "ble") {
+        bleHandFusion.reset();
+      }
+      if (isNativeApp && store.cameraEnabled) {
+        await ProgeniaArFrame.recenterMixedReality().catch(() => undefined);
+      }
+      // Let one absolute IMU sample land after firmware clears qZero.
+      await new Promise((r) => setTimeout(r, 60));
+      store.captureLocalZero();
     } catch (err) {
       store.captureLocalZero();
       setError(err instanceof Error ? err.message : "ZERO local aplicado");
     }
-  }, [setError]);
+  }, [setError, wifiMode]);
+
+  // Auto-Zerar as soon as the moldura stream is up (first samples + gravity).
+  useEffect(() => {
+    if (connectionState !== "streaming") return;
+    const timer = window.setTimeout(() => {
+      if (useArSliceStore.getState().connectionState !== "streaming") return;
+      void writeZero();
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [connectionState, writeZero]);
+
+  // Portrait ↔ landscape changes the phone sensor reference frame. Re-zero
+  // after UIKit/WebView finish rotating so the aro does not inherit a 90° jump.
+  useEffect(() => {
+    if (transport !== "device-motion" || connectionState !== "streaming") return;
+    let timer = 0;
+    const handleOrientationChange = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        const state = useArSliceStore.getState();
+        if (
+          state.transport === "device-motion" &&
+          state.connectionState === "streaming"
+        ) {
+          void writeZero();
+        }
+      }, 280);
+    };
+    window.addEventListener("orientationchange", handleOrientationChange);
+    return () => {
+      window.removeEventListener("orientationchange", handleOrientationChange);
+      window.clearTimeout(timer);
+    };
+  }, [connectionState, transport, writeZero]);
+
+  const writeCalibrationCommand = useCallback(
+    async (command: "CAL_START" | "CAL_CANCEL" | "CAL_SAVE") => {
+      if (useArSliceStore.getState().transport === "device-motion") {
+        return;
+      }
+      if (wifiMode === "native-ble") {
+        await nativeBleRef.current?.writeCalibrationCommand(command);
+        return;
+      }
+      await bleRef.current?.writeCalibrationCommand?.(command);
+    },
+    [wifiMode],
+  );
 
   useEffect(() => {
     if (!isNativeApp) return;
     const sub = CapApp.addListener("appStateChange", ({ isActive }) => {
-      if (
-        isActive &&
-        (wantWifi.current || wantBle.current)
-      ) {
+      if (!isActive) {
+        // Release the GATT link so another phone/tablet can connect to the frame.
+        void disconnect();
+        return;
+      }
+      if (wantWifi.current || wantBle.current || wantDeviceMotion.current) {
         const state = useArSliceStore.getState().connectionState;
         if (state !== "streaming" && state !== "connecting" && state !== "reconnecting") {
           if (wantBle.current) void connectBleStream();
+          else if (wantDeviceMotion.current) void connectDeviceMotion();
           else void connectWifi();
         }
       }
     });
+    const pauseSub = CapApp.addListener("pause", () => {
+      void disconnect();
+    });
     return () => {
       void sub.then((s) => s.remove());
+      void pauseSub.then((s) => s.remove());
     };
-  }, [connectBleStream, connectWifi]);
+  }, [connectBleStream, connectDeviceMotion, connectWifi, disconnect]);
 
   const clearSavedWifiHost = useCallback(async () => {
     await WifiOrientationClient.clearSavedHost();
@@ -513,11 +787,16 @@ export function useArSliceTransport() {
     configureHotspotBle,
     provisionOverBle,
     connectBleStream,
+    connectDeviceMotion,
     connectWifi,
     clearSavedWifiHost,
     provisionHotspot,
     disconnect,
     writeZero,
+    writeCalibrationCommand,
+    bleHandTrackingEnabled,
+    bleHandTrackingActive,
+    setBleHandTrackingEnabled,
     isMock,
     transport,
     wifiMode,

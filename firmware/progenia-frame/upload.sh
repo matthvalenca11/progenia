@@ -14,12 +14,33 @@ if [[ ! -x "$PIO" ]]; then
 fi
 
 if [[ -z "$PORT" ]]; then
-  PORT="$(ls /dev/cu.usbmodem* 2>/dev/null | head -1 || true)"
+  PORTS=()
+  for p in /dev/cu.usbmodem*; do
+    [[ -e "$p" ]] || continue
+    PORTS+=("$p")
+  done
+  if ((${#PORTS[@]} == 0)); then
+    echo "No USB port found. Plug the XIAO and pass the port:"
+    echo "  $0 $ENV /dev/cu.usbmodem11201"
+    echo ""
+    echo "Available serial devices:"
+    ls /dev/cu.* 2>/dev/null || true
+    exit 1
+  elif ((${#PORTS[@]} == 1)); then
+    PORT="${PORTS[0]}"
+  else
+    echo "Multiple USB modems found — pass the port explicitly:"
+    printf '  %s\n' "${PORTS[@]}"
+    echo "Example:"
+    echo "  $0 $ENV ${PORTS[0]}"
+    exit 1
+  fi
 fi
 
-if [[ -z "$PORT" ]]; then
-  echo "No USB port found. Plug the XIAO and pass the port:"
-  echo "  $0 $ENV /dev/cu.usbmodem1101"
+if [[ ! -e "$PORT" ]]; then
+  echo "Port not found: $PORT"
+  echo "Available usbmodem ports:"
+  ls /dev/cu.usbmodem* 2>/dev/null || echo "  (none — is the XIAO plugged in?)"
   exit 1
 fi
 

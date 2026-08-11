@@ -5,7 +5,7 @@ export type NormalizedQuad = {
   /** TL, TR, BR, BL */
   corners: [Point2, Point2, Point2, Point2];
   confidence: number;
-  source: "vision" | "js" | "arkit";
+  source: "vision" | "js" | "arkit" | "hand";
 };
 
 export type FramePose = {

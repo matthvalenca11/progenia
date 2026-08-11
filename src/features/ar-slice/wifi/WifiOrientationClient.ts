@@ -44,6 +44,10 @@ type QuatJson = {
   wx?: number;
   wy?: number;
   wz?: number;
+  dp?: number;
+  dpx?: number;
+  dpy?: number;
+  dpz?: number;
 };
 
 /**
@@ -335,6 +339,7 @@ export class WifiOrientationClient {
           ...(frame.gravity
             ? { gx: frame.gravity.x, gy: frame.gravity.y, gz: frame.gravity.z }
             : {}),
+          ...(frame.translationPosition != null ? { dp: frame.translationPosition } : {}),
         });
       };
 
@@ -500,6 +505,12 @@ export class WifiOrientationClient {
       ...(hasGravity ? { gravity: { x: q.gx!, y: q.gy!, z: q.gz! } } : {}),
       ...(hasLinear ? { linearAccel: { x: q.ax!, y: q.ay!, z: q.az! } } : {}),
       ...(hasGyro ? { gyro: { x: q.wx!, y: q.wy!, z: q.wz! } } : {}),
+      ...(typeof q.dp === "number" && Number.isFinite(q.dp)
+        ? { translationPosition: q.dp }
+        : {}),
+      ...([q.dpx, q.dpy, q.dpz].every((n) => typeof n === "number" && Number.isFinite(n))
+        ? { translationWorld: { x: q.dpx!, y: q.dpy!, z: q.dpz! } }
+        : {}),
     };
     this.listeners.forEach((cb) => cb(sample));
   }
