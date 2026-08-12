@@ -10,6 +10,18 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+// Web deploys (Vercel, etc.) never need the native iOS BLE relay patch.
+if (process.env.VERCEL === "1" || process.env.SKIP_NATIVE_PATCHES === "1") {
+  console.log("[patch-bluetooth-le-relay] skip (web/CI build)");
+  process.exit(0);
+}
+
+/** npm tarballs for this plugin ship CRLF; normalize before substring matching. */
+function readText(filePath) {
+  return fs.readFileSync(filePath, "utf8").replace(/\r\n/g, "\n");
+}
+
 const deviceTarget = path.join(
   root,
   "node_modules/@capacitor-community/bluetooth-le/ios/Plugin/Device.swift",
@@ -57,7 +69,7 @@ if (!fs.existsSync(deviceTarget)) {
   process.exit(0);
 }
 
-let deviceSrc = fs.readFileSync(deviceTarget, "utf8");
+let deviceSrc = readText(deviceTarget);
 if (deviceSrc.includes(marker)) {
   console.log("[patch-bluetooth-le-relay] already patched");
 } else {
@@ -98,7 +110,7 @@ if (!deviceSrc.includes("progeniaImuCbCount = 0\n    private var")) {
 // Explicit Xcode logs are required because the plugin's internal log() output
 // is not visible in release-like device runs.
 if (fs.existsSync(managerTarget)) {
-  let managerSrc = fs.readFileSync(managerTarget, "utf8");
+  let managerSrc = readText(managerTarget);
   const queueBefore = `    private var centralManager: CBCentralManager!`;
   const queueAfter = `    private var centralManager: CBCentralManager!
     // Keep high-rate BLE delegates off WKWebView/Three.js main thread.
@@ -149,7 +161,7 @@ if (fs.existsSync(managerTarget)) {
 // CBCentralManager) on every call. Make it idempotent to preserve pending iPad
 // connections even if another app flow initializes BLE again.
 if (fs.existsSync(pluginTarget)) {
-  let pluginSrc = fs.readFileSync(pluginTarget, "utf8");
+  let pluginSrc = readText(pluginTarget);
   const before = `    @objc func initialize(_ call: CAPPluginCall) {
         self.deviceManager = DeviceManager`;
   const after = `    @objc func initialize(_ call: CAPPluginCall) {
