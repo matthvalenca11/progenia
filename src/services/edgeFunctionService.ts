@@ -71,11 +71,14 @@ export async function invokeEdgeFunction<T>(
   body: Record<string, unknown>,
 ): Promise<{ data: T | null; error: Error | null }> {
   const direct = await postEdgeFunction<T>(name, body);
-  if (!direct.error || !isNativeApp) {
+  const shouldFallback =
+    !!direct.error &&
+    (isNativeApp || /failed to fetch|network|load failed/i.test(direct.error.message));
+  if (!shouldFallback) {
     return direct;
   }
 
-  // Fallback web path via supabase-js (útil se o plugin nativo falhar).
+  // Fallback via supabase-js if the direct fetch/plugin path fails.
   const { data, error } = await supabase.functions.invoke(name, { body });
   if (error) {
     const details = await readEdgeFunctionErrorBody(error);

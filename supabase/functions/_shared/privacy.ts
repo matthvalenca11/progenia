@@ -1,5 +1,7 @@
 const CORS_HEADERS_BASE = {
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-api-version",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "")
@@ -16,26 +18,47 @@ const NATIVE_APP_ORIGINS = new Set([
   "https://localhost",
 ]);
 
+const DEFAULT_WEB_ORIGINS = new Set([
+  "https://progenia.com.br",
+  "https://www.progenia.com.br",
+  "http://progenia.com.br",
+  "http://www.progenia.com.br",
+]);
+
+const originHost = (origin: string) => {
+  try {
+    return new URL(origin).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+};
+
+const isAllowedOrigin = (origin: string) => {
+  if (ALLOWED_ORIGINS.includes(origin)) return true;
+  if (DEFAULT_WEB_ORIGINS.has(origin)) return true;
+  if (NATIVE_APP_ORIGINS.has(origin)) return true;
+  if (NATIVE_APP_ORIGIN_PREFIXES.some((prefix) => origin.startsWith(prefix))) return true;
+  if (origin.startsWith("http://localhost:") || origin.startsWith("https://localhost:")) {
+    return true;
+  }
+
+  const appUrl = Deno.env.get("APP_URL") ?? "";
+  if (appUrl && (origin === appUrl || originHost(origin) === originHost(appUrl))) {
+    return true;
+  }
+
+  const host = originHost(origin);
+  return host === "progenia.com.br";
+};
+
 export const getCorsHeaders = (origin: string | null) => {
   const fallbackOrigin = Deno.env.get("APP_URL") ?? "*";
-  let allowOrigin = fallbackOrigin;
-
-  if (origin) {
-    const isAllowed =
-      ALLOWED_ORIGINS.includes(origin) ||
-      NATIVE_APP_ORIGINS.has(origin) ||
-      NATIVE_APP_ORIGIN_PREFIXES.some((prefix) => origin.startsWith(prefix)) ||
-      origin.startsWith("http://localhost:") ||
-      origin.startsWith("https://localhost:");
-
-    if (isAllowed) {
-      allowOrigin = origin;
-    }
-  }
+  const allowOrigin = origin && isAllowedOrigin(origin) ? origin : fallbackOrigin;
 
   return {
     ...CORS_HEADERS_BASE,
     "Access-Control-Allow-Origin": allowOrigin,
+    Vary: "Origin",
   };
 };
 

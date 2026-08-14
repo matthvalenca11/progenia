@@ -229,13 +229,17 @@ const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
           },
         ]);
       } else {
-        const errorMsg = error?.message || error?.error || "Erro desconhecido";
+        const raw = error?.message || error?.error || "Erro desconhecido";
+        const errorMsg =
+          /failed to fetch/i.test(raw)
+            ? "Não consegui falar com o tutor agora. Recarregue a página e tente de novo."
+            : raw;
         toast.error(errorMsg);
         setMessages((prev) => [
           ...prev,
-          { 
-            role: "assistant", 
-            content: `Peço desculpas, mas encontrei um erro: ${errorMsg}. Por favor, tente novamente.` 
+          {
+            role: "assistant",
+            content: `Peço desculpas, mas encontrei um erro: ${errorMsg}. Por favor, tente novamente.`,
           },
         ]);
       }
