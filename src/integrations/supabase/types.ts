@@ -324,6 +324,24 @@ export type Database = {
           },
         ]
       }
+      instagram_feed_cache: {
+        Row: {
+          fetched_at: string
+          id: number
+          posts: Json
+        }
+        Insert: {
+          fetched_at?: string
+          id?: number
+          posts?: Json
+        }
+        Update: {
+          fetched_at?: string
+          id?: number
+          posts?: Json
+        }
+        Relationships: []
+      }
       email_settings: {
         Row: {
           created_at: string | null
