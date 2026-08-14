@@ -549,6 +549,45 @@ function toGroqMessages(
   return messages;
 }
 
+const GROQ_MODELS = [
+  Deno.env.get("GROQ_MODEL"),
+  "llama-3.1-8b-instant",
+  "llama-3.3-70b-versatile",
+  "llama-3.1-70b-versatile",
+].filter((model): model is string => Boolean(model));
+
+async function completeWithGroq(
+  apiKey: string,
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
+) {
+  let lastStatus = 0;
+  for (const model of GROQ_MODELS) {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.7,
+        max_tokens: 320,
+      }),
+    });
+    lastStatus = response.status;
+    if (response.ok) {
+      return { ok: true as const, data: await response.json() };
+    }
+    await response.text();
+    console.error("Groq API error:", response.status, model);
+    if (response.status === 401 || response.status === 403 || response.status === 429) {
+      break;
+    }
+  }
+  return { ok: false as const, status: lastStatus };
+}
+
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req.headers.get("origin"));
   if (req.method === "OPTIONS") {
@@ -575,32 +614,15 @@ serve(async (req) => {
     const history = conversationHistory || [];
     const messages = toGroqMessages(systemPrompt, history, message);
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${GROQ_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
-        messages,
-        temperature: 0.7,
-        // Respostas mais curtas especialmente quando o modelo precisar recusar/limitar.
-        max_tokens: 320,
-      }),
-    });
-
-    if (!response.ok) {
-      await response.text();
-      console.error("Groq API error:", response.status);
-
+    const groq = await completeWithGroq(GROQ_API_KEY, messages);
+    if (!groq.ok) {
       return new Response(
-        JSON.stringify({ error: `Groq API ${response.status}: unavailable` }),
+        JSON.stringify({ error: `Groq API ${groq.status}: unavailable` }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const data = await response.json();
+    const data = groq.data;
     let text = data?.choices?.[0]?.message?.content;
 
     if (!text) {

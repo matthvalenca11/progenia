@@ -80,20 +80,47 @@ function createAdmin() {
   });
 }
 
-async function loadStoredToken(admin: ReturnType<typeof createAdmin>) {
+async function loadStoredConnection(admin: ReturnType<typeof createAdmin>) {
   const { data } = await admin
     .from("instagram_connection")
-    .select("access_token")
+    .select("access_token, updated_at, expires_at")
     .eq("id", 1)
     .maybeSingle();
-  return typeof data?.access_token === "string" && data.access_token ? data.access_token : null;
+  if (typeof data?.access_token !== "string" || !data.access_token) return null;
+  return {
+    accessToken: data.access_token,
+    updatedAt: data.updated_at as string | null,
+    expiresAt: data.expires_at as string | null,
+  };
 }
 
-async function saveToken(admin: ReturnType<typeof createAdmin>, accessToken: string) {
+function tokenShouldRefresh(updatedAt: string | null, expiresAt: string | null) {
+  const twentyDays = 20 * 24 * 60 * 60 * 1000;
+  if (expiresAt) {
+    const remaining = new Date(expiresAt).getTime() - Date.now();
+    if (Number.isFinite(remaining) && remaining < twentyDays) return true;
+  }
+  if (updatedAt) {
+    const age = Date.now() - new Date(updatedAt).getTime();
+    if (Number.isFinite(age) && age > twentyDays) return true;
+  }
+  return false;
+}
+
+async function saveToken(
+  admin: ReturnType<typeof createAdmin>,
+  accessToken: string,
+  expiresInSeconds?: number,
+) {
+  const expiresAt = expiresInSeconds
+    ? new Date(Date.now() + expiresInSeconds * 1000).toISOString()
+    : null;
   await admin.from("instagram_connection").upsert({
     id: 1,
     access_token: accessToken,
     updated_at: new Date().toISOString(),
+    expires_at: expiresAt,
+    last_refresh_error: null,
   });
 }
 
@@ -119,8 +146,9 @@ async function refreshAccessToken(token: string) {
     `https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${encodeURIComponent(token)}`;
   const response = await fetch(url);
   if (!response.ok) return null;
-  const data = (await response.json()) as { access_token?: string };
-  return data.access_token || null;
+  const data = (await response.json()) as { access_token?: string; expires_in?: number };
+  if (!data.access_token) return null;
+  return { accessToken: data.access_token, expiresIn: data.expires_in };
 }
 
 async function fetchMedia(apiBase: string, accountId: string, accessToken: string) {
@@ -143,7 +171,8 @@ Deno.serve(async (req) => {
     const envToken = Deno.env.get("INSTAGRAM_ACCESS_TOKEN");
     const instagramAccountId = Deno.env.get("INSTAGRAM_ACCOUNT_ID");
     const apiBase = (Deno.env.get("INSTAGRAM_API_BASE") ?? "https://graph.instagram.com").replace(/\/$/, "");
-    let accessToken = (await loadStoredToken(admin)) || envToken || null;
+    const stored = await loadStoredConnection(admin);
+    let accessToken = stored?.accessToken || envToken || null;
 
     if (!accessToken) {
       const cached = await loadCache(admin);
@@ -181,14 +210,22 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (accessToken && tokenShouldRefresh(stored?.updatedAt ?? null, stored?.expiresAt ?? null)) {
+      const refreshed = await refreshAccessToken(accessToken);
+      if (refreshed) {
+        accessToken = refreshed.accessToken;
+        await saveToken(admin, refreshed.accessToken, refreshed.expiresIn);
+      }
+    }
+
     let { response, text } = await fetchMedia(apiBase, instagramAccountId, accessToken);
     if (!response.ok) {
       const { meta } = parseMetaErrorBody(text);
       if (meta?.code === 190 || response.status === 401) {
         const refreshed = await refreshAccessToken(accessToken);
         if (refreshed) {
-          accessToken = refreshed;
-          await saveToken(admin, refreshed);
+          accessToken = refreshed.accessToken;
+          await saveToken(admin, refreshed.accessToken, refreshed.expiresIn);
           ({ response, text } = await fetchMedia(apiBase, instagramAccountId, accessToken));
         }
       }
@@ -248,9 +285,7 @@ Deno.serve(async (req) => {
 
     const visiblePosts = allPosts.filter((post) => visibilityMap[String(post.id)] !== false);
     await saveCache(admin, visiblePosts);
-    if (accessToken !== envToken) {
-      await saveToken(admin, accessToken);
-    }
+    await saveToken(admin, accessToken);
 
     return new Response(JSON.stringify({ posts: visiblePosts }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

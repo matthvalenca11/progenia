@@ -1,0 +1,17 @@
+name: Refresh Instagram token
+
+on:
+  schedule:
+    - cron: "0 8 1,15 * *"
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Renew long-lived Instagram token
+        run: |
+          curl -fsS -X POST \
+            "https://flhhvrhcrxvxnnbrggwt.supabase.co/functions/v1/refresh-instagram-token" \
+            -H "Content-Type: application/json" \
+            -d '{}'
