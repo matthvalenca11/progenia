@@ -1,18 +1,19 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.83.0";
 import { getCorsHeaders } from "../_shared/privacy.ts";
+import { composeGuideReply, composeNudge, fetchLearnerJourney, prioritizeSuggestions } from "./journey.ts";
 
 const BASE_PROMPT =
-  "Você é um tutor de tecnologia médica na ProGenia. REGRAS: (1) Seja OBJETIVO e CONCISO. (2) Responda direto ao que o aluno perguntou. (3) SEMPRE que a pergunta se relacionar com algum módulo, aula, cápsula ou lab listado abaixo, INCLUA ao final da resposta 1–2 sugestões em Markdown, no formato [Nome do conteúdo](/caminho). Use APENAS o título descritivo no texto do link, nunca o path ou UUID. " +
-  "IMPORTANTE — USE APENAS IDs E SLUGS EXATOS DO CATÁLOGO ABAIXO. NUNCA invente ou resuma URLs. " +
-  "Formato exato: Aulas = /lesson/ID_COMPLETO. Cápsulas = /capsula/ID_COMPLETO. Labs = /labs/SLUG_EXATO. Módulos = /module/ID_COMPLETO. Copie o id ou slug EXATAMENTE como está no catálogo. " +
-  "(4) MATRÍCULA: As aulas pertencem a módulos. Se a seção MATRÍCULAS DO USUÁRIO indicar que ele NÃO está matriculado no módulo da aula que você quer sugerir, NÃO sugira o link da aula diretamente. Em vez disso, sugira que ele se matricule no módulo: 'Para acessar esta aula, matricule-se no módulo: [Nome do módulo](/module/ID_DO_MODULO)'. Cápsulas e labs podem ser sugeridos normalmente (não exigem matrícula). " +
-  "(5) Se houver conteúdo relevante no catálogo, é OBRIGATÓRIO sugerir — não termine a resposta sem indicar pelo menos um link quando existir correspondência. " +
-  "(6) Tamanho da resposta: em qualquer caso, NÃO escreva respostas longas. Priorize 2–4 frases no máximo. " +
-  "(7) Se você NÃO encontrar informação relevante no CONTEÚDO DA PROGENIA (ou se a pergunta exigir um tipo de informação que você não pode fornecer), responda de forma curta e segura com o template: \"Não encontrei informação confiável na ProGenia para responder isso agora.\" seguido de \"Se quiser, me diga seu objetivo e eu sugiro o conteúdo mais próximo.\". Não adicione explicações extensas. " +
-  "(8) Não repita o enunciado. Não crie seções como 'Introdução'/'Conclusão'. " +
-  "(9) Se houver uma seção EVIDÊNCIA CLÍNICA EXTERNA, use-a apenas como apoio científico complementar. Não invente citações, não transforme a resposta em prescrição médica individual e não substitua avaliação profissional. Quando usar esse contexto externo, deixe claro em uma frase curta que a orientação é educacional. " +
-  "(10) Quando citar artigos da evidência externa, preserve hyperlinks em Markdown no formato [Título do artigo](URL), especialmente links PubMed/PMID.";
+  "Você é o guia de aprendizagem da ProGenia, não um FAQ passivo. Ajude o aluno a caminhar na trilha: o que já fez, o que falta e o que experimentar agora. " +
+  "REGRAS: (1) Seja direto, humano e curto (2–4 frases). (2) Use a seção TRILHA DO ALUNO como verdade. Nunca invente progresso, notas ou conteúdos. " +
+  "(3) Em cumprimentos, 'o que fazer agora', progresso ou quando o aluno parecer perdido, comece pelo próximo passo concreto. Não pergunte 'como posso ajudar?' se você já sabe o próximo passo. " +
+  "(4) Sempre que indicar conteúdo, use Markdown [Título](/caminho) com IDs/slugs EXATOS do catálogo ou da trilha. Aulas=/lesson/ID. Cápsulas=/capsula/ID. Labs=/labs/SLUG. Módulos=/module/ID. " +
+  "(5) MATRÍCULA: se a aula for de um módulo em que o aluno não está matriculado, sugira o módulo, não a aula. Cápsulas e labs podem ser sugeridos direto. " +
+  "(6) Prefira os 'Próximos passos calculados' da trilha. Inclua 1–2 desses links. " +
+  "(7) Se a pergunta for de conteúdo clínico/técnico, responda e feche com o próximo passo na plataforma. " +
+  "(8) Se não houver base na ProGenia, diga isso em uma frase e ofereça o conteúdo mais próximo da trilha. " +
+  "(9) Evidência externa é só apoio educacional, nunca prescrição. Preserve links PubMed quando existirem. " +
+  "(10) Não invente seções longas. Não recite o catálogo inteiro.";
 
 const OPENEVIDENCE_BASE_URL = "https://api.openevidence.com/v1";
 const NCBI_EUTILS_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils";
@@ -125,19 +126,26 @@ async function fetchProGeniaContent(supabase: SupabaseEdgeClient): Promise<strin
   return "\n\n---\nCONTEÚDO DA PROGENIA (use para basear respostas e sugerir links):\n\n" + parts.join("\n");
 }
 
-async function fetchUserEnrollmentsContext(supabase: SupabaseEdgeClient, userId: string | null): Promise<string> {
-  if (!userId) return "\n\nMATRÍCULAS DO USUÁRIO: Não identificado. Sugira módulos para matrícula quando relevante.\n";
+function looksLikeGuideIntent(message: string, intent?: string) {
+  if (intent && ["open", "next", "progress", "explore"].includes(intent)) return true;
+  const text = message.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return /(^|\b)(ola|oi|hey|hello|hi)\b/.test(text) ||
+    text.includes("proximo passo") ||
+    text.includes("o que eu") ||
+    text.includes("o que fazer") ||
+    text.includes("meu progresso") ||
+    text.includes("por onde") ||
+    text.includes("me indica") ||
+    text.includes("what should i") ||
+    text.includes("next step") ||
+    text.includes("my progress");
+}
 
-  const { data: enrollments } = await supabase
-    .from("module_enrollments")
-    .select("module_id")
-    .eq("user_id", userId);
-
-  const moduleIds = (enrollments || []).map((e) => e.module_id).filter(Boolean);
-  if (moduleIds.length === 0) {
-    return "\n\nMATRÍCULAS DO USUÁRIO: O usuário NÃO está matriculado em nenhum módulo. Ao sugerir AULAS (que pertencem a módulos), sempre indique que ele deve se matricular no módulo primeiro: 'Para acessar esta aula, matricule-se no módulo: [Nome do módulo](/module/ID)'. Cápsulas e labs podem ser sugeridos normalmente.\n";
-  }
-  return `\n\nMATRÍCULAS DO USUÁRIO: O usuário está matriculado nos módulos com IDs: ${moduleIds.join(", ")}. Aulas desses módulos podem ser sugeridas diretamente. Aulas de módulos cujo ID NÃO está nesta lista: sugira matrícula no módulo primeiro com o link do módulo.\n`;
+function ensureJourneyLinks(text: string, suggestions: { title: string; path: string }[]) {
+  if (!suggestions.length) return text;
+  if (suggestions.some((item) => text.includes(item.path))) return text;
+  const links = suggestions.slice(0, 2).map((item) => `[${item.title}](${item.path})`).join("\n");
+  return `${text.trim()}\n\n${links}`;
 }
 
 interface Catalog {
@@ -572,7 +580,7 @@ async function completeWithGroq(
         model,
         messages,
         temperature: 0.7,
-        max_tokens: 320,
+        max_tokens: 420,
       }),
     });
     lastStatus = response.status;
@@ -595,30 +603,72 @@ serve(async (req) => {
   }
 
   try {
-    const { message, conversationHistory, userId } = await req.json();
+    const { message, conversationHistory, userId, intent, language } = await req.json();
     const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
-
-    if (!GROQ_API_KEY) {
-      throw new Error("GROQ_API_KEY not configured");
-    }
+    const lang = language === "en" ? "en" : "pt";
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    const journey = await fetchLearnerJourney(supabase, userId ?? null);
+    journey.suggestions = prioritizeSuggestions(journey.suggestions, intent);
+    const guideIntent = looksLikeGuideIntent(message || "", intent);
+
+    if (intent === "nudge") {
+      const nudge = composeNudge(journey, lang);
+      return new Response(
+        JSON.stringify({
+          response: nudge?.prompt || "",
+          suggestions: journey.suggestions.slice(0, 4),
+          nudge,
+          evidenceSource: "progenia",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    if (!GROQ_API_KEY) {
+      const fallback = ensureJourneyLinks(composeGuideReply(journey, lang, intent), journey.suggestions);
+      return new Response(
+        JSON.stringify({
+          response: fallback,
+          suggestions: journey.suggestions,
+          evidenceSource: "progenia",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const contentContext = await fetchProGeniaContent(supabase);
-    const enrollmentsContext = await fetchUserEnrollmentsContext(supabase, userId ?? null);
-    const evidenceContext = await fetchEvidenceContext(message);
-    const systemPrompt = BASE_PROMPT + contentContext + enrollmentsContext + evidenceContext.context;
+    const evidenceContext = guideIntent
+      ? { context: "", source: "progenia" }
+      : await fetchEvidenceContext(message);
+    const languageHint = lang === "en" ? "Answer in English." : "Responda em português do Brasil.";
+    const intentHint =
+      intent === "progress"
+        ? "FOCO DESTA MENSAGEM: resuma o que o aluno já fez e o que falta, depois 1 próximo passo concreto."
+        : intent === "explore"
+          ? "FOCO DESTA MENSAGEM: sugira algo novo para experimentar, preferindo um laboratório virtual ainda não usado."
+          : intent === "next" || intent === "open"
+            ? "FOCO DESTA MENSAGEM: dê o próximo passo concreto agora. Não pergunte 'como posso ajudar?'."
+            : "";
+    const systemPrompt = `${BASE_PROMPT} ${languageHint} ${intentHint}`.trim() +
+      journey.context + contentContext + evidenceContext.context;
 
     const history = conversationHistory || [];
     const messages = toGroqMessages(systemPrompt, history, message);
 
     const groq = await completeWithGroq(GROQ_API_KEY, messages);
     if (!groq.ok) {
+      const fallback = ensureJourneyLinks(composeGuideReply(journey, lang, intent), journey.suggestions);
       return new Response(
-        JSON.stringify({ error: `Groq API ${groq.status}: unavailable` }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({
+          response: fallback,
+          suggestions: journey.suggestions,
+          evidenceSource: "progenia",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -626,20 +676,23 @@ serve(async (req) => {
     let text = data?.choices?.[0]?.message?.content;
 
     if (!text) {
-      console.error("Unexpected Groq response:", data);
-      throw new Error("Invalid response from AI service");
+      text = composeGuideReply(journey, lang, intent);
     }
 
     const catalog = await fetchCatalog(supabase);
     text = fixProGeniaLinks(text, catalog);
     text = ensureEvidenceReferences(text, evidenceContext);
+    if (guideIntent) {
+      text = ensureJourneyLinks(text, journey.suggestions);
+    }
 
     return new Response(
       JSON.stringify({
         response: text,
+        suggestions: journey.suggestions,
         evidenceSource: evidenceContext.source,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);

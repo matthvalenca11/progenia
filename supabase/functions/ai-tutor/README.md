@@ -2,6 +2,35 @@
 
 The `ai-tutor` Edge Function powers the ProGenia tutor. It keeps the language model provider on the backend and never exposes API keys to the browser.
 
+The tutor is a **learning guide**, not a passive FAQ. On each request it loads the learner's path (`module_enrollments`, lesson/capsule progress, lab usage, stats) and returns:
+
+- a short next-step reply
+- `suggestions` with exact ProGenia links (`/lesson/:id`, `/capsula/:id`, `/labs/:slug`, `/module/:id`)
+
+The chat UI asks for the next step as soon as it opens, and exposes shortcuts for progress and untried labs.
+
+On calm pages (`/dashboard`, modules, capsules list) it can also show a small non-blocking bubble above the tutor button. That nudge:
+
+- waits a few seconds, never covers the lesson/lab itself
+- appears at most once per session and about once per day
+- skips a suggestion already offered in the last two weeks
+- stays away for 3 days if dismissed, and for 2 hours after the person opens the chat
+- can appear sooner after a lesson or capsule is completed, with the next relevant step
+
+Use `intent: "nudge"` to get the suggestion without calling Groq.
+
+## Request body
+
+```json
+{
+  "message": "O que eu deveria fazer agora?",
+  "conversationHistory": [],
+  "userId": "optional-uuid",
+  "intent": "open | next | progress | explore | chat",
+  "language": "pt | en"
+}
+```
+
 ## Providers
 
 - `GROQ_API_KEY` is required and is used for the final conversational response.

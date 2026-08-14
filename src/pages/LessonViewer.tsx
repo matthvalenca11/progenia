@@ -18,6 +18,7 @@ import { ProGeniaLogo } from "@/components/ProGeniaLogo";
 import { EmbeddedVideo } from "@/components/EmbeddedVideo";
 import { CompletionSuggestionsMosaic } from "@/components/CompletionSuggestionsMosaic";
 import { getActiveCompletionSuggestions } from "@/lib/completionSuggestions";
+import { markTutorNudgeAfterComplete } from "@/lib/tutorNudge";
 import { ParametricChartRenderer, resolveParametricChartBlockData } from "@/components/ParametricChartRenderer";
 export default function LessonViewer() {
   const {
@@ -99,6 +100,7 @@ export default function LessonViewer() {
       await progressService.completeLesson(user.id, lessonId);
 
       if (!alreadyDone) {
+        markTutorNudgeAfterComplete();
         const result = await gamificationService.onLessonCompleted(user.id, lessonId);
         const description = result.messages.length
           ? result.messages.join(" · ")

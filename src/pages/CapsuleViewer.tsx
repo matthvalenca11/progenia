@@ -17,6 +17,7 @@ import { isNativeApp } from "@/lib/capacitor";
 import { EmbeddedVideo } from "@/components/EmbeddedVideo";
 import { CompletionSuggestionsMosaic } from "@/components/CompletionSuggestionsMosaic";
 import { getActiveCompletionSuggestions } from "@/lib/completionSuggestions";
+import { markTutorNudgeAfterComplete } from "@/lib/tutorNudge";
 import { ParametricChartRenderer } from "@/components/ParametricChartRenderer";
 import type { DynamicChartBlockData } from "@/types/dynamicChart";
 
@@ -102,6 +103,7 @@ const CapsuleViewer = () => {
       });
 
       if (!wasDone) {
+        markTutorNudgeAfterComplete();
         const result = await gamificationService.onCapsuleCompleted(session.user.id, capsulaId);
         toast.success("Cápsula concluída!", {
           description: result.messages.length

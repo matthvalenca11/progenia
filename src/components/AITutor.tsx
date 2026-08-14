@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Brain, Send, X, Minimize2, Maximize2, ArrowRight, BookOpen } from "lucide-react";
+import { Brain, Send, X, Minimize2, Maximize2, ArrowRight, BookOpen, Compass, FlaskConical, Route } from "lucide-react";
 import { AiDisclaimerPopover } from "@/components/ai/AiDisclaimerPopover";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,6 +15,20 @@ import { invokeEdgeFunction } from "@/services/edgeFunctionService";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { CookiePreferencesButton } from "@/components/privacy/CookiePreferencesButton";
+import {
+  NUDGE_APPEAR_DELAY_MS,
+  NUDGE_AUTO_HIDE_MS,
+  canOfferNudge,
+  hasPendingCompletionNudge,
+  isCalmNudgeRoute,
+  markTutorOpenedForNudge,
+  nudgeKindLabel,
+  rememberNudgeAccepted,
+  rememberNudgeDismissed,
+  rememberNudgeShown,
+  shouldAttemptNudge,
+  type TutorNudgePayload,
+} from "@/lib/tutorNudge";
 
 const isProGeniaLink = (href: string) =>
   /^\/(capsula|lesson|labs?|module)\//.test(href) || href === "/capsulas";
@@ -105,9 +119,26 @@ function makeNoInfoResponseMoreConcise(text: string): string {
   return sentences.slice(0, 2).join(" ").trim();
 }
 
+type TutorSuggestion = {
+  title: string;
+  path: string;
+  kind?: string;
+  reason?: string;
+};
+
 interface Message {
   role: "user" | "assistant";
   content: string;
+  suggestions?: TutorSuggestion[];
+}
+
+type TutorIntent = "open" | "next" | "progress" | "explore" | "chat" | "nudge";
+
+function suggestionIcon(kind?: string) {
+  if (kind === "lab") return FlaskConical;
+  if (kind === "module") return Compass;
+  if (kind === "capsula") return BookOpen;
+  return Route;
 }
 
 /** Cookie FAB (h-9) + gap below the tutor pill. */
@@ -118,20 +149,22 @@ type AITutorProps = {
 
 const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const location = useLocation();
+  const { user, loading: authLoading } = useAuth();
   const { language } = useLanguage();
   const isEnglish = language === "en";
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Olá! Como posso te ajudar hoje?" },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [fabPortalReady, setFabPortalReady] = useState(false);
+  const guidedOpenRef = useRef(false);
+  const sendingRef = useRef(false);
+  const [nudge, setNudge] = useState<TutorNudgePayload | null>(null);
 
   useEffect(() => {
     setFabPortalReady(true);
@@ -171,22 +204,37 @@ const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
     }
   }, [isOpen]);
 
-  const handleSend = async () => {
-    if (!input.trim() || loading) return;
+  const sendTutorMessage = async (
+    userMessage: string,
+    intent: TutorIntent = "chat",
+    options?: { hideUser?: boolean },
+  ) => {
+    if (!userMessage.trim() || sendingRef.current) return;
 
-    const userMessage = input.trim();
-    setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
+    sendingRef.current = true;
+    if (!options?.hideUser) {
+      setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
+    }
     setLoading(true);
 
     try {
       const currentCatalog = catalog ?? await fetchCatalog();
-      const { data, error } = await invokeEdgeFunction<{ response?: string; error?: string }>(
+      const history = messages
+        .filter((item) => item.content.trim())
+        .slice(-5)
+        .map(({ role, content }) => ({ role, content }));
+      const { data, error } = await invokeEdgeFunction<{
+        response?: string;
+        error?: string;
+        suggestions?: TutorSuggestion[];
+      }>(
         "ai-tutor",
         {
           message: userMessage,
-          conversationHistory: messages.slice(-5),
+          conversationHistory: history,
           userId: user?.id ?? null,
+          intent,
+          language: isEnglish ? "en" : "pt",
         },
       );
 
@@ -198,7 +246,11 @@ const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
       if (data?.response) {
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: makeNoInfoResponseMoreConcise(fixProGeniaLinks(data.response, currentCatalog)) },
+          {
+            role: "assistant",
+            content: makeNoInfoResponseMoreConcise(fixProGeniaLinks(data.response, currentCatalog)),
+            suggestions: data.suggestions?.slice(0, 3),
+          },
         ]);
       } else if (data?.error) {
         setMessages((prev) => [
@@ -209,23 +261,23 @@ const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
       }
     } catch (error: any) {
       console.error("Error calling AI tutor:", error);
-      
+
       if (error.message?.includes("429") || error.status === 429) {
         toast.error("Limite de taxa atingido. Por favor, aguarde um momento antes de tentar novamente.");
         setMessages((prev) => [
           ...prev,
-          { 
-            role: "assistant", 
-            content: "Estou recebendo muitas solicitações agora. Por favor, tente novamente em um momento." 
+          {
+            role: "assistant",
+            content: "Estou recebendo muitas solicitações agora. Por favor, tente novamente em um momento.",
           },
         ]);
       } else if (error.message?.includes("402") || error.status === 402) {
         toast.error("Créditos de IA esgotados. Por favor, adicione créditos para continuar usando o tutor de IA.");
         setMessages((prev) => [
           ...prev,
-          { 
-            role: "assistant", 
-            content: "O serviço de IA requer créditos adicionais. Por favor, entre em contato com seu administrador." 
+          {
+            role: "assistant",
+            content: "O serviço de IA requer créditos adicionais. Por favor, entre em contato com seu administrador.",
           },
         ]);
       } else {
@@ -244,18 +296,174 @@ const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
         ]);
       }
     } finally {
+      sendingRef.current = false;
       setLoading(false);
     }
   };
 
+  const handleSend = async () => {
+    if (!input.trim() || sendingRef.current) return;
+    const userMessage = input.trim();
+    setInput("");
+    await sendTutorMessage(userMessage, "chat");
+  };
+
+  const closeTutor = () => {
+    setIsOpen(false);
+    setIsMinimized(false);
+    setMessages([]);
+    setInput("");
+    guidedOpenRef.current = false;
+    sendingRef.current = false;
+  };
+
+  const openTutor = () => {
+    if (user?.id) markTutorOpenedForNudge(user.id);
+    setNudge(null);
+    setIsOpen(true);
+  };
+
+  const dismissNudge = () => {
+    if (user?.id) rememberNudgeDismissed(user.id);
+    setNudge(null);
+  };
+
+  const acceptNudge = () => {
+    if (!nudge) return;
+    if (user?.id) rememberNudgeAccepted(user.id, nudge.path);
+    const path = nudge.path;
+    setNudge(null);
+    navigate(normalizePath(path));
+  };
+
+  const openSuggestion = (path: string) => {
+    closeTutor();
+    navigate(normalizePath(path));
+  };
+
+  const quickPrompts = isEnglish
+    ? [
+        { intent: "next" as const, label: "What next?", message: "What should I do next on ProGenia?" },
+        { intent: "progress" as const, label: "My progress", message: "Summarize my progress and what is still missing." },
+        { intent: "explore" as const, label: "Try a lab", message: "Suggest a virtual lab I have not tried yet." },
+      ]
+    : [
+        { intent: "next" as const, label: "Próximo passo", message: "O que eu deveria fazer agora na ProGenia?" },
+        { intent: "progress" as const, label: "Meu progresso", message: "Resume o que eu já fiz e o que ainda falta." },
+        { intent: "explore" as const, label: "Experimentar lab", message: "Me indica um laboratório virtual que eu ainda não experimentei." },
+      ];
+
+  useEffect(() => {
+    if (!isOpen || authLoading) return;
+    if (guidedOpenRef.current) return;
+    guidedOpenRef.current = true;
+    const opener = isEnglish
+      ? "What should I do next on ProGenia based on what I already completed?"
+      : "O que eu deveria fazer agora na ProGenia, com base no que eu já fiz?";
+    void sendTutorMessage(opener, "open", { hideUser: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the chat is opened
+  }, [isOpen, authLoading, user?.id]);
+
+  useEffect(() => {
+    if (isOpen || authLoading || !user?.id) {
+      if (isOpen) setNudge(null);
+      return;
+    }
+    if (!isCalmNudgeRoute(location.pathname) || !shouldAttemptNudge(user.id, location.pathname)) {
+      setNudge(null);
+      return;
+    }
+
+    let cancelled = false;
+    const delay = hasPendingCompletionNudge() ? 5000 : NUDGE_APPEAR_DELAY_MS;
+    const timer = window.setTimeout(async () => {
+      if (cancelled || document.visibilityState !== "visible") return;
+      try {
+        const { data } = await invokeEdgeFunction<{
+          nudge?: TutorNudgePayload | null;
+          suggestions?: TutorNudgePayload[];
+        }>("ai-tutor", {
+          message: "nudge",
+          conversationHistory: [],
+          userId: user.id,
+          intent: "nudge",
+          language: isEnglish ? "en" : "pt",
+        });
+        if (cancelled) return;
+        const candidates = [
+          ...(data?.nudge ? [data.nudge] : []),
+          ...(data?.suggestions || []),
+        ];
+        const pick = candidates.find((item) => item?.path && canOfferNudge(user.id, item.path, location.pathname));
+        if (!pick) return;
+        rememberNudgeShown(user.id, pick.path);
+        setNudge({
+          ...pick,
+          prompt: pick.prompt || (isEnglish ? `Continue with ${pick.title}?` : `Continuar com ${pick.title}?`),
+        });
+      } catch (error) {
+        console.warn("AI Tutor nudge skipped:", error);
+      }
+    }, delay);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [isOpen, authLoading, user?.id, location.pathname, isEnglish]);
+
+  useEffect(() => {
+    if (!nudge) return;
+    const timer = window.setTimeout(() => setNudge(null), NUDGE_AUTO_HIDE_MS);
+    return () => window.clearTimeout(timer);
+  }, [nudge]);
+
   if (!isOpen) {
+    const nudgeBubble = nudge ? (
+      <div
+        className="pointer-events-auto mb-2 w-[min(17.5rem,calc(100vw-3.5rem))] origin-bottom-right animate-in fade-in zoom-in-95 slide-in-from-bottom-2 rounded-2xl border border-border/80 bg-card p-3 text-left shadow-lg duration-200"
+        role="status"
+      >
+        <div className="flex items-start gap-2">
+          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Brain className="h-3.5 w-3.5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground" data-no-auto-translate="true">
+              {nudgeKindLabel(nudge.kind, isEnglish)}
+            </p>
+            <p className="mt-0.5 text-sm leading-snug text-foreground" data-no-auto-translate="true">
+              {nudge.prompt || nudge.title}
+            </p>
+            <button
+              type="button"
+              onClick={acceptNudge}
+              className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+              data-no-auto-translate="true"
+            >
+              {isEnglish ? "Open" : "Abrir"}
+              <ArrowRight className="h-3 w-3" />
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={dismissNudge}
+            className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label={isEnglish ? "Dismiss suggestion" : "Dispensar sugestão"}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    ) : null;
+
     const tutorFabButton = (
       <Button
-        onClick={() => setIsOpen(true)}
+        onClick={openTutor}
         className={
           stackCookieBelow
             ? "inline-flex h-12 shrink-0 items-center gap-2 rounded-full gradient-accent px-4 text-sm text-white shadow-glow md:h-14 md:px-5 md:text-base"
-            : "inline-flex h-12 shrink-0 items-center gap-2 rounded-full gradient-accent px-4 text-sm text-white shadow-glow md:fixed md:z-50 md:h-14 md:px-5 md:text-base md:bottom-6 md:right-6"
+            : "inline-flex h-12 shrink-0 items-center gap-2 rounded-full gradient-accent px-4 text-sm text-white shadow-glow md:h-14 md:px-5 md:text-base"
         }
       >
         <Brain className="h-5 w-5" />
@@ -272,7 +480,10 @@ const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
           className="pointer-events-none fixed z-50 flex flex-col items-end gap-1 bottom-[calc(var(--sab,env(safe-area-inset-bottom,0px))+0.75rem)] right-[calc(var(--sar,env(safe-area-inset-right,0px))+0.75rem)] md:bottom-6 md:right-6"
         >
           <CookiePreferencesButton variant="icon" embedded />
-          <div className="pointer-events-auto">{tutorFabButton}</div>
+          <div className="pointer-events-auto flex flex-col items-end">
+            {nudgeBubble}
+            {tutorFabButton}
+          </div>
         </div>,
         document.body,
       );
@@ -280,13 +491,19 @@ const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
 
     if (isMobile) {
       return (
-        <div className="fixed z-50 bottom-[calc(var(--sab,env(safe-area-inset-bottom,0px))+0.75rem)] right-[calc(var(--sar,env(safe-area-inset-right,0px))+0.75rem)] md:hidden">
+        <div className="fixed z-50 bottom-[calc(var(--sab,env(safe-area-inset-bottom,0px))+0.75rem)] right-[calc(var(--sar,env(safe-area-inset-right,0px))+0.75rem)] flex flex-col items-end md:hidden">
+          {nudgeBubble}
           {tutorFabButton}
         </div>
       );
     }
 
-    return tutorFabButton;
+    return (
+      <div className="fixed z-50 bottom-6 right-6 flex flex-col items-end">
+        {nudgeBubble}
+        {tutorFabButton}
+      </div>
+    );
   }
 
   return (
@@ -305,9 +522,14 @@ const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
       <div className={`flex items-center justify-between border-b border-border gradient-primary rounded-t-lg ${isMobile ? "p-3" : "p-4"}`}>
         <div className="flex items-center gap-2 text-white">
           <Brain className="h-5 w-5" />
-          <span className="font-semibold" data-no-auto-translate="true">
-            {isEnglish ? "AI Tutor" : "Tutor de IA"}
-          </span>
+          <div className="min-w-0">
+            <span className="font-semibold" data-no-auto-translate="true">
+              {isEnglish ? "AI Tutor" : "Tutor de IA"}
+            </span>
+            <p className="text-[11px] leading-none text-white/80" data-no-auto-translate="true">
+              {isEnglish ? "Your learning guide" : "Seu guia na trilha"}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <AiDisclaimerPopover />
@@ -328,7 +550,7 @@ const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
           <Button
             size="icon"
             variant="ghost"
-            onClick={() => setIsOpen(false)}
+            onClick={closeTutor}
             className="h-8 w-8 text-white hover:bg-white/20"
           >
             <X className="h-4 w-4" />
@@ -341,6 +563,13 @@ const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
           {/* Messages */}
           <ScrollArea ref={scrollRef} className={`flex-1 ${isMobile ? "p-3" : "p-4"}`}>
             <div className="space-y-4">
+              {messages.length === 0 && (
+                <p className="text-xs text-muted-foreground" data-no-auto-translate="true">
+                  {isEnglish
+                    ? "Looking at your path to suggest the next step..."
+                    : "Olhando sua trilha para indicar o próximo passo..."}
+                </p>
+              )}
               {messages.map((message, index) => (
                 <div
                   key={index}
@@ -368,10 +597,7 @@ const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
                                 return (
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      setIsOpen(false);
-                                      navigate(path);
-                                    }}
+                                    onClick={() => openSuggestion(path)}
                                     className="mt-2 inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 transition-colors text-left"
                                   >
                                     <BookOpen className="h-4 w-4 flex-shrink-0" />
@@ -390,6 +616,34 @@ const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
                         >
                           {catalog ? fixProGeniaLinks(message.content, catalog) : message.content}
                         </ReactMarkdown>
+                        {message.suggestions?.filter((item) => !message.content.includes(item.path)).length ? (
+                          <div className="mt-2 flex flex-col gap-1.5 not-prose">
+                            {message.suggestions
+                              .filter((item) => !message.content.includes(item.path))
+                              .slice(0, 2)
+                              .map((item) => {
+                                const Icon = suggestionIcon(item.kind);
+                                return (
+                                  <button
+                                    key={item.path}
+                                    type="button"
+                                    onClick={() => openSuggestion(item.path)}
+                                    className="inline-flex items-start gap-2 rounded-lg border border-primary/20 bg-white/70 px-2.5 py-2 text-left text-xs text-primary hover:bg-primary/10 dark:bg-background/40"
+                                  >
+                                    <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                    <span>
+                                      <span className="font-medium">{item.title}</span>
+                                      {item.reason ? (
+                                        <span className="mt-0.5 block font-normal text-[11px] text-muted-foreground">
+                                          {item.reason}
+                                        </span>
+                                      ) : null}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                          </div>
+                        ) : null}
                       </div>
                     ) : (
                       <p className="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -413,12 +667,26 @@ const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
 
           {/* Input */}
           <div className={`border-t border-border ${isMobile ? "p-3" : "p-4"}`}>
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {quickPrompts.map((prompt) => (
+                <button
+                  key={prompt.intent}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => void sendTutorMessage(prompt.message, prompt.intent)}
+                  className="rounded-full border border-border bg-muted/60 px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-50"
+                  data-no-auto-translate="true"
+                >
+                  {prompt.label}
+                </button>
+              ))}
+            </div>
             <div className="flex gap-2">
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-                placeholder={isEnglish ? "Ask me anything..." : "Pergunte-me qualquer coisa..."}
+                placeholder={isEnglish ? "Ask, or request your next step..." : "Pergunte, ou peça o próximo passo..."}
                 data-no-auto-translate="true"
                 disabled={loading}
                 className="flex-1"
