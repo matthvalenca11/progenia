@@ -1,5 +1,9 @@
 import type { OrientationSample } from "@/features/ar-slice/ble/protocol";
-import { ProgeniaArFrame } from "@/features/ar-slice/vision/ProgeniaArFrame";
+import {
+  ProgeniaArFrame,
+  type FrameOrientationSample,
+} from "@/features/ar-slice/vision/ProgeniaArFrame";
+import { Capacitor, type PluginListenerHandle } from "@capacitor/core";
 import {
   LOCAL_QUAT_WS_URL,
   parseLocalQuatFrame,
@@ -13,6 +17,7 @@ type Listener = (sample: OrientationSample) => void;
  */
 export class DeviceMotionOrientationClient {
   private ws: WebSocket | null = null;
+  private nativeOrientationListener: PluginListenerHandle | null = null;
   private listeners = new Set<Listener>();
   private pendingSample: OrientationSample | null = null;
   private rafId = 0;
@@ -30,11 +35,22 @@ export class DeviceMotionOrientationClient {
   async connect(onProgress?: (message: string) => void) {
     await this.disconnect();
     onProgress?.("Ativando acelerômetro e giroscópio…");
-    const result = await ProgeniaArFrame.startDeviceMotionStream();
 
     try {
-      onProgress?.("Abrindo canal dos sensores…");
-      await this.openWebSocketWithRetry(2_500);
+      const isAndroid = Capacitor.getPlatform() === "android";
+      if (isAndroid) {
+        onProgress?.("Conectando aos sensores do aparelho…");
+        this.nativeOrientationListener = await ProgeniaArFrame.addListener(
+          "orientation",
+          this.handleNativeSample,
+        );
+      }
+
+      const result = await ProgeniaArFrame.startDeviceMotionStream();
+      if (!isAndroid) {
+        onProgress?.("Abrindo canal dos sensores…");
+        await this.openWebSocketWithRetry(2_500);
+      }
       await this.waitForSamples(3, 4_000);
       this.startDiagnostics();
       return result;
@@ -52,6 +68,8 @@ export class DeviceMotionOrientationClient {
     this.clearPending();
     this.ws?.close();
     this.ws = null;
+    await this.nativeOrientationListener?.remove().catch(() => undefined);
+    this.nativeOrientationListener = null;
     this.lastSeq = -1;
     this.sampleCount = 0;
     this.rxHz = 0;
@@ -178,6 +196,28 @@ export class DeviceMotionOrientationClient {
       this.rafId = 0;
     }
   }
+
+  private handleNativeSample = (sample: FrameOrientationSample) => {
+    if (![sample.w, sample.x, sample.y, sample.z].every(Number.isFinite)) return;
+    if (sample.seq != null && sample.seq === this.lastSeq) return;
+    this.lastSeq = sample.seq ?? this.lastSeq + 1;
+    this.sampleCount += 1;
+    this.pendingSample = {
+      w: sample.w,
+      x: sample.x,
+      y: sample.y,
+      z: sample.z,
+      receivedAt: performance.now(),
+      ...(sample.gravity ? { gravity: sample.gravity } : {}),
+      ...(sample.calibration ? { calibration: sample.calibration } : {}),
+      ...(sample.translationPosition != null
+        ? { translationPosition: sample.translationPosition }
+        : {}),
+    };
+    if (!this.rafId) {
+      this.rafId = requestAnimationFrame(this.flushPending);
+    }
+  };
 
   private flushPending = () => {
     this.rafId = 0;

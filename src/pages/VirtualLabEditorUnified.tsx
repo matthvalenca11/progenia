@@ -379,7 +379,12 @@ export default function VirtualLabEditorUnified() {
                     >
                       <CardContent className="p-4 text-center">
                         <Icon className="h-8 w-8 mx-auto mb-2 text-primary/60" />
-                        <h3 className="font-semibold">{type.label}</h3>
+                        <h3
+                          className="font-semibold"
+                          {...(type.value === "tens" ? { "data-no-auto-translate": "true" } : {})}
+                        >
+                          {type.label}
+                        </h3>
                         <p className="text-xs text-muted-foreground mt-1">{type.desc}</p>
                       </CardContent>
                     </Card>

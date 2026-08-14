@@ -11,6 +11,7 @@ import { AR_SLICE_CAMERA } from "@/features/ar-slice/arSliceSceneConfig";
 import { frameTrackBuffer } from "@/features/ar-slice/vision/frameTrackBuffer";
 import { isNativeMobile } from "@/lib/labPerformance";
 
+// Narrow lens keeps finger orbit free from visible edge distortion.
 const MEDICAL_ORBIT_FOV_DEG = 3;
 const LEGACY_ORBIT_FOV_DEG = 42;
 const ORBIT_DISTANCE_SCALE =

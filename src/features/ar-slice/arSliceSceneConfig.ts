@@ -21,9 +21,9 @@ export const AR_SLICE_IMU = {
   /** User multiplier on firmware probe-depth meters (absolute). */
   linearGestureGain: 1.0,
   /**
-   * Continuous Z probe → scene units. Firmware already applies FRAME_MOTION_GAIN.
+   * Device-sensor push/pull position → scene units.
    */
-  linearGestureMetersToScene: 14,
+  linearGestureMetersToScene: 6,
   /** BLE gesture-rate control is bounded in firmware, allowing a more responsive visual gain. */
   bleLinearGestureMetersToScene: 9,
   /** Reject a single packet jump above this (unwrap glitch guard). */
@@ -32,6 +32,8 @@ export const AR_SLICE_IMU = {
   linearGestureSmoothing: 1,
   /** Ignore tiny wire noise before moving the cut. */
   linearGestureDeadbandMeters: 0.00005,
+  /** Phone IMUs need a wider deadband than the dedicated BLE probe. */
+  deviceLinearGestureDeadbandMeters: 0.003,
   /** Do not remap cut-normal axes here — breaks direction vs sense. */
   mirrorHorizontalNormal: false,
   invertVerticalNormal: false,

@@ -84,14 +84,14 @@ export function AnatomicalHead({
     () =>
       hologram
         ? createHologramMaterial(clippingPlanes, { opacity: 0.55, color: "#2ad8ff" })
-        : createClippedVolumeMaterial(clippingPlanes, { opacity: 0.97 }),
+        : createClippedVolumeMaterial(clippingPlanes),
     [clippingPlanes, hologram],
   );
   const skullMat = useMemo(
     () =>
       hologram
         ? createHologramMaterial(clippingPlanes, { opacity: 0.7, color: "#45e9ff" })
-        : createClippedVolumeMaterial(clippingPlanes, { opacity: 0.92 }),
+        : createClippedVolumeMaterial(clippingPlanes),
     [clippingPlanes, hologram],
   );
   const brainMat = useMemo(
@@ -119,8 +119,6 @@ export function AnatomicalHead({
         : new THREE.MeshLambertMaterial({
             color: "#0088aa",
             clippingPlanes,
-            transparent: true,
-            opacity: 0.88,
           }),
     [clippingPlanes, hologram],
   );

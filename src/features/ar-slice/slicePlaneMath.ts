@@ -6,7 +6,7 @@ export const ANATOMICAL_UP: Vec3 = { x: 0, y: 1, z: 0 };
 export type SlicePlanePair = {
   /** Geometric cut plane (aro + textura da fatia). */
   cut: { normal: Vec3; constant: number };
-  /** Clipping plane — remove o half-space voltado para a câmera / “acima” da moldura. */
+  /** Clipping plane opposite the geometric cut; view-dependent selection happens at render time. */
   clip: { normal: Vec3; constant: number };
   /** Center of the aro on the cut. */
   anchor: Vec3;

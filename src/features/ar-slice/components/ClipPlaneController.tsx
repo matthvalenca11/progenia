@@ -20,6 +20,9 @@ import { frameCutBasis } from "@/features/ar-slice/poseMath";
 
 const HOLOGRAM_FALLBACK_Z = -0.7;
 const HOLOGRAM_FALLBACK_SCALE = 0.28;
+const DEFAULT_BRAIN_VIEW = new THREE.Quaternion().setFromEuler(
+  new THREE.Euler(0.32, 1.745, 0, "YXZ"),
+);
 
 /**
  * Vision anchors the model in the physical moldura (pose/scale).
@@ -152,7 +155,9 @@ export function ClipPlaneController() {
         poseSnapNeeded.current = false;
       } else {
         visualTarget.set(0, 0, 0);
-        visualTargetQ.copy(touchOffsetQ);
+        // Keep the cutting ring's neutral pose unchanged while presenting the
+        // brain in a more useful oblique, slightly superior default view.
+        visualTargetQ.copy(DEFAULT_BRAIN_VIEW).multiply(touchOffsetQ);
         visualTargetScale.setScalar(1);
         contentRef.current.position.lerp(visualTarget, 0.12);
         contentRef.current.quaternion.copy(visualTargetQ);
@@ -177,13 +182,16 @@ export function ClipPlaneController() {
 
     cutPlane.normal.set(planes.cut.normal.x, planes.cut.normal.y, planes.cut.normal.z);
     cutPlane.constant = planes.cut.constant;
-    clipPlane.normal.set(planes.clip.normal.x, planes.clip.normal.y, planes.clip.normal.z);
-    clipPlane.constant = planes.clip.constant;
 
     // Aro sits on the cut — moves with depth along the moldura normal.
     capCenter.set(planes.anchor.x, planes.anchor.y, planes.anchor.z);
-    // Bias into the kept half-space (away from camera) so the cap is not clipped away.
-    capRender.copy(capCenter).addScaledVector(cutPlane.normal, -AR_SLICE_CUT_CAP.planeEpsilon);
+    // Always remove the same (superior) side of the cut. This must follow the
+    // cut's own normal, not the camera, so orbiting or pitching never swaps
+    // the displayed anatomical half.
+    clipPlane.normal.copy(cutPlane.normal);
+    clipPlane.constant = cutPlane.constant;
+    // Bias into the kept half-space so the cap is never removed by the clip.
+    capRender.copy(capCenter).addScaledVector(clipPlane.normal, -AR_SLICE_CUT_CAP.planeEpsilon);
   });
 
   // On iOS AR the hologram is drawn natively in ARSCNView (WebGL volumes do not

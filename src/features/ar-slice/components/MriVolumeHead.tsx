@@ -297,9 +297,7 @@ export function MriVolumeHead({ clipPlane, onReady }: MriVolumeHeadProps) {
       .replace(
         "return texture(u_data, texcoords.xyz).r;",
         hologram
-          ? // Full holographic head in AR — clipping the volume made the brain
-            // disappear entirely over the camera feed.
-            `return texture(u_data, texcoords.xyz).r;`
+          ? `return texture(u_data, texcoords.xyz).r;`
           : `vec3 local_position = texcoords.xyz * u_size;
         if (dot(u_clipplane.xyz, local_position) + u_clipplane.w > 0.0) {
           return 0.0;

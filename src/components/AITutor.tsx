@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { invokeEdgeFunction } from "@/services/edgeFunctionService";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { CookiePreferencesButton } from "@/components/privacy/CookiePreferencesButton";
 
 const isProGeniaLink = (href: string) =>
   /^\/(capsula|lesson|labs?|module)\//.test(href) || href === "/capsulas";
@@ -108,7 +110,13 @@ interface Message {
   content: string;
 }
 
-const AITutor = () => {
+/** Cookie FAB (h-9) + gap below the tutor pill. */
+type AITutorProps = {
+  /** Empilha cookies abaixo do tutor no canto inferior direito. */
+  stackCookieBelow?: boolean;
+};
+
+const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { language } = useLanguage();
@@ -123,6 +131,11 @@ const AITutor = () => {
   const [loading, setLoading] = useState(false);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [fabPortalReady, setFabPortalReady] = useState(false);
+
+  useEffect(() => {
+    setFabPortalReady(true);
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -235,7 +248,11 @@ const AITutor = () => {
     const tutorFabButton = (
       <Button
         onClick={() => setIsOpen(true)}
-        className="inline-flex h-12 shrink-0 items-center gap-2 rounded-full gradient-accent px-4 text-sm text-white shadow-glow md:fixed md:z-50 md:h-14 md:px-5 md:text-base md:bottom-6 md:right-6"
+        className={
+          stackCookieBelow
+            ? "inline-flex h-12 shrink-0 items-center gap-2 rounded-full gradient-accent px-4 text-sm text-white shadow-glow md:h-14 md:px-5 md:text-base"
+            : "inline-flex h-12 shrink-0 items-center gap-2 rounded-full gradient-accent px-4 text-sm text-white shadow-glow md:fixed md:z-50 md:h-14 md:px-5 md:text-base md:bottom-6 md:right-6"
+        }
       >
         <Brain className="h-5 w-5" />
         <span className="font-semibold" data-no-auto-translate="true">
@@ -243,6 +260,19 @@ const AITutor = () => {
         </span>
       </Button>
     );
+
+    if (stackCookieBelow) {
+      if (!fabPortalReady || typeof document === "undefined") return null;
+      return createPortal(
+        <div
+          className="pointer-events-none fixed z-50 flex flex-col items-end gap-1 bottom-[calc(var(--sab,env(safe-area-inset-bottom,0px))+0.75rem)] right-[calc(var(--sar,env(safe-area-inset-right,0px))+0.75rem)] md:bottom-6 md:right-6"
+        >
+          <CookiePreferencesButton variant="icon" embedded />
+          <div className="pointer-events-auto">{tutorFabButton}</div>
+        </div>,
+        document.body,
+      );
+    }
 
     if (isMobile) {
       return (

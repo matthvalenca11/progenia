@@ -9,6 +9,7 @@ import {
 } from "@/lib/labPerformance";
 import { ArSliceScene } from "@/features/ar-slice/components/ArSliceScene";
 import { ArSliceControls } from "@/features/ar-slice/components/ArSliceControls";
+import { ArSliceOnboardingDialog } from "@/features/ar-slice/components/ArSliceOnboardingDialog";
 import { useArSliceTransport } from "@/features/ar-slice/useArSliceTransport";
 import { useArCamera } from "@/features/ar-slice/useArCamera";
 import { useFrameTracker } from "@/features/ar-slice/vision/useFrameTracker";
@@ -48,6 +49,7 @@ export default function ArSliceLab() {
         transparent ? "bg-transparent" : "bg-slate-950",
       )}
     >
+      <ArSliceOnboardingDialog />
       {cameraEnabled && (
         <video
           ref={videoRef}

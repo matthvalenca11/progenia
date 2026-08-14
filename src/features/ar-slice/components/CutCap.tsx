@@ -118,7 +118,7 @@ export function CutCap({
         side: THREE.DoubleSide,
         transparent: hologram,
         opacity: hologram ? 0.82 : 1,
-        depthTest: false,
+        depthTest: true,
         depthWrite: false,
         toneMapped: false,
       }),
@@ -217,6 +217,10 @@ export function CutCap({
     tmpBitangent
       .set(basis.bitangent.x, basis.bitangent.y, basis.bitangent.z)
       .normalize();
+    // The narrow medical camera lens intentionally has little perspective.
+    // Add a subtle scale cue so a slice tipped toward the viewer reads as
+    // closer without distorting the anatomy while finger-orbiting.
+    const depthCueScale = 1 + tmpNormal.z * 0.08;
     // Optional in-plane roll about Z (does not tip the disc).
     const rollDeg = AR_SLICE_IMU.cutInPlaneRollDeg;
     if (rollDeg !== 0) {
@@ -239,7 +243,7 @@ export function CutCap({
     basisMatrix.makeBasis(tmpTangent, tmpBitangent, tmpNormal);
     group.position.copy(renderAnchor);
     group.quaternion.setFromRotationMatrix(basisMatrix);
-    group.scale.copy(renderScale);
+    group.scale.copy(renderScale).multiplyScalar(depthCueScale);
 
     const root = volumeRootRef?.current;
     if (root) {
@@ -252,10 +256,10 @@ export function CutCap({
 
     if (!volume) return;
 
-    const worldRadius = capRadius * renderScale.x;
+    const worldRadius = capRadius * renderScale.x * depthCueScale;
     const tq = touchReference.getQuat();
     const dq = getAppliedPose().display;
-    const key = `${tmpNormal.x.toFixed(2)}:${tmpNormal.y.toFixed(2)}:${tmpNormal.z.toFixed(2)}:${tmpTangent.x.toFixed(2)}:${tmpTangent.y.toFixed(2)}:${tmpBitangent.x.toFixed(2)}:${cutPlane.constant.toFixed(3)}:${sampleCenter.x.toFixed(2)}:${sampleCenter.y.toFixed(2)}:${sampleCenter.z.toFixed(2)}:${worldRadius.toFixed(3)}:${tq.x.toFixed(3)}:${tq.y.toFixed(3)}:${tq.z.toFixed(3)}:${tq.w.toFixed(3)}:${dq.w.toFixed(3)}:${dq.z.toFixed(3)}:${renderAnchor.x.toFixed(2)}:${renderAnchor.y.toFixed(2)}:${renderAnchor.z.toFixed(2)}`;
+    const key = `${tmpNormal.x.toFixed(2)}:${tmpNormal.y.toFixed(2)}:${tmpNormal.z.toFixed(2)}:${tmpTangent.x.toFixed(2)}:${tmpTangent.y.toFixed(2)}:${tmpBitangent.x.toFixed(2)}:${cutPlane.constant.toFixed(3)}:${sampleCenter.x.toFixed(2)}:${sampleCenter.y.toFixed(2)}:${sampleCenter.z.toFixed(2)}:${worldRadius.toFixed(3)}:${depthCueScale.toFixed(2)}:${tq.x.toFixed(3)}:${tq.y.toFixed(3)}:${tq.z.toFixed(3)}:${tq.w.toFixed(3)}:${dq.w.toFixed(3)}:${dq.z.toFixed(3)}:${renderAnchor.x.toFixed(2)}:${renderAnchor.y.toFixed(2)}:${renderAnchor.z.toFixed(2)}`;
     if (key === lastPlaneKey.current || key === pendingKey.current) return;
     scheduleTextureRebuild(key, worldRadius);
   });

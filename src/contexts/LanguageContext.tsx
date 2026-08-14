@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Preferences } from "@capacitor/preferences";
 import { isNativeMobile } from "@/lib/capacitor";
 import { readPersistedAppLanguage } from "@/lib/nativeLanguageOnboarding";
+import { isProtectedAcronym, restoreProtectedAcronyms } from "@/lib/translationProtect";
 import { supabase } from "@/integrations/supabase/client";
 
 type Language = "pt" | "en";
@@ -13,7 +14,7 @@ interface LanguageContextType {
 }
 
 const STORAGE_KEY = "progenia_language";
-const TRANSLATION_CACHE_KEY = "progenia_translation_cache_en";
+const TRANSLATION_CACHE_KEY = "progenia_translation_cache_en_v2";
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
@@ -35,6 +36,8 @@ const FORCED_PT_EN_OVERRIDES: Record<string, string> = {
   comecar: "Sign Up",
   sobre: "About",
   sair: "Log Out",
+  voltar: "Back",
+  tens: "TENS",
   // Padroniza CTA "Ver ..." para "View ..." nos botões.
   "ver capsulas": "View capsules",
   "ver aulas": "View lessons",
@@ -50,6 +53,7 @@ const looksTranslatable = (text: string) => {
   const trimmed = text.trim();
   if (!trimmed) return false;
   if (trimmed.length < 2) return false;
+  if (isProtectedAcronym(trimmed)) return false;
   if (/^[\d\s()[\]{}.,:;!@#$%^&*_\-+=/\\|'"`~<>?]+$/.test(trimmed)) return false;
   return /[A-Za-zÀ-ÿ]/.test(trimmed);
 };
@@ -157,7 +161,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       } else
       // Evita reaproveitar cache antigo salvo com bug de normalização.
       if (!(direct === text && normalized !== text)) {
-        return direct;
+        return restoreProtectedAcronyms(text, direct);
       }
     }
     const normalizedCached = cacheRef.current.get(normalized);
@@ -165,7 +169,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       cacheRef.current.delete(normalized);
       return undefined;
     }
-    return normalizedCached;
+    return normalizedCached
+      ? restoreProtectedAcronyms(text, normalizedCached)
+      : undefined;
   };
 
   const collectTextNodes = (root: Node): Text[] => {
@@ -320,9 +326,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         // So salva no cache quando a API realmente retorna uma traducao para o texto.
         // Evita "congelar" um item em PT quando houve miss pontual no lote.
         if (translatedText) {
-          cacheRef.current.set(original, translatedText);
+          const repaired = restoreProtectedAcronyms(original, translatedText);
+          cacheRef.current.set(original, repaired);
           if (normalizedOriginal && normalizedOriginal !== original) {
-            cacheRef.current.set(normalizedOriginal, translatedText);
+            cacheRef.current.set(normalizedOriginal, repaired);
           }
         }
       }

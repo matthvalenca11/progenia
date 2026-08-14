@@ -26,6 +26,23 @@ const FORCED_PT_EN_OVERRIDES: Record<string, string> = {
   "comecar": "Sign Up",
   "sobre": "About",
   "sair": "Log Out",
+  "voltar": "Back",
+  "tens": "TENS",
+};
+const BUILTIN_ACRONYM_GLOSSARY: GlossaryItem[] = [
+  { source_text: "TENS", target_text: "TENS" },
+  { source_text: "NMES", target_text: "NMES" },
+  { source_text: "FES", target_text: "FES" },
+  { source_text: "EMG", target_text: "EMG" },
+  { source_text: "EEG", target_text: "EEG" },
+  { source_text: "ECG", target_text: "ECG" },
+  { source_text: "MRI", target_text: "MRI" },
+  { source_text: "LLLT", target_text: "LLLT" },
+  { source_text: "FBM", target_text: "FBM" },
+  { source_text: "PET", target_text: "PET" },
+];
+const ACRONYM_MISTRANSLATIONS: Record<string, string[]> = {
+  TENS: ["YOU HAVE", "You have", "you have"],
 };
 const normalizeLookupKey = (value: string) => normalizeText(value).toLowerCase();
 const PROVIDER_MAX_CHARS = 900;
@@ -125,7 +142,11 @@ const applyGlossaryProtection = (text: string, glossary: GlossaryItem[]) => {
   for (const item of glossary) {
     const sourceTerm = normalizeText(item.source_text);
     if (!sourceTerm) continue;
-    const regex = new RegExp(escapeRegex(sourceTerm), "gi");
+    const isAcronym = /^[A-Z0-9]{2,8}$/i.test(sourceTerm);
+    const regex = new RegExp(
+      isAcronym ? `\\b${escapeRegex(sourceTerm)}\\b` : escapeRegex(sourceTerm),
+      "gi",
+    );
 
     protectedText = protectedText.replace(regex, () => {
       const token = `[[TERM_${tokenIndex++}]]`;
@@ -135,6 +156,26 @@ const applyGlossaryProtection = (text: string, glossary: GlossaryItem[]) => {
   }
 
   return { protectedText, tokenMap };
+};
+
+const restoreProtectedAcronyms = (source: string, translated: string) => {
+  let result = translated;
+  for (const item of BUILTIN_ACRONYM_GLOSSARY) {
+    const acronym = item.target_text;
+    if (!new RegExp(`\\b${escapeRegex(item.source_text)}\\b`, "i").test(source)) continue;
+    if (new RegExp(`\\b${escapeRegex(acronym)}\\b`).test(result)) continue;
+    const knownBads = ACRONYM_MISTRANSLATIONS[acronym] ?? [];
+    for (const bad of knownBads) {
+      result = result.replace(new RegExp(`\\b${escapeRegex(bad)}\\b`, "gi"), acronym);
+    }
+    if (
+      !new RegExp(`\\b${escapeRegex(acronym)}\\b`).test(result) &&
+      normalizeText(source).toLowerCase() === item.source_text.toLowerCase()
+    ) {
+      result = acronym;
+    }
+  }
+  return result;
 };
 
 const restoreGlossaryTokens = (text: string, tokenMap: Record<string, string>) => {
@@ -200,7 +241,7 @@ Deno.serve(async (req) => {
       ? createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } })
       : null;
 
-    const glossary: GlossaryItem[] = [];
+    const glossary: GlossaryItem[] = [...BUILTIN_ACRONYM_GLOSSARY];
 
     if (supabaseAdmin) {
       const { data: glossaryRows } = await supabaseAdmin
@@ -274,7 +315,7 @@ Deno.serve(async (req) => {
           }
 
           const translated = await translateLongText(source, target, original, glossary);
-          const finalText = translated || original;
+          const finalText = restoreProtectedAcronyms(original, translated || original);
           translations[original] = finalText;
 
           cacheRowsToUpsert.push({

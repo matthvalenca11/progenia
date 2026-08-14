@@ -5,6 +5,7 @@ import {
   CircleGauge,
   Power,
   RotateCcw,
+  Settings2,
   Snowflake,
   Smartphone,
 } from "lucide-react";
@@ -15,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { AR_SLICE_CAMERA } from "@/features/ar-slice/arSliceSceneConfig";
 import { useArSliceStore } from "@/features/ar-slice/arSliceStore";
 import { AxisCalibrationDialog } from "@/features/ar-slice/components/AxisCalibrationDialog";
+import { ArSliceOnboardingTrigger } from "@/features/ar-slice/components/ArSliceOnboardingDialog";
 import {
   MEDICAL_VOLUME_PRESETS,
   type MedicalImagingModality,
@@ -22,6 +24,7 @@ import {
 } from "@/features/ar-slice/mri/arSliceMriStore";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { Capacitor } from "@capacitor/core";
 
 type Props = {
   onConnectBle: () => void;
@@ -54,6 +57,7 @@ export function ArSliceControls({
 }: Props) {
   const { language } = useLanguage();
   const isEnglish = language === "en";
+  const isAndroid = Capacitor.getPlatform() === "android";
   // Selector-only: a bare useArSliceStore() re-renders on every telemetry tick.
   const connectionState = useArSliceStore((s) => s.connectionState);
   const transport = useArSliceStore((s) => s.transport);
@@ -97,6 +101,7 @@ export function ArSliceControls({
     return "Brain 18F-FDG PET";
   };
   const [panelOpen, setPanelOpen] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const connected =
     connectionState === "streaming" || connectionState === "connected";
@@ -158,22 +163,34 @@ export function ArSliceControls({
             </Button>
           </div>
 
-          {/* Discrete thumb-zone freeze — separate from the BLE/Zerar row */}
-          <button
-            type="button"
-            disabled={!connected}
-            onClick={() => setPoseFrozen(!poseFrozen)}
-            aria-label={poseFrozen ? "Desfreezar posição" : "Freezar posição"}
-            aria-pressed={poseFrozen}
-            className={cn(
-              "pointer-events-auto mb-0.5 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border shadow-lg backdrop-blur-md transition active:scale-95 disabled:opacity-40",
-              poseFrozen
-                ? "border-cyan-300/55 bg-cyan-400 text-slate-950"
-                : "border-white/20 bg-slate-950/70 text-slate-100",
-            )}
-          >
-            <Snowflake className="h-5 w-5" strokeWidth={2.25} />
-          </button>
+          <div className="pointer-events-auto mb-0.5 flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSettingsOpen(true);
+                setPanelOpen(true);
+              }}
+              aria-label={isEnglish ? "Open settings" : "Abrir ajustes"}
+              className="flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-slate-950/70 text-slate-100 shadow-lg backdrop-blur-md transition hover:bg-white/10 active:scale-95"
+            >
+              <Settings2 className="h-5 w-5" strokeWidth={2.25} />
+            </button>
+            <button
+              type="button"
+              disabled={!connected}
+              onClick={() => setPoseFrozen(!poseFrozen)}
+              aria-label={poseFrozen ? "Desfreezar posição" : "Freezar posição"}
+              aria-pressed={poseFrozen}
+              className={cn(
+                "flex h-12 w-12 items-center justify-center rounded-full border shadow-lg backdrop-blur-md transition active:scale-95 disabled:opacity-40",
+                poseFrozen
+                  ? "border-cyan-300/55 bg-cyan-400 text-slate-950"
+                  : "border-white/20 bg-slate-950/70 text-slate-100",
+              )}
+            >
+              <Snowflake className="h-5 w-5" strokeWidth={2.25} />
+            </button>
+          </div>
         </div>
       </>
     );
@@ -212,14 +229,17 @@ export function ArSliceControls({
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setPanelOpen(false)}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-white/10 hover:text-white"
-              aria-label="Minimizar controles"
-            >
-              <ChevronDown className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <ArSliceOnboardingTrigger className="text-slate-400 hover:text-white hover:bg-white/10" />
+              <button
+                type="button"
+                onClick={() => setPanelOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-white/10 hover:text-white"
+                aria-label="Minimizar controles"
+              >
+                <ChevronDown className="h-4 w-4" />
+              </button>
+            </div>
           </header>
 
           <div className="max-h-[min(55vh,30rem)] space-y-3 overflow-y-auto p-4">
@@ -311,8 +331,13 @@ export function ArSliceControls({
 
             {usingDeviceMotion ? (
               <p className="rounded-lg border border-cyan-500/15 bg-cyan-500/5 px-3 py-2 text-[11px] leading-relaxed text-cyan-100">
-                CoreMotion orienta o aro e o ARKit estabiliza o deslocamento
-                linear. Use Zerar para definir a posição de referência.
+                {isEnglish
+                  ? isAndroid
+                    ? "Tilt the phone to aim the slice and push or pull to change depth. Tap Zero to set the reference position."
+                    : "Tilt the phone to aim the slice. Push or pull to change depth. Tap Zero to set the reference position."
+                  : isAndroid
+                    ? "Incline o celular para apontar o corte e empurre ou puxe para mudar a profundidade. Toque em Zerar para marcar a posição de referência."
+                    : "Incline o celular para apontar o corte. Empurre ou puxe para mudar a profundidade. Toque em Zerar para marcar a posição de referência."}
               </p>
             ) : (
               <Button
@@ -328,7 +353,11 @@ export function ArSliceControls({
               </Button>
             )}
 
-            <details className="group rounded-xl border border-white/8 bg-white/[0.03]">
+            <details
+              className="group rounded-xl border border-white/8 bg-white/[0.03]"
+              open={settingsOpen}
+              onToggle={(event) => setSettingsOpen(event.currentTarget.open)}
+            >
               <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-xs font-medium text-slate-300">
                 Ajustes da visualização
                 <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />

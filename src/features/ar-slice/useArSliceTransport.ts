@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { App as CapApp } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 import { isIPadDevice, isNativeApp } from "@/lib/capacitor";
 import { createBleCentral } from "@/features/ar-slice/ble/createBleCentral";
 import { connectCapacitorFrameSession } from "@/features/ar-slice/ble/connectFrameSession";
@@ -68,7 +69,7 @@ export function useArSliceTransport() {
 
     void (async () => {
       try {
-        if (isNativeApp) {
+        if (isNativeApp && Capacitor.getPlatform() === "ios") {
           // IMU stream uses ProgeniaArFrame CoreBluetooth. Eagerly initializing
           // @capacitor-community/bluetooth-le creates a second CBCentralManager
           // that can starve scans — seen as BLE timeout on iPad while iPhone works.
@@ -144,7 +145,7 @@ export function useArSliceTransport() {
   }, []);
 
   const startBleHandTracking = useCallback(async () => {
-    if (!isNativeApp || !bleHandTrackingEnabledRef.current) return;
+    if (Capacitor.getPlatform() !== "ios" || !bleHandTrackingEnabledRef.current) return;
     const client = handTrackingRef.current;
     if (!client) return;
     bleHandFusion.setEnabled(true);
@@ -309,7 +310,7 @@ export function useArSliceTransport() {
     }
 
     try {
-      if (!isNativeApp) {
+      if (!isNativeApp || Capacitor.getPlatform() === "android") {
         await connectCapacitorPath();
       } else if (isIPadDevice()) {
         await connectIPadHybridPath();
@@ -349,6 +350,9 @@ export function useArSliceTransport() {
     clearOrientationSub();
 
     setTransport("device-motion");
+    // Phone tilt is the orientation control. Do not also turn every tilt into
+    // slice depth; users can explicitly enable that behavior in Settings.
+    useArSliceStore.getState().setAutoSliceFromGravity(false);
     setError(null);
     setConnectStatus("Ativando sensores do aparelho…");
     setConnectionState("connecting");

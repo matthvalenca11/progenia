@@ -106,6 +106,7 @@ public class ProgeniaArFramePlugin: CAPPlugin, CAPBridgedPlugin {
     private var deviceMotionPosition = 0.0
     private var deviceMotionLastTimestamp = 0.0
     private var deviceMotionQuietSince = 0.0
+    private var deviceMotionTranslationResumeAt = 0.0
     private var deviceMotionGestureActive = false
     private var deviceMotionTrackingSession: ARSession?
     private var deviceMotionArBaseline: SIMD3<Float>?
@@ -874,6 +875,7 @@ public class ProgeniaArFramePlugin: CAPPlugin, CAPBridgedPlugin {
         deviceMotionPosition = 0
         deviceMotionLastTimestamp = 0
         deviceMotionQuietSince = 0
+        deviceMotionTranslationResumeAt = 0
         deviceMotionGestureActive = false
         deviceMotionArBaseline = nil
         deviceMotionArCommittedDepth = 0
@@ -1029,6 +1031,24 @@ public class ProgeniaArFramePlugin: CAPPlugin, CAPBridgedPlugin {
         deviceMotionLastTimestamp = timestamp
         guard dt > 0 else { return deviceMotionPosition }
 
+        // Turning creates acceleration transients without real translation.
+        // Ignore them and wait briefly for the device to settle before a
+        // push/pull gesture may move the slice again.
+        if gyroMagnitude >= 0.12 {
+            deviceMotionTranslationResumeAt = timestamp + 0.25
+            deviceMotionVelocity = 0
+            deviceMotionGestureActive = false
+            deviceMotionAccelFiltered = SIMD3<Double>(repeating: 0)
+            deviceMotionQuietSince = 0
+            return deviceMotionPosition
+        }
+        if timestamp < deviceMotionTranslationResumeAt {
+            deviceMotionVelocity = 0
+            deviceMotionGestureActive = false
+            deviceMotionAccelFiltered = SIMD3<Double>(repeating: 0)
+            return deviceMotionPosition
+        }
+
         var unbiased = acceleration - deviceMotionBias
         let accelMagnitude = simd_length(unbiased)
         let quietCandidate = gyroMagnitude < 0.08 && accelMagnitude < 0.045
@@ -1066,17 +1086,10 @@ public class ProgeniaArFramePlugin: CAPPlugin, CAPBridgedPlugin {
         }
         if abs(a) < 0.022 { a = 0 }
 
-        // Rotation is orientation input, not linear push/pull.
-        if gyroMagnitude > 1.10 {
-            deviceMotionVelocity = 0
-            deviceMotionGestureActive = false
-            return deviceMotionPosition
-        }
-
         // Require a clear impulse to start. This prevents idle noise from ever
         // entering the double integrator, while preserving small motion once active.
         if !deviceMotionGestureActive {
-            guard abs(a) >= 0.045 else { return deviceMotionPosition }
+            guard abs(a) >= 0.16 else { return deviceMotionPosition }
             deviceMotionGestureActive = true
         }
 
@@ -1099,14 +1112,14 @@ public class ProgeniaArFramePlugin: CAPPlugin, CAPBridgedPlugin {
         }
 
         deviceMotionVelocity = min(0.90, max(-0.90, deviceMotionVelocity))
-        // Phone gestures are shorter than frame gestures; amplify after the
-        // physical integration instead of lowering the noise threshold.
-        deviceMotionPosition += deviceMotionVelocity * dt * 4.0
-        if deviceMotionPosition > 0.30 {
-            deviceMotionPosition = 0.30
+        // A phone IMU is noisier than the dedicated probe. Keep push/pull
+        // deliberately conservative so an idle device never drifts the slice.
+        deviceMotionPosition += deviceMotionVelocity * dt * 1.5
+        if deviceMotionPosition > 0.15 {
+            deviceMotionPosition = 0.15
             deviceMotionVelocity = 0
-        } else if deviceMotionPosition < -0.30 {
-            deviceMotionPosition = -0.30
+        } else if deviceMotionPosition < -0.15 {
+            deviceMotionPosition = -0.15
             deviceMotionVelocity = 0
         }
         return deviceMotionPosition

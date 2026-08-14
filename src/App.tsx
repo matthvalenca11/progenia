@@ -225,12 +225,11 @@ const AppContent = () => {
         </div>
       </main>
 
-      {/* Tutor de IA disponível também no mobile */}
-      {shouldShowAITutor && <AITutor />}
-      {/* Hide the cookie FAB on fullscreen labs — it collides with lab thumb controls. */}
-      {!isImmersiveLabRoute && (
-        <CookiePreferencesButton shiftUpForAiTutorFab={shouldShowAITutor} />
+      {/* Tutor de IA + cookies empilhados no canto inferior direito (cookies abaixo). */}
+      {shouldShowAITutor && (
+        <AITutor stackCookieBelow={!isImmersiveLabRoute} />
       )}
+      {!shouldShowAITutor && !isImmersiveLabRoute && <CookiePreferencesButton />}
       <CookieBanner />
       <CookiePreferencesDialog />
     </div>

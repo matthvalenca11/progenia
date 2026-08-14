@@ -11,10 +11,12 @@ import {
   frameCutBasis,
   frameFrontNormal,
   gravityInFrame,
+  quatFromAxisAngle,
   quatConjugate,
   quatMultiply,
   quatNormalize,
   quatSlerp,
+  quatSwingTwist,
   resetSlicePitchZero,
   suggestMountPresetFromFlatGravity,
 } from "@/features/ar-slice/poseMath";
@@ -47,27 +49,49 @@ const PREFS_MOUNT = "ar-slice:mountPreset";
 const PREFS_DEPTH = "ar-slice:depthOffset";
 const PREFS_LINEAR_GAIN = "ar-slice:linearGestureGain";
 const PREFS_INVERT_LINEAR = "ar-slice:invertLinearDepth";
-const SQRT_HALF = Math.SQRT1_2;
-/** Phone screen normal pitched 90° backward relative to the BLE frame default. */
+/**
+ * Portrait phone axes mapped to the cutting ring:
+ * phone X (side tilt) → scene X, phone Y (front/back tilt) → scene Z,
+ * phone Z (screen roll) → in-plane spin. This keeps both tilt directions
+ * affecting the cut normal instead of turning front/back into left/right.
+ */
 const DEVICE_MOTION_DISPLAY_CORRECTION: Quaternion = {
-  w: SQRT_HALF,
-  x: -SQRT_HALF,
+  w: 0.5,
+  x: -0.5,
+  y: -0.5,
+  z: -0.5,
+};
+/** Neutral cut: slightly elevated and angled toward the viewer. */
+const DEVICE_MOTION_DEFAULT_VIEW_OFFSET: Quaternion = {
+  w: 0.98480775,
+  x: 0.17364818,
   y: 0,
   z: 0,
 };
 let deviceMotionOrientationZero: Quaternion | null = null;
 
 function deviceMotionDisplay(qImu: Quaternion) {
-  if (!deviceMotionOrientationZero) {
-    return { ...DEVICE_MOTION_DISPLAY_CORRECTION };
-  }
-  const deltaImu = quatMultiply(
-    quatConjugate(deviceMotionOrientationZero),
-    quatNormalize(qImu),
+  const deltaImu = deviceMotionOrientationZero
+    ? quatMultiply(
+        quatConjugate(deviceMotionOrientationZero),
+        quatNormalize(qImu),
+      )
+    : IDENTITY_QUAT;
+  // The correction remaps the phone's portrait axes into the cutting-ring axes.
+  const baseDisplay = quatMultiply(DEVICE_MOTION_DISPLAY_CORRECTION, deltaImu);
+  // A tablet's left/right lean is commonly a roll around its screen normal.
+  // A circular cut otherwise hides that motion because it is an in-plane spin.
+  // Make this gesture visibly tilt the ring around the scene's forward axis.
+  const { twist } = quatSwingTwist(deltaImu, { x: 0, y: 0, z: 1 });
+  const screenRoll = Math.atan2(
+    2 * (twist.w * twist.z),
+    1 - 2 * twist.z * twist.z,
   );
-  // CoreMotion's relative attitude already follows the physical phone motion.
-  // Conjugating here inverted front/back and left/right.
-  return quatMultiply(deltaImu, DEVICE_MOTION_DISPLAY_CORRECTION);
+  const tabletDisplay = quatMultiply(
+    quatFromAxisAngle({ x: 0, y: 0, z: 1 }, screenRoll),
+    baseDisplay,
+  );
+  return quatMultiply(DEVICE_MOTION_DEFAULT_VIEW_OFFSET, tabletDisplay);
 }
 
 /** Mutable hot path — read from useFrame without React re-renders. */
@@ -539,7 +563,9 @@ export const useArSliceStore = create<ArSliceState>((set, get) => ({
         get().linearGestureGain,
         AR_SLICE_IMU.linearGestureMaxMeters,
         performance.now(),
-        AR_SLICE_IMU.linearGestureDeadbandMeters,
+        transport === "device-motion"
+          ? AR_SLICE_IMU.deviceLinearGestureDeadbandMeters
+          : AR_SLICE_IMU.linearGestureDeadbandMeters,
       )
     ) {
       set({ linearGestureAt: performance.now() });

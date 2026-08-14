@@ -13,7 +13,21 @@ export type DetectRectangleResult = {
   source?: "vision" | "arkit" | "hand";
 };
 
-export type FrameOrientationSample = { w: number; x: number; y: number; z: number };
+export type FrameOrientationSample = {
+  w: number;
+  x: number;
+  y: number;
+  z: number;
+  seq?: number;
+  gravity?: { x: number; y: number; z: number };
+  calibration?: {
+    accelAccuracy: 0 | 1 | 2 | 3;
+    gyroAccuracy: 0 | 1 | 2 | 3;
+    stationary: boolean;
+    calibrationReady: boolean;
+  };
+  translationPosition?: number;
+};
 
 export interface ProgeniaArFramePlugin {
   startMixedReality(): Promise<{ ok: boolean; mode: string }>;
