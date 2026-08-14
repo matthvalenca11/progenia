@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
@@ -161,6 +161,7 @@ const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
   const [loading, setLoading] = useState(false);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [fabPortalReady, setFabPortalReady] = useState(false);
   const guidedOpenRef = useRef(false);
   const sendingRef = useRef(false);
@@ -170,9 +171,25 @@ const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
     setFabPortalReady(true);
   }, []);
 
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages]);
+  const scrollToBottom = () => {
+    const viewport = scrollRef.current?.querySelector<HTMLElement>("[data-radix-scroll-area-viewport]");
+    if (viewport) {
+      viewport.scrollTop = viewport.scrollHeight;
+      return;
+    }
+    messagesEndRef.current?.scrollIntoView({ block: "end" });
+  };
+
+  useLayoutEffect(() => {
+    if (!isOpen || isMinimized) return;
+    scrollToBottom();
+    const frame = window.requestAnimationFrame(scrollToBottom);
+    const timeout = window.setTimeout(scrollToBottom, 80);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+    };
+  }, [messages, loading, isOpen, isMinimized]);
 
   const fetchCatalog = async () => {
     try {
@@ -662,6 +679,7 @@ const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
                   </div>
                 </div>
               )}
+              <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
 
