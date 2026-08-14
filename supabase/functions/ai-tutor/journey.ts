@@ -56,14 +56,9 @@ export function composeGuideReply(
   const { lessonsDone, capsulasDone, labsTried, enrolledCount, streakDays } = journey.summary;
 
   if (journey.isGuest) {
-    const guestNext = next
-      ? en
-        ? `A good place to start is [${next.title}](${next.path}).`
-        : `Um bom começo é [${next.title}](${next.path}).`
-      : "";
     return en
-      ? `${hello} Sign in so I can follow your path. Meanwhile, try a short capsule or a virtual lab.\n\n${guestNext}`
-      : `${hello} Entre na sua conta para eu acompanhar sua trilha. Enquanto isso, experimente uma cápsula ou um laboratório virtual.\n\n${guestNext}`;
+      ? `${hello} Sign in so I can follow your path. Meanwhile, try a short capsule or a virtual lab.`
+      : `${hello} Entre na sua conta para eu acompanhar sua trilha. Enquanto isso, experimente uma cápsula ou um laboratório virtual.`;
   }
 
   if (!next) {
@@ -72,31 +67,24 @@ export function composeGuideReply(
       : `${hello} Posso te indicar um módulo, uma cápsula ou um laboratório. O que você quer aprender agora?`;
   }
 
-  const second = extra
-    ? en
-      ? ` If you want something more practical, try [${extra.title}](${extra.path}).`
-      : ` Se quiser algo mais prático, experimente [${extra.title}](${extra.path}).`
-    : "";
-
   if (intent === "progress") {
     const streak = streakDays > 0
       ? en ? ` Streak: ${streakDays} day(s).` : ` Sequência: ${streakDays} dia(s).`
       : "";
     return en
-      ? `${hello} You have finished ${lessonsDone} lesson(s) and ${capsulasDone} capsule(s), tried ${labsTried} lab(s), and enrolled in ${enrolledCount} module(s).${streak} Next: [${next.title}](${next.path}).${second}`
-      : `${hello} Você já concluiu ${lessonsDone} aula(s) e ${capsulasDone} cápsula(s), experimentou ${labsTried} lab(s) e está em ${enrolledCount} módulo(s).${streak} Próximo passo: [${next.title}](${next.path}).${second}`;
+      ? `${hello} You have finished ${lessonsDone} lesson(s) and ${capsulasDone} capsule(s), tried ${labsTried} lab(s), and enrolled in ${enrolledCount} module(s).${streak} The next step is below.`
+      : `${hello} Você já concluiu ${lessonsDone} aula(s) e ${capsulasDone} cápsula(s), experimentou ${labsTried} lab(s) e está em ${enrolledCount} módulo(s).${streak} O próximo passo está abaixo.`;
   }
 
   if (intent === "explore") {
-    const lab = journey.suggestions.find((item) => item.kind === "lab") || next;
     return en
-      ? `${hello} To try something new, open [${lab.title}](${lab.path}). It is a practical way to keep moving on the platform.`
-      : `${hello} Para experimentar algo novo, abra [${lab.title}](${lab.path}). É um jeito prático de avançar na plataforma.`;
+      ? `${hello} Here is something new to try. It is a practical way to keep moving on the platform.`
+      : `${hello} Aqui vai algo novo para experimentar. É um jeito prático de avançar na plataforma.`;
   }
 
   return en
-    ? `${hello} Based on what you already did, the next step is [${next.title}](${next.path}).${second}`
-    : `${hello} Pelo que você já fez, o próximo passo é [${next.title}](${next.path}).${second}`;
+    ? `${hello} Based on what you already did, the next step is below.${extra ? " I also left a more practical option." : ""}`
+    : `${hello} Pelo que você já fez, o próximo passo está abaixo.${extra ? " Também deixei uma opção mais prática." : ""}`;
 }
 
 export type TutorNudge = TutorSuggestion & { prompt: string };

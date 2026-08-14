@@ -141,6 +141,95 @@ function suggestionIcon(kind?: string) {
   return Route;
 }
 
+function kindFromPath(path: string): NonNullable<TutorSuggestion["kind"]> {
+  const normalized = normalizePath(path);
+  if (normalized.startsWith("/labs/") || normalized.startsWith("/lab/")) return "lab";
+  if (normalized.startsWith("/capsula")) return "capsula";
+  if (normalized.startsWith("/module")) return "module";
+  return "lesson";
+}
+
+const PROGENIA_MD_LINK_RE = /\[([^\]]+)\]\(\s*(\/?(?:capsula|lesson|labs?|module)\/[^)\s]+)\s*\)/gi;
+
+function extractTutorPresentation(content: string, extras?: TutorSuggestion[]) {
+  const actions: TutorSuggestion[] = [];
+  const seen = new Set<string>();
+
+  const add = (item: TutorSuggestion) => {
+    const path = normalizePath(item.path);
+    if (!isProGeniaLink(path) || seen.has(path)) return;
+    seen.add(path);
+    actions.push({
+      title: cleanLinkDisplayText(item.title) || item.title,
+      path,
+      kind: item.kind || kindFromPath(path),
+      reason: item.reason,
+    });
+  };
+
+  for (const item of extras || []) add(item);
+
+  let prose = content.replace(PROGENIA_MD_LINK_RE, (_match, label, path) => {
+    add({ title: String(label), path: String(path), kind: kindFromPath(path) });
+    return "";
+  });
+
+  prose = prose
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/([.!?])\s*\1+/g, "$1")
+    .replace(/\s+\./g, ".")
+    .replace(/\bé\s*\./gi, "está abaixo.")
+    .replace(/\bis\s*\./gi, "is below.")
+    .replace(/\bexperimente\s*\./gi, "experimente uma destas opções.")
+    .replace(/\btry\s*\./gi, "try one of these.")
+    .replace(/\babra\s*\./gi, "veja as opções abaixo.")
+    .replace(/\bopen\s*\./gi, "see the options below.")
+    .replace(/\bé\s*$/i, "está abaixo.")
+    .replace(/\bis\s*$/i, "is below.")
+    .trim();
+
+  return { prose, actions: actions.slice(0, 3) };
+}
+
+function TutorActionCards({
+  items,
+  onOpen,
+}: {
+  items: TutorSuggestion[];
+  onOpen: (path: string) => void;
+}) {
+  if (!items.length) return null;
+  return (
+    <div className="mt-3 flex flex-col gap-2 not-prose">
+      {items.map((item) => {
+        const Icon = suggestionIcon(item.kind);
+        return (
+          <button
+            key={item.path}
+            type="button"
+            onClick={() => onOpen(item.path)}
+            className="group flex w-full items-center gap-3 rounded-xl border border-border/80 bg-background px-3 py-2.5 text-left shadow-sm transition-colors hover:border-primary/40 hover:bg-primary/5"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Icon className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium leading-snug text-foreground">{item.title}</span>
+              {item.reason ? (
+                <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">{item.reason}</span>
+              ) : null}
+            </span>
+            <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /** Cookie FAB (h-9) + gap below the tutor pill. */
 type AITutorProps = {
   /** Empilha cookies abaixo do tutor no canto inferior direito. */
@@ -595,73 +684,44 @@ const AITutor = ({ stackCookieBelow = false }: AITutorProps) => {
                   }`}
                 >
                   <div
-                    className={`max-w-[82%] rounded-lg ${isMobile ? "px-3 py-2" : "px-4 py-2"} ${
+                    className={`max-w-[94%] rounded-2xl ${isMobile ? "px-3.5 py-3" : "px-4 py-3"} ${
                       message.role === "user"
                         ? "bg-primary text-primary-foreground"
-                        : "bg-orange-50 text-orange-900 border border-orange-200/70 dark:bg-orange-950/25 dark:text-orange-200 dark:border-orange-800/60"
+                        : "bg-muted/50 text-foreground border border-border/70 dark:bg-muted/30"
                     }`}
                   >
                     {message.role === "assistant" ? (
-                      <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-a:no-underline">
-                        <ReactMarkdown
-                          components={{
-                            a: ({ href, children }) => {
-                              const path = href ? normalizePath(href) : "";
-                              if (!path) return <span>{children}</span>;
-                              const rawText = typeof children === "string" ? children : (Array.isArray(children) ? children.map((c: any) => typeof c === "string" ? c : c?.props?.children ?? "").join("") : String(children ?? ""));
-                              const displayText = cleanLinkDisplayText(rawText) || rawText;
-                              if (isProGeniaLink(path)) {
-                                return (
-                                  <button
-                                    type="button"
-                                    onClick={() => openSuggestion(path)}
-                                    className="mt-2 inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 transition-colors text-left"
-                                  >
-                                    <BookOpen className="h-4 w-4 flex-shrink-0" />
-                                    <span>{displayText}</span>
-                                    <ArrowRight className="h-3.5 w-3.5 flex-shrink-0" />
-                                  </button>
-                                );
-                              }
-                              return (
-                                <a href={path} target="_blank" rel="noopener noreferrer" className="text-primary underline">
-                                  {children}
-                                </a>
-                              );
-                            },
-                          }}
-                        >
-                          {catalog ? fixProGeniaLinks(message.content, catalog) : message.content}
-                        </ReactMarkdown>
-                        {message.suggestions?.filter((item) => !message.content.includes(item.path)).length ? (
-                          <div className="mt-2 flex flex-col gap-1.5 not-prose">
-                            {message.suggestions
-                              .filter((item) => !message.content.includes(item.path))
-                              .slice(0, 2)
-                              .map((item) => {
-                                const Icon = suggestionIcon(item.kind);
-                                return (
-                                  <button
-                                    key={item.path}
-                                    type="button"
-                                    onClick={() => openSuggestion(item.path)}
-                                    className="inline-flex items-start gap-2 rounded-lg border border-primary/20 bg-white/70 px-2.5 py-2 text-left text-xs text-primary hover:bg-primary/10 dark:bg-background/40"
-                                  >
-                                    <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                                    <span>
-                                      <span className="font-medium">{item.title}</span>
-                                      {item.reason ? (
-                                        <span className="mt-0.5 block font-normal text-[11px] text-muted-foreground">
-                                          {item.reason}
-                                        </span>
-                                      ) : null}
-                                    </span>
-                                  </button>
-                                );
-                              })}
+                      (() => {
+                        const source = catalog ? fixProGeniaLinks(message.content, catalog) : message.content;
+                        const { prose, actions } = extractTutorPresentation(source, message.suggestions);
+                        return (
+                          <div className="text-sm leading-relaxed">
+                            {prose ? (
+                              <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0 prose-a:text-primary">
+                                <ReactMarkdown
+                                  components={{
+                                    a: ({ href, children }) => {
+                                      const path = href ? normalizePath(href) : "";
+                                      if (!path) return <span>{children}</span>;
+                                      if (isProGeniaLink(path)) {
+                                        return <span className="font-medium">{children}</span>;
+                                      }
+                                      return (
+                                        <a href={path} target="_blank" rel="noopener noreferrer" className="underline">
+                                          {children}
+                                        </a>
+                                      );
+                                    },
+                                  }}
+                                >
+                                  {prose}
+                                </ReactMarkdown>
+                              </div>
+                            ) : null}
+                            <TutorActionCards items={actions} onOpen={openSuggestion} />
                           </div>
-                        ) : null}
-                      </div>
+                        );
+                      })()
                     ) : (
                       <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                     )}

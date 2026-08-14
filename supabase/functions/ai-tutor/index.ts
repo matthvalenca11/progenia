@@ -7,10 +7,10 @@ const BASE_PROMPT =
   "Você é o guia de aprendizagem da ProGenia, não um FAQ passivo. Ajude o aluno a caminhar na trilha: o que já fez, o que falta e o que experimentar agora. " +
   "REGRAS: (1) Seja direto, humano e curto (2–4 frases). (2) Use a seção TRILHA DO ALUNO como verdade. Nunca invente progresso, notas ou conteúdos. " +
   "(3) Em cumprimentos, 'o que fazer agora', progresso ou quando o aluno parecer perdido, comece pelo próximo passo concreto. Não pergunte 'como posso ajudar?' se você já sabe o próximo passo. " +
-  "(4) Sempre que indicar conteúdo, use Markdown [Título](/caminho) com IDs/slugs EXATOS do catálogo ou da trilha. Aulas=/lesson/ID. Cápsulas=/capsula/ID. Labs=/labs/SLUG. Módulos=/module/ID. " +
-  "(5) MATRÍCULA: se a aula for de um módulo em que o aluno não está matriculado, sugira o módulo, não a aula. Cápsulas e labs podem ser sugeridos direto. " +
-  "(6) Prefira os 'Próximos passos calculados' da trilha. Inclua 1–2 desses links. " +
-  "(7) Se a pergunta for de conteúdo clínico/técnico, responda e feche com o próximo passo na plataforma. " +
+  "(4) NÃO coloque links markdown no meio das frases e NÃO recorte a frase com URLs. Fale naturalmente. Os botões de sugestão são gerados à parte com os 'Próximos passos calculados'. " +
+  "(5) MATRÍCULA: se a aula for de um módulo em que o aluno não está matriculado, sugira o módulo no texto, não a aula. Cápsulas e labs podem ser sugeridos direto. " +
+  "(6) Prefira os 'Próximos passos calculados' da trilha. Cite o tema em uma frase, sem o título longo no meio do texto. " +
+  "(7) Se a pergunta for de conteúdo clínico/técnico, responda e feche com o próximo passo na plataforma, sem link no meio da frase. " +
   "(8) Se não houver base na ProGenia, diga isso em uma frase e ofereça o conteúdo mais próximo da trilha. " +
   "(9) Evidência externa é só apoio educacional, nunca prescrição. Preserve links PubMed quando existirem. " +
   "(10) Não invente seções longas. Não recite o catálogo inteiro.";
@@ -139,13 +139,6 @@ function looksLikeGuideIntent(message: string, intent?: string) {
     text.includes("what should i") ||
     text.includes("next step") ||
     text.includes("my progress");
-}
-
-function ensureJourneyLinks(text: string, suggestions: { title: string; path: string }[]) {
-  if (!suggestions.length) return text;
-  if (suggestions.some((item) => text.includes(item.path))) return text;
-  const links = suggestions.slice(0, 2).map((item) => `[${item.title}](${item.path})`).join("\n");
-  return `${text.trim()}\n\n${links}`;
 }
 
 interface Catalog {
@@ -629,7 +622,7 @@ serve(async (req) => {
     }
 
     if (!GROQ_API_KEY) {
-      const fallback = ensureJourneyLinks(composeGuideReply(journey, lang, intent), journey.suggestions);
+      const fallback = composeGuideReply(journey, lang, intent);
       return new Response(
         JSON.stringify({
           response: fallback,
@@ -661,7 +654,7 @@ serve(async (req) => {
 
     const groq = await completeWithGroq(GROQ_API_KEY, messages);
     if (!groq.ok) {
-      const fallback = ensureJourneyLinks(composeGuideReply(journey, lang, intent), journey.suggestions);
+      const fallback = composeGuideReply(journey, lang, intent);
       return new Response(
         JSON.stringify({
           response: fallback,
@@ -682,9 +675,6 @@ serve(async (req) => {
     const catalog = await fetchCatalog(supabase);
     text = fixProGeniaLinks(text, catalog);
     text = ensureEvidenceReferences(text, evidenceContext);
-    if (guideIntent) {
-      text = ensureJourneyLinks(text, journey.suggestions);
-    }
 
     return new Response(
       JSON.stringify({
