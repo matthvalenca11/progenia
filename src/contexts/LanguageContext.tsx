@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Preferences } from "@capacitor/preferences";
 import { isNativeMobile } from "@/lib/capacitor";
 import { readPersistedAppLanguage } from "@/lib/nativeLanguageOnboarding";
@@ -57,6 +57,17 @@ const looksTranslatable = (text: string) => {
   if (/^[\d\s()[\]{}.,:;!@#$%^&*_\-+=/\\|'"`~<>?]+$/.test(trimmed)) return false;
   return /[A-Za-zÀ-ÿ]/.test(trimmed);
 };
+const maskUntranslated = (text: string) => text.replace(/\S/g, "\u00A0");
+const loadTranslationCacheSync = () => {
+  try {
+    const raw = localStorage.getItem(TRANSLATION_CACHE_KEY);
+    if (!raw) return new Map<string, string>();
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    return new Map(Object.entries(parsed));
+  } catch {
+    return new Map<string, string>();
+  }
+};
 const normalizeText = (text: string) =>
   text
     .split("\n")
@@ -67,6 +78,13 @@ const normalizeText = (text: string) =>
 const stripDiacritics = (text: string) =>
   text.normalize("NFD").replace(/\p{Diacritic}/gu, "");
 const normalizeLookupKey = (text: string) => stripDiacritics(normalizeText(text).toLowerCase());
+const PT_SOURCE_HINT =
+  /\b(entrar|sair|voltar|aulas|aula|capsulas|capsula|modulos|modulo|comecar|sobre|perfil|salvar|enviar|buscar|filtrar|concluir|progresso|trilha|laboratorio|inicio|conteudo|continuar|abrir|fechar|proximo|anterior|carregando|cadastrar|obrigado|voce|nao|minha|meu|nossos|bem-vindo|painel|conta|senha|glossario|explorar|experimentar|matricula|concluido)\b/i;
+const looksLikePortugueseSource = (text: string) => {
+  if (/[áàâãéêíóôõúçÁÀÂÃÉÊÍÓÔÕÚÇ]/.test(text)) return true;
+  if (FORCED_PT_EN_OVERRIDES[normalizeLookupKey(text)]) return true;
+  return PT_SOURCE_HINT.test(stripDiacritics(text));
+};
 const preserveEdgeWhitespace = (original: string, translated: string) => {
   const leading = original.match(/^\s*/)?.[0] ?? "";
   const trailing = original.match(/\s*$/)?.[0] ?? "";
@@ -76,7 +94,9 @@ const preserveEdgeWhitespace = (original: string, translated: string) => {
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
-    return saved === "en" ? "en" : "pt";
+    const lang: Language = saved === "en" ? "en" : "pt";
+    document.documentElement.lang = lang === "en" ? "en" : "pt-BR";
+    return lang;
   });
   const [languageHydrated, setLanguageHydrated] = useState(!isNativeMobile);
 
@@ -93,24 +113,17 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const cacheRef = useRef<Map<string, string>>(new Map());
+  const cacheRef = useRef<Map<string, string>>(loadTranslationCacheSync());
+  const languageRef = useRef(language);
+  languageRef.current = language;
   const originalTextByNodeRef = useRef<Map<Text, string>>(new Map());
   const originalAttributesRef = useRef<WeakMap<Element, Map<string, string>>>(new WeakMap());
   const trackedAttributeElementsRef = useRef<Set<Element>>(new Set());
   const pendingTextsRef = useRef<Set<string>>(new Set());
   const debounceTimerRef = useRef<number | null>(null);
+  const rafTimerRef = useRef<number | null>(null);
   const observerRef = useRef<MutationObserver | null>(null);
-
-  useEffect(() => {
-    const raw = localStorage.getItem(TRANSLATION_CACHE_KEY);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw) as Record<string, string>;
-      cacheRef.current = new Map(Object.entries(parsed));
-    } catch {
-      cacheRef.current = new Map();
-    }
-  }, []);
+  const applyingRef = useRef(false);
 
   useEffect(() => {
     if (!languageHydrated) return;
@@ -140,7 +153,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getCachedTranslation = (text: string) => {
-    if (language === "en") {
+    if (languageRef.current === "en") {
       const forced = FORCED_PT_EN_OVERRIDES[normalizeLookupKey(text)];
       if (forced) {
         cacheRef.current.set(text, forced);
@@ -280,11 +293,17 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     return data.translations as Record<string, string>;
   };
 
-  const processTranslations = async (
+  const applyKnownTranslations = (
     nodes: Text[],
     attributes: Array<{ element: Element; attr: string; value: string }>,
   ) => {
     const toTranslate: string[] = [];
+    const queue = (original: string) => {
+      if (!pendingTextsRef.current.has(original)) {
+        pendingTextsRef.current.add(original);
+        toTranslate.push(original);
+      }
+    };
 
     for (const node of nodes) {
       const original = originalTextByNodeRef.current.get(node) ?? node.data;
@@ -293,10 +312,15 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         applyTranslationToNode(node, preserveEdgeWhitespace(original, cached));
         continue;
       }
-      if (!pendingTextsRef.current.has(original)) {
-        pendingTextsRef.current.add(original);
-        toTranslate.push(original);
+      if (looksLikePortugueseSource(original)) {
+        if (!originalTextByNodeRef.current.has(node)) {
+          originalTextByNodeRef.current.set(node, original);
+        }
+        if (node.data === original) {
+          node.data = maskUntranslated(original);
+        }
       }
+      queue(original);
     }
 
     for (const target of attributes) {
@@ -307,24 +331,57 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         applyTranslationToAttribute(target.element, target.attr, cached);
         continue;
       }
-      if (!pendingTextsRef.current.has(original)) {
-        pendingTextsRef.current.add(original);
-        toTranslate.push(original);
+      if (looksLikePortugueseSource(original)) {
+        applyTranslationToAttribute(target.element, target.attr, "");
       }
+      queue(original);
     }
 
-    if (!toTranslate.length) return;
+    return toTranslate;
+  };
+
+  const paintKnownTranslations = () => {
+    if (languageRef.current !== "en" || typeof document === "undefined" || !document.body) {
+      return [] as string[];
+    }
+    return applyKnownTranslations(collectTextNodes(document.body), collectAttributeTargets(document.body));
+  };
+
+  const refreshTranslatedDom = () => {
+    applyingRef.current = true;
+    try {
+      for (const [node, original] of originalTextByNodeRef.current.entries()) {
+        if (!node.isConnected) continue;
+        const cached = getCachedTranslation(original);
+        if (cached) {
+          applyTranslationToNode(node, preserveEdgeWhitespace(original, cached));
+        }
+      }
+      for (const element of trackedAttributeElementsRef.current) {
+        const attrMap = originalAttributesRef.current.get(element);
+        if (!attrMap || !element.isConnected) continue;
+        for (const [attr, original] of attrMap.entries()) {
+          const cached = getCachedTranslation(original);
+          if (cached) applyTranslationToAttribute(element, attr, cached);
+        }
+      }
+      paintKnownTranslations();
+    } finally {
+      applyingRef.current = false;
+    }
+  };
+
+  const fetchPendingTranslations = async (texts: string[]) => {
+    if (!texts.length || languageRef.current !== "en") return;
 
     const chunkSize = 50;
-    for (let i = 0; i < toTranslate.length; i += chunkSize) {
-      const chunk = toTranslate.slice(i, i + chunkSize);
+    for (let i = 0; i < texts.length; i += chunkSize) {
+      const chunk = texts.slice(i, i + chunkSize);
       const translated = await translateBatch(chunk);
       for (const original of chunk) {
         pendingTextsRef.current.delete(original);
         const normalizedOriginal = normalizeText(original);
         const translatedText = translated[original] || translated[normalizedOriginal];
-        // So salva no cache quando a API realmente retorna uma traducao para o texto.
-        // Evita "congelar" um item em PT quando houve miss pontual no lote.
         if (translatedText) {
           const repaired = restoreProtectedAcronyms(original, translatedText);
           cacheRef.current.set(original, repaired);
@@ -336,34 +393,43 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     }
 
     flushCacheToStorage();
+    refreshTranslatedDom();
+  };
 
-    const refreshNodes = collectTextNodes(document.body);
-    for (const node of refreshNodes) {
-      const original = originalTextByNodeRef.current.get(node) ?? node.data;
-      const cached = getCachedTranslation(original);
-      if (cached) {
-        applyTranslationToNode(node, preserveEdgeWhitespace(original, cached));
-      }
+  const scheduleApiTranslation = (texts: string[]) => {
+    if (!texts.length) return;
+    if (debounceTimerRef.current) {
+      window.clearTimeout(debounceTimerRef.current);
     }
+    debounceTimerRef.current = window.setTimeout(() => {
+      debounceTimerRef.current = null;
+      const pending = Array.from(pendingTextsRef.current);
+      void fetchPendingTranslations(pending);
+    }, 80);
+  };
 
-    const refreshAttributes = collectAttributeTargets(document.body);
-    for (const target of refreshAttributes) {
-      const attrMap = originalAttributesRef.current.get(target.element);
-      const original = attrMap?.get(target.attr) ?? target.value;
-      const cached = getCachedTranslation(original);
-      if (cached) {
-        applyTranslationToAttribute(target.element, target.attr, cached);
-      }
+  const runTranslationPass = () => {
+    applyingRef.current = true;
+    try {
+      const queued = paintKnownTranslations();
+      scheduleApiTranslation(queued);
+    } finally {
+      applyingRef.current = false;
     }
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (language !== "en") {
       if (observerRef.current) {
         observerRef.current.disconnect();
         observerRef.current = null;
       }
+      if (rafTimerRef.current != null) {
+        window.cancelAnimationFrame(rafTimerRef.current);
+        rafTimerRef.current = null;
+      }
 
+      applyingRef.current = true;
       for (const [node, original] of originalTextByNodeRef.current.entries()) {
         if (node.isConnected) {
           node.data = original;
@@ -379,19 +445,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         }
       }
       trackedAttributeElementsRef.current.clear();
+      applyingRef.current = false;
       return;
     }
 
-    const runTranslation = () => {
-      const nodes = collectTextNodes(document.body);
-      const attributes = collectAttributeTargets(document.body);
-      void processTranslations(nodes, attributes);
-    };
-
     const handleGlossaryUpdated = () => {
-      // Reaplica o tradutor a partir do texto original (PT).
-      // Sem isso, o DOM já pode estar com o valor traduzido antigo (ex.: "To Go out")
-      // e o motor passa a traduzir o texto traduzido.
       for (const [node, original] of originalTextByNodeRef.current.entries()) {
         if (node.isConnected) {
           node.data = original;
@@ -406,7 +464,6 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Limpa caches locais para garantir que a tradução atual reflita o glossário atualizado.
       cacheRef.current.clear();
       pendingTextsRef.current.clear();
       try {
@@ -415,30 +472,27 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         // ignore
       }
 
-      runTranslation();
+      runTranslationPass();
     };
 
-    runTranslation();
+    runTranslationPass();
 
     observerRef.current = new MutationObserver(() => {
-      if (debounceTimerRef.current) {
-        window.clearTimeout(debounceTimerRef.current);
-      }
-      debounceTimerRef.current = window.setTimeout(() => {
-        runTranslation();
-      }, 250);
+      if (applyingRef.current) return;
+      if (rafTimerRef.current != null) return;
+      rafTimerRef.current = window.requestAnimationFrame(() => {
+        rafTimerRef.current = null;
+        runTranslationPass();
+      });
     });
 
     observerRef.current.observe(document.body, {
       childList: true,
       subtree: true,
       characterData: true,
-      // Garante tradução automática quando React/CMS atualizar atributos
-      // sem inserir/alterar nós de texto (ex.: `title`, `alt`, `placeholder`).
       attributes: true,
     });
 
-    // Permite que o glossário atualize traduções sem reload manual.
     window.addEventListener("progenia_translation_glossary_updated", handleGlossaryUpdated);
 
     return () => {
@@ -450,6 +504,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         window.clearTimeout(debounceTimerRef.current);
         debounceTimerRef.current = null;
       }
+      if (rafTimerRef.current != null) {
+        window.cancelAnimationFrame(rafTimerRef.current);
+        rafTimerRef.current = null;
+      }
 
       window.removeEventListener("progenia_translation_glossary_updated", handleGlossaryUpdated);
     };
@@ -457,13 +515,6 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const toggleLanguage = useCallback(() => {
     const next: Language = language === "pt" ? "en" : "pt";
-    try {
-      if (next === "en") {
-        localStorage.removeItem(TRANSLATION_CACHE_KEY);
-      }
-    } catch {
-      // ignore
-    }
     setLanguage(next);
     window.setTimeout(() => {
       window.location.reload();
