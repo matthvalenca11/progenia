@@ -110,8 +110,8 @@ export function fitUltrasoundCanvasPixelSize(
   return { width, height };
 }
 
-/** Escala de renderização para viewers 2D de RM no app nativo. */
+/** Resolução de renderização para viewers 2D de MRI no app nativo. */
 export const mriNativeRenderScale = isNativeLabRuntime ? 0.5 : 1;
 
-/** Resolução do marching cubes 3D de RM no app nativo. */
+/** Resolução do marching cubes 3D de MRI no app nativo. */
 export const mriNativeSurfaceResolution = isNativeLabRuntime ? 48 : 96;

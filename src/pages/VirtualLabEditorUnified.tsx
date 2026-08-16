@@ -367,7 +367,7 @@ export default function VirtualLabEditorUnified() {
                   { value: "ultrasound", label: "Ultrassom", desc: "Simulador de imagem ultrassonográfica", icon: Waves },
                   { value: "tens", label: "TENS", desc: "Estimulação Elétrica Transcutânea", icon: Activity },
                   { value: "ultrasound_therapy", label: "Ultrassom Terapêutico", desc: "Simulador de ultrassom terapêutico com análise de penetração e aquecimento", icon: Thermometer },
-                  { value: "mri", label: "Ressonância Magnética", desc: "Simulador de MRI com visualização de magnetização e fatias", icon: Magnet },
+                  { value: "mri", label: "Imagem por RM (MRI)", desc: "Simulador de MRI: magnetização, sequências e fatias 2D/3D", icon: Magnet },
                   { value: "photobiomodulation", label: "Fotobiomodulação", desc: "Simulador de dose, penetração tecidual e zona Arndt-Schulz", icon: Sun },
                 ].map((type) => {
                   const Icon = type.icon;
@@ -619,7 +619,7 @@ export default function VirtualLabEditorUnified() {
                         id="name"
                         value={lab.name}
                         onChange={(e) => setLab({ ...lab, name: e.target.value })}
-                        placeholder="Ex: Ressonância Magnética - Princípios Físicos"
+                        placeholder="Ex: Diagnóstico por Imagem - Princípios Físicos"
                       />
                     </div>
                     <div>
@@ -628,7 +628,7 @@ export default function VirtualLabEditorUnified() {
                         id="slug"
                         value={lab.slug}
                         onChange={(e) => setLab({ ...lab, slug: e.target.value })}
-                        placeholder="Ex: ressonancia-magnetica"
+                        placeholder="Ex: diagnostico-por-imagem"
                       />
                       <p className="mt-1 text-xs text-muted-foreground">
                         Será gerado automaticamente se deixar vazio
@@ -648,7 +648,7 @@ export default function VirtualLabEditorUnified() {
                   <div>
                     <Label>Tipo de Laboratório</Label>
                     <div className="mt-1 flex items-center gap-2">
-                      <span className="text-sm font-medium capitalize">Ressonância Magnética</span>
+                      <span className="text-sm font-medium capitalize">Imagem por RM (MRI)</span>
                       {!isEdit && (
                         <Button
                           variant="link"

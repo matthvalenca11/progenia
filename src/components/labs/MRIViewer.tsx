@@ -19,7 +19,7 @@ export const MRIViewer = ({ config }: MRIViewerProps) => {
     <div className="space-y-6">
       <div className="text-center">
         <h3 className="text-2xl font-bold mb-2">
-          {config.title || "Visualizador de Ressonância Magnética"}
+          {config.title || "Visualizador de Imagem por RM"}
         </h3>
         {config.description && (
           <p className="text-muted-foreground">{config.description}</p>
@@ -39,7 +39,7 @@ export const MRIViewer = ({ config }: MRIViewerProps) => {
             ) : (
               <div className="text-center text-white/50">
                 <p>Nenhuma imagem disponível</p>
-                <p className="text-sm mt-2">Configure as fatias de RM no admin</p>
+                <p className="text-sm mt-2">Configure as fatias de imagem no admin</p>
               </div>
             )}
           </div>

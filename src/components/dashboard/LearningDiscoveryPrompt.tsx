@@ -55,16 +55,16 @@ const LEARNING_TOPICS: LearningTopic[] = [
     ],
   },
   {
-    id: "ressonancia",
-    labelPt: "Ressonância magnética",
-    labelEn: "Magnetic resonance",
-    searchBase: "ressonância magnética",
+    id: "imagem-medica",
+    labelPt: "Diagnóstico por imagem",
+    labelEn: "Medical imaging",
+    searchBase: "diagnóstico por imagem",
     icon: Magnet,
     refinements: [
-      { labelPt: "Sequências e contraste", labelEn: "Sequences and contrast", query: "ressonância magnética sequências contraste" },
-      { labelPt: "Interpretação de imagens", labelEn: "Image interpretation", query: "ressonância magnética interpretação" },
-      { labelPt: "Laboratório virtual de RM", labelEn: "MRI virtual lab", query: "ressonância magnética laboratório virtual" },
-      { labelPt: "Explorar tudo sobre RM", labelEn: "Explore all MRI content", query: "ressonância magnética" },
+      { labelPt: "MRI — sequências e contraste", labelEn: "MRI — sequences and contrast", query: "diagnóstico por imagem MRI sequências contraste" },
+      { labelPt: "TC e PET", labelEn: "CT and PET", query: "diagnóstico por imagem TC PET" },
+      { labelPt: "Laboratório virtual", labelEn: "Virtual lab", query: "diagnóstico por imagem laboratório virtual" },
+      { labelPt: "Explorar tudo", labelEn: "Explore all", query: "diagnóstico por imagem MRI CT PET" },
     ],
   },
   {
@@ -170,8 +170,8 @@ export function LearningDiscoveryPrompt({ capsulaInacabada, className }: Learnin
       ? "Type a keyword or pick a topic to explore."
       : "Digite uma palavra-chave ou escolha um tema para explorar.",
     inputPlaceholder: isEnglish
-      ? "E.g. therapeutic ultrasound, TENS, MRI sequences..."
-      : "Ex.: ultrassom terapêutico, TENS, sequências de RM...",
+      ? "E.g. therapeutic ultrasound, TENS, MRI, CT, PET..."
+      : "Ex.: ultrassom terapêutico, TENS, MRI, TC, PET...",
     searchWithAi: isEnglish ? "Search content" : "Buscar conteúdos",
     orChoose: isEnglish ? "Or choose a topic" : "Ou escolha um tema",
     refineIntro: (topic: string) =>

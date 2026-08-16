@@ -38,6 +38,10 @@ const FORCED_PT_EN_OVERRIDES: Record<string, string> = {
   sair: "Log Out",
   voltar: "Back",
   tens: "TENS",
+  "diagnóstico por imagem": "Medical imaging",
+  "diagnostico por imagem": "Medical imaging",
+  "imagem médica": "Medical imaging",
+  "imagem medica": "Medical imaging",
   // Padroniza CTA "Ver ..." para "View ..." nos botões.
   "ver capsulas": "View capsules",
   "ver aulas": "View lessons",

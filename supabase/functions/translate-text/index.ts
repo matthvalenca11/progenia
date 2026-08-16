@@ -28,6 +28,10 @@ const FORCED_PT_EN_OVERRIDES: Record<string, string> = {
   "sair": "Log Out",
   "voltar": "Back",
   "tens": "TENS",
+  "diagnóstico por imagem": "Medical imaging",
+  "diagnostico por imagem": "Medical imaging",
+  "imagem médica": "Medical imaging",
+  "imagem medica": "Medical imaging",
 };
 const BUILTIN_ACRONYM_GLOSSARY: GlossaryItem[] = [
   { source_text: "TENS", target_text: "TENS" },

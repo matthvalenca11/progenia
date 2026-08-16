@@ -296,7 +296,7 @@ export function AxisCalibrationDialog({ onCalibrationCommand }: Props) {
           </DialogHeader>
           <StepDots step={4} />
           <p className="text-center text-sm text-slate-400">
-            Incline a moldura para cima/baixo — a fatia da RM segue a gravidade (acelerômetro).
+            Incline a moldura para cima/baixo — o corte anatômico segue a gravidade (acelerômetro).
           </p>
           <DialogFooter>
             <Button className="w-full" onClick={dismissAxisCalibration}>

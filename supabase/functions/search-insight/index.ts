@@ -20,7 +20,7 @@ const fallbackInsight = (
 ) => {
   const normalized = query.toLowerCase();
   const isUltrasound = /(ultrass|ultras|usg|ultrasound|sonograf)/.test(normalized);
-  const isMri = /(\bmri\b|\brm\b|resson)/.test(normalized);
+  const isMedicalImaging = /(\bmri\b|\brm\b|resson|tomograf|\bct\b|\bpet\b|diagnóstico por imagem|medical imaging|diagnostic imaging)/.test(normalized);
   const isElectro = /(eletro|electro|tens|corrente)/.test(normalized);
   const isResolution = /(resolu|resolution|frequen|frequency|ganho|gain|profund|depth)/.test(normalized);
   const isRisk = /(queim|burn|risco|safety|seguran|dano|lesao)/.test(normalized);
@@ -37,8 +37,8 @@ const fallbackInsight = (
     if (isUltrasound && isResolution) {
       return `For "${query}", focus on the frequency–depth–resolution trade-off and its impact on interpretation. Start with "${topA || "the top result"}".`;
     }
-    if (isMri) {
-      return `For "${query}", focus on sequence parameters, contrast behavior, and SNR impact. Start with "${topA || "the top result"}".`;
+    if (isMedicalImaging) {
+      return `For "${query}", focus on modality-specific parameters (MRI, CT, PET), contrast behavior, and SNR. Start with "${topA || "the top result"}".`;
     }
     if (isElectro) {
       return `For "${query}", review waveform, pulse-width, and stimulation safety limits. Start with "${topA || "the top result"}".`;
@@ -61,8 +61,8 @@ const fallbackInsight = (
   if (isUltrasound && isResolution) {
     return `Em "${query}", foque no trade-off frequência–profundidade–resolução e no impacto diagnóstico. Comece por "${topA || "o resultado principal"}".`;
   }
-  if (isMri) {
-    return `Em "${query}", foque em parâmetros de sequência, contraste e SNR. Comece por "${topA || "o resultado principal"}".`;
+  if (isMedicalImaging) {
+    return `Em "${query}", foque em parâmetros por modalidade (MRI, TC, PET), contraste e SNR. Comece por "${topA || "o resultado principal"}".`;
   }
   if (isElectro) {
     return `Em "${query}", revise forma de onda, largura de pulso e limites de segurança da estimulação. Comece por "${topA || "o resultado principal"}".`;

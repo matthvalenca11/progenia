@@ -52,6 +52,14 @@ const BIOMEDICAL_EVIDENCE_KEYWORDS = [
   "mri",
   "ressonância",
   "ressonancia",
+  "diagnóstico por imagem",
+  "diagnostico por imagem",
+  "imagem médica",
+  "imagem medica",
+  "medical imaging",
+  "tomografia",
+  "computed tomography",
+  "pet",
 ];
 
 type SupabaseEdgeClient = ReturnType<typeof createClient<any>>;
@@ -358,8 +366,19 @@ function buildPubMedQuery(message: string): string {
   if (normalized.includes("tens") || normalized.includes("eletroterapia") || normalized.includes("electrotherapy")) {
     mappedTerms.push("(transcutaneous electrical nerve stimulation OR TENS OR electrotherapy)");
   }
-  if (normalized.includes("ressonancia") || normalized.includes("mri") || normalized.includes("magnetic resonance")) {
-    mappedTerms.push("(magnetic resonance imaging OR MRI)");
+  if (
+    normalized.includes("ressonancia") ||
+    normalized.includes("mri") ||
+    normalized.includes("magnetic resonance") ||
+    normalized.includes("diagnostico por imagem") ||
+    normalized.includes("medical imaging") ||
+    normalized.includes("tomograf") ||
+    /\bct\b/.test(normalized) ||
+    /\bpet\b/.test(normalized)
+  ) {
+    mappedTerms.push(
+      "(magnetic resonance imaging OR MRI OR computed tomography OR CT OR positron emission tomography OR PET OR medical imaging)",
+    );
   }
   if (normalized.includes("dor")) mappedTerms.push("(pain)");
   if (normalized.includes("inflamacao")) mappedTerms.push("(inflammation)");

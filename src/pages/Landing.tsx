@@ -102,10 +102,10 @@ const LAB_CARDS: LabCardDef[] = [
   {
     id: "mri",
     Visual: MriLabVisual,
-    title: { pt: "Ressonância magnética", en: "Magnetic Resonance Imaging" },
+    title: { pt: "Diagnóstico por imagem", en: "Medical imaging" },
     description: {
-      pt: "Contraste, sequências e parâmetros de imagem com feedback imediato para fechar a curva de aprendizado.",
-      en: "Contrast, sequences, and imaging parameters with instant feedback to close the learning loop.",
+      pt: "MRI, TC, PET e fusão multimodal — parâmetros, contraste e interpretação com feedback imediato.",
+      en: "MRI, CT, PET and multimodal fusion — parameters, contrast, and interpretation with instant feedback.",
     },
   },
   {

@@ -164,7 +164,7 @@ export default function VirtualLabsAdmin() {
       tens: { label: "TENS", variant: "default" as const },
       ultrasound_therapy: { label: "Ultrassom Terapêutico", variant: "default" as const },
       ultrassom_terapeutico: { label: "Ultrassom Terapêutico", variant: "default" as const },
-      mri: { label: "Ressonância Magnética", variant: "default" as const },
+      mri: { label: "Imagem por RM", variant: "default" as const },
       photobiomodulation: { label: "Fotobiomodulação", variant: "default" as const },
       fbm: { label: "Fotobiomodulação", variant: "default" as const },
       electrotherapy: { label: "Eletroterapia", variant: "default" as const },

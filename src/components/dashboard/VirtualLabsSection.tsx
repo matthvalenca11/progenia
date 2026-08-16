@@ -114,18 +114,30 @@ export default function VirtualLabsSection() {
   };
 
   const getLabTypeLabel = (type: string) => {
-    const labels = {
+    const labelsPt: Record<string, string> = {
       ultrasound: "Ultrassom",
       tens: "Eletroterapia TENS",
       ultrasound_therapy: "Ultrassom Terapêutico",
-      mri: "Ressonância Magnética",
+      mri: "Imagem por RM",
       photobiomodulation: "Fotobiomodulação",
       ultrassom_terapeutico: "Ultrassom Terapêutico",
       electrotherapy: "Eletroterapia",
       thermal: "Térmico",
       other: "Outro",
     };
-    return labels[type as keyof typeof labels] || type;
+    const labelsEn: Record<string, string> = {
+      ultrasound: "Ultrasound",
+      tens: "Electrotherapy TENS",
+      ultrasound_therapy: "Therapeutic ultrasound",
+      mri: "MRI imaging lab",
+      photobiomodulation: "Photobiomodulation",
+      ultrassom_terapeutico: "Therapeutic ultrasound",
+      electrotherapy: "Electrotherapy",
+      thermal: "Thermal",
+      other: "Other",
+    };
+    const labels = isEnglish ? labelsEn : labelsPt;
+    return labels[type] || type;
   };
 
   if (!isNativeApp) return null;

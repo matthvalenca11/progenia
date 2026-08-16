@@ -39,7 +39,7 @@ interface MRILabV2Props {
 
 export function MRILabV2({
   config = defaultMRILabConfig,
-  labName = "Laboratório Virtual de Ressonância Magnética",
+  labName = "Laboratório Virtual de Imagem por RM",
   showBackButton = true,
   showDebug = false,
   embedded = false,

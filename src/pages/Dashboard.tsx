@@ -52,7 +52,7 @@ const getModuleIcon = (title: string) => {
   const t = title.toLowerCase();
 
   // Mesmos ícones de VirtualLabsSection (ordem importa: eletro antes de "terap")
-  if (t.includes("resson") || t.includes("magnét") || t.includes("mri")) {
+  if (t.includes("resson") || t.includes("magnét") || t.includes("mri") || t.includes("imagem") || t.includes("diagnóst") || t.includes("diagnostic") || t.includes("tomograf") || t.includes("pet")) {
     return Magnet;
   }
   if (t.includes("eletro") || t.includes("tens")) {

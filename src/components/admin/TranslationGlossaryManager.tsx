@@ -272,7 +272,7 @@ export const TranslationGlossaryManager = ({ onSaved }: TranslationGlossaryManag
               id="glossary-source-text"
               value={newTerm.source_text}
               onChange={(e) => setNewTerm((prev) => ({ ...prev, source_text: e.target.value }))}
-              placeholder="ressonancia magnetica"
+              placeholder="diagnostico por imagem"
             />
           </div>
           <div className="space-y-1 lg:col-span-2">
@@ -281,7 +281,7 @@ export const TranslationGlossaryManager = ({ onSaved }: TranslationGlossaryManag
               id="glossary-target-text"
               value={newTerm.target_text}
               onChange={(e) => setNewTerm((prev) => ({ ...prev, target_text: e.target.value }))}
-              placeholder="magnetic resonance imaging"
+              placeholder="medical imaging"
             />
           </div>
         </div>

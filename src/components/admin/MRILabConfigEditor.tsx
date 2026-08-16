@@ -123,7 +123,7 @@ export function MRILabConfigEditor({ config, onChange }: MRILabConfigEditorProps
           <div>
             <CardTitle>Configuração do Lab de MRI</CardTitle>
             <CardDescription>
-              Configure os parâmetros de aquisição e visualização do simulador de ressonância magnética
+              Configure parâmetros de aquisição e visualização do simulador de MRI (sequências, fatias 2D/3D e magnetização)
             </CardDescription>
           </div>
           {config.dataSource === "dicom" && (

@@ -105,7 +105,23 @@ const buildAcronymSet = (text: string) => {
 
 const TOPIC_KEYWORDS: Record<string, string[]> = {
   ultrassom: ["ultrassom", "ultrasom", "ultrasound", "sonografia", "ultrason", "usg"],
-  ressonancia: ["ressonancia", "resonancia", "mri", "rm", "magnetica", "magnetic resonance"],
+  imagemMedica: [
+    "diagnostico por imagem",
+    "imagem medica",
+    "ressonancia",
+    "resonancia",
+    "mri",
+    "rm",
+    "magnetica",
+    "magnetic resonance",
+    "tomografia",
+    "computed tomography",
+    "tc",
+    "ct",
+    "pet",
+    "medical imaging",
+    "diagnostic imaging",
+  ],
   eletroterapia: ["eletroterapia", "electrotherapy", "tens", "corrente", "estimulacao eletrica", "electrical stimulation"],
 };
 
@@ -138,7 +154,7 @@ const buildLocalInsight = (
   const q = normalize(query);
   const hash = queryHash(q);
   const isUltrasound = /\bultrass|\bultras|\busg\b|\bultrasound\b/.test(q);
-  const isMri = /\bmri\b|\brm\b|resson/.test(q);
+  const isMedicalImaging = /\bmri\b|\brm\b|resson|tomograf|\bct\b|\bpet\b|diagnóstico por imagem|medical imaging|diagnostic imaging/.test(q);
   const isElectro = /eletro|electro|tens|corrente/.test(q);
   const isResolution = /resolu|resolution|frequen|frequency|ganho|gain|profund|depth/.test(q);
   const isRisk = /queim|burn|risco|safety|seguran|dano|lesao/.test(q);
@@ -161,10 +177,10 @@ const buildLocalInsight = (
       ];
       return variants[hash % variants.length];
     }
-    if (isMri) {
+    if (isMedicalImaging) {
       const variants = [
-        `For "${query}", focus on contrast, SNR, and sequence parameters. The results below highlight practical MRI optimization points.`,
-        `Query "${query}" maps to MRI parameterization and image formation constraints. Use the items below for technical decision guidance.`,
+        `For "${query}", focus on modality-specific parameters (MRI sequences, CT windowing, PET uptake). The results below highlight practical medical imaging decisions.`,
+        `Query "${query}" maps to cross-modality imaging (MRI, CT, PET) and image formation constraints. Use the items below for technical guidance.`,
       ];
       return variants[hash % variants.length];
     }
@@ -195,10 +211,10 @@ const buildLocalInsight = (
     ];
     return variants[hash % variants.length];
   }
-  if (isMri) {
+  if (isMedicalImaging) {
     const variants = [
-      `Em "${query}", foque em contraste, SNR e parâmetros de sequência. Os resultados abaixo trazem pontos práticos de otimização em RM.`,
-      `A busca "${query}" se relaciona à parametrização de RM e limites de formação de imagem. Use os conteúdos abaixo para decisões técnicas.`,
+      `Em "${query}", foque em parâmetros por modalidade (sequências de MRI, janelamento em TC, captação em PET). Os resultados abaixo trazem decisões práticas em diagnóstico por imagem.`,
+      `A busca "${query}" se relaciona a MRI, TC, PET e formação de imagem. Use os conteúdos abaixo para decisões técnicas.`,
     ];
     return variants[hash % variants.length];
   }

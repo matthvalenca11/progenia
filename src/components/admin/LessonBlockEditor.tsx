@@ -95,7 +95,7 @@ export const LessonBlockEditor = ({
           id={`video-title-${block.id}`}
           value={block.data.videoTitle || ''}
           onChange={(e) => updateBlockData({ videoTitle: e.target.value })}
-          placeholder="Ex: Introdução à Ressonância Magnética"
+          placeholder="Ex: Introdução ao Diagnóstico por Imagem"
         />
       </div>
       <div>
@@ -201,7 +201,7 @@ export const LessonBlockEditor = ({
             <SelectValue placeholder="Selecione o tipo" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="mri_viewer">Visualizador de RM</SelectItem>
+            <SelectItem value="mri_viewer">Visualizador de imagem (RM)</SelectItem>
             <SelectItem value="ultrassom_simulador">Simulador de Ultrassom</SelectItem>
             <SelectItem value="eletroterapia_sim">Simulador de Eletroterapia</SelectItem>
             <SelectItem value="termico_sim">Simulador Térmico</SelectItem>
