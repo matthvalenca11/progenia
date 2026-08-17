@@ -2,7 +2,7 @@ import { Toaster } from "./components/ui/toaster";
 import { Toaster as Sonner } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, HashRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
+import { BrowserRouter, HashRouter, Routes, Route, useLocation, Navigate, useNavigate } from "react-router-dom";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { useLabImmersiveShell } from "./hooks/useLabImmersiveShell";
@@ -10,6 +10,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { ConsentProvider, useConsent } from "./contexts/ConsentContext";
 import { isNativeApp, isNativeMobile } from "@/lib/capacitor";
+import { registerStreakNotificationListeners } from "@/lib/streak/streakNotifications";
 import { hasCompletedNativeLanguageOnboarding } from "@/lib/nativeLanguageOnboarding";
 import { NativeLanguageOnboarding } from "@/components/onboarding/NativeLanguageOnboarding";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
@@ -73,6 +74,7 @@ const PrivacyBootstrap = () => {
 const AppContent = () => {
   const { user, bootstrapped } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const isImmersiveLabRoute = useLabImmersiveShell();
   const [languageOnboardingChecked, setLanguageOnboardingChecked] = useState(!isNativeMobile);
   const [showLanguageOnboarding, setShowLanguageOnboarding] = useState(false);
@@ -97,6 +99,11 @@ const AppContent = () => {
       cancelled = true;
     };
   }, [bootstrapped, user]);
+
+  useEffect(() => {
+    if (!isNativeMobile || !user) return;
+    return registerStreakNotificationListeners(() => navigate("/dashboard"));
+  }, [user, navigate]);
 
   if (!bootstrapped || (isNativeMobile && !user && !languageOnboardingChecked)) {
     return (

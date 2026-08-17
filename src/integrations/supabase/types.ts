@@ -1353,6 +1353,9 @@ export type Database = {
           created_at: string | null
           id: string
           last_activity_date: string | null
+          last_capsule_activity_at: string | null
+          weekly_streak_started_at: string | null
+          weekly_streak_weeks: number | null
           level: number | null
           streak_days: number | null
           total_lessons_completed: number | null
@@ -1365,6 +1368,9 @@ export type Database = {
           created_at?: string | null
           id?: string
           last_activity_date?: string | null
+          last_capsule_activity_at?: string | null
+          weekly_streak_started_at?: string | null
+          weekly_streak_weeks?: number | null
           level?: number | null
           streak_days?: number | null
           total_lessons_completed?: number | null
@@ -1377,6 +1383,9 @@ export type Database = {
           created_at?: string | null
           id?: string
           last_activity_date?: string | null
+          last_capsule_activity_at?: string | null
+          weekly_streak_started_at?: string | null
+          weekly_streak_weeks?: number | null
           level?: number | null
           streak_days?: number | null
           total_lessons_completed?: number | null

@@ -2,8 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { Preferences } from "@capacitor/preferences";
 import { isNativeMobile } from "@/lib/capacitor";
 import { readPersistedAppLanguage } from "@/lib/nativeLanguageOnboarding";
+import { getForcedPtEnOverride } from "@/lib/ptEnOverrides";
 import { isProtectedAcronym, restoreProtectedAcronyms } from "@/lib/translationProtect";
-import { supabase } from "@/integrations/supabase/client";
 
 type Language = "pt" | "en";
 
@@ -14,7 +14,7 @@ interface LanguageContextType {
 }
 
 const STORAGE_KEY = "progenia_language";
-const TRANSLATION_CACHE_KEY = "progenia_translation_cache_en_v2";
+const TRANSLATION_CACHE_KEY = "progenia_translation_cache_en_v3";
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
@@ -30,28 +30,6 @@ const SKIP_TAGS = new Set([
   "OPTION",
 ]);
 const TRANSLATABLE_ATTRIBUTES = ["placeholder", "aria-label", "title", "alt", "value"];
-const FORCED_PT_EN_OVERRIDES: Record<string, string> = {
-  entrar: "Sign In",
-  "começar": "Sign Up",
-  comecar: "Sign Up",
-  sobre: "About",
-  sair: "Log Out",
-  voltar: "Back",
-  tens: "TENS",
-  "diagnóstico por imagem": "Medical imaging",
-  "diagnostico por imagem": "Medical imaging",
-  "imagem médica": "Medical imaging",
-  "imagem medica": "Medical imaging",
-  // Padroniza CTA "Ver ..." para "View ..." nos botões.
-  "ver capsulas": "View capsules",
-  "ver aulas": "View lessons",
-  "ver modulo": "View module",
-  "ver modulos": "View modules",
-  // Fix de ordem gramatical específica (PT->EN).
-  // Sem override, a tradução automática retorna algo como "capsules Quick".
-  "capsulas rapidas": "Quick capsules",
-  "capsula rapida": "Quick capsule",
-};
 
 const looksTranslatable = (text: string) => {
   const trimmed = text.trim();
@@ -83,10 +61,10 @@ const stripDiacritics = (text: string) =>
   text.normalize("NFD").replace(/\p{Diacritic}/gu, "");
 const normalizeLookupKey = (text: string) => stripDiacritics(normalizeText(text).toLowerCase());
 const PT_SOURCE_HINT =
-  /\b(entrar|sair|voltar|aulas|aula|capsulas|capsula|modulos|modulo|comecar|sobre|perfil|salvar|enviar|buscar|filtrar|concluir|progresso|trilha|laboratorio|inicio|conteudo|continuar|abrir|fechar|proximo|anterior|carregando|cadastrar|obrigado|voce|nao|minha|meu|nossos|bem-vindo|painel|conta|senha|glossario|explorar|experimentar|matricula|concluido)\b/i;
+  /\b(entrar|sair|voltar|aulas|aula|capsulas|capsula|modulos|modulo|comecar|sobre|perfil|salvar|enviar|buscar|filtrar|concluir|progresso|trilha|laboratorio|laboratorios|inicio|conteudo|continuar|abrir|fechar|proximo|anterior|carregando|cadastrar|obrigado|voce|nao|minha|meu|nossos|bem-vindo|painel|conta|senha|glossario|explorar|experimentar|matricula|matricular|concluido|concluida|disponivel|necessaria|realizada|aprendidos|minutos|modulo|capsula|aula|laboratorio|parametros|fundamentos|simulacao|protocolos|indicacoes|mecanismos|conquistas|relatar|excluir|matricular|desmatricular|refazer|iniciar|visualizar|nenhum|nenhuma|em alta|resumo|explorar)\b/i;
 const looksLikePortugueseSource = (text: string) => {
   if (/[áàâãéêíóôõúçÁÀÂÃÉÊÍÓÔÕÚÇ]/.test(text)) return true;
-  if (FORCED_PT_EN_OVERRIDES[normalizeLookupKey(text)]) return true;
+  if (getForcedPtEnOverride(text)) return true;
   return PT_SOURCE_HINT.test(stripDiacritics(text));
 };
 const preserveEdgeWhitespace = (original: string, translated: string) => {
@@ -158,7 +136,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const getCachedTranslation = (text: string) => {
     if (languageRef.current === "en") {
-      const forced = FORCED_PT_EN_OVERRIDES[normalizeLookupKey(text)];
+      const forced = getForcedPtEnOverride(text);
       if (forced) {
         cacheRef.current.set(text, forced);
         const normalized = normalizeText(text);
@@ -336,7 +314,14 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         continue;
       }
       if (looksLikePortugueseSource(original)) {
-        applyTranslationToAttribute(target.element, target.attr, "");
+        if (!originalAttributesRef.current.get(target.element)?.has(target.attr)) {
+          let attrMap = originalAttributesRef.current.get(target.element);
+          if (!attrMap) {
+            attrMap = new Map<string, string>();
+            originalAttributesRef.current.set(target.element, attrMap);
+          }
+          attrMap.set(target.attr, original);
+        }
       }
       queue(original);
     }

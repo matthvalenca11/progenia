@@ -12,11 +12,10 @@ import { toast } from "sonner";
 import { enrollmentService } from "@/services/enrollmentService";
 import { useCapsulasRecomendadas, useCapsulaInacabada } from "@/hooks/useCapsulas";
 import VirtualLabsSection from "@/components/dashboard/VirtualLabsSection";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { useLanguage } from "@/contexts/LanguageContext";
-import { useAuth } from "@/hooks/useAuth";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { getPublicEntryPath } from "@/lib/capacitor";
+import { WeeklyStreakSummary } from "@/components/dashboard/WeeklyStreakSummary";
+import { weeklyStreakService } from "@/services/weeklyStreakService";
+import type { WeeklyStreakSnapshot } from "@/lib/streak/weeklyStreakLogic";
+import { getPublicEntryPath, isNativeApp, isNativeMobile } from "@/lib/capacitor";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -97,8 +96,24 @@ const Dashboard = () => {
   const [capaUrls, setCapaUrls] = useState<Record<string, string>>({});
   const [capsulasConcluidas, setCapsulasConcluidas] = useState<number>(0);
   const [minutosEstudo, setMinutosEstudo] = useState<number>(0);
+  const [weeklyStreak, setWeeklyStreak] = useState<WeeklyStreakSnapshot | null>(null);
 
-  // Resetar índice quando as cápsulas mudarem (ex: quando uma for concluída)
+  useEffect(() => {
+    if (!userId || !isNativeMobile) {
+      setWeeklyStreak(null);
+      return;
+    }
+    let cancelled = false;
+    void weeklyStreakService
+      .syncOnAppOpen(userId, isEnglish ? "en" : "pt")
+      .then((snapshot) => {
+        if (!cancelled) setWeeklyStreak(snapshot);
+      })
+      .catch((error) => console.warn("Weekly streak sync failed:", error));
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, isEnglish]);
   useEffect(() => {
     if (capsulaRecomendadas.length > 0) {
       const maxIndex = Math.max(0, capsulaRecomendadas.length - 3);
@@ -751,13 +766,7 @@ const Dashboard = () => {
     return parts[0] || "";
   };
 
-  const normalizeModuleTitle = (title?: string) => {
-    if (!title) return "";
-    if (!isEnglish) return title;
-    const trimmed = title.trim();
-    if (!trimmed) return title;
-    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
-  };
+  const normalizeModuleTitle = (title?: string) => translateModuleTitle(isEnglish ? "en" : "pt", title);
   const handleHeaderSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const term = headerSearch.trim();
@@ -780,7 +789,7 @@ const Dashboard = () => {
     return <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Carregando seu painel...</p>
+          <p className="text-muted-foreground">{uiText(isEnglish ? "en" : "pt", "Carregando seu painel...")}</p>
         </div>
       </div>;
   }
@@ -819,7 +828,7 @@ const Dashboard = () => {
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuItem onClick={() => navigate("/profile")}>
                     <User className="mr-2 h-4 w-4" />
-                    Perfil
+                    {uiText(isEnglish ? "en" : "pt", "Perfil")}
                   </DropdownMenuItem>
                   {isAdmin && (
                     <DropdownMenuItem onClick={() => navigate("/admin")}>
@@ -829,19 +838,19 @@ const Dashboard = () => {
                   )}
                   <DropdownMenuItem onClick={() => setReportBugOpen(true)}>
                     <Bug className="mr-2 h-4 w-4" />
-                    Relatar um bug
+                    {uiText(isEnglish ? "en" : "pt", "Relatar um bug")}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => setDeleteAccountOpen(true)}
                     className="text-destructive focus:text-destructive"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
-                    Excluir conta
+                    {uiText(isEnglish ? "en" : "pt", "Excluir conta")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut}>
                     <LogOut className="mr-2 h-4 w-4" />
-                    Sair
+                    {uiText(isEnglish ? "en" : "pt", "Sair")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -852,25 +861,31 @@ const Dashboard = () => {
         <div className="native-content-pad mx-auto w-full max-w-full space-y-4 py-4">
           <section>
             <h1 className="text-xl font-bold leading-tight sm:text-2xl">
-              Bem-vindo, {getFirstName(profile?.full_name)}.
+              {welcomeLine(isEnglish ? "en" : "pt", getFirstName(profile?.full_name))}
             </h1>
           </section>
 
+          {isNativeMobile && weeklyStreak && (
+            <section>
+              <WeeklyStreakSummary snapshot={weeklyStreak} isEnglish={isEnglish} />
+            </section>
+          )}
+
           <section className="grid grid-cols-2 gap-2">
             <Card className="p-2.5">
-              <p className="text-[10px] text-muted-foreground">Aulas concluídas</p>
+              <p className="text-[10px] text-muted-foreground">{uiText(isEnglish ? "en" : "pt", "Aulas concluídas")}</p>
               <p className="text-lg font-semibold leading-tight">{stats?.total_lessons_completed || 0}</p>
             </Card>
             <Card className="p-2">
-              <p className="text-[10px] text-muted-foreground">Cápsulas concluídas</p>
+              <p className="text-[10px] text-muted-foreground">{uiText(isEnglish ? "en" : "pt", "Cápsulas concluídas")}</p>
               <p className="text-lg font-semibold leading-tight">{capsulasConcluidas}</p>
             </Card>
             <Card className="p-2">
-              <p className="text-[10px] text-muted-foreground">Módulos concluídos</p>
+              <p className="text-[10px] text-muted-foreground">{uiText(isEnglish ? "en" : "pt", "Módulos concluídos")}</p>
               <p className="text-lg font-semibold leading-tight">{modulesCompleted}</p>
             </Card>
             <Card className="p-2">
-              <p className="text-[10px] text-muted-foreground">Minutos aprendidos</p>
+              <p className="text-[10px] text-muted-foreground">{uiText(isEnglish ? "en" : "pt", "Minutos aprendidos")}</p>
               <p className="text-lg font-semibold leading-tight">{minutosEstudo}</p>
             </Card>
           </section>
@@ -880,7 +895,7 @@ const Dashboard = () => {
           {!loadingRecomendadas && capsulaRecomendadas.length > 0 && (
             <section className="rounded-xl border border-border/70 bg-card/50 p-3">
               <div className="mb-3 flex items-center justify-between gap-2">
-                <h2 className="text-base font-bold sm:text-lg">Em alta hoje</h2>
+                <h2 className="text-base font-bold sm:text-lg">{uiText(isEnglish ? "en" : "pt", "Em alta hoje")}</h2>
                 <Button
                   variant="outline"
                   size="sm"
@@ -915,12 +930,12 @@ const Dashboard = () => {
           <VirtualLabsSection />
 
           <section>
-            <h2 className="mb-3 text-lg font-semibold">Módulos</h2>
+            <h2 className="mb-3 text-lg font-semibold">{uiText(isEnglish ? "en" : "pt", "Módulos")}</h2>
 
             {modules.length === 0 ? (
               <Card className="p-6 text-center">
                 <GraduationCap className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Nenhum módulo disponível ainda.</p>
+                <p className="text-sm text-muted-foreground">{uiText(isEnglish ? "en" : "pt", "Nenhum módulo disponível ainda.")}</p>
               </Card>
             ) : (
               <div className="grid grid-cols-2 gap-2.5">
@@ -972,7 +987,7 @@ const Dashboard = () => {
                             className="h-8 w-full text-[11px]"
                             onClick={(e) => handleEnroll(module.id, e)}
                           >
-                            Matricular-se
+                            {uiText(isEnglish ? "en" : "pt", "Matricular-se")}
                           </Button>
                         )}
                       </div>
@@ -1043,7 +1058,7 @@ const Dashboard = () => {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem onClick={() => navigate("/profile")}>
                   <User className="mr-2 h-4 w-4" />
-                  Perfil
+                  {uiText(isEnglish ? "en" : "pt", "Perfil")}
                 </DropdownMenuItem>
                 {isAdmin && (
                   <DropdownMenuItem onClick={() => navigate("/admin")}>
@@ -1053,19 +1068,19 @@ const Dashboard = () => {
                 )}
                 <DropdownMenuItem onClick={() => setReportBugOpen(true)}>
                   <Bug className="mr-2 h-4 w-4" />
-                  Relatar um bug
+                  {uiText(isEnglish ? "en" : "pt", "Relatar um bug")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setDeleteAccountOpen(true)}
                   className="text-destructive focus:text-destructive"
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Excluir conta
+                  {uiText(isEnglish ? "en" : "pt", "Excluir conta")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut}>
                   <LogOut className="mr-2 h-4 w-4" />
-                  Sair
+                  {uiText(isEnglish ? "en" : "pt", "Sair")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1110,9 +1125,11 @@ const Dashboard = () => {
           <Card className="p-6">
             <div className="flex items-start justify-between gap-4 mb-6">
               <div>
-                <h2 className="text-2xl font-semibold mb-1">Progresso no ciclo</h2>
+                <h2 className="text-2xl font-semibold mb-1">{uiText(isEnglish ? "en" : "pt", "Progresso no ciclo")}</h2>
                 <p className="text-muted-foreground text-sm">
-                  {modulesCompleted} de {enrolledModules.size} módulos concluídos
+                  {isEnglish
+                    ? `${modulesCompleted} of ${enrolledModules.size} modules completed`
+                    : `${modulesCompleted} de ${enrolledModules.size} módulos concluídos`}
                 </p>
               </div>
               <Award className="h-8 w-8 text-accent" />
@@ -1131,22 +1148,27 @@ const Dashboard = () => {
           </Card>
 
           <Card className="p-6">
-            <h3 className="text-base font-semibold mb-4">Resumo rápido</h3>
+            <h3 className="text-base font-semibold mb-4">{uiText(isEnglish ? "en" : "pt", "Resumo rápido")}</h3>
+            {isNativeMobile && weeklyStreak && (
+              <div className="mb-4">
+                <WeeklyStreakSummary snapshot={weeklyStreak} isEnglish={isEnglish} compact />
+              </div>
+            )}
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Aulas concluídas</span>
+                <span className="text-muted-foreground">{uiText(isEnglish ? "en" : "pt", "Aulas concluídas")}</span>
                 <span className="font-semibold">{stats?.total_lessons_completed || 0}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Cápsulas concluídas</span>
+                <span className="text-muted-foreground">{uiText(isEnglish ? "en" : "pt", "Cápsulas concluídas")}</span>
                 <span className="font-semibold">{capsulasConcluidas}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Módulos concluídos</span>
+                <span className="text-muted-foreground">{uiText(isEnglish ? "en" : "pt", "Módulos concluídos")}</span>
                 <span className="font-semibold">{modulesCompleted}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Minutos aprendidos</span>
+                <span className="text-muted-foreground">{uiText(isEnglish ? "en" : "pt", "Minutos aprendidos")}</span>
                 <span className="font-semibold">{minutosEstudo}</span>
               </div>
             </div>
@@ -1166,7 +1188,7 @@ const Dashboard = () => {
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">
                 <Pill className="h-6 w-6 text-accent" />
-                <h2 className="mobile-section-title">Em Alta Hoje</h2>
+                <h2 className="mobile-section-title">{uiText(isEnglish ? "en" : "pt", "Em Alta Hoje")}</h2>
               </div>
               <Button
                 variant="outline"
@@ -1247,7 +1269,7 @@ const Dashboard = () => {
         {/* Continuar de Onde Parou */}
         {!loadingInacabada && capsulaInacabada && (
           <div className="mb-8">
-            <h2 className="mobile-section-title mb-4">Continuar de Onde Parou</h2>
+            <h2 className="mobile-section-title mb-4">{uiText(isEnglish ? "en" : "pt", "Continuar de Onde Parou")}</h2>
             <Card 
               className="cursor-pointer hover:shadow-lg transition-smooth border-accent bg-card overflow-hidden group"
               onClick={() => navigate(`/capsula/${capsulaInacabada.id}`)}
@@ -1284,13 +1306,13 @@ const Dashboard = () => {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <BookOpen className="h-6 w-6 text-accent" />
-              <h2 className="mobile-section-title">Explorar Módulos</h2>
+              <h2 className="mobile-section-title">{uiText(isEnglish ? "en" : "pt", "Explorar Módulos")}</h2>
             </div>
           </div>
 
           {modules.length === 0 ? <Card className="p-12 text-center">
               <GraduationCap className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-xl font-semibold mb-2">Nenhum Módulo Disponível Ainda</h3>
+              <h3 className="text-xl font-semibold mb-2">{uiText(isEnglish ? "en" : "pt", "Nenhum Módulo Disponível Ainda")}</h3>
               <p className="text-muted-foreground">
                 Volte em breve! Os administradores estão preparando conteúdo de aprendizado para você.
               </p>
@@ -1323,7 +1345,7 @@ const Dashboard = () => {
                             onClick={() => navigate(`/module/${module.id}/capsulas`)}
                           >
                             <Pill className="mr-2 h-4 w-4" />
-                            Ver Cápsulas
+                            {uiText(isEnglish ? "en" : "pt", "Ver Cápsulas")}
                           </Button>
                           <Button 
                             className="w-full" 
@@ -1331,7 +1353,7 @@ const Dashboard = () => {
                             onClick={() => handleStartModule(module.id)}
                           >
                             <FileText className="mr-2 h-4 w-4" />
-                            Ver Aulas
+                            {uiText(isEnglish ? "en" : "pt", "Ver Aulas")}
                           </Button>
                           {completedModules.has(module.id) ? (
                             <Button 
@@ -1340,7 +1362,7 @@ const Dashboard = () => {
                               onClick={(e) => handleRefazerModulo(module.id, e)}
                             >
                               <RotateCcw className="mr-2 h-4 w-4" />
-                              Refazer o Módulo
+                              {uiText(isEnglish ? "en" : "pt", "Refazer o Módulo")}
                             </Button>
                           ) : (
                             <Button 
@@ -1359,7 +1381,7 @@ const Dashboard = () => {
                           onClick={(e) => handleEnroll(module.id, e)}
                         >
                           <UserPlus className="mr-2 h-4 w-4" />
-                          Matricular-se
+                          {uiText(isEnglish ? "en" : "pt", "Matricular-se")}
                         </Button>
                       )}
                     </div>

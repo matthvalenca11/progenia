@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 import { ProGeniaLogo } from "@/components/ProGeniaLogo";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { uiText, translateModuleTitle } from "@/lib/uiTranslate";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface Capsula {
@@ -40,6 +41,7 @@ export default function ModuleCapsules() {
   const { user } = useAuth();
   const { language } = useLanguage();
   const isEnglish = language === "en";
+  const lang = isEnglish ? "en" : "pt";
   const [module, setModule] = useState<any>(null);
   const [capsulas, setCapsulas] = useState<CapsulaWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,7 +112,7 @@ export default function ModuleCapsules() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
-          <p className="mt-4 text-muted-foreground">Carregando cápsulas...</p>
+          <p className="mt-4 text-muted-foreground">{uiText(lang, "Carregando cápsulas...")}</p>
         </div>
       </div>
     );
@@ -120,9 +122,9 @@ export default function ModuleCapsules() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Card className="p-8 text-center">
-          <h2 className="text-2xl font-bold mb-2">Módulo não encontrado</h2>
+          <h2 className="text-2xl font-bold mb-2">{uiText(lang, "Módulo não encontrado")}</h2>
           <Button onClick={() => navigate("/dashboard")}>
-            Voltar ao Dashboard
+            {uiText(lang, "Voltar ao Dashboard")}
           </Button>
         </Card>
       </div>
@@ -141,11 +143,11 @@ export default function ModuleCapsules() {
                 onClick={() => navigate("/dashboard")}
               >
                 <ChevronLeft className="h-4 w-4 mr-2" />
-                Voltar
+                {uiText(lang, "Voltar")}
               </Button>
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <ProGeniaLogo className="h-8 progenia-logo" />
-                <h1 className="text-base sm:text-xl font-semibold truncate">{module.title}</h1>
+                <h1 className="text-base sm:text-xl font-semibold truncate">{translateModuleTitle(lang, module.title)}</h1>
               </div>
             </div>
             <ThemeToggle />
@@ -157,7 +159,7 @@ export default function ModuleCapsules() {
         <div className="mb-8">
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="h-6 w-6 text-accent" />
-            <h1 className="mobile-page-title">Cápsulas Rápidas</h1>
+            <h1 className="mobile-page-title">{uiText(lang, "Cápsulas Rápidas")}</h1>
           </div>
           {module.description && (
             <p className="text-lg text-muted-foreground mb-6">
@@ -169,12 +171,12 @@ export default function ModuleCapsules() {
         {capsulas.length === 0 ? (
           <Card className="p-12 text-center">
             <Sparkles className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Nenhuma Cápsula Disponível</h3>
+            <h3 className="text-xl font-semibold mb-2">{uiText(lang, "Nenhuma Cápsula Disponível")}</h3>
             <p className="text-muted-foreground mb-4">
-              As cápsulas para este módulo ainda estão sendo preparadas.
+              {uiText(lang, "As cápsulas para este módulo ainda estão sendo preparadas.")}
             </p>
             <Button onClick={() => navigate("/dashboard")}>
-              Voltar ao Dashboard
+              {uiText(lang, "Voltar ao Dashboard")}
             </Button>
           </Card>
         ) : (

@@ -1,5 +1,10 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.83.0";
+import {
+  getForcedPtEnOverride,
+  normalizeLookupKey,
+  PT_EN_GLOSSARY_PHRASES,
+} from "../_shared/ptEnOverrides.ts";
 
 type TranslateRequest = {
   source?: string;
@@ -20,19 +25,11 @@ type GlossaryItem = {
   source_text: string;
   target_text: string;
 };
-const FORCED_PT_EN_OVERRIDES: Record<string, string> = {
-  "entrar": "Sign In",
-  "começar": "Sign Up",
-  "comecar": "Sign Up",
-  "sobre": "About",
-  "sair": "Log Out",
-  "voltar": "Back",
-  "tens": "TENS",
-  "diagnóstico por imagem": "Medical imaging",
-  "diagnostico por imagem": "Medical imaging",
-  "imagem médica": "Medical imaging",
-  "imagem medica": "Medical imaging",
-};
+const FORCED_PT_EN_OVERRIDES: Record<string, string> = {};
+// Populated from shared overrides at startup
+for (const { source, target } of PT_EN_GLOSSARY_PHRASES) {
+  FORCED_PT_EN_OVERRIDES[normalizeLookupKey(source)] = target;
+}
 const BUILTIN_ACRONYM_GLOSSARY: GlossaryItem[] = [
   { source_text: "TENS", target_text: "TENS" },
   { source_text: "NMES", target_text: "NMES" },
@@ -60,7 +57,13 @@ const shouldBypassCachedTranslation = (sourceText: string, translatedText: strin
   if (sourceText.includes("\n") && !translatedText.includes("\n")) return true;
 
   // Protege contra cache legado truncado (caso dos termos longos).
-  return translatedText.length < Math.floor(sourceLen * 0.6);
+  if (translatedText.length < Math.floor(sourceLen * 0.6)) return true;
+
+  const sourceWords = sourceText.split(/\s+/).filter(Boolean).length;
+  const translatedWords = translatedText.split(/\s+/).filter(Boolean).length;
+  if (sourceWords >= 4 && translatedWords < Math.ceil(sourceWords * 0.65)) return true;
+
+  return false;
 };
 
 const splitTextIntoChunks = (text: string, maxChars = PROVIDER_MAX_CHARS) => {
@@ -245,7 +248,13 @@ Deno.serve(async (req) => {
       ? createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } })
       : null;
 
-    const glossary: GlossaryItem[] = [...BUILTIN_ACRONYM_GLOSSARY];
+    const glossary: GlossaryItem[] = [
+      ...BUILTIN_ACRONYM_GLOSSARY,
+      ...PT_EN_GLOSSARY_PHRASES.map((item) => ({
+        source_text: item.source,
+        target_text: item.target,
+      })),
+    ];
 
     if (supabaseAdmin) {
       const { data: glossaryRows } = await supabaseAdmin
@@ -304,7 +313,7 @@ Deno.serve(async (req) => {
       missingTexts.map(async (original) => {
         try {
           const forced = source === "pt" && target === "en"
-            ? FORCED_PT_EN_OVERRIDES[normalizeLookupKey(original)]
+            ? getForcedPtEnOverride(original) ?? FORCED_PT_EN_OVERRIDES[normalizeLookupKey(original)]
             : undefined;
           if (forced) {
             translations[original] = forced;
@@ -338,7 +347,7 @@ Deno.serve(async (req) => {
     // Corrige traduções forçadas mesmo quando vieram do cache.
     if (source === "pt" && target === "en") {
       for (const original of uniqueTexts) {
-        const forced = FORCED_PT_EN_OVERRIDES[normalizeLookupKey(original)];
+        const forced = getForcedPtEnOverride(original) ?? FORCED_PT_EN_OVERRIDES[normalizeLookupKey(original)];
         if (!forced) continue;
         if (translations[original] !== forced) {
           translations[original] = forced;

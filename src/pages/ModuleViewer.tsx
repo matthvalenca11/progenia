@@ -19,6 +19,8 @@ import { toast } from "sonner";
 import { ProGeniaLogo } from "@/components/ProGeniaLogo";
 import { enrollmentService } from "@/services/enrollmentService";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { uiText, translateModuleTitle } from "@/lib/uiTranslate";
 
 interface Lesson {
   id: string;
@@ -41,6 +43,9 @@ export default function ModuleViewer() {
   const { moduleId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { language } = useLanguage();
+  const isEnglish = language === "en";
+  const lang = isEnglish ? "en" : "pt";
   const [module, setModule] = useState<any>(null);
   const [lessons, setLessons] = useState<LessonWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
@@ -167,7 +172,7 @@ export default function ModuleViewer() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
-          <p className="mt-4 text-muted-foreground">Carregando módulo...</p>
+          <p className="mt-4 text-muted-foreground">{uiText(lang, "Carregando módulo...")}</p>
         </div>
       </div>
     );
@@ -177,12 +182,12 @@ export default function ModuleViewer() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Card className="p-8 text-center">
-          <h2 className="text-2xl font-bold mb-2">Módulo não encontrado</h2>
+          <h2 className="text-2xl font-bold mb-2">{uiText(lang, "Módulo não encontrado")}</h2>
           <p className="text-muted-foreground mb-4">
-            O módulo que você está procurando não existe ou foi removido.
+            {uiText(lang, "O módulo que você está procurando não existe ou foi removido.")}
           </p>
           <Button onClick={() => navigate("/dashboard")}>
-            Voltar ao Dashboard
+            {uiText(lang, "Voltar ao Dashboard")}
           </Button>
         </Card>
       </div>
@@ -193,12 +198,12 @@ export default function ModuleViewer() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Card className="p-8 text-center max-w-md">
-          <h2 className="text-2xl font-bold mb-2">Matrícula Necessária</h2>
+          <h2 className="text-2xl font-bold mb-2">{uiText(lang, "Matrícula Necessária")}</h2>
           <p className="text-muted-foreground mb-4">
-            Você precisa se matricular neste módulo para acessar as aulas.
+            {uiText(lang, "Você precisa se matricular neste módulo para acessar as aulas.")}
           </p>
           <Button onClick={() => navigate("/dashboard")}>
-            Voltar ao Dashboard
+            {uiText(lang, "Voltar ao Dashboard")}
           </Button>
         </Card>
       </div>
@@ -217,11 +222,11 @@ export default function ModuleViewer() {
                 onClick={() => navigate("/dashboard")}
               >
                 <ChevronLeft className="h-4 w-4 mr-2" />
-                Voltar
+                {uiText(lang, "Voltar")}
               </Button>
               <div className="flex items-center gap-3 min-w-0">
                 <ProGeniaLogo className="h-8 progenia-logo" />
-                <h1 className="text-base sm:text-xl font-semibold truncate">{module.title}</h1>
+                <h1 className="text-base sm:text-xl font-semibold truncate">{translateModuleTitle(lang, module.title)}</h1>
               </div>
             </div>
             <ThemeToggle />
@@ -231,7 +236,7 @@ export default function ModuleViewer() {
 
       <div className="container mx-auto max-w-4xl px-3 py-6 sm:px-4 sm:py-8">
         <div className="mb-8">
-          <h1 className="mobile-page-title mb-4 content-break">{module.title}</h1>
+          <h1 className="mobile-page-title mb-4 content-break">{translateModuleTitle(lang, module.title)}</h1>
           {module.description && (
             <p className="text-lg text-muted-foreground mb-6">
               <span className="content-break">{module.description}</span>
@@ -240,10 +245,11 @@ export default function ModuleViewer() {
 
           <Card className="p-6">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">Progresso do Módulo</span>
+              <span className="text-sm font-medium">{uiText(lang, "Progresso do Módulo")}</span>
               <span className="text-sm text-muted-foreground">
-                {lessons.filter((l) => l.progress?.status === "concluido").length} de{" "}
-                {lessons.length} aulas concluídas
+                {lessons.filter((l) => l.progress?.status === "concluido").length}{" "}
+                {isEnglish ? "of" : "de"} {lessons.length}{" "}
+                {uiText(lang, "aulas concluídas")}
               </span>
             </div>
             <Progress value={calculateProgress()} className="h-2" />
@@ -253,17 +259,17 @@ export default function ModuleViewer() {
         <div className="mb-8">
           <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
             <FlaskConical className="h-6 w-6" />
-            Laboratórios Virtuais
+            {uiText(lang, "Laboratórios Virtuais")}
           </h2>
           <Card className="p-6">
             <p className="text-muted-foreground">
-              Os laboratórios virtuais estarão disponíveis em breve.
+              {uiText(lang, "Os laboratórios virtuais estarão disponíveis em breve.")}
             </p>
           </Card>
         </div>
 
         <div>
-          <h2 className="text-2xl font-semibold mb-4">Aulas</h2>
+          <h2 className="text-2xl font-semibold mb-4">{uiText(lang, "Aulas")}</h2>
           <div className="space-y-4">
             {lessons.map((lesson, index) => {
               const isCompleted = lesson.progress?.status === "concluido";

@@ -18,6 +18,8 @@ import { EmbeddedVideo } from "@/components/EmbeddedVideo";
 import { CompletionSuggestionsMosaic } from "@/components/CompletionSuggestionsMosaic";
 import { getActiveCompletionSuggestions } from "@/lib/completionSuggestions";
 import { markTutorNudgeAfterComplete } from "@/lib/tutorNudge";
+import { weeklyStreakService } from "@/services/weeklyStreakService";
+import { isNativeMobile } from "@/lib/capacitor";
 import { ParametricChartRenderer } from "@/components/ParametricChartRenderer";
 import type { DynamicChartBlockData } from "@/types/dynamicChart";
 
@@ -114,6 +116,10 @@ const CapsuleViewer = () => {
         toast.success("Cápsula concluída!", {
           description: "Explore outras cápsulas para manter o ritmo de estudo.",
         });
+      }
+
+      if (isNativeMobile) {
+        void weeklyStreakService.recordCapsuleCompleted(session.user.id, isEnglish ? "en" : "pt");
       }
 
       setProgress(100);
