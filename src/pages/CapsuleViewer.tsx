@@ -13,13 +13,12 @@ import { VirtualLabRenderer } from "@/components/VirtualLabRenderer";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
-import { isNativeApp } from "@/lib/capacitor";
+import { isNativeApp, isNativeMobile } from "@/lib/capacitor";
 import { EmbeddedVideo } from "@/components/EmbeddedVideo";
 import { CompletionSuggestionsMosaic } from "@/components/CompletionSuggestionsMosaic";
 import { getActiveCompletionSuggestions } from "@/lib/completionSuggestions";
 import { markTutorNudgeAfterComplete } from "@/lib/tutorNudge";
 import { weeklyStreakService } from "@/services/weeklyStreakService";
-import { isNativeMobile } from "@/lib/capacitor";
 import { ParametricChartRenderer } from "@/components/ParametricChartRenderer";
 import type { DynamicChartBlockData } from "@/types/dynamicChart";
 
