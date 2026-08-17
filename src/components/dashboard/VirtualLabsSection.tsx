@@ -116,7 +116,7 @@ export default function VirtualLabsSection() {
   const getLabTypeLabel = (type: string) => {
     const labelsPt: Record<string, string> = {
       ultrasound: "Ultrassom",
-      tens: "Eletroterapia TENS",
+      tens: "Eletroterapia",
       ultrasound_therapy: "Ultrassom Terapêutico",
       mri: "Imagem por RM",
       photobiomodulation: "Fotobiomodulação",
@@ -127,7 +127,7 @@ export default function VirtualLabsSection() {
     };
     const labelsEn: Record<string, string> = {
       ultrasound: "Ultrasound",
-      tens: "Electrotherapy TENS",
+      tens: "Electrotherapy",
       ultrasound_therapy: "Therapeutic ultrasound",
       mri: "MRI imaging lab",
       photobiomodulation: "Photobiomodulation",

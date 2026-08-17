@@ -28,7 +28,7 @@ export const labRegistry: LabRegistryEntry[] = [
   },
   {
     id: "tens",
-    title: "Eletroterapia TENS",
+    title: "Eletroterapia",
     description: "Simulador de estimulação elétrica transcutânea com análise de campo elétrico",
     route: "/labs",
     icon: Activity,

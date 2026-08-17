@@ -14,7 +14,7 @@ import {
 } from "@/types/dynamicChart";
 
 describe("dynamicChart presets", () => {
-  it("computes TENS strength-duration curve", () => {
+  it("computes electrotherapy strength-duration curve", () => {
     const config = buildPresetBlockData("tens_strength_duration");
     const series = computeChartSeries(config, { rheobase: 12, chronaxie: 0.35 });
     expect(series).toHaveLength(1);

@@ -107,7 +107,7 @@ export function TensLabControlPanel({ hideHeader = false }: { hideHeader?: boole
 
         <div className="h-px bg-slate-800" />
 
-        {/* Parâmetros TENS */}
+        {/* Parâmetros de eletroterapia */}
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Zap className="h-3.5 w-3.5 text-amber-500" />

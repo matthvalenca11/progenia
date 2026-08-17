@@ -1,5 +1,5 @@
 /**
- * Zustand store para estado centralizado do Laboratório TENS
+ * Zustand store para estado centralizado do Laboratório de Eletroterapia
  */
 
 import { create } from "zustand";
@@ -25,7 +25,7 @@ interface TensLabState {
   presetId: TissuePresetId;
   tissueConfig: TissueConfig;
   
-  // TENS parameters
+  // Parâmetros de eletroterapia
   frequency: number;
   pulseWidth: number;
   intensity: number;

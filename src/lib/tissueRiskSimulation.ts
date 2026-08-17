@@ -2,7 +2,7 @@ import { TissueConfig, RiskResult } from "@/types/tissueConfig";
 import { TensParams } from "./tensSimulation";
 
 /**
- * Simula os riscos associados à aplicação de TENS em uma configuração anatômica específica.
+ * Simula os riscos associados à aplicação de eletroterapia em uma configuração anatômica específica.
  * Esta é uma simulação educativa simplificada, não deve ser usada para decisões clínicas reais.
  */
 export function simulateTissueRisk(
@@ -20,7 +20,7 @@ export function simulateTissueRisk(
   let riskScore = 0;
   const messages: string[] = [];
 
-  // Normalizar parâmetros TENS
+  // Normalizar parâmetros de eletroterapia
   const intensityNorm = tensParams.intensitymA / 100; // 0-1
   const frequencyNorm = tensParams.frequencyHz / 150; // 0-1
   const pulseWidthNorm = tensParams.pulseWidthUs / 400; // 0-1

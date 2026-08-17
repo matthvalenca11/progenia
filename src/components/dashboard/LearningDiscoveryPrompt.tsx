@@ -69,15 +69,15 @@ const LEARNING_TOPICS: LearningTopic[] = [
   },
   {
     id: "eletroterapia",
-    labelPt: "Eletroterapia / TENS",
-    labelEn: "Electrotherapy / TENS",
-    searchBase: "eletroterapia TENS",
+    labelPt: "Eletroterapia",
+    labelEn: "Electrotherapy",
+    searchBase: "eletroterapia",
     icon: Activity,
     refinements: [
       { labelPt: "Parâmetros de estimulação", labelEn: "Stimulation parameters", query: "eletroterapia parâmetros estimulação" },
-      { labelPt: "Indicações clínicas", labelEn: "Clinical indications", query: "TENS indicações clínicas" },
-      { labelPt: "Laboratório virtual TENS", labelEn: "TENS virtual lab", query: "TENS laboratório virtual" },
-      { labelPt: "Explorar tudo", labelEn: "Explore all", query: "eletroterapia TENS" },
+      { labelPt: "Indicações clínicas", labelEn: "Clinical indications", query: "eletroterapia indicações clínicas" },
+      { labelPt: "Laboratório virtual de eletroterapia", labelEn: "Electrotherapy virtual lab", query: "eletroterapia laboratório virtual" },
+      { labelPt: "Explorar tudo", labelEn: "Explore all", query: "eletroterapia" },
     ],
   },
   {
@@ -170,8 +170,8 @@ export function LearningDiscoveryPrompt({ capsulaInacabada, className }: Learnin
       ? "Type a keyword or pick a topic to explore."
       : "Digite uma palavra-chave ou escolha um tema para explorar.",
     inputPlaceholder: isEnglish
-      ? "E.g. therapeutic ultrasound, TENS, MRI, CT, PET..."
-      : "Ex.: ultrassom terapêutico, TENS, MRI, TC, PET...",
+      ? "E.g. therapeutic ultrasound, electrotherapy, MRI, CT, PET..."
+      : "Ex.: ultrassom terapêutico, eletroterapia, MRI, TC, PET...",
     searchWithAi: isEnglish ? "Search content" : "Buscar conteúdos",
     orChoose: isEnglish ? "Or choose a topic" : "Ou escolha um tema",
     refineIntro: (topic: string) =>

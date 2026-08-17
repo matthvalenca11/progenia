@@ -98,7 +98,6 @@ const PAIRS: readonly [string, string][] = [
   ["Progresso do Módulo", "Module progress"],
   ["aulas concluídas", "lessons completed"],
   ["Sair", "Log Out"],
-  ["tens", "TENS"],
 ];
 
 export const PT_EN_OVERRIDES: Record<string, string> = Object.fromEntries(

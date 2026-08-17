@@ -209,7 +209,7 @@ export function TensInsightsPanel({
           {/* Coluna Direita - Forma de Onda */}
           {showWaveform && (
             <div className="space-y-4">
-              <h3 className="text-base font-semibold border-b pb-2">Forma de Onda TENS</h3>
+              <h3 className="text-base font-semibold border-b pb-2">Forma de Onda de Eletroterapia</h3>
               
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">

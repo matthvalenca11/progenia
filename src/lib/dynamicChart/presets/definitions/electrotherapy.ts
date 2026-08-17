@@ -16,7 +16,7 @@ function presetBlock(
 /** Weiss: I = I_rh · (1 + c / t) — intensidade mínima vs largura de pulso */
 function tensStrengthDuration(): DynamicChartBlockData {
   return presetBlock("tens_strength_duration", {
-    title: t("Curva Intensidade × Duração (TENS)", "Strength–Duration Curve (TENS)"),
+    title: t("Curva Intensidade × Duração (Eletroterapia)", "Strength–Duration Curve (Electrotherapy)"),
     subtitle: t("Explore reobase e cronaxia", "Explore rheobase and chronaxie"),
     description: t(
       "Manipule os parâmetros para entender como a largura do pulso altera a intensidade mínima necessária para excitar o tecido neural.",

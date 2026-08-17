@@ -161,7 +161,7 @@ export default function VirtualLabsAdmin() {
   const getLabTypeBadge = (type: string) => {
     const badges = {
       ultrasound: { label: "Ultrassom", variant: "default" as const },
-      tens: { label: "TENS", variant: "default" as const },
+      tens: { label: "Eletroterapia", variant: "default" as const },
       ultrasound_therapy: { label: "Ultrassom Terapêutico", variant: "default" as const },
       ultrassom_terapeutico: { label: "Ultrassom Terapêutico", variant: "default" as const },
       mri: { label: "Imagem por RM", variant: "default" as const },

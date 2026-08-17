@@ -663,7 +663,7 @@ export function TensLabConfigEditor({ config, onChange, leadingContent }: TensLa
 
             <div className="flex items-center justify-between pt-4 border-t">
               <Label htmlFor="show-waveform-section" className="flex flex-col gap-1">
-                <span className="font-medium">Forma de Onda TENS</span>
+                <span className="font-medium">Forma de Onda de Eletroterapia</span>
                 <span className="text-sm text-muted-foreground">
                   Exibe gráfico da forma de onda e métricas
                 </span>

@@ -181,8 +181,8 @@
   },
   {
     "id": "d40b6062-dc45-4918-8d6e-5f4032a4241d",
-    "name": "TENS - Frequência",
-    "title": "TENS - Frequência",
+    "name": "Eletroterapia - Frequência",
+    "title": "Eletroterapia - Frequência",
     "description": "",
     "lab_type": "tens",
     "config_data": {
@@ -227,8 +227,8 @@
   },
   {
     "id": "c6493d5d-7257-4831-afd8-378135e66420",
-    "name": "TENS - distância",
-    "title": "TENS - distância",
+    "name": "Eletroterapia - distância",
+    "title": "Eletroterapia - distância",
     "description": "",
     "lab_type": "tens",
     "config_data": {

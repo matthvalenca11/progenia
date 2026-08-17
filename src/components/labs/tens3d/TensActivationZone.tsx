@@ -1,5 +1,5 @@
 /**
- * Visualização 3D da região ativada estimada pelo motor TENS.
+ * Visualização 3D da região ativada estimada pelo motor de eletroterapia.
  */
 
 import { useRef } from "react";

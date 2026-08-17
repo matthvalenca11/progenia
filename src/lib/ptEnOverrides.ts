@@ -1,6 +1,6 @@
 /**
  * Curated PT → EN UI translations. Machine translation (Google) routinely drops words,
- * mistranslates medical terms, and breaks "TENS" / "Ver módulo" style phrases.
+ * mistranslates medical terms, and breaks "eletroterapia" / "Ver módulo" style phrases.
  * Keys are matched via normalizeLookupKey (lowercase, no diacritics).
  */
 
@@ -167,7 +167,6 @@ const PAIRS: readonly [string, string][] = [
   ["Ultrassom diagnóstico", "Diagnostic ultrasound"],
   ["Ultrassom terapêutico", "Therapeutic ultrasound"],
   ["Eletroterapia", "Electrotherapy"],
-  ["Eletroterapia / TENS", "Electrotherapy / TENS"],
   ["Fotobiomodulação", "Photobiomodulation"],
   ["Diagnóstico por imagem", "Medical imaging"],
   ["Diagnóstico por Imagem", "Medical Imaging"],
@@ -181,7 +180,7 @@ const PAIRS: readonly [string, string][] = [
   ["Indicações clínicas", "Clinical indications"],
   ["Mecanismos biológicos", "Biological mechanisms"],
   ["Explorar tudo", "Explore all"],
-  ["Laboratório virtual TENS", "TENS virtual lab"],
+  ["Laboratório virtual de eletroterapia", "Electrotherapy virtual lab"],
   ["Simulações práticas", "Practical simulations"],
   ["Equipamentos e protocolos", "Equipment and protocols"],
   ["Ver todos os labs", "See all labs"],

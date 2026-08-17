@@ -20,7 +20,7 @@ export const adminLabEditorBodyClass = cn(
   isNativeApp && "flex flex-col",
 );
 
-/** Wrapper do editor com grid (TENS, ultrassom, etc.). */
+/** Wrapper do editor com grid (eletroterapia, ultrassom, etc.). */
 export const adminLabEditorDualPanelEditorClass = cn(
   "admin-lab-editor-dual-editor min-h-0 flex-1 basis-0 overflow-hidden",
   "flex flex-col",
@@ -32,7 +32,7 @@ export const adminLabEditorDualShellClass = cn(
   isNativeApp ? "min-h-0 flex-1 basis-0" : "space-y-6 pb-8",
 );
 
-/** Abas (TENS, FBM…) — preenchem altura no nativo. */
+/** Abas (eletroterapia, FBM…) — preenchem altura no nativo. */
 export const adminLabEditorTabsShellClass = cn(
   "admin-lab-editor-tabs-shell w-full",
   isNativeApp && "flex min-h-0 flex-1 basis-0 flex-col overflow-hidden",

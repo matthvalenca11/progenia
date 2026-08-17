@@ -364,7 +364,7 @@ function buildPubMedQuery(message: string): string {
     mappedTerms.push("(ultrasound therapy OR therapeutic ultrasound OR diagnostic ultrasound)");
   }
   if (normalized.includes("tens") || normalized.includes("eletroterapia") || normalized.includes("electrotherapy")) {
-    mappedTerms.push("(transcutaneous electrical nerve stimulation OR TENS OR electrotherapy)");
+    mappedTerms.push("(transcutaneous electrical nerve stimulation OR electrotherapy OR eletroterapia)");
   }
   if (
     normalized.includes("ressonancia") ||

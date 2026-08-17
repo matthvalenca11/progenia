@@ -117,8 +117,8 @@
   },
   {
     "id": "41e565b9-c167-4cba-b139-e12a27316516",
-    "title": "Por que mudar a frequência do TENS muda a sensação do paciente?",
-    "description": "Descubra como a frequência altera recrutamento neural e percepção sensorial no TENS.",
+    "title": "Por que mudar a frequência na eletroterapia muda a sensação do paciente?",
+    "description": "Descubra como a frequência altera recrutamento neural e percepção sensorial na eletroterapia.",
     "content_data": {
       "quiz": [
         {
@@ -128,11 +128,11 @@
             "C) Porque provoca contração muscular intensa",
             "D) Porque bloqueia completamente os nervos"
           ],
-          "question": "Por que o TENS costuma causar sensação de formigamento na pele?",
+          "question": "Por que a eletroterapia costuma causar sensação de formigamento na pele?",
           "correctAnswer": 0
         }
       ],
-      "text": " No TENS, a sensação de formigamento acontece porque a corrente elétrica estimula diretamente os nervos sensitivos (nervos responsáveis por levar informações de toque e sensação para o cérebro).\n\nQuando a corrente passa pelos eletrodos, ela provoca pequenas despolarizações nas fibras nervosas da pele, que o cérebro interpreta como uma sensação diferente do normal, geralmente descrita como formigamento, vibração ou “choquinho leve”.\n\nA frequência do TENS influencia muito essa percepção.\nFrequências mais altas costumam gerar um formigamento contínuo e confortável, sem contração muscular visível.\nJá frequências mais baixas podem ativar fibras motoras, causando pequenas contrações e uma sensação mais “pulsada”.\n\nPor isso, mudar a frequência não altera apenas o conforto do paciente, mas também quais fibras nervosas estão sendo estimuladas e qual será o efeito terapêutico predominante.",
+      "text": " Na eletroterapia, a sensação de formigamento acontece porque a corrente elétrica estimula diretamente os nervos sensitivos (nervos responsáveis por levar informações de toque e sensação para o cérebro).\n\nQuando a corrente passa pelos eletrodos, ela provoca pequenas despolarizações nas fibras nervosas da pele, que o cérebro interpreta como uma sensação diferente do normal, geralmente descrita como formigamento, vibração ou “choquinho leve”.\n\nA frequência da eletroterapia influencia muito essa percepção.\nFrequências mais altas costumam gerar um formigamento contínuo e confortável, sem contração muscular visível.\nJá frequências mais baixas podem ativar fibras motoras, causando pequenas contrações e uma sensação mais “pulsada”.\n\nPor isso, mudar a frequência não altera apenas o conforto do paciente, mas também quais fibras nervosas estão sendo estimuladas e qual será o efeito terapêutico predominante.",
       "media": [],
       "virtualLabId": "d40b6062-dc45-4918-8d6e-5f4032a4241d"
     },
@@ -146,7 +146,7 @@
   },
   {
     "id": "28360456-ca5d-47e0-ad75-c6287504f11b",
-    "title": "A distância entre eletrodos realmente importa no TENS?",
+    "title": "A distância entre eletrodos realmente importa na eletroterapia?",
     "description": "Veja na prática como o espaçamento entre eletrodos muda o campo elétrico e o efeito terapêutico.",
     "content_data": {
       "quiz": [
@@ -154,14 +154,14 @@
           "options": [
             "A) A corrente fica mais concentrada em um único ponto",
             "B) O estímulo cobre uma área maior do tecido",
-            "C) O TENS deixa de estimular nervos sensitivos",
+            "C) A eletroterapia deixa de estimular nervos sensitivos",
             "D) O efeito térmico aumenta significativamente"
           ],
-          "question": "O que acontece quando os eletrodos do TENS são posicionados mais afastados?",
+          "question": "O que acontece quando os eletrodos de eletroterapia são posicionados mais afastados?",
           "correctAnswer": 1
         }
       ],
-      "text": " No TENS, não é só a intensidade ou a frequência que importam.\nO espaçamento entre os eletrodos muda completamente como a corrente elétrica se distribui no tecido.\n\nQuando os eletrodos estão muito próximos, a corrente tende a se concentrar em uma área menor. Isso gera uma sensação mais intensa e localizada, sendo útil quando o objetivo é estimular um ponto específico ou uma região pequena.\n\nQuando os eletrodos estão mais afastados, a corrente se espalha por uma área maior. O estímulo fica mais difuso, alcançando mais fibras nervosas e cobrindo uma região mais ampla do corpo.\n\nPor isso, mudar a distância entre os eletrodos altera tanto a sensação percebida pelo paciente quanto o efeito terapêutico.\nNão existe um espaçamento “correto” universal, existe o espaçamento mais adequado para cada objetivo clínico.",
+      "text": " Na eletroterapia, não é só a intensidade ou a frequência que importam.\nO espaçamento entre os eletrodos muda completamente como a corrente elétrica se distribui no tecido.\n\nQuando os eletrodos estão muito próximos, a corrente tende a se concentrar em uma área menor. Isso gera uma sensação mais intensa e localizada, sendo útil quando o objetivo é estimular um ponto específico ou uma região pequena.\n\nQuando os eletrodos estão mais afastados, a corrente se espalha por uma área maior. O estímulo fica mais difuso, alcançando mais fibras nervosas e cobrindo uma região mais ampla do corpo.\n\nPor isso, mudar a distância entre os eletrodos altera tanto a sensação percebida pelo paciente quanto o efeito terapêutico.\nNão existe um espaçamento “correto” universal, existe o espaçamento mais adequado para cada objetivo clínico.",
       "media": [],
       "virtualLabId": "c6493d5d-7257-4831-afd8-378135e66420"
     },

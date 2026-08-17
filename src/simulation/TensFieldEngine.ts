@@ -1,5 +1,5 @@
 /**
- * TensFieldEngine - Motor de simulação para TENS com distância entre eletrodos
+ * TensFieldEngine - Motor de simulação para eletroterapia com distância entre eletrodos
  * Modelo heurístico baseado em camadas teciduais para fins educativos
  */
 

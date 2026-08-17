@@ -214,7 +214,7 @@ export default function ParametricChartEditor() {
               <Label htmlFor="chart-name">Nome interno *</Label>
               <Input
                 id="chart-name"
-                placeholder="TENS curva intensidade × duração"
+                placeholder="Eletroterapia curva intensidade × duração"
                 value={chart.name}
                 onChange={(e) =>
                   setChart((prev) => ({

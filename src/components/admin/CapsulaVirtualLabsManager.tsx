@@ -113,7 +113,7 @@ export function CapsulaVirtualLabsManager({ capsulaId }: CapsulaVirtualLabsManag
   const getLabTypeBadge = (type: string) => {
     const badges = {
       ultrasound: { label: "Ultrassom", variant: "default" as const },
-      tens: { label: "TENS", variant: "secondary" as const },
+      tens: { label: "Eletroterapia", variant: "secondary" as const },
       ultrasound_therapy: { label: "Ultrassom Terapêutico", variant: "default" as const },
       electrotherapy: { label: "Eletroterapia", variant: "secondary" as const },
       thermal: { label: "Térmico", variant: "outline" as const },

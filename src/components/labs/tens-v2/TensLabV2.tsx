@@ -1,5 +1,5 @@
 /**
- * TensLabV2 - Laboratório TENS com layout em 3 linhas (rows)
+ * TensLabV2 - Laboratório de eletroterapia com layout em 3 linhas (rows)
  * Layout similar ao Ultrassom Terapêutico e MRI
  */
 
@@ -29,7 +29,7 @@ interface TensLabV2Props {
 
 export function TensLabV2({ 
   config = defaultTensLabConfig, 
-  labName = "Laboratório Virtual de TENS",
+  labName = "Laboratório Virtual de Eletroterapia",
   showBackButton = true 
 }: TensLabV2Props) {
   const navigate = useNavigate();
@@ -250,7 +250,7 @@ export function TensLabV2({
               size="sm"
               onClick={resetToDefaults}
               className="text-muted-foreground hover:text-foreground gap-1.5 text-xs min-h-[44px]"
-              aria-label="Resetar parâmetros TENS para valores padrão"
+              aria-label="Resetar parâmetros de eletroterapia para valores padrão"
             >
               <RotateCcw className="h-3.5 w-3.5" />
               Reset

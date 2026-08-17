@@ -1,9 +1,7 @@
 /**
  * Medical / UI terms that machine translation routinely mangles.
- * "TENS" is the Portuguese verb "tens" ("you have") to Google Translate.
  */
 export const PROTECTED_ACRONYMS = [
-  "TENS",
   "NMES",
   "FES",
   "EMG",
@@ -18,9 +16,7 @@ export const PROTECTED_ACRONYMS = [
   "CT",
 ] as const;
 
-const ACRONYM_MISTRANSLATIONS: Record<string, string[]> = {
-  TENS: ["YOU HAVE", "You have", "you have"],
-};
+const ACRONYM_MISTRANSLATIONS: Record<string, string[]> = {};
 
 const acronymWord = (acronym: string) => new RegExp(`\\b${acronym}\\b`, "i");
 

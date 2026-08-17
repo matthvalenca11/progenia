@@ -365,7 +365,7 @@ export default function VirtualLabEditorUnified() {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {[
                   { value: "ultrasound", label: "Ultrassom", desc: "Simulador de imagem ultrassonográfica", icon: Waves },
-                  { value: "tens", label: "TENS", desc: "Estimulação Elétrica Transcutânea", icon: Activity },
+                  { value: "tens", label: "Eletroterapia", desc: "Estimulação Elétrica Transcutânea", icon: Activity },
                   { value: "ultrasound_therapy", label: "Ultrassom Terapêutico", desc: "Simulador de ultrassom terapêutico com análise de penetração e aquecimento", icon: Thermometer },
                   { value: "mri", label: "Imagem por RM (MRI)", desc: "Simulador de MRI: magnetização, sequências e fatias 2D/3D", icon: Magnet },
                   { value: "photobiomodulation", label: "Fotobiomodulação", desc: "Simulador de dose, penetração tecidual e zona Arndt-Schulz", icon: Sun },
@@ -421,7 +421,7 @@ export default function VirtualLabEditorUnified() {
                       id="name"
                       value={lab.name}
                       onChange={(e) => setLab({ ...lab, name: e.target.value })}
-                      placeholder="Ex: Simulador de TENS Interativo"
+                      placeholder="Ex: Simulador de Eletroterapia Interativo"
                     />
                   </div>
 
@@ -478,7 +478,7 @@ export default function VirtualLabEditorUnified() {
           </>
         )}
 
-        {/* TENS Configuration */}
+        {/* Eletroterapia Configuration */}
         {lab.lab_type === "tens" && lab.config_data && (
           <div className={adminLabEditorDualPanelEditorClass}>
             <TensLabConfigEditor
@@ -498,7 +498,7 @@ export default function VirtualLabEditorUnified() {
                           id="tens-name"
                           value={lab.name}
                           onChange={(e) => setLab({ ...lab, name: e.target.value })}
-                          placeholder="Ex: TENS para Dor Lombar"
+                          placeholder="Ex: Eletroterapia para Dor Lombar"
                         />
                       </div>
                       <div>

@@ -31,7 +31,6 @@ for (const { source, target } of PT_EN_GLOSSARY_PHRASES) {
   FORCED_PT_EN_OVERRIDES[normalizeLookupKey(source)] = target;
 }
 const BUILTIN_ACRONYM_GLOSSARY: GlossaryItem[] = [
-  { source_text: "TENS", target_text: "TENS" },
   { source_text: "NMES", target_text: "NMES" },
   { source_text: "FES", target_text: "FES" },
   { source_text: "EMG", target_text: "EMG" },
@@ -42,9 +41,7 @@ const BUILTIN_ACRONYM_GLOSSARY: GlossaryItem[] = [
   { source_text: "FBM", target_text: "FBM" },
   { source_text: "PET", target_text: "PET" },
 ];
-const ACRONYM_MISTRANSLATIONS: Record<string, string[]> = {
-  TENS: ["YOU HAVE", "You have", "you have"],
-};
+const ACRONYM_MISTRANSLATIONS: Record<string, string[]> = {};
 const normalizeLookupKey = (value: string) => normalizeText(value).toLowerCase();
 const PROVIDER_MAX_CHARS = 900;
 const LINE_BREAK_TOKEN = "[[__BR__]]";

@@ -13,7 +13,7 @@ interface TopBarProps {
   showBackButton?: boolean;
 }
 
-export function TensLabTopBar({ labName = "Laboratório TENS", showBackButton = true }: TopBarProps) {
+export function TensLabTopBar({ labName = "Laboratório de Eletroterapia", showBackButton = true }: TopBarProps) {
   const navigate = useNavigate();
   const {
     frequency,

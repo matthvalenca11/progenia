@@ -1,5 +1,5 @@
 /**
- * TensLabPage - Página do Laboratório TENS (usa o novo layout V2)
+ * TensLabPage - Página do Laboratório de Eletroterapia (usa o novo layout V2)
  */
 
 import { TensLabV2 } from "@/components/labs/tens-v2";
@@ -17,7 +17,7 @@ export default function TensLabPage({
   return (
     <TensLabV2 
       config={config} 
-      labName="Laboratório Virtual de TENS"
+      labName="Laboratório Virtual de Eletroterapia"
       showBackButton={!previewMode}
     />
   );

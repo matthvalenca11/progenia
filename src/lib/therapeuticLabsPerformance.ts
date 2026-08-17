@@ -1,5 +1,5 @@
 /**
- * Limites de performance compartilhados entre labs terapêuticos (US, Fotobio, TENS).
+ * Limites de performance compartilhados entre labs terapêuticos (US, Fotobio, eletroterapia).
  * Android WebView: menos instâncias, sem sombras reais, menos partículas.
  */
 
@@ -11,7 +11,7 @@ export function shouldCastTherapeuticShadows(): boolean {
   return !isAndroidNative;
 }
 
-/** Máximo de linhas de campo elétrico TENS visíveis */
+/** Máximo de linhas de campo elétrico de eletroterapia visíveis */
 export function getMaxTensFieldLines(intensityNorm: number): number {
   const base = Math.floor(6 + intensityNorm * 10);
   return isAndroidNative ? Math.min(base, 10) : Math.min(base, 20);
@@ -22,7 +22,7 @@ export function getTensFieldLineSegments(): number {
   return isAndroidNative ? 28 : 50;
 }
 
-/** Partículas do campo elétrico TENS */
+/** Partículas do campo elétrico de eletroterapia */
 export function getMaxTensFieldParticles(intensityNorm: number): number {
   const base = Math.floor(40 + intensityNorm * 80);
   return isAndroidNative ? Math.min(base, 60) : Math.min(base, 150);
@@ -65,7 +65,7 @@ export function getPhotobioInteractionMapResolution(): { width: number; height: 
     : { ...PHOTOBIO_MAP_RESOLUTION_DESKTOP };
 }
 
-/** Raios ao redor de implante metálico TENS */
+/** Raios ao redor de implante metálico na eletroterapia */
 export function getMetalHotspotRayCount(): number {
   return isAndroidNative ? 4 : 8;
 }

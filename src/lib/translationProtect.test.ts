@@ -1,19 +1,14 @@
 import { describe, expect, it } from "vitest";
-import {
-  isProtectedAcronym,
-  restoreProtectedAcronyms,
-} from "@/lib/translationProtect";
+import { isProtectedAcronym, restoreProtectedAcronyms } from "./translationProtect";
 
 describe("translationProtect", () => {
-  it("keeps TENS as an acronym, not the verb tens", () => {
-    expect(isProtectedAcronym("TENS")).toBe(true);
-    expect(restoreProtectedAcronyms("TENS", "YOU HAVE")).toBe("TENS");
-    expect(restoreProtectedAcronyms("Laboratório Virtual de TENS", "YOU HAVE Virtual Laboratory")).toBe(
-      "TENS Virtual Laboratory",
-    );
+  it("recognizes protected medical acronyms", () => {
+    expect(isProtectedAcronym("MRI")).toBe(true);
+    expect(isProtectedAcronym("NMES")).toBe(true);
+    expect(isProtectedAcronym("eletroterapia")).toBe(false);
   });
 
-  it("leaves unrelated you-have sentences alone", () => {
-    expect(restoreProtectedAcronyms("Você tem acesso", "You have access")).toBe("You have access");
+  it("restores MRI when mistranslated", () => {
+    expect(restoreProtectedAcronyms("MRI", "RM")).toBe("MRI");
   });
 });

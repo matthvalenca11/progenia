@@ -71,7 +71,7 @@ export const PRESET_CATEGORIES: ClinicalPresetCategory[] = [
 export const PRESET_CATALOG: DynamicChartPresetMeta[] = [
   {
     id: "tens_strength_duration",
-    title: i18n("TENS — Curva Intensidade × Duração", "TENS — Strength–Duration Curve"),
+    title: i18n("Eletroterapia — Curva Intensidade × Duração", "Electrotherapy — Strength–Duration Curve"),
     subtitle: i18n("Reobase e Cronaxia (Weiss)", "Rheobase and Chronaxie (Weiss)"),
     description: i18n(
       "Relação hiperbólica entre largura de pulso e intensidade mínima para excitação neural.",

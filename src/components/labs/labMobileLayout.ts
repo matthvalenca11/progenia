@@ -20,7 +20,7 @@ export const labMobileShellClass =
 /** Grid mobile: cada linha respeita a largura do pai (canvas 3D não estica o grid). */
 export const labMobileGridClass = `${labMobileShellClass} lab-mobile-grid grid overflow-hidden [&>*]:min-w-0 [&>*]:max-w-full`;
 
-/** Coluna mobile (TENS/MRI/Foto): mesma contenção de largura por filho. */
+/** Coluna mobile (eletroterapia/MRI/Foto): mesma contenção de largura por filho. */
 export const labMobileFlexClass = `${labMobileShellClass} flex flex-col overflow-hidden [&>*]:min-w-0 [&>*]:max-w-full`;
 
 /** Host de canvas WebGL — isola largura intrínseca do canvas. */
