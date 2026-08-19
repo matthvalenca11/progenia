@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { gamificationService } from "@/services/gamificationService";
 import { VirtualLabRenderer } from "@/components/VirtualLabRenderer";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useT, useTranslatedText, useTranslatedTexts } from "@/hooks/useTranslation";
 import { cn } from "@/lib/utils";
 import { isNativeApp, isNativeMobile } from "@/lib/capacitor";
 import { EmbeddedVideo } from "@/components/EmbeddedVideo";
@@ -34,6 +35,19 @@ const CapsuleViewer = () => {
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const { language } = useLanguage();
   const isEnglish = language === "en";
+  const t = useT();
+  const titleTr = useTranslatedText(capsula?.title);
+  const descriptionTr = useTranslatedText(capsula?.description);
+  const bodyTr = useTranslatedText(
+    (capsula?.content_data as { text?: string } | undefined)?.text,
+  );
+
+  const quizSourceStrings = useMemo(() => {
+    const quiz = (capsula?.content_data as { quiz?: Array<{ question?: string; options?: string[] }> } | undefined)?.quiz;
+    if (!Array.isArray(quiz)) return [];
+    return quiz.flatMap((q) => [q.question ?? "", ...(q.options ?? [])]).filter(Boolean);
+  }, [capsula]);
+  const translatedQuiz = useTranslatedTexts(quizSourceStrings);
 
   const isValidUuid = (s: string) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
@@ -43,7 +57,7 @@ const CapsuleViewer = () => {
       if (!capsulaId) return;
 
       if (!isValidUuid(capsulaId)) {
-        toast.error("Link inválido. A cápsula deve ser acessada por um link correto.");
+        toast.error(t("Link inválido. A cápsula deve ser acessada por um link correto."));
         navigate("/dashboard");
         setLoading(false);
         return;
@@ -58,7 +72,7 @@ const CapsuleViewer = () => {
 
         const capsulaData = await capsulaService.getById(capsulaId);
         if (!capsulaData) {
-          toast.error("Cápsula não encontrada");
+          toast.error(t("Cápsula não encontrada"));
           navigate("/dashboard");
           return;
         }
@@ -75,7 +89,7 @@ const CapsuleViewer = () => {
         }
       } catch (error: any) {
         console.error("Error loading capsula:", error);
-        toast.error("Erro ao carregar cápsula");
+        toast.error(t("Erro ao carregar cápsula"));
         navigate("/dashboard");
       } finally {
         setLoading(false);
@@ -106,14 +120,14 @@ const CapsuleViewer = () => {
       if (!wasDone) {
         markTutorNudgeAfterComplete();
         const result = await gamificationService.onCapsuleCompleted(session.user.id, capsulaId);
-        toast.success("Cápsula concluída!", {
+        toast.success(t("Cápsula concluída!"), {
           description: result.messages.length
             ? result.messages.join(" · ")
-            : "Explore outras cápsulas para manter o ritmo de estudo.",
+            : t("Explore outras cápsulas para manter o ritmo de estudo."),
         });
       } else {
-        toast.success("Cápsula concluída!", {
-          description: "Explore outras cápsulas para manter o ritmo de estudo.",
+        toast.success(t("Cápsula concluída!"), {
+          description: t("Explore outras cápsulas para manter o ritmo de estudo."),
         });
       }
 
@@ -131,7 +145,7 @@ const CapsuleViewer = () => {
       }
     } catch (error: any) {
       console.error("Error completing capsula:", error);
-      toast.error("Erro ao marcar cápsula como concluída");
+      toast.error(t("Erro ao marcar cápsula como concluída"));
     } finally {
       setCompleting(false);
     }
@@ -158,7 +172,7 @@ const CapsuleViewer = () => {
 
       const result = await gamificationService.onCapsuleQuizPerfect(session.user.id, capsulaId);
       if (result.messages.length) {
-        toast.success("Quiz perfeito!", {
+        toast.success(t("Quiz perfeito!"), {
           description: result.messages.join(" · "),
         });
       }
@@ -172,7 +186,7 @@ const CapsuleViewer = () => {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Carregando cápsula...</p>
+          <p className="text-muted-foreground">{t("Carregando cápsula...")}</p>
         </div>
       </div>
     );
@@ -234,19 +248,19 @@ const CapsuleViewer = () => {
         )}
       >
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-8" data-i18n="react">
           <div className="inline-block px-3 py-1 bg-accent/10 text-accent text-sm rounded-full mb-4">
-            Cápsula Rápida
+            {t("Cápsula Rápida")}
           </div>
-          <h1 className="mobile-page-title mb-4 content-break">{capsula.title}</h1>
+          <h1 className="mobile-page-title mb-4 content-break">{titleTr}</h1>
           {capsula.description && (
-            <p className="text-base sm:text-lg text-muted-foreground mb-4 content-break">{capsula.description}</p>
+            <p className="text-base sm:text-lg text-muted-foreground mb-4 content-break">{descriptionTr}</p>
           )}
           
           {progress > 0 && progress < 100 && (
             <Card className="p-4 mb-6">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Seu Progresso</span>
+                <span className="text-sm font-medium">{t("Seu Progresso")}</span>
                 <span className="text-sm text-muted-foreground">{progress}%</span>
               </div>
               <Progress value={progress} className="h-2" />
@@ -257,7 +271,7 @@ const CapsuleViewer = () => {
             <Card className="p-4 mb-6 bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
               <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
                 <CheckCircle2 className="h-5 w-5" />
-                <span className="font-medium">Cápsula Concluída</span>
+                <span className="font-medium">{t("Cápsula Concluída")}</span>
               </div>
             </Card>
           )}
@@ -270,9 +284,9 @@ const CapsuleViewer = () => {
               {orderedTokens.map((token) => {
                 if (token === "text" && contentData.text) {
                   return (
-                    <Card key="text" className="p-6">
+                    <Card key="text" className="p-6" data-i18n="react">
                       <div className="prose prose-slate dark:prose-invert max-w-none content-break">
-                        <p className="whitespace-pre-wrap">{contentData.text}</p>
+                        <p className="whitespace-pre-wrap">{bodyTr}</p>
                       </div>
                     </Card>
                   );
@@ -323,8 +337,8 @@ const CapsuleViewer = () => {
 
                 if (token === "quiz" && contentData.quiz && contentData.quiz.length > 0) {
                   return (
-                    <Card key="quiz" className="p-6">
-                  <h3 className="text-xl font-semibold mb-4">Mini Quiz</h3>
+                    <Card key="quiz" className="p-6" data-i18n="react">
+                  <h3 className="text-xl font-semibold mb-4">{t("Mini Quiz")}</h3>
                   <div className="space-y-6">
                     {contentData.quiz.map((question: any, qIndex: number) => {
                       const selectedAnswer = quizAnswers[qIndex];
@@ -333,7 +347,7 @@ const CapsuleViewer = () => {
 
                       return (
                         <div key={qIndex} className="space-y-3">
-                          <p className="font-medium">{qIndex + 1}. {question.question}</p>
+                          <p className="font-medium">{qIndex + 1}. {translatedQuiz[question.question] ?? question.question}</p>
                           <div className="space-y-2 pl-4">
                             {question.options.map((option: string, oIndex: number) => {
                               const isSelected = selectedAnswer === oIndex;
@@ -354,7 +368,7 @@ const CapsuleViewer = () => {
                                   } ${quizSubmitted ? 'cursor-default' : ''}`}
                                 >
                                   <div className="flex items-start justify-between gap-2">
-                                    <span className="content-break">{option}</span>
+                                    <span className="content-break">{translatedQuiz[option] ?? option}</span>
                                     {showFeedback && isCorrectOption && (
                                       <CheckCircle2 className="h-5 w-5 text-green-600" />
                                     )}
@@ -376,15 +390,19 @@ const CapsuleViewer = () => {
                       className="mt-6 w-full"
                       disabled={Object.keys(quizAnswers).length !== contentData.quiz.length}
                     >
-                      Verificar Respostas
+                      {t("Verificar Respostas")}
                     </Button>
                   )}
                   {quizSubmitted && (
                     <div className="mt-6 p-4 rounded-lg bg-accent/10">
                       <p className="text-center font-medium">
-                        Você acertou {Object.keys(quizAnswers).filter((key) => 
-                          quizAnswers[parseInt(key)] === contentData.quiz[parseInt(key)].correctAnswer
-                        ).length} de {contentData.quiz.length} questões!
+                        {isEnglish
+                          ? `You got ${Object.keys(quizAnswers).filter((key) =>
+                              quizAnswers[parseInt(key)] === contentData.quiz[parseInt(key)].correctAnswer,
+                            ).length} of ${contentData.quiz.length} questions right!`
+                          : `Você acertou ${Object.keys(quizAnswers).filter((key) =>
+                              quizAnswers[parseInt(key)] === contentData.quiz[parseInt(key)].correctAnswer,
+                            ).length} de ${contentData.quiz.length} questões!`}
                       </p>
                     </div>
                   )}
@@ -398,7 +416,7 @@ const CapsuleViewer = () => {
           ) : (
             <Card className="p-8 text-center">
               <p className="text-muted-foreground">
-                Esta cápsula ainda não possui conteúdo.
+                {t("Esta cápsula ainda não possui conteúdo.")}
               </p>
             </Card>
           )}
@@ -408,14 +426,14 @@ const CapsuleViewer = () => {
         {progress < 100 && (
           <Card className="p-6 text-center">
             <h3 className="text-xl font-semibold mb-4">
-              Parabéns por concluir esta cápsula!
+              {t("Parabéns por concluir esta cápsula!")}
             </h3>
             <Button
               size="lg"
               onClick={handleComplete}
               disabled={completing}
             >
-              {completing ? "Marcando como concluída..." : "Marcar como Concluída"}
+              {completing ? t("Marcando como concluída...") : t("Marcar como Concluída")}
               <CheckCircle2 className="h-5 w-5 ml-2" />
             </Button>
           </Card>
@@ -423,11 +441,11 @@ const CapsuleViewer = () => {
 
         {(showSuggestions || (progress === 100 && completionSuggestions.length > 0)) && (
           <CompletionSuggestionsMosaic
-            title="Continue explorando"
-            subtitle="Conteúdos relacionados selecionados para aprofundar este tema."
+            title={t("Continue explorando")}
+            subtitle={t("Conteúdos relacionados selecionados para aprofundar este tema.")}
             items={completionSuggestions}
             onDismiss={() => navigate("/dashboard")}
-            dismissLabel="Voltar ao dashboard"
+            dismissLabel={t("Voltar ao dashboard")}
           />
         )}
       </div>

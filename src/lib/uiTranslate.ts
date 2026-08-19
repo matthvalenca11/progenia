@@ -1,6 +1,7 @@
 import { getForcedPtEnOverride } from "@/lib/ptEnOverrides";
+import { translateSync, type Lang } from "@/lib/translationClient";
 
-type AppLanguage = "pt" | "en";
+type AppLanguage = Lang;
 
 /** Use for headlines and labels that must not rely on DOM auto-translation alone. */
 export function uiText(language: AppLanguage, pt: string): string {
@@ -16,11 +17,9 @@ export function welcomeLine(language: AppLanguage, firstName: string): string {
   return firstName ? `Bem-vindo, ${firstName}.` : "Bem-vindo.";
 }
 
-/** CMS / free-form Portuguese copy — overrides first; DOM auto-translate handles the rest. */
+/** CMS / free-form Portuguese copy — sync cache + overrides. */
 export function translateCmsText(language: AppLanguage, text?: string | null): string {
-  if (!text) return "";
-  if (language !== "en") return text;
-  return getForcedPtEnOverride(text) ?? text;
+  return translateSync(text ?? "", language);
 }
 
 /** Module title from CMS: apply known overrides (e.g. Diagnóstico por Imagem). */

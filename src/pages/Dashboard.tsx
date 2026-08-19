@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { uiText, welcomeLine, translateModuleTitle, translateCmsText } from "@/lib/uiTranslate";
+import { uiText, welcomeLine, translateModuleTitle } from "@/lib/uiTranslate";
+import { useT, useTranslatedTexts } from "@/hooks/useTranslation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -82,6 +83,7 @@ const Dashboard = () => {
   const { isAdmin, signOut, user, session, bootstrapped } = useAuth();
   const { language } = useLanguage();
   const isEnglish = language === "en";
+  const t = useT();
   const isMobile = useIsMobile();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [stats, setStats] = useState<UserStats | null>(null);
@@ -102,6 +104,26 @@ const Dashboard = () => {
   const [capsulasConcluidas, setCapsulasConcluidas] = useState<number>(0);
   const [minutosEstudo, setMinutosEstudo] = useState<number>(0);
   const [weeklyStreak, setWeeklyStreak] = useState<WeeklyStreakSnapshot | null>(null);
+
+  const capsuleTranslationSources = useMemo(
+    () =>
+      capsulaRecomendadas.flatMap((c) => [c.title ?? "", c.description ?? ""]).filter(Boolean),
+    [capsulaRecomendadas],
+  );
+  const translatedCapsules = useTranslatedTexts(capsuleTranslationSources);
+
+  const moduleDescriptionSources = useMemo(
+    () => modules.map((m) => m.description ?? "").filter(Boolean),
+    [modules],
+  );
+  const translatedModuleDescriptions = useTranslatedTexts(moduleDescriptionSources);
+
+  const inacabadaTitle = useTranslatedTexts(
+    capsulaInacabada?.title ? [capsulaInacabada.title] : [],
+  );
+  const inacabadaDescription = useTranslatedTexts(
+    capsulaInacabada?.description ? [capsulaInacabada.description] : [],
+  );
 
   useEffect(() => {
     if (!userId || !isNativeMobile) {
@@ -924,7 +946,7 @@ const Dashboard = () => {
                       ) : null}
                     </div>
                     <div className="p-3">
-                      <h3 className="line-clamp-2 text-sm font-semibold leading-snug">{translateCmsText(isEnglish ? "en" : "pt", capsula.title)}</h3>
+                      <h3 className="line-clamp-2 text-sm font-semibold leading-snug" data-i18n="react">{translatedCapsules[capsula.title!] ?? capsula.title}</h3>
                     </div>
                   </Card>
                 ))}
@@ -1244,8 +1266,8 @@ const Dashboard = () => {
                         <div className="inline-block px-2 py-1 bg-accent/10 text-accent text-xs rounded-full mb-2 w-fit">
                           {uiText(isEnglish ? "en" : "pt", "Cápsula Rápida")}
                         </div>
-                        <h3 className="content-break mb-2 text-lg font-semibold">{translateCmsText(isEnglish ? "en" : "pt", capsula.title)}</h3>
-                        <p className="content-break mb-4 flex-1 text-sm text-muted-foreground line-clamp-2">{translateCmsText(isEnglish ? "en" : "pt", capsula.description)}</p>
+                        <h3 className="content-break mb-2 text-lg font-semibold" data-i18n="react">{translatedCapsules[capsula.title!] ?? capsula.title}</h3>
+                        <p className="content-break mb-4 flex-1 text-sm text-muted-foreground line-clamp-2" data-i18n="react">{translatedCapsules[capsula.description ?? ""] ?? capsula.description}</p>
                         <Button size="sm" className="w-full mt-auto">
                           {uiText(isEnglish ? "en" : "pt", "Conferir")} <ArrowRight className="h-4 w-4 ml-2" />
                         </Button>
@@ -1295,8 +1317,8 @@ const Dashboard = () => {
                   <div className="inline-block px-2 py-1 bg-accent/10 text-accent text-xs rounded-full mb-2">
                     {uiText(isEnglish ? "en" : "pt", "Cápsula em Progresso")}
                   </div>
-                  <h3 className="font-semibold text-xl mb-2">{translateCmsText(isEnglish ? "en" : "pt", capsulaInacabada.title)}</h3>
-                  <p className="text-muted-foreground mb-4">{translateCmsText(isEnglish ? "en" : "pt", capsulaInacabada.description)}</p>
+                  <h3 className="font-semibold text-xl mb-2" data-i18n="react">{inacabadaTitle[capsulaInacabada.title] ?? capsulaInacabada.title}</h3>
+                  <p className="text-muted-foreground mb-4" data-i18n="react">{inacabadaDescription[capsulaInacabada.description ?? ""] ?? capsulaInacabada.description}</p>
                   <Button>
                     {uiText(isEnglish ? "en" : "pt", "Continuar")} <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
@@ -1339,7 +1361,7 @@ const Dashboard = () => {
                       </h3>
                     </div>
                     <p className="text-muted-foreground text-sm mb-4 line-clamp-3 content-break">
-                      {translateCmsText(isEnglish ? "en" : "pt", module.description)}
+                      {translatedModuleDescriptions[module.description] ?? module.description}
                     </p>
                     <div className="mt-auto">
                       {enrolledModules.has(module.id) ? (

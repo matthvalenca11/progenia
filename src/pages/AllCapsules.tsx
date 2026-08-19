@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useT, useTranslatedTexts } from "@/hooks/useTranslation";
 
 interface Module {
   id: string;
@@ -29,6 +30,7 @@ export default function AllCapsules() {
   const { user } = useAuth();
   const { language } = useLanguage();
   const isEnglish = language === "en";
+  const t = useT();
   const [capsulas, setCapsulas] = useState<Capsula[]>([]);
   const [loading, setLoading] = useState(true);
   const [progressMap, setProgressMap] = useState<Record<string, any>>({});
@@ -39,6 +41,13 @@ export default function AllCapsules() {
   const [searchAlternatives, setSearchAlternatives] = useState<string[]>([]);
   const [shuffledCapsulas, setShuffledCapsulas] = useState<Capsula[]>([]);
   const [englishSearchIndex, setEnglishSearchIndex] = useState<Record<string, string>>({});
+
+  const displayTranslationSources = useMemo(
+    () =>
+      capsulas.flatMap((capsula) => [capsula.title ?? "", capsula.description ?? ""]).filter(Boolean),
+    [capsulas],
+  );
+  const translatedCapsules = useTranslatedTexts(displayTranslationSources);
 
   useEffect(() => {
     if (!capsulas.length) {
@@ -348,7 +357,7 @@ export default function AllCapsules() {
                         <div className="absolute top-2 right-2">
                           <Badge className="bg-green-500">
                             <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Concluída
+                            {t("Concluída")}
                           </Badge>
                         </div>
                       )}
@@ -356,7 +365,7 @@ export default function AllCapsules() {
                         <div className="absolute top-2 right-2">
                           <Badge variant="secondary">
                             <PlayCircle className="h-3 w-3 mr-1" />
-                            Em Progresso
+                            {t("Em Progresso")}
                           </Badge>
                         </div>
                       )}
@@ -365,7 +374,7 @@ export default function AllCapsules() {
                       <div className="flex items-center gap-2 mb-2">
                         <Badge variant="outline" className="flex items-center gap-1">
                           <Sparkles className="h-3 w-3" />
-                          Cápsula Rápida
+                          {t("Cápsula Rápida")}
                         </Badge>
                         {capsula.duration_minutes && (
                           <Badge variant="secondary" className="flex items-center gap-1">
@@ -374,16 +383,16 @@ export default function AllCapsules() {
                           </Badge>
                         )}
                       </div>
-                      <h3 className="content-break font-semibold text-lg mb-2 group-hover:text-primary transition-colors">
-                        {capsula.title}
+                      <h3 className="content-break font-semibold text-lg mb-2 group-hover:text-primary transition-colors" data-i18n="react">
+                        {translatedCapsules[capsula.title!] ?? capsula.title}
                       </h3>
                       {capsula.description && (
-                        <p className="content-break text-sm text-muted-foreground line-clamp-2 mb-4">
-                          {capsula.description}
+                        <p className="content-break text-sm text-muted-foreground line-clamp-2 mb-4" data-i18n="react">
+                          {translatedCapsules[capsula.description] ?? capsula.description}
                         </p>
                       )}
                       <Button className="w-full" size="sm">
-                        {isCompleted ? "Revisar" : isInProgress ? "Continuar" : "Conferir"}
+                        {isCompleted ? t("Revisar") : isInProgress ? t("Continuar") : t("Conferir")}
                         <ArrowLeft className="h-4 w-4 ml-2 rotate-180" />
                       </Button>
                     </CardContent>
@@ -397,7 +406,7 @@ export default function AllCapsules() {
         {/* Outras cápsulas de outros módulos */}
         {otherCapsulas.length > 0 && (
           <div>
-            <h2 className="text-2xl font-bold mb-6">Outras Cápsulas</h2>
+            <h2 className="text-2xl font-bold mb-6">{t("Outras Cápsulas")}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {otherCapsulas.map((capsula) => {
                 const progress = progressMap[capsula.id!];
@@ -424,7 +433,7 @@ export default function AllCapsules() {
                         <div className="absolute top-2 right-2">
                           <Badge className="bg-green-500">
                             <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Concluída
+                            {t("Concluída")}
                           </Badge>
                         </div>
                       )}
@@ -432,7 +441,7 @@ export default function AllCapsules() {
                         <div className="absolute top-2 right-2">
                           <Badge variant="secondary">
                             <PlayCircle className="h-3 w-3 mr-1" />
-                            Em Progresso
+                            {t("Em Progresso")}
                           </Badge>
                         </div>
                       )}
@@ -441,7 +450,7 @@ export default function AllCapsules() {
                       <div className="flex items-center gap-2 mb-2">
                         <Badge variant="outline" className="flex items-center gap-1">
                           <Sparkles className="h-3 w-3" />
-                          Cápsula Rápida
+                          {t("Cápsula Rápida")}
                         </Badge>
                         {capsula.duration_minutes && (
                           <Badge variant="secondary" className="flex items-center gap-1">
@@ -450,16 +459,16 @@ export default function AllCapsules() {
                           </Badge>
                         )}
                       </div>
-                      <h3 className="content-break font-semibold text-lg mb-2 group-hover:text-primary transition-colors">
-                        {capsula.title}
+                      <h3 className="content-break font-semibold text-lg mb-2 group-hover:text-primary transition-colors" data-i18n="react">
+                        {translatedCapsules[capsula.title!] ?? capsula.title}
                       </h3>
                       {capsula.description && (
-                        <p className="content-break text-sm text-muted-foreground line-clamp-2 mb-4">
-                          {capsula.description}
+                        <p className="content-break text-sm text-muted-foreground line-clamp-2 mb-4" data-i18n="react">
+                          {translatedCapsules[capsula.description] ?? capsula.description}
                         </p>
                       )}
                       <Button className="w-full" size="sm">
-                        {isCompleted ? "Revisar" : isInProgress ? "Continuar" : "Conferir"}
+                        {isCompleted ? t("Revisar") : isInProgress ? t("Continuar") : t("Conferir")}
                         <ArrowLeft className="h-4 w-4 ml-2 rotate-180" />
                       </Button>
                     </CardContent>
