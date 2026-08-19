@@ -364,6 +364,41 @@ export function ArSliceControls({
               </summary>
               <div className="space-y-4 border-t border-white/8 px-3 pb-3 pt-3">
                 <div className="space-y-2">
+                  <Label className="text-xs text-slate-300">
+                    {isEnglish ? "Motion source" : "Fonte de movimento"}
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={usingDeviceMotion ? "default" : "outline"}
+                      className="h-9 text-xs"
+                      disabled={connecting || usingDeviceMotion}
+                      onClick={onConnectDeviceMotion}
+                    >
+                      <Smartphone className="mr-1.5 h-3.5 w-3.5" />
+                      {isEnglish ? "Device sensors" : "Sensores do aparelho"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={!usingDeviceMotion ? "default" : "outline"}
+                      className="h-9 text-xs"
+                      disabled={connecting}
+                      onClick={onConnectBle}
+                    >
+                      <Bluetooth className="mr-1.5 h-3.5 w-3.5" />
+                      {isEnglish ? "BLE frame" : "Moldura BLE"}
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-slate-500">
+                    {isEnglish
+                      ? "Device sensors are active by default. Connect the BLE frame only when you need it."
+                      : "Os sensores do aparelho são o padrão. Conecte a moldura BLE somente quando precisar."}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
                   <Label className="text-xs text-slate-300">Tipo de imagem</Label>
                   <div className="grid grid-cols-4 gap-1 rounded-lg bg-black/20 p-1">
                     {(

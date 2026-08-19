@@ -15,9 +15,7 @@ import { ProgeniaArFrame } from "@/features/ar-slice/vision/ProgeniaArFrame";
 import { BleHandTrackingClient } from "@/features/ar-slice/vision/BleHandTrackingClient";
 import { bleHandFusion } from "@/features/ar-slice/vision/bleHandFusion";
 
-/**
- * Native BLE is primary. Wi‑Fi STA remains an explicit fallback.
- */
+/** Device sensors are the default; BLE and Wi‑Fi are explicit alternatives. */
 export function useArSliceTransport() {
   const bleRef = useRef<BleCentral | null>(null);
   const nativeBleRef = useRef<NativeBleOrientationClient | null>(null);
@@ -29,6 +27,7 @@ export function useArSliceTransport() {
   const wantWifi = useRef(false);
   const wantBle = useRef(false);
   const wantDeviceMotion = useRef(false);
+  const autoDeviceMotionStarted = useRef(false);
   const bleHandTrackingEnabledRef = useRef(true);
   const handVisibleRef = useRef(false);
   const [isMock, setIsMock] = useState(true);
@@ -401,6 +400,15 @@ export function useArSliceTransport() {
     stopBleHandTracking,
   ]);
 
+  // The lab should be usable without a physical frame. BLE remains available
+  // from Settings, but phone sensors start automatically on entry.
+  useEffect(() => {
+    if (!isNativeApp) return;
+    if (autoDeviceMotionStarted.current) return;
+    autoDeviceMotionStarted.current = true;
+    void connectDeviceMotion();
+  }, [connectDeviceMotion]);
+
   const connectWifi = useCallback(
     async (host?: string) => {
       const wifi = wifiRef.current;
@@ -669,7 +677,7 @@ export function useArSliceTransport() {
     setConnectStatus(null);
     resetPoseScrollSession();
     setConnectionState("idle");
-    setTransport("ble");
+    setTransport("device-motion");
   }, [setConnectedDevice, setConnectionState, setTransport, stopBleHandTracking]);
 
   const writeZero = useCallback(async () => {

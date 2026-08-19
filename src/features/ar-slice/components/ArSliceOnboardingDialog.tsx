@@ -14,7 +14,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { isNativeApp } from "@/lib/capacitor";
 import { cn } from "@/lib/utils";
 
-const ONBOARDING_KEY = "ar-slice:onboarding-v3-done";
+const ONBOARDING_KEY = "ar-slice:onboarding-v4-done";
 
 type Step = {
   title: string;
@@ -27,9 +27,9 @@ function buildSteps(isEnglish: boolean): Step[] {
     ? [
         {
           icon: Smartphone,
-          title: "1. Choose how to move the slice",
+          title: "1. Start with device sensors",
           body:
-            "The easiest way is using your phone's sensors. In the bottom panel, tap Device sensors. If you have the ProGenia frame, you can connect it over Bluetooth too.",
+            "Device sensors start automatically. Hold the phone upright and tilt it to aim the slice. To use a ProGenia frame instead, open Settings and select BLE frame under Motion source.",
         },
         {
           icon: Camera,
@@ -53,9 +53,9 @@ function buildSteps(isEnglish: boolean): Step[] {
     : [
         {
           icon: Smartphone,
-          title: "1. Escolha como vai mover o corte",
+          title: "1. Comece pelos sensores do aparelho",
           body:
-            "O jeito mais simples é usar os sensores do celular. No painel de baixo, toque em Sensores do aparelho. Se você tem a moldura ProGenia, também pode conectar por Bluetooth.",
+            "Os sensores do aparelho iniciam automaticamente. Segure o celular na vertical e incline para apontar o corte. Para usar a moldura ProGenia, abra Ajustes e selecione Moldura BLE em Fonte de movimento.",
         },
         {
           icon: Camera,
