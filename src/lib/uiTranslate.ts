@@ -16,6 +16,13 @@ export function welcomeLine(language: AppLanguage, firstName: string): string {
   return firstName ? `Bem-vindo, ${firstName}.` : "Bem-vindo.";
 }
 
+/** CMS / free-form Portuguese copy — overrides first; DOM auto-translate handles the rest. */
+export function translateCmsText(language: AppLanguage, text?: string | null): string {
+  if (!text) return "";
+  if (language !== "en") return text;
+  return getForcedPtEnOverride(text) ?? text;
+}
+
 /** Module title from CMS: apply known overrides (e.g. Diagnóstico por Imagem). */
 export function translateModuleTitle(language: AppLanguage, title?: string): string {
   if (!title) return "";

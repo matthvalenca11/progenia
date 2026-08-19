@@ -4,6 +4,7 @@ import { isNativeMobile } from "@/lib/capacitor";
 import { readPersistedAppLanguage } from "@/lib/nativeLanguageOnboarding";
 import { getForcedPtEnOverride } from "@/lib/ptEnOverrides";
 import { isProtectedAcronym, restoreProtectedAcronyms } from "@/lib/translationProtect";
+import { supabase } from "@/integrations/supabase/client";
 
 type Language = "pt" | "en";
 
@@ -14,7 +15,7 @@ interface LanguageContextType {
 }
 
 const STORAGE_KEY = "progenia_language";
-const TRANSLATION_CACHE_KEY = "progenia_translation_cache_en_v3";
+const TRANSLATION_CACHE_KEY = "progenia_translation_cache_en_v4";
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
@@ -39,7 +40,6 @@ const looksTranslatable = (text: string) => {
   if (/^[\d\s()[\]{}.,:;!@#$%^&*_\-+=/\\|'"`~<>?]+$/.test(trimmed)) return false;
   return /[A-Za-zÀ-ÿ]/.test(trimmed);
 };
-const maskUntranslated = (text: string) => text.replace(/\S/g, "\u00A0");
 const loadTranslationCacheSync = () => {
   try {
     const raw = localStorage.getItem(TRANSLATION_CACHE_KEY);
@@ -298,9 +298,6 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         if (!originalTextByNodeRef.current.has(node)) {
           originalTextByNodeRef.current.set(node, original);
         }
-        if (node.data === original) {
-          node.data = maskUntranslated(original);
-        }
       }
       queue(original);
     }
@@ -363,26 +360,33 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const fetchPendingTranslations = async (texts: string[]) => {
     if (!texts.length || languageRef.current !== "en") return;
 
-    const chunkSize = 50;
-    for (let i = 0; i < texts.length; i += chunkSize) {
-      const chunk = texts.slice(i, i + chunkSize);
-      const translated = await translateBatch(chunk);
-      for (const original of chunk) {
-        pendingTextsRef.current.delete(original);
-        const normalizedOriginal = normalizeText(original);
-        const translatedText = translated[original] || translated[normalizedOriginal];
-        if (translatedText) {
-          const repaired = restoreProtectedAcronyms(original, translatedText);
-          cacheRef.current.set(original, repaired);
-          if (normalizedOriginal && normalizedOriginal !== original) {
-            cacheRef.current.set(normalizedOriginal, repaired);
+    try {
+      const chunkSize = 50;
+      for (let i = 0; i < texts.length; i += chunkSize) {
+        const chunk = texts.slice(i, i + chunkSize);
+        const translated = await translateBatch(chunk);
+        for (const original of chunk) {
+          pendingTextsRef.current.delete(original);
+          const normalizedOriginal = normalizeText(original);
+          const translatedText = translated[original] || translated[normalizedOriginal];
+          if (translatedText) {
+            const repaired = restoreProtectedAcronyms(original, translatedText);
+            cacheRef.current.set(original, repaired);
+            if (normalizedOriginal && normalizedOriginal !== original) {
+              cacheRef.current.set(normalizedOriginal, repaired);
+            }
           }
         }
       }
-    }
 
-    flushCacheToStorage();
-    refreshTranslatedDom();
+      flushCacheToStorage();
+      refreshTranslatedDom();
+    } catch (error) {
+      console.warn("[LanguageContext] translate-text failed:", error);
+      for (const original of texts) {
+        pendingTextsRef.current.delete(original);
+      }
+    }
   };
 
   const scheduleApiTranslation = (texts: string[]) => {

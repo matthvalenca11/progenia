@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { uiText, welcomeLine, translateModuleTitle } from "@/lib/uiTranslate";
+import { uiText, welcomeLine, translateModuleTitle, translateCmsText } from "@/lib/uiTranslate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -908,7 +908,7 @@ const Dashboard = () => {
                   onClick={() => navigate("/capsulas")}
                 >
                   <Pill className="h-3.5 w-3.5" />
-                  Todas as cápsulas
+                  {uiText(isEnglish ? "en" : "pt", "Todas as cápsulas")}
                 </Button>
               </div>
               <div className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -924,7 +924,7 @@ const Dashboard = () => {
                       ) : null}
                     </div>
                     <div className="p-3">
-                      <h3 className="line-clamp-2 text-sm font-semibold leading-snug">{capsula.title}</h3>
+                      <h3 className="line-clamp-2 text-sm font-semibold leading-snug">{translateCmsText(isEnglish ? "en" : "pt", capsula.title)}</h3>
                     </div>
                   </Card>
                 ))}
@@ -975,7 +975,7 @@ const Dashboard = () => {
                               className="h-8 min-w-0 flex-1 px-1 text-[11px]"
                               onClick={() => navigate(`/module/${module.id}/capsulas`)}
                             >
-                              Cápsulas
+                              {uiText(isEnglish ? "en" : "pt", "Cápsulas")}
                             </Button>
                             <Button
                               size="sm"
@@ -983,7 +983,7 @@ const Dashboard = () => {
                               className="h-8 min-w-0 flex-1 px-1 text-[11px]"
                               onClick={() => handleStartModule(module.id)}
                             >
-                              Aulas
+                              {uiText(isEnglish ? "en" : "pt", "Aulas")}
                             </Button>
                           </>
                         ) : (
@@ -1113,10 +1113,10 @@ const Dashboard = () => {
         {/* Welcome Section */}
         <div className="mb-8">
           <h1 className="mobile-page-title mb-2 content-break">
-            Bem-vindo de volta, {getFirstName(profile?.full_name)}!
+            {welcomeLine(isEnglish ? "en" : "pt", getFirstName(profile?.full_name))}
           </h1>
           <p className="text-muted-foreground text-lg">
-            Seu painel de aprendizagem
+            {uiText(isEnglish ? "en" : "pt", "Seu painel de aprendizagem")}
           </p>
           {profileHighlights.length > 0 && (
             <p className="text-sm text-muted-foreground mt-2">
@@ -1202,7 +1202,7 @@ const Dashboard = () => {
                 onClick={() => navigate("/capsulas")}
               >
                 <Pill className="h-4 w-4" />
-                Todas as cápsulas
+                {uiText(isEnglish ? "en" : "pt", "Todas as cápsulas")}
               </Button>
             </div>
             <div className="relative">
@@ -1242,12 +1242,12 @@ const Dashboard = () => {
                       </div>
                       <div className="p-6 flex flex-col flex-1">
                         <div className="inline-block px-2 py-1 bg-accent/10 text-accent text-xs rounded-full mb-2 w-fit">
-                          Cápsula Rápida
+                          {uiText(isEnglish ? "en" : "pt", "Cápsula Rápida")}
                         </div>
-                        <h3 className="content-break mb-2 text-lg font-semibold">{capsula.title}</h3>
-                        <p className="content-break mb-4 flex-1 text-sm text-muted-foreground line-clamp-2">{capsula.description}</p>
+                        <h3 className="content-break mb-2 text-lg font-semibold">{translateCmsText(isEnglish ? "en" : "pt", capsula.title)}</h3>
+                        <p className="content-break mb-4 flex-1 text-sm text-muted-foreground line-clamp-2">{translateCmsText(isEnglish ? "en" : "pt", capsula.description)}</p>
                         <Button size="sm" className="w-full mt-auto">
-                          Conferir <ArrowRight className="h-4 w-4 ml-2" />
+                          {uiText(isEnglish ? "en" : "pt", "Conferir")} <ArrowRight className="h-4 w-4 ml-2" />
                         </Button>
                       </div>
                     </Card>
@@ -1293,12 +1293,12 @@ const Dashboard = () => {
                 </div>
                 <div className="p-6 flex-1">
                   <div className="inline-block px-2 py-1 bg-accent/10 text-accent text-xs rounded-full mb-2">
-                    Cápsula em Progresso
+                    {uiText(isEnglish ? "en" : "pt", "Cápsula em Progresso")}
                   </div>
-                  <h3 className="font-semibold text-xl mb-2">{capsulaInacabada.title}</h3>
-                  <p className="text-muted-foreground mb-4">{capsulaInacabada.description}</p>
+                  <h3 className="font-semibold text-xl mb-2">{translateCmsText(isEnglish ? "en" : "pt", capsulaInacabada.title)}</h3>
+                  <p className="text-muted-foreground mb-4">{translateCmsText(isEnglish ? "en" : "pt", capsulaInacabada.description)}</p>
                   <Button>
-                    Continuar <ArrowRight className="h-4 w-4 ml-2" />
+                    {uiText(isEnglish ? "en" : "pt", "Continuar")} <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 </div>
               </div>
@@ -1339,7 +1339,7 @@ const Dashboard = () => {
                       </h3>
                     </div>
                     <p className="text-muted-foreground text-sm mb-4 line-clamp-3 content-break">
-                      {module.description}
+                      {translateCmsText(isEnglish ? "en" : "pt", module.description)}
                     </p>
                     <div className="mt-auto">
                       {enrolledModules.has(module.id) ? (
@@ -1376,7 +1376,7 @@ const Dashboard = () => {
                               onClick={(e) => handleUnenroll(module.id, e)}
                             >
                               <UserMinus className="mr-2 h-4 w-4" />
-                              Cancelar Matrícula
+                              {uiText(isEnglish ? "en" : "pt", "Cancelar Matrícula")}
                             </Button>
                           )}
                         </div>
