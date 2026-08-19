@@ -82,7 +82,7 @@ function storeTranslation(original: string, translated: string) {
   }
 }
 
-async function fetchTranslations(texts: string[]): Promise<Record<string, string>> {
+async function fetchTranslationsFromEdge(texts: string[]): Promise<Record<string, string>> {
   const { data, error } = await supabase.functions.invoke("translate-text", {
     body: { source: "pt", target: "en", texts },
   });
@@ -92,6 +92,39 @@ async function fetchTranslations(texts: string[]): Promise<Record<string, string
   }
 
   return data.translations as Record<string, string>;
+}
+
+async function translateTextDirectly(text: string): Promise<string> {
+  const url = new URL("https://translate.googleapis.com/translate_a/single");
+  url.searchParams.set("client", "gtx");
+  url.searchParams.set("sl", "pt");
+  url.searchParams.set("tl", "en");
+  url.searchParams.set("dt", "t");
+  url.searchParams.set("q", text);
+
+  const response = await fetch(url);
+  if (!response.ok) return text;
+
+  const payload = (await response.json()) as unknown;
+  if (!Array.isArray(payload) || !Array.isArray(payload[0])) return text;
+
+  const translated = payload[0]
+    .map((segment) => (Array.isArray(segment) && typeof segment[0] === "string" ? segment[0] : ""))
+    .join("");
+
+  return translated || text;
+}
+
+async function fetchTranslations(texts: string[]): Promise<Record<string, string>> {
+  try {
+    return await fetchTranslationsFromEdge(texts);
+  } catch (error) {
+    // Keep dynamic CMS content bilingual even if the Supabase Edge Function is
+    // unavailable or rejects the current app session.
+    console.warn("[translationClient] Edge translation unavailable; using direct fallback.", error);
+    const values = await Promise.all(texts.map((text) => translateTextDirectly(text)));
+    return Object.fromEntries(texts.map((text, index) => [text, values[index]]));
+  }
 }
 
 export async function translateTexts(texts: string[]): Promise<Record<string, string>> {
