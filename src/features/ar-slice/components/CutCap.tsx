@@ -57,6 +57,7 @@ export function CutCap({
   const activeModality = useArSliceMriStore((s) => s.activeModality);
   const volumePreset = MEDICAL_VOLUME_PRESETS[activeModality];
   const visualStyle = useArSliceStore((s) => s.visualStyle);
+  const poseFrozen = useArSliceStore((s) => s.poseFrozen);
   const hologram = visualStyle === "hologram";
 
   const segs = isNativeMobile ? 28 : 72;
@@ -145,37 +146,11 @@ export function CutCap({
     pendingKey.current = null;
   }, [volume]);
 
-  const scheduleTextureRebuild = (key: string, worldRadius: number) => {
-    pendingKey.current = key;
-    if (rebuildTimer.current) return;
-    // Yield past the current rAF so coalesced BLE samples flush first.
-    rebuildTimer.current = window.setTimeout(() => {
-      rebuildTimer.current = 0;
-      const nextKey = pendingKey.current;
-      pendingKey.current = null;
-      // Allow rebuild while frozen so finger-orbit keeps the MRI slice in sync.
-      if (!nextKey || !volume) return;
-      if (nextKey === lastPlaneKey.current) return;
-      const now = performance.now();
-      // If BLE is already starving, wait — never rebuild on a cold stream.
-      const bleStarving = isNativeMobile && poseBuffer.packetAgeMs > 220;
-      const tooSoon = isNativeMobile && now - lastTextureUpdateAt.current < 90;
-      if (bleStarving || tooSoon) {
-        pendingKey.current = nextKey;
-        const wait = bleStarving
-          ? 100
-          : Math.max(8, 90 - (now - lastTextureUpdateAt.current));
-        rebuildTimer.current = window.setTimeout(() => {
-          rebuildTimer.current = 0;
-          if (pendingKey.current) {
-            scheduleTextureRebuild(pendingKey.current, worldRadius);
-          }
-        }, wait);
-        return;
-      }
-      lastPlaneKey.current = nextKey;
-      lastTextureUpdateAt.current = now;
-      updateMriSliceTexture(mriTex, volume, cutPlaneRef.current, {
+  const rebuildTexture = (key: string, worldRadius: number) => {
+    if (!volume || key === lastPlaneKey.current) return;
+    lastPlaneKey.current = key;
+    lastTextureUpdateAt.current = performance.now();
+    updateMriSliceTexture(mriTex, volume, cutPlaneRef.current, {
         displayScale,
         halfExtents: computeDisplayHalfExtents(volume, displayScale),
       }, {
@@ -202,6 +177,47 @@ export function CutCap({
         tangent: sliceTangentRef.current,
         bitangent: sliceBitangentRef.current,
       });
+  };
+
+  const scheduleTextureRebuild = (key: string, worldRadius: number) => {
+    pendingKey.current = key;
+    if (poseFrozen) {
+      // The anatomy mesh and aro already move directly with the finger. Update
+      // the sampled texture in the same render frame so its content does not
+      // visibly trail them by the mobile 90 ms BLE budget.
+      if (rebuildTimer.current) {
+        window.clearTimeout(rebuildTimer.current);
+        rebuildTimer.current = 0;
+      }
+      pendingKey.current = null;
+      rebuildTexture(key, worldRadius);
+      return;
+    }
+    if (rebuildTimer.current) return;
+    // Yield past the current rAF so coalesced BLE samples flush first.
+    rebuildTimer.current = window.setTimeout(() => {
+      rebuildTimer.current = 0;
+      const nextKey = pendingKey.current;
+      pendingKey.current = null;
+      if (!nextKey || !volume) return;
+      const now = performance.now();
+      // If BLE is already starving, wait — never rebuild on a cold stream.
+      const bleStarving = isNativeMobile && poseBuffer.packetAgeMs > 220;
+      const tooSoon = isNativeMobile && now - lastTextureUpdateAt.current < 90;
+      if (bleStarving || tooSoon) {
+        pendingKey.current = nextKey;
+        const wait = bleStarving
+          ? 100
+          : Math.max(8, 90 - (now - lastTextureUpdateAt.current));
+        rebuildTimer.current = window.setTimeout(() => {
+          rebuildTimer.current = 0;
+          if (pendingKey.current) {
+            scheduleTextureRebuild(pendingKey.current, worldRadius);
+          }
+        }, wait);
+        return;
+      }
+      rebuildTexture(nextKey, worldRadius);
     }, 0);
   };
 

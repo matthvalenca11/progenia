@@ -1,6 +1,7 @@
 import type { Quaternion } from "@/features/ar-slice/ble/protocol";
 import {
   IDENTITY_QUAT,
+  quatConjugate,
   quatMultiply,
   quatNormalize,
 } from "@/features/ar-slice/poseMath";
@@ -25,6 +26,7 @@ function axisAngleQuat(ax: number, ay: number, az: number, angle: number): Quate
  */
 class TouchReferenceOffset {
   private quat: Quaternion = { ...IDENTITY_QUAT };
+  private frozenBaseQuat: Quaternion = { ...IDENTITY_QUAT };
 
   reset() {
     this.quat = { ...IDENTITY_QUAT };
@@ -32,6 +34,27 @@ class TouchReferenceOffset {
 
   getQuat(): Quaternion {
     return this.quat;
+  }
+
+  setQuat(quat: Quaternion) {
+    this.quat = quatNormalize(quat);
+  }
+
+  beginFreeze() {
+    this.frozenBaseQuat = { ...this.quat };
+  }
+
+  endFreeze() {
+    this.frozenBaseQuat = { ...IDENTITY_QUAT };
+  }
+
+  getFrozenBaseQuat(): Quaternion {
+    return this.frozenBaseQuat;
+  }
+
+  /** World/view-space finger rotation accumulated since Freeze was tapped. */
+  getFrozenDeltaQuat(): Quaternion {
+    return quatNormalize(quatMultiply(this.quat, quatConjugate(this.frozenBaseQuat)));
   }
 
   /** Pixel deltas from a one-finger drag on the lab canvas. */

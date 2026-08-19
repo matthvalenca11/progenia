@@ -17,14 +17,14 @@ function pose(x: number, y: number, z: number): FramePose {
 }
 
 describe("CameraTranslationDrive", () => {
-  it("commits a stable vertical displacement", () => {
+  it("reports positive depth for a stable upward displacement", () => {
     const drive = new CameraTranslationDrive();
     drive.ingest(pose(0, 0, -1), IDENTITY_QUAT, 0);
     expect(drive.ingest(pose(0, 0.03, -1), IDENTITY_QUAT, 100)).toBe(true);
-    expect(drive.getDepth()).toBeCloseTo(-0.03);
+    expect(drive.getDepth()).toBeCloseTo(0.03);
     drive.ingest(pose(0, 0.031, -1), IDENTITY_QUAT, 250);
     drive.ingest(pose(0, 0.031, -1), IDENTITY_QUAT, 450);
-    expect(drive.getDepth()).toBeCloseTo(-0.031);
+    expect(drive.getDepth()).toBeCloseTo(0.031);
   });
 
   it("selects normal motion when it dominates", () => {
@@ -32,7 +32,7 @@ describe("CameraTranslationDrive", () => {
     drive.ingest(pose(0, 0, -1), IDENTITY_QUAT, 0);
     drive.ingest(pose(0, 0.002, -0.95), IDENTITY_QUAT, 100);
     drive.ingest(pose(0, 0.002, -0.95), IDENTITY_QUAT, 450);
-    expect(drive.getDepth()).toBeCloseTo(-0.05);
+    expect(drive.getDepth()).toBeCloseTo(0.05);
   });
 
   it("rejects translation accompanied by rotation", () => {

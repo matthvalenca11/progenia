@@ -34,6 +34,12 @@ export const AR_SLICE_IMU = {
   linearGestureDeadbandMeters: 0.00005,
   /** Phone IMUs need a wider deadband than the dedicated BLE probe. */
   deviceLinearGestureDeadbandMeters: 0.003,
+  /**
+   * Default phone cut pose after Zero: phone upright starts with the ring
+   * tipped backward/downward, as if its screen were facing the floor.
+   * This affects only the device-sensor reference, never BLE frame axes.
+   */
+  deviceMotionDefaultPitchBackDeg: 90,
   /** Do not remap cut-normal axes here — breaks direction vs sense. */
   mirrorHorizontalNormal: false,
   invertVerticalNormal: false,

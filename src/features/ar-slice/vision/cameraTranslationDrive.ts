@@ -58,7 +58,7 @@ export class CameraTranslationDrive {
       this.lastAxisValue = this.axis === "normal" ? normal : vertical;
       this.stableSince = now;
       this.startQ = { ...q };
-      this.depth = this.committedDepth - this.lastAxisValue;
+      this.depth = this.committedDepth + this.lastAxisValue;
       this.lastGestureAt = now;
       return true;
     }
@@ -86,7 +86,7 @@ export class CameraTranslationDrive {
       this.stableSince = now;
     }
     this.lastAxisValue = value;
-    const nextDepth = this.committedDepth - value;
+    const nextDepth = this.committedDepth + value;
     const changed = Math.abs(nextDepth - this.depth) > 0.0005;
     this.depth = nextDepth;
     if (changed) this.lastGestureAt = now;

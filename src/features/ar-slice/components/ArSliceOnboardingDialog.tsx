@@ -14,7 +14,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { isNativeApp } from "@/lib/capacitor";
 import { cn } from "@/lib/utils";
 
-const ONBOARDING_KEY = "ar-slice:onboarding-v4-done";
+const ONBOARDING_KEY = "ar-slice:onboarding-v5-done";
 
 type Step = {
   title: string;
@@ -29,7 +29,7 @@ function buildSteps(isEnglish: boolean): Step[] {
           icon: Smartphone,
           title: "1. Start with device sensors",
           body:
-            "Device sensors start automatically. Hold the phone upright and tilt it to aim the slice. To use a ProGenia frame instead, open Settings and select BLE frame under Motion source.",
+            "Device sensors start automatically. With the phone upright, the ring starts tilted 90° backward/downward (screen-down reference). Tilt the phone to aim the slice. To use a ProGenia frame instead, open Settings and select BLE frame under Motion source.",
         },
         {
           icon: Camera,
@@ -55,7 +55,7 @@ function buildSteps(isEnglish: boolean): Step[] {
           icon: Smartphone,
           title: "1. Comece pelos sensores do aparelho",
           body:
-            "Os sensores do aparelho iniciam automaticamente. Segure o celular na vertical e incline para apontar o corte. Para usar a moldura ProGenia, abra Ajustes e selecione Moldura BLE em Fonte de movimento.",
+            "Os sensores do aparelho iniciam automaticamente. Com o celular na vertical, o aro começa inclinado 90° para trás/baixo (referência de tela para baixo). Incline o celular para apontar o corte. Para usar a moldura ProGenia, abra Ajustes e selecione Moldura BLE em Fonte de movimento.",
         },
         {
           icon: Camera,

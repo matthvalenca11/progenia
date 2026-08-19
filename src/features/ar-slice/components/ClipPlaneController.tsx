@@ -33,6 +33,7 @@ export function ClipPlaneController() {
   const { gl, camera } = useThree();
   const depthOffset = useArSliceStore((s) => s.depthOffset);
   const autoSliceFromGravity = useArSliceStore((s) => s.autoSliceFromGravity);
+  const poseFrozen = useArSliceStore((s) => s.poseFrozen);
   const visualStyle = useArSliceStore((s) => s.visualStyle);
   const mriVolume = useArSliceMriStore((s) => s.volume);
   const medicalVolumeLoading = useArSliceMriStore((s) => s.loading);
@@ -52,6 +53,7 @@ export function ClipPlaneController() {
   const visualTargetQ = useMemo(() => new THREE.Quaternion(), []);
   const visualPoseQ = useMemo(() => new THREE.Quaternion(), []);
   const touchOffsetQ = useMemo(() => new THREE.Quaternion(), []);
+  const frozenTouchBaseQ = useMemo(() => new THREE.Quaternion(), []);
   const visualTargetScale = useMemo(() => new THREE.Vector3(), []);
   const contentWorldScale = useMemo(() => new THREE.Vector3(1, 1, 1), []);
 
@@ -93,8 +95,26 @@ export function ClipPlaneController() {
 
     if (contentRef.current) {
       // Finger drag: live → brain only; frozen → brain + aro (via getAppliedPose).
-      const tq = touchReference.getQuat();
+      const tq = poseFrozen
+        ? touchReference.getFrozenDeltaQuat()
+        : touchReference.getQuat();
       touchOffsetQ.set(tq.x, tq.y, tq.z, tq.w);
+      const frozenTouchBase = touchReference.getFrozenBaseQuat();
+      frozenTouchBaseQ.set(
+        frozenTouchBase.x,
+        frozenTouchBase.y,
+        frozenTouchBase.z,
+        frozenTouchBase.w,
+      );
+      const applyTouchToVolume = () => {
+        if (poseFrozen) {
+          // Keep the volume's exact pre-freeze reference, then apply the same
+          // world/view-space delta used by the frozen cutting ring.
+          visualTargetQ.multiply(frozenTouchBaseQ).premultiply(touchOffsetQ);
+        } else {
+          visualTargetQ.multiply(touchOffsetQ);
+        }
+      };
 
       const hasVisualAnchor =
         frameTrackingEnabled &&
@@ -118,7 +138,7 @@ export function ClipPlaneController() {
           );
           visualTargetQ.copy(camera.quaternion).multiply(visualPoseQ);
         }
-        visualTargetQ.multiply(touchOffsetQ);
+        applyTouchToVolume();
         visualTargetScale.setScalar(p.scale);
         const dist = contentRef.current.position.distanceTo(visualTarget);
         const scaleDelta = Math.abs(
@@ -147,7 +167,8 @@ export function ClipPlaneController() {
         visualTarget
           .set(0, -0.02, HOLOGRAM_FALLBACK_Z)
           .applyMatrix4(camera.matrixWorld);
-        visualTargetQ.copy(camera.quaternion).multiply(touchOffsetQ);
+        visualTargetQ.copy(camera.quaternion);
+        applyTouchToVolume();
         visualTargetScale.setScalar(HOLOGRAM_FALLBACK_SCALE);
         contentRef.current.position.copy(visualTarget);
         contentRef.current.quaternion.copy(visualTargetQ);
@@ -157,7 +178,8 @@ export function ClipPlaneController() {
         visualTarget.set(0, 0, 0);
         // Keep the cutting ring's neutral pose unchanged while presenting the
         // brain in a more useful oblique, slightly superior default view.
-        visualTargetQ.copy(DEFAULT_BRAIN_VIEW).multiply(touchOffsetQ);
+        visualTargetQ.copy(DEFAULT_BRAIN_VIEW);
+        applyTouchToVolume();
         visualTargetScale.setScalar(1);
         contentRef.current.position.lerp(visualTarget, 0.12);
         contentRef.current.quaternion.copy(visualTargetQ);
@@ -185,11 +207,14 @@ export function ClipPlaneController() {
 
     // Aro sits on the cut — moves with depth along the moldura normal.
     capCenter.set(planes.anchor.x, planes.anchor.y, planes.anchor.z);
-    // Always remove the same (superior) side of the cut. This must follow the
-    // cut's own normal, not the camera, so orbiting or pitching never swaps
-    // the displayed anatomical half.
-    clipPlane.normal.copy(cutPlane.normal);
-    clipPlane.constant = cutPlane.constant;
+    // Remove the volume above the aro. The opposite plane preserves the lower
+    // half of the anatomy and remains stable while the camera orbits.
+    clipPlane.normal.set(
+      planes.clip.normal.x,
+      planes.clip.normal.y,
+      planes.clip.normal.z,
+    );
+    clipPlane.constant = planes.clip.constant;
     // Bias into the kept half-space so the cap is never removed by the clip.
     capRender.copy(capCenter).addScaledVector(clipPlane.normal, -AR_SLICE_CUT_CAP.planeEpsilon);
   });

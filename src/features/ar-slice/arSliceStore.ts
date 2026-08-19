@@ -7,9 +7,11 @@ import {
   IDENTITY_QUAT,
   MOUNT_PRESETS,
   type MountPresetId,
+  absoluteDisplayFromImu,
   applyMountAndZero,
   frameCutBasis,
   frameFrontNormal,
+  quatFromAxisAngle,
   quatConjugate,
   quatMultiply,
   quatNormalize,
@@ -81,6 +83,10 @@ export type PoseBuffer = {
    */
   poseFrozen: boolean;
   frozenDisplay: Quaternion;
+  /** Sensor pose immediately before freezing; restored when released. */
+  frozenLiveDisplay: Quaternion;
+  /** Brain-only finger reference that existed before freezing. */
+  frozenTouchReference: Quaternion;
   frozenGravityScrollDepth: number;
   frozenLinearGestureDepth: number;
   frozenLinearGestureOffset: Vec3;
@@ -106,6 +112,8 @@ export const poseBuffer: PoseBuffer = {
   sampleHz: 0,
   poseFrozen: false,
   frozenDisplay: { ...IDENTITY_QUAT },
+  frozenLiveDisplay: { ...IDENTITY_QUAT },
+  frozenTouchReference: { ...IDENTITY_QUAT },
   frozenGravityScrollDepth: 0,
   frozenLinearGestureDepth: 0,
   frozenLinearGestureOffset: { x: 0, y: 0, z: 0 },
@@ -140,11 +148,32 @@ export function getAppliedPose() {
 function snapshotFrozenPose() {
   // Bake current finger offset out so touch ⊗ frozenDisplay == live cut at freeze.
   const tq = touchReference.getQuat();
+  poseBuffer.frozenLiveDisplay = { ...poseBuffer.display };
+  poseBuffer.frozenTouchReference = { ...tq };
   poseBuffer.frozenDisplay = quatMultiply(quatConjugate(tq), poseBuffer.display);
   poseBuffer.frozenGravityScrollDepth = poseBuffer.gravityScrollDepth;
   poseBuffer.frozenLinearGestureDepth = poseBuffer.linearGestureDepth;
   poseBuffer.frozenLinearGestureOffset = { ...poseBuffer.linearGestureOffset };
   poseBuffer.frozenFilteredNormal = { ...poseBuffer.filteredNormal };
+}
+
+function restoreLivePoseFromFreeze(qMount: Quaternion) {
+  // Rebase the live IMU zero at its current reading. This makes releasing
+  // Freeze return to the exact sensor pose from the moment Freeze was tapped,
+  // instead of jumping to motion accumulated while it was frozen.
+  const qAbs = absoluteDisplayFromImu(poseBuffer.imu, qMount);
+  localZero = quatNormalize(
+    quatMultiply(poseBuffer.frozenLiveDisplay, quatConjugate(qAbs)),
+  );
+  poseBuffer.raw = { ...poseBuffer.frozenLiveDisplay };
+  poseBuffer.display = { ...poseBuffer.frozenLiveDisplay };
+  poseBuffer.gravityCal = resolveGravityCalibrated(
+    poseBuffer.imu,
+    qMount,
+    localZero,
+    poseBuffer.gravityImu ?? undefined,
+  );
+  poseBuffer.filteredNormal = frameFrontNormal(poseBuffer.display);
 }
 
 let lastSampleTs = 0;
@@ -332,9 +361,13 @@ export const useArSliceStore = create<ArSliceState>((set, get) => ({
   setPoseFrozen: (poseFrozen) => {
     if (poseFrozen) {
       snapshotFrozenPose();
+      touchReference.beginFreeze();
     } else {
-      // Back to live IMU cut — clear free-orbit finger offset.
-      touchReference.reset();
+      // Restore both the sensor pose and the brain reference that existed
+      // before freezing; free-orbit changes are intentionally discarded.
+      restoreLivePoseFromFreeze(get().qMount);
+      touchReference.setQuat(poseBuffer.frozenTouchReference);
+      touchReference.endFreeze();
     }
     poseBuffer.poseFrozen = poseFrozen;
     set({ poseFrozen });
@@ -407,13 +440,22 @@ export const useArSliceStore = create<ArSliceState>((set, get) => ({
   },
 
   captureLocalZero: () => {
-    const { qMount } = get();
+    const { qMount, transport } = get();
     // Orientation zero lives here. Firmware ZERO only clears depth + fw qZero.
     localZero = flatZeroFromImu(
       poseBuffer.imu,
       qMount,
       poseBuffer.gravityImu,
     );
+    if (transport === "device-motion") {
+      // Keep the phone's motion axes intact while setting its initial ring
+      // pose 90° backward/downward (screen-down reference).
+      const defaultPitchBack = quatFromAxisAngle(
+        { x: 1, y: 0, z: 0 },
+        (AR_SLICE_IMU.deviceMotionDefaultPitchBackDeg * Math.PI) / 180,
+      );
+      localZero = quatNormalize(quatMultiply(defaultPitchBack, localZero));
+    }
     // Use the same gravity-aware calibrated frame for BLE and device motion.
     // Device-specific axis remapping made front/back pitch rotate the ring
     // around the scene's side axis, producing an unintended vertical plane.
@@ -701,7 +743,15 @@ export function tickPoseBuffer(now = performance.now()) {
     useArSliceStore.getState().transport === "device-motion"
       ? AR_SLICE_IMU.linearGestureMetersToScene
       : AR_SLICE_IMU.bleLinearGestureMetersToScene;
-  const depthSign = useArSliceStore.getState().invertLinearDepth ? -1 : 1;
+  const transport = useArSliceStore.getState().transport;
+  // Device-motion reports a positive portrait-Y displacement while the
+  // screen-down default ring pose needs that movement to advance upward.
+  // BLE retains its physical +Z convention; the Settings switch still flips
+  // either source from its respective default.
+  const defaultDepthSign = transport === "device-motion" ? -1 : 1;
+  const depthSign = useArSliceStore.getState().invertLinearDepth
+    ? -defaultDepthSign
+    : defaultDepthSign;
   poseBuffer.linearGestureDepth = linearMeters * s * depthSign;
   // Offset lives purely along depth; ClipPlane steps the cut along its normal.
   poseBuffer.linearGestureOffset = {
