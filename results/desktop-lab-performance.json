@@ -1,0 +1,42 @@
+{
+  "generatedAt": "2026-08-20T03:38:25.331Z",
+  "environment": {
+    "os": "darwin 25.5.0",
+    "cpu": "Apple M4",
+    "logicalCpus": 10,
+    "browser": "Playwright Chromium headed",
+    "viewport": "1440x1000",
+    "warmupMs": 2000,
+    "frameWindows": 3,
+    "updatesPerWindow": 40,
+    "sampleDurationMs": 5000
+  },
+  "results": [
+    {
+      "lab": "therapeutic_ultrasound",
+      "frameSamples": 1802,
+      "controlSamples": 120,
+      "updateLatencyMs": {
+        "median": 16.69999998807907,
+        "p95": 24.91499997675419
+      },
+      "fps": {
+        "mean": 120.61720508921739,
+        "p5": 108.69565217392594
+      }
+    },
+    {
+      "lab": "photobiomodulation",
+      "frameSamples": 1803,
+      "controlSamples": 120,
+      "updateLatencyMs": {
+        "median": 16.69999998807907,
+        "p95": 17.80000001192093
+      },
+      "fps": {
+        "mean": 120.40800139290943,
+        "p5": 108.69565217390445
+      }
+    }
+  ]
+}

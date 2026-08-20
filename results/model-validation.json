@@ -1,0 +1,50 @@
+{
+  "generatedAt": "2026-08-20T03:21:05.474Z",
+  "protocol": {
+    "therapeuticUltrasound": {
+      "frequenciesMHz": [
+        1,
+        1.5,
+        3
+      ],
+      "dutyCyclesPercent": [
+        10,
+        50,
+        100
+      ],
+      "depthsCm": "0.0–6.0 in 0.2 cm samples",
+      "coupling": "good",
+      "beamProfile": "planar",
+      "output": "tissue transmission and SATA-equivalent intensity"
+    },
+    "photobiomodulation": {
+      "wavelengthsNm": [
+        660,
+        808
+      ],
+      "depthsMm": "0.0–45.0 in 0.5 mm samples",
+      "layers": "1 mm epidermis, 4 mm dermis, 15 mm adipose, 25 mm muscle",
+      "output": "relative fluence"
+    }
+  },
+  "metrics": {
+    "ultrasoundTransmission": {
+      "cases": 279,
+      "mae": 7.461176240760461e-19,
+      "rmse": 5.933394561836702e-18,
+      "mapePercent": 3.205743954211652e-16
+    },
+    "ultrasoundSata": {
+      "cases": 9,
+      "mae": 0,
+      "rmse": 0,
+      "mapePercent": 0
+    },
+    "photobioFluence": {
+      "cases": 182,
+      "mae": 2.0092291688786315e-17,
+      "rmse": 3.3903883226733737e-17,
+      "mapePercent": 1.1112990666415388e-14
+    }
+  }
+}
